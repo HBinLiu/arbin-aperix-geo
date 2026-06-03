@@ -1,0 +1,267 @@
+@import './styles/theme.css' layer(base);
+
+@import 'tailwindcss';
+
+@plugin 'tailwindcss-animate';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --shadow-app-card: var(--app-card-shadow);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-app-sidebar: var(--app-sidebar);
+  --color-sidebar: var(--app-sidebar);
+  --color-sidebar-nav: var(--sidebar-nav);
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@utility setup-panel-bg {
+  background-color: var(--muted);
+  background-image: url('/assets/imgs/setup-light.png');
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+@utility setup-step-active {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--foreground-shine) 50%,
+    transparent 100%
+  );
+  background-size: 100px 100%;
+  background-repeat: no-repeat;
+  background-clip: text;
+  -webkit-background-clip: text;
+  animation: setup-shiny 2.5s ease-in-out infinite;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-white text-foreground antialiased;
+    font-family: var(--font-geist);
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+}
+
+@keyframes setup-shiny {
+  0% {
+    background-position: -100% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes shell-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes shell-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shell-pulse-glow {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes shell-shake {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-6deg);
+  }
+  75% {
+    transform: rotate(6deg);
+  }
+}
+
+@keyframes shell-drift {
+  0%,
+  100% {
+    transform: translateX(0);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateX(6px);
+    opacity: 1;
+  }
+}
+
+@keyframes shell-bounce-soft {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes shell-spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes shell-spin-reverse {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+@utility shell-float {
+  animation: shell-float 4s ease-in-out infinite;
+}
+
+@utility shell-fade-up {
+  animation: shell-fade-up 0.55s ease-out both;
+}
+
+@utility shell-pulse-glow {
+  animation: shell-pulse-glow 2.8s ease-in-out infinite;
+}
+
+@utility shell-shake {
+  transform-origin: center;
+  animation: shell-shake 2.5s ease-in-out infinite;
+}
+
+@utility shell-drift {
+  animation: shell-drift 3s ease-in-out infinite;
+}
+
+@utility shell-bounce-soft {
+  animation: shell-bounce-soft 2.2s ease-in-out infinite;
+}
+
+@utility shell-spin-slow {
+  animation: shell-spin-slow 8s linear infinite;
+}
+
+@utility shell-spin-reverse {
+  animation: shell-spin-reverse 5s linear infinite;
+}
+
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(1rem) translateY(0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) translateY(0);
+  }
+}
+
+@utility toast-slide-in {
+  animation: toast-slide-in 0.35s ease-out both;
+}
+
+@keyframes auth-panel-bg-pan {
+  0% {
+    background-position: 22% 48%;
+    transform: scale(1.02);
+  }
+  50% {
+    background-position: 78% 52%;
+    transform: scale(1.04);
+  }
+  100% {
+    background-position: 22% 48%;
+    transform: scale(1.02);
+  }
+}
+
+@utility auth-right-panel-bg {
+  background-size: cover;
+  background-position: center;
+  animation: auth-panel-bg-pan 80s ease-in-out infinite;
+}
+
