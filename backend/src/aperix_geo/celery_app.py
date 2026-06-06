@@ -26,7 +26,7 @@ def make_celery() -> Celery:
         accept_content=["json"],
         timezone="UTC",
         enable_utc=True,
-        beat_schedule_filename=str(_BACKEND_DIR / "celerybeat.db"),
+        beat_schedule_filename=str(_BACKEND_DIR / "celerybeat"),
         beat_schedule={
             "sampling-scheduler-tick": {
                 "task": "aperix_geo.tasks.sampling.sampling_scheduled_tick",
