@@ -20,8 +20,10 @@ from aperix_geo.db.models import (
     SamplingJobStatus,
 )
 from aperix_geo.db.session import SessionLocal
+from aperix_geo.services.sampling.finalize import finalize_sampling_job_db
 from aperix_geo.services.sampling.parser import parse_llm_output
 from aperix_geo.services.sampling.llm import SamplingLLMError, chat_for_platform, rate_limit_for_platform
+from aperix_geo.services.sampling.recovery import reconcile_stale_sampling_jobs
 from aperix_geo.services.subject.loader import competitor_lists, load_subject_with_competitors
 
 
@@ -114,7 +116,7 @@ def sample_one_prompt(self, response_id: str) -> dict:
         row.usage = usage
         row.latency_ms = latency_ms
         row.status = LLMResponseStatus.success
-        row.error_text = None
+        row.error_text = ""
         _bump_job_counter(db, job.id, success=True)
         db.commit()
         return {"ok": True}
@@ -125,32 +127,9 @@ def sample_one_prompt(self, response_id: str) -> dict:
 @celery_app.task
 def sampling_finalize_job(results: list, job_id: str) -> None:
     """Reconcile job counters and terminal status (results from chord ignored)."""
-    jid = UUID(job_id)
     db = SessionLocal()
     try:
-        job = db.get(SamplingJob, jid)
-        if not job:
-            return
-        rows = db.execute(select(LLMResponse).where(LLMResponse.sampling_job_id == jid)).scalars().all()
-        ok = sum(1 for r in rows if r.status == LLMResponseStatus.success)
-        fail = sum(1 for r in rows if r.status == LLMResponseStatus.failed)
-        pending = sum(1 for r in rows if r.status == LLMResponseStatus.pending)
-        job.completed_items = ok
-        job.failed_items = fail
-        if pending:
-            job.status = SamplingJobStatus.partial
-            job.error_message = f"{pending} response(s) still pending after workers finished"
-        elif fail == 0:
-            job.status = SamplingJobStatus.succeed
-            job.error_message = None
-        elif ok == 0:
-            job.status = SamplingJobStatus.failed
-            job.error_message = "All sampling items failed"
-        else:
-            job.status = SamplingJobStatus.partial
-            job.error_message = None
-        job.finished_at = datetime.now(UTC)
-        db.commit()
+        finalize_sampling_job_db(db, UUID(job_id))
     finally:
         db.close()
 
@@ -186,6 +165,17 @@ def sampling_orchestrate_job(job_id: str) -> None:
 
 
 @celery_app.task
+def sampling_recover_stale_jobs(*, force: bool = False) -> dict:
+    """Re-enqueue or finalize sampling jobs stuck in queued/running."""
+    db = SessionLocal()
+    try:
+        recovered = reconcile_stale_sampling_jobs(db, force=force)
+        return {"recovered": recovered}
+    finally:
+        db.close()
+
+
+@celery_app.task
 def sampling_scheduled_tick() -> dict:
     """Enqueue sampling jobs for subjects whose interval has elapsed."""
     from aperix_geo.services.sampling.jobs import SamplingJobError, enqueue_subject_sampling
@@ -196,6 +186,7 @@ def sampling_scheduled_tick() -> dict:
     skipped = 0
     errors: list[str] = []
     try:
+        reconcile_stale_sampling_jobs(db)
         due_subjects = find_subjects_due_for_scheduled_sampling(db)
         for subject in due_subjects:
             try:

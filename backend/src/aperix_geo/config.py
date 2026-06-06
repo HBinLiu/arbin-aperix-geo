@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     celery_result_backend: str = "redis://localhost:6379/2"
 
     sampling_scheduler_tick_seconds: int = Field(default=900, ge=60, le=3600)
+    # 重启后 queued/running 且无 worker 推进时，超过该秒数视为 stale 并重新入队
+    sampling_stale_job_seconds: int = Field(default=90, ge=30, le=600)
+    sampling_resume_debounce_seconds: int = Field(default=90, ge=30, le=600)
     # 开发调试入口：curl 手动触发采样（须同时设 SAMPLING_DEBUG_ENABLED 与 SAMPLING_DEBUG_SECRET）
     sampling_debug_enabled: bool = False
     sampling_debug_secret: str = ""

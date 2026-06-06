@@ -1,45 +1,57 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
 
-import { AnalysisDimensionView } from "@/components/analysis/AnalysisDimensionView";
-import { useAnalysisDateRange } from "@/hooks/useAnalysisContext";
+import { AnalysisFilterBar } from "@/components/analysis/common/AnalysisFilterBar";
+import { SentimentOverviewSection } from "@/components/analysis/sentiment/SentimentOverviewSection";
+import { SentimentResponsesSection } from "@/components/analysis/sentiment/SentimentResponsesSection";
 import { useAnalysisOutletContext } from "@/hooks/useAnalysisContext";
-import { fetchDailySentiment, fetchRank } from "@/api/analysis";
-import { buildBrandRankRows, formatRate, formatScore } from "@/lib/analysis";
-import { queryKeys } from "@/lib/queries";
+import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
+import { useDashboardContext } from "@/hooks/useDashboardContext";
+import { useSentimentAnalysis } from "@/hooks/useSentimentAnalysis";
+import { ANALYSIS_DIMENSIONS, ANALYSIS_FILTER_ALL, DEFAULT_ANALYSIS_FILTERS } from "@/lib/analysis";
+import type { AnalysisFilters } from "@/types";
+
+const SENTIMENT_META = ANALYSIS_DIMENSIONS.find((d) => d.id === "sentiment")!;
 
 /** 分析 · 情感倾向 */
 export function SentimentPage() {
   const { subjectId } = useAnalysisOutletContext();
-  const { from, to } = useAnalysisDateRange();
+  const { subject } = useDashboardContext();
+  const { platforms } = useAnalysisFilter();
 
-  const rankQuery = useQuery({
-    queryKey: queryKeys.analysisRank(subjectId, from, to),
-    queryFn: () => fetchRank(subjectId, from, to),
-  });
+  const [filters, setFilters] = useState<AnalysisFilters>(DEFAULT_ANALYSIS_FILTERS);
 
-  const dailyQuery = useQuery({
-    queryKey: queryKeys.analysisDailySentiment(subjectId, from, to),
-    queryFn: () => fetchDailySentiment(subjectId, from, to),
-  });
+  useEffect(() => {
+    setFilters((prev) => ({
+      ...prev,
+      regionId: ANALYSIS_FILTER_ALL,
+      topicId: ANALYSIS_FILTER_ALL,
+      platformId: ANALYSIS_FILTER_ALL,
+    }));
+  }, [subject.id]);
 
-  if (rankQuery.isLoading || dailyQuery.isLoading) {
-    return <div className="bg-muted h-72 animate-pulse rounded-lg" />;
-  }
+  const { isLoading, overview } = useSentimentAnalysis(subjectId, filters);
 
-  const rank = rankQuery.data;
-  const ownLabel = rank?.own_label ?? dailyQuery.data?.own_label ?? "";
+  const platformsMeta = useMemo(() => platforms, [platforms]);
 
   return (
-    <AnalysisDimensionView
-      dimension="sentiment"
-      singleSeries={dailyQuery.data?.series.map((p) => ({ date: p.date, value: p.value }))}
-      valueFormatter={(v) => formatScore(v)}
-      rankHeader="可见度"
-      rankRows={
-        rank
-          ? buildBrandRankRows(rank.visibility_share, undefined, ownLabel, (v) => formatRate(v))
-          : []
-      }
-    />
+    <>
+      <AnalysisFilterBar value={filters} onChange={setFilters} />
+
+      <div className="flex flex-col gap-4 px-6 py-4">
+        <header>
+          <h2 className="text-xl font-semibold tracking-tight">{SENTIMENT_META.label}</h2>
+          <p className="text-muted-foreground mt-1 max-w-3xl text-sm leading-relaxed">
+            {SENTIMENT_META.description}
+          </p>
+        </header>
+
+        <SentimentOverviewSection overview={overview} loading={isLoading} />
+        <SentimentResponsesSection
+          responses={overview.responses}
+          platformsMeta={platformsMeta}
+          loading={isLoading}
+        />
+      </div>
+    </>
   );
 }

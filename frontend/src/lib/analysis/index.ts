@@ -8,6 +8,7 @@ export {
   formatDelta,
   formatRank,
   formatRate,
+  formatRankMetric,
   formatScore,
   formatScoreDelta,
 } from "@/lib/analysis/format";
@@ -29,4 +30,63 @@ export {
   isAnalysisPathname,
   parseAnalysisDimension,
 } from "@/lib/analysis/nav";
-export { buildBrandRankRows, resolvePlatformMeta } from "@/lib/analysis/shared";
+export {
+  buildBrandRankRows,
+  resolvePlatformMeta,
+} from "@/lib/analysis/shared";
+export {
+  VISIBILITY_METRICS,
+  buildVisibilityMetricBundle,
+  buildVisibilityMetricBundles,
+  resolveVisibilityChartMode,
+  visibilityChartLabels,
+  VISIBILITY_CHART_HEIGHT,
+  VISIBILITY_RANK_TABLE_HEIGHT,
+  VISIBILITY_SECTION_HEIGHT,
+  type VisibilityChartMode,
+  type VisibilityMetricDefinition,
+  type VisibilityMetricId,
+  type VisibilityMetricBundle,
+  type VisibilityChartType,
+} from "@/lib/analysis/visibility";
+export {
+  PLATFORM_MATRIX_METRICS,
+  PLATFORM_PAGE_DESCRIPTION,
+  PLATFORM_PAGE_TITLE,
+  buildPlatformMatrixRows,
+  buildPlatformRankRows,
+  platformMatrixMetric,
+  type PlatformMatrixMetricDefinition,
+  type PlatformMatrixRow,
+} from "@/lib/analysis/platform";
+export {
+  buildChartLegendItems,
+  buildChartModel,
+  buildChartTooltipRows,
+  buildChartYAxis,
+  CHART_COLORS,
+  CHART_HEIGHT,
+  CHART_Y_LABEL_CHAR_WIDTH,
+  colorOfChartLabel,
+  computeChartDataMax,
+  computeChartYAxisWidth,
+  formatChartDayLabel,
+  formatChartTooltipDate,
+  getActiveChartLabels,
+  PREVIOUS_PERIOD_SUFFIX,
+  previousPeriodDataKey,
+  shouldOverlayPreviousPeriod,
+  SINGLE_SERIES_KEY,
+  toChartRows,
+  toLineConfigs,
+} from "@/lib/analysis/chart";
+export type {
+  ChartInput,
+  ChartLegendItem,
+  ChartModel,
+  ChartRow,
+  ChartTooltipRow,
+  LineConfig,
+  MultiSeriesPoint,
+  SingleSeriesPoint,
+} from "@/lib/analysis/chart";

@@ -64,6 +64,7 @@ def topics_performance(
     db: DbSession,
     current: CurrentUser,
     platform: Annotated[list[str] | None, Query()] = None,
+    topic_id: Annotated[UUID | None, Query()] = None,
 ) -> list[dict]:
     _sub(db, current, subject_id)
     f = parse_iso_datetime(dt_from)
@@ -74,6 +75,7 @@ def topics_performance(
         dt_from=f,
         dt_to=t,
         platforms=platform or None,
+        topic_id=topic_id,
     )
 
 
@@ -108,6 +110,7 @@ def prompts_performance(
     db: DbSession,
     current: CurrentUser,
     platform: Annotated[list[str] | None, Query()] = None,
+    topic_id: Annotated[UUID | None, Query()] = None,
 ) -> list[dict]:
     _sub(db, current, subject_id)
     f = parse_iso_datetime(dt_from)
@@ -118,6 +121,7 @@ def prompts_performance(
         dt_from=f,
         dt_to=t,
         platforms=platform or None,
+        topic_id=topic_id,
     )
 
 
@@ -144,8 +148,8 @@ def citations(
     )
 
 
-@router.get("/subjects/{subject_id}/daily-visibility")
-def daily_visibility(
+@router.get("/subjects/{subject_id}/visibility-analysis")
+def visibility_analysis(
     subject_id: UUID,
     dt_from: Annotated[str, Query(alias="from")],
     dt_to: Annotated[str, Query(alias="to")],
@@ -157,7 +161,7 @@ def daily_visibility(
     s = _sub(db, current, subject_id)
     f = parse_iso_datetime(dt_from)
     t = parse_iso_datetime(dt_to)
-    return analysis_svc.build_daily_visibility_series(
+    return analysis_svc.build_visibility_analysis(
         db,
         subject=s,
         dt_from=f,
@@ -190,6 +194,54 @@ def platforms_performance(
     )
 
 
+@router.get("/subjects/{subject_id}/platform-matrix")
+def platform_matrix(
+    subject_id: UUID,
+    dt_from: Annotated[str, Query(alias="from")],
+    dt_to: Annotated[str, Query(alias="to")],
+    db: DbSession,
+    current: CurrentUser,
+    platform: Annotated[list[str] | None, Query()] = None,
+    topic_id: Annotated[UUID | None, Query()] = None,
+) -> dict:
+    s = _sub(db, current, subject_id)
+    f = parse_iso_datetime(dt_from)
+    t = parse_iso_datetime(dt_to)
+    return analysis_svc.build_platform_matrix_analysis(
+        db,
+        subject=s,
+        dt_from=f,
+        dt_to=t,
+        platforms=platform or None,
+        topic_id=topic_id,
+    )
+
+
+@router.get("/subjects/{subject_id}/citation-analysis")
+def citation_analysis(
+    subject_id: UUID,
+    dt_from: Annotated[str, Query(alias="from")],
+    dt_to: Annotated[str, Query(alias="to")],
+    db: DbSession,
+    current: CurrentUser,
+    platform: Annotated[list[str] | None, Query()] = None,
+    topic_id: Annotated[UUID | None, Query()] = None,
+    prompt_id: Annotated[UUID | None, Query()] = None,
+) -> dict:
+    s = _sub(db, current, subject_id)
+    f = parse_iso_datetime(dt_from)
+    t = parse_iso_datetime(dt_to)
+    return analysis_svc.build_citation_analysis(
+        db,
+        subject=s,
+        dt_from=f,
+        dt_to=t,
+        platforms=platform or None,
+        topic_id=topic_id,
+        prompt_id=prompt_id,
+    )
+
+
 @router.get("/subjects/{subject_id}/citation-rank")
 def citation_rank(
     subject_id: UUID,
@@ -210,6 +262,31 @@ def citation_rank(
         dt_to=t,
         platforms=platform or None,
         topic_id=topic_id,
+    )
+
+
+@router.get("/subjects/{subject_id}/sentiment-analysis")
+def sentiment_analysis(
+    subject_id: UUID,
+    dt_from: Annotated[str, Query(alias="from")],
+    dt_to: Annotated[str, Query(alias="to")],
+    db: DbSession,
+    current: CurrentUser,
+    platform: Annotated[list[str] | None, Query()] = None,
+    topic_id: Annotated[UUID | None, Query()] = None,
+    prompt_id: Annotated[UUID | None, Query()] = None,
+) -> dict:
+    s = _sub(db, current, subject_id)
+    f = parse_iso_datetime(dt_from)
+    t = parse_iso_datetime(dt_to)
+    return analysis_svc.build_sentiment_analysis(
+        db,
+        subject=s,
+        dt_from=f,
+        dt_to=t,
+        platforms=platform or None,
+        topic_id=topic_id,
+        prompt_id=prompt_id,
     )
 
 

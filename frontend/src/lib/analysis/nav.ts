@@ -15,22 +15,25 @@ export const ANALYSIS_DIMENSIONS: {
   {
     id: "prompt",
     label: "提示词",
-    description: "各提示词下的可见度表现，帮助识别高价值质询场景。",
+    description: "在提示词层面分析产品可见度与表现，帮助理解 AI 搜索场景下的用户需求与转化潜力。",
   },
   {
     id: "platform",
     label: "AI 平台",
-    description: "不同大模型渠道下的品牌可见度与提及强度对比。",
+    description:
+      "全景式评估品牌在主流 AI 平台上的竞争站位，提示平台间的流量分布差异与特定算法的推荐偏好。",
   },
   {
     id: "sentiment",
     label: "情感倾向",
-    description: "AI 回答中对自有品牌的情感评分与分布趋势。",
+    description:
+      "AI 提及品牌时的情感倾向分析，监控品牌声誉与市场地位，洞察具体回复中的品牌表现并指导提升用户转化率。",
   },
   {
     id: "citation",
     label: "引用率",
-    description: "回答中引用品牌相关来源的比例，衡量权威背书程度。",
+    description:
+      "对 AI 提示词中引用您品牌的域名和页面进行分析，洞察品牌在各平台的引用表现与权威性，优化品牌投放与内容策略。",
   },
 ];
 

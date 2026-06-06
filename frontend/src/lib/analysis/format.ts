@@ -15,22 +15,51 @@ export function formatDelta(
 ): string | null {
   if (current == null || previous == null) return null;
   const delta = (current - previous) * 100;
-  if (Math.abs(delta) < 0.05) return "0.0%";
+  if (Math.abs(delta) < 0.05) return "0%";
   const sign = delta > 0 ? "+" : "";
   return `${sign}${delta.toFixed(1)}%`;
 }
 
+export function isNeutralDelta(delta: string | null | undefined): boolean {
+  return delta === "0%" || delta === "0.00";
+}
+
 export function formatRate(value: number | null | undefined, suffix = "%"): string {
-  if (value == null) return "暂无数据";
-  return `${(value * 100).toFixed(1)}${suffix}`;
+  if (value == null) return "-";
+  const pct = Math.round(value * 1000) / 10;
+  if (pct === 0) return `0${suffix}`;
+  return `${pct.toFixed(1)}${suffix}`;
 }
 
 export function formatScore(value: number | null | undefined): string {
-  if (value == null) return "暂无数据";
+  if (value == null) return "-";
   return value.toFixed(2);
 }
 
 export function formatRank(value: number | null | undefined): string {
-  if (value == null) return "暂无数据";
+  if (value == null) return "-";
   return `#${value.toFixed(1)}`;
+}
+
+/** 平均排名 KPI（不带 # 前缀） */
+export function formatRankMetric(value: number | null | undefined): string {
+  if (value == null) return "-";
+  return value.toFixed(1);
+}
+
+/** 情感得分（0–1 → 0–100 展示） */
+export function formatSentimentScore(value: number | null | undefined): string {
+  if (value == null) return "-";
+  return (value * 100).toFixed(1);
+}
+
+export function formatSentimentDelta(
+  current: number | null | undefined,
+  previous: number | null | undefined,
+): string | null {
+  if (current == null || previous == null) return null;
+  const delta = (current - previous) * 100;
+  if (Math.abs(delta) < 0.05) return "0.0";
+  const sign = delta > 0 ? "+" : "";
+  return `${sign}${delta.toFixed(1)}`;
 }

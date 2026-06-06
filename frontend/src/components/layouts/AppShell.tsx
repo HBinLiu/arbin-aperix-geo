@@ -76,7 +76,7 @@ export function AppShell({ children, headerStart }: AppShellProps) {
         </div>
       </header>
 
-      <main className="flex min-h-0 flex-1 bg-sidebar px-2.5 pb-2.5 pt-0">{children}</main>
+      <main className="flex min-h-0 min-w-0 w-full flex-1 bg-sidebar px-2.5 pb-2.5 pt-0">{children}</main>
     </div>
   );
 }

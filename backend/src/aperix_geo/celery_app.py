@@ -1,8 +1,13 @@
 """Celery application instance."""
 
+from pathlib import Path
+
 from celery import Celery
+from celery.signals import worker_ready
 
 from aperix_geo.config import get_settings
+
+_BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
 def make_celery() -> Celery:
@@ -21,6 +26,7 @@ def make_celery() -> Celery:
         accept_content=["json"],
         timezone="UTC",
         enable_utc=True,
+        beat_schedule_filename=str(_BACKEND_DIR / "celerybeat.db"),
         beat_schedule={
             "sampling-scheduler-tick": {
                 "task": "aperix_geo.tasks.sampling.sampling_scheduled_tick",
@@ -33,3 +39,10 @@ def make_celery() -> Celery:
 
 
 celery_app = make_celery()
+
+
+@worker_ready.connect
+def _recover_stale_sampling_jobs_on_worker_start(**kwargs) -> None:
+    from aperix_geo.tasks.sampling import sampling_recover_stale_jobs
+
+    sampling_recover_stale_jobs.delay(force=True)

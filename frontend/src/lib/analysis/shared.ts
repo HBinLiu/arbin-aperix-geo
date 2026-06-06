@@ -1,22 +1,34 @@
-import type { RankRow } from "@/components/analysis/AnalysisRankTable";
+import type { RankRow } from "@/components/analysis/common/AnalysisRankTable";
 import { formatDelta } from "@/lib/analysis/format";
 import type { SamplingPlatform } from "@/types";
 
+type DeltaFormatter = (
+  current: number | null | undefined,
+  previous: number | null | undefined,
+) => string | null;
+
 export function buildBrandRankRows(
-  current: Record<string, number>,
-  previous: Record<string, number> | undefined,
+  current: Record<string, number | null | undefined>,
+  previous: Record<string, number | null | undefined> | undefined,
   ownLabel: string,
-  formatter: (v: number) => string,
+  formatter: (v: number | null | undefined) => string,
+  deltaFormatter: DeltaFormatter = formatDelta,
 ): RankRow[] {
   return Object.keys(current)
-    .sort((a, b) => (current[b] ?? 0) - (current[a] ?? 0))
-    .map((label) => ({
-      id: label,
-      label,
-      value: formatter(current[label] ?? 0),
-      delta: formatDelta(current[label], previous?.[label]),
-      isOwn: label === ownLabel,
-    }));
+    .sort((a, b) => (current[b] ?? -1) - (current[a] ?? -1))
+    .map((label) => {
+      const valueNum = current[label];
+      const previousValue = previous?.[label];
+      return {
+        id: label,
+        label,
+        value: formatter(valueNum),
+        valueNum: valueNum ?? undefined,
+        delta: deltaFormatter(valueNum ?? undefined, previousValue ?? undefined),
+        deltaSortNum: previousValue != null && valueNum != null ? valueNum - previousValue : null,
+        isOwn: label === ownLabel,
+      };
+    });
 }
 
 export function resolvePlatformMeta(platform: string, platforms: SamplingPlatform[]): SamplingPlatform {

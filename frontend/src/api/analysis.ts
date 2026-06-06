@@ -5,14 +5,18 @@ import {
 } from "@/lib/analysis/filters";
 import type { AnalysisQueryFilters } from "@/types";
 import type {
+  CitationAnalysisData,
   CitationRankData,
   CitationsData,
   DailySentimentSeries,
-  DailyVisibilitySeries,
   OverviewMetrics,
   PlatformPerformance,
+  PlatformMatrixData,
   PromptPerformance,
   RankData,
+  SentimentAnalysisData,
+  TopicPerformance,
+  VisibilityAnalysisData,
 } from "@/types";
 
 export async function fetchOverview(
@@ -41,13 +45,41 @@ export async function fetchRank(
   return data;
 }
 
+export async function fetchTopicsPerformance(
+  subjectId: string,
+  from: string,
+  to: string,
+  filters?: AnalysisQueryFilters,
+): Promise<TopicPerformance[]> {
+  const { data } = await api.get<TopicPerformance[]>(`/subjects/${subjectId}/topics-performance`, {
+    params: buildAnalysisParams(from, to, filters),
+    paramsSerializer: ANALYSIS_PARAMS_SERIALIZER,
+  });
+  return data;
+}
+
 export async function fetchPromptsPerformance(
   subjectId: string,
   from: string,
   to: string,
+  filters?: AnalysisQueryFilters,
 ): Promise<PromptPerformance[]> {
   const { data } = await api.get<PromptPerformance[]>(`/subjects/${subjectId}/prompts-performance`, {
-    params: { from, to },
+    params: buildAnalysisParams(from, to, filters),
+    paramsSerializer: ANALYSIS_PARAMS_SERIALIZER,
+  });
+  return data;
+}
+
+export async function fetchPlatformMatrix(
+  subjectId: string,
+  from: string,
+  to: string,
+  filters?: AnalysisQueryFilters,
+): Promise<PlatformMatrixData> {
+  const { data } = await api.get<PlatformMatrixData>(`/subjects/${subjectId}/platform-matrix`, {
+    params: buildAnalysisParams(from, to, filters),
+    paramsSerializer: ANALYSIS_PARAMS_SERIALIZER,
   });
   return data;
 }
@@ -64,16 +96,35 @@ export async function fetchPlatformPerformance(
   return data;
 }
 
-export async function fetchDailyVisibility(
+export async function fetchVisibilityAnalysis(
   subjectId: string,
   from: string,
   to: string,
   filters?: AnalysisQueryFilters,
-): Promise<DailyVisibilitySeries> {
-  const { data } = await api.get<DailyVisibilitySeries>(`/subjects/${subjectId}/daily-visibility`, {
-    params: buildAnalysisParams(from, to, filters),
-    paramsSerializer: ANALYSIS_PARAMS_SERIALIZER,
-  });
+): Promise<VisibilityAnalysisData> {
+  const { data } = await api.get<VisibilityAnalysisData>(
+    `/subjects/${subjectId}/visibility-analysis`,
+    {
+      params: buildAnalysisParams(from, to, filters),
+      paramsSerializer: ANALYSIS_PARAMS_SERIALIZER,
+    },
+  );
+  return data;
+}
+
+export async function fetchCitationAnalysis(
+  subjectId: string,
+  from: string,
+  to: string,
+  filters?: AnalysisQueryFilters,
+): Promise<CitationAnalysisData> {
+  const { data } = await api.get<CitationAnalysisData>(
+    `/subjects/${subjectId}/citation-analysis`,
+    {
+      params: buildAnalysisParams(from, to, filters),
+      paramsSerializer: ANALYSIS_PARAMS_SERIALIZER,
+    },
+  );
   return data;
 }
 
@@ -85,6 +136,22 @@ export async function fetchCitationRank(
   const { data } = await api.get<CitationRankData>(`/subjects/${subjectId}/citation-rank`, {
     params: { from, to },
   });
+  return data;
+}
+
+export async function fetchSentimentAnalysis(
+  subjectId: string,
+  from: string,
+  to: string,
+  filters?: AnalysisQueryFilters,
+): Promise<SentimentAnalysisData> {
+  const { data } = await api.get<SentimentAnalysisData>(
+    `/subjects/${subjectId}/sentiment-analysis`,
+    {
+      params: buildAnalysisParams(from, to, filters),
+      paramsSerializer: ANALYSIS_PARAMS_SERIALIZER,
+    },
+  );
   return data;
 }
 

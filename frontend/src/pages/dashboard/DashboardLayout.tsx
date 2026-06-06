@@ -1,7 +1,7 @@
 import { Outlet, useLocation } from "react-router-dom";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
-import { AnalysisDimensionTabs } from "@/components/analysis/AnalysisDimensionTabs";
+import { AnalysisDimensionTabs } from "@/components/analysis/common/AnalysisDimensionTabs";
 import { SidebarSection } from "@/components/dashboard/SidebarSection";
 import { SubjectSwitcher } from "@/components/dashboard/SubjectSwitcher";
 import { AppShell } from "@/components/layouts/AppShell";
@@ -26,7 +26,7 @@ export function DashboardLayout() {
 
   return (
     <AppShell headerStart={<SubjectSwitcher />}>
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 min-w-0 w-full flex-1">
         <aside
           className={cn(
             "bg-app-sidebar flex shrink-0 flex-col pb-3 transition-[width] duration-200 ease-out",
@@ -55,7 +55,7 @@ export function DashboardLayout() {
         </aside>
 
         <main className="bg-white border-border shadow-[8px_10px_24px_-10px_rgba(15,23,42,0.12)] flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border">
-          <div className="border-border flex shrink-0 items-end border-b px-4">
+          <div className="border-border flex min-w-0 shrink-0 items-end border-b px-4">
             <div className="flex h-[42px] shrink-0 items-center pr-2">
               <button
                 type="button"
@@ -75,7 +75,7 @@ export function DashboardLayout() {
               </div>
             )}
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="min-h-0 min-w-0 w-full flex-1 overflow-x-hidden overflow-y-auto">
             <Outlet />
           </div>
         </main>

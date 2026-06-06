@@ -75,7 +75,12 @@ export function useSubjectPipeline(subjectId: string) {
     (pipeline?.parsed_count ?? 0) > 0 ||
     Boolean(job?.status && isJobTerminal(job.status) && (job.completed_items ?? 0) > 0);
 
-  const isRunning = stage === "dispatch" || stage === "clean";
+  const isComplete =
+    Boolean(job?.status && isJobTerminal(job.status)) &&
+    (pipeline?.response_count ?? 0) > 0 &&
+    (pipeline?.parsed_count ?? 0) >= (pipeline?.response_count ?? 0);
+
+  const isRunning = !isComplete && (stage === "dispatch" || stage === "clean");
   const isFailed =
     job?.status === "failed" &&
     (pipeline?.parsed_count ?? 0) === 0 &&
@@ -107,6 +112,7 @@ export function useSubjectPipeline(subjectId: string) {
     totalItems,
     canShowMetrics,
     isRunning,
+    isComplete,
     isFailed,
     currentStepIdx,
     isLoading: pipelineQuery.isLoading,

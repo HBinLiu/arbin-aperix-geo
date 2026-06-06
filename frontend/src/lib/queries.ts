@@ -19,21 +19,59 @@ export const queryKeys = {
     topicId = "all",
     platformId = "all",
   ) => ["analysis-rank", subjectId, from, to, topicId, platformId] as const,
-  analysisDailyVisibility: (
+  visibilityAnalysis: (
     subjectId: string,
     from: string,
     to: string,
     topicId = "all",
     platformId = "all",
-  ) => ["analysis-daily-visibility", subjectId, from, to, topicId, platformId] as const,
-  analysisPrompts: (subjectId: string, from: string, to: string) =>
-    ["analysis-prompts", subjectId, from, to] as const,
+  ) => ["visibility-analysis", subjectId, from, to, topicId, platformId] as const,
+  analysisPrompts: (
+    subjectId: string,
+    from: string,
+    to: string,
+    topicId = "all",
+    platformId = "all",
+  ) => ["analysis-prompts", subjectId, from, to, topicId, platformId] as const,
+  analysisTopics: (
+    subjectId: string,
+    from: string,
+    to: string,
+    topicId = "all",
+    platformId = "all",
+  ) => ["analysis-topics", subjectId, from, to, topicId, platformId] as const,
   analysisPlatforms: (subjectId: string, from: string, to: string) =>
     ["analysis-platforms", subjectId, from, to] as const,
-  analysisCitationRank: (subjectId: string, from: string, to: string) =>
-    ["analysis-citation-rank", subjectId, from, to] as const,
+  platformMatrix: (
+    subjectId: string,
+    from: string,
+    to: string,
+    topicId = "all",
+    platformId = "all",
+  ) => ["platform-matrix", subjectId, from, to, topicId, platformId] as const,
+  analysisCitationRank: (
+    subjectId: string,
+    from: string,
+    to: string,
+    topicId = "all",
+    platformId = "all",
+  ) => ["analysis-citation-rank", subjectId, from, to, topicId, platformId] as const,
+  citationAnalysis: (
+    subjectId: string,
+    from: string,
+    to: string,
+    topicId = "all",
+    platformId = "all",
+  ) => ["citation-analysis", subjectId, from, to, topicId, platformId] as const,
   analysisDailySentiment: (subjectId: string, from: string, to: string) =>
     ["analysis-daily-sentiment", subjectId, from, to] as const,
+  sentimentAnalysis: (
+    subjectId: string,
+    from: string,
+    to: string,
+    topicId = "all",
+    platformId = "all",
+  ) => ["sentiment-analysis", subjectId, from, to, topicId, platformId] as const,
   pipelineStatus: (subjectId: string) => ["pipeline-status", subjectId] as const,
   samplingJob: (jobId: string) => ["sampling-job", jobId] as const,
   samplingPlatforms: ["sampling-platforms"] as const,

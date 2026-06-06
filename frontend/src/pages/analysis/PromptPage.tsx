@@ -1,41 +1,90 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { Search, Settings2 } from "lucide-react";
 
-import { AnalysisDimensionView } from "@/components/analysis/AnalysisDimensionView";
-import { useAnalysisDateRange } from "@/hooks/useAnalysisContext";
+import { AnalysisFilterBar } from "@/components/analysis/common/AnalysisFilterBar";
+import { PromptPerformanceTable } from "@/components/analysis/prompt/PromptPerformanceTable";
+import { TopicPerformanceTable } from "@/components/analysis/prompt/TopicPerformanceTable";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useAnalysisOutletContext } from "@/hooks/useAnalysisContext";
-import { fetchPromptsPerformance } from "@/api/analysis";
-import { formatRate } from "@/lib/analysis";
-import { queryKeys } from "@/lib/queries";
+import { filterPromptRowsBySearch, usePromptAnalysis } from "@/hooks/usePromptAnalysis";
+import { useDashboardContext } from "@/hooks/useDashboardContext";
+import { ANALYSIS_FILTER_ALL, DEFAULT_ANALYSIS_FILTERS } from "@/lib/analysis";
+import { dashboardNavToPath } from "@/lib/dashboard";
+import type { AnalysisFilters } from "@/types";
 
-/** 分析 · 提示词 */
+const PAGE_TITLE = "提示词表现";
+const PAGE_DESCRIPTION =
+  "在提示词层面分析产品可见度与表现，帮助理解 AI 搜索场景下的用户需求与转化潜力。";
+
+/** 分析 · 提示词表现 */
 export function PromptPage() {
   const { subjectId } = useAnalysisOutletContext();
-  const { from, to } = useAnalysisDateRange();
+  const { subject } = useDashboardContext();
+  const [filters, setFilters] = useState<AnalysisFilters>(DEFAULT_ANALYSIS_FILTERS);
+  const [search, setSearch] = useState("");
 
-  const promptsQuery = useQuery({
-    queryKey: queryKeys.analysisPrompts(subjectId, from, to),
-    queryFn: () => fetchPromptsPerformance(subjectId, from, to),
-  });
+  useEffect(() => {
+    setFilters((prev) => ({
+      ...prev,
+      regionId: ANALYSIS_FILTER_ALL,
+      topicId: ANALYSIS_FILTER_ALL,
+      platformId: ANALYSIS_FILTER_ALL,
+    }));
+    setSearch("");
+  }, [subject.id]);
 
-  if (promptsQuery.isLoading) {
-    return <div className="bg-muted h-72 animate-pulse rounded-lg" />;
-  }
+  const { isLoading, topicRows, promptRows } = usePromptAnalysis(subjectId, filters);
 
-  const sorted = [...(promptsQuery.data ?? [])].sort(
-    (a, b) => (b.visibility_rate ?? 0) - (a.visibility_rate ?? 0),
+  const filteredPromptRows = useMemo(
+    () => filterPromptRowsBySearch(promptRows, search),
+    [promptRows, search],
   );
 
   return (
-    <AnalysisDimensionView
-      dimension="prompt"
-      valueFormatter={(v) => formatRate(v)}
-      rankHeader="可见度"
-      rankRows={sorted.slice(0, 10).map((p) => ({
-        id: p.prompt_id,
-        label: p.prompt_text.length > 40 ? `${p.prompt_text.slice(0, 40)}…` : p.prompt_text,
-        value: formatRate(p.visibility_rate),
-        delta: null,
-      }))}
-    />
+    <div className="flex w-full max-w-full min-w-0 flex-col">
+      <AnalysisFilterBar
+        value={filters}
+        onChange={setFilters}
+        afterFilters={
+          <div className="relative">
+            <Search
+              className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2"
+              aria-hidden
+            />
+            <Input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="搜索提示词"
+              controlSize="sm"
+              className="border-border h-9 w-[min(100%,220px)] rounded-lg bg-white pr-3 pl-9 text-xs shadow-none"
+              aria-label="搜索提示词"
+            />
+          </div>
+        }
+        trailing={
+          <Button variant="default" size="sm" className="h-9 rounded-lg px-3 text-xs" asChild>
+            <Link to={dashboardNavToPath("brand")}>
+              <Settings2 className="size-3.5" aria-hidden />
+              管理提示词
+            </Link>
+          </Button>
+        }
+      />
+
+      <div className="flex w-full max-w-full min-w-0 flex-col gap-4 px-6 py-4">
+        <header>
+          <h2 className="text-xl font-semibold tracking-tight">{PAGE_TITLE}</h2>
+          <p className="text-muted-foreground mt-1 max-w-3xl text-sm leading-relaxed">
+            {PAGE_DESCRIPTION}
+          </p>
+        </header>
+
+        <TopicPerformanceTable rows={topicRows} loading={isLoading} />
+        <PromptPerformanceTable rows={filteredPromptRows} loading={isLoading} />
+      </div>
+    </div>
   );
 }
