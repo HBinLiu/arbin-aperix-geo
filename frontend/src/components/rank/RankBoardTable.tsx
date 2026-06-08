@@ -3,7 +3,6 @@ import { useMemo, useState } from "react";
 
 import { buildBrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
 import {
-  ColumnHelp,
   EmptyMetricCell,
   SentimentMetricCell,
 } from "@/components/analysis/prompt/PerformanceMetricCells";
@@ -12,11 +11,13 @@ import { performanceTableClasses } from "@/components/analysis/prompt/performanc
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  BRAND_LEADERBOARD_COLUMNS,
-  BRAND_LEADERBOARD_MIN_WIDTH,
-  sortBrandLeaderboardRows,
-  type BrandLeaderboardRow,
-  type BrandLeaderboardSortColumn,
+  RANK_BOARD_BRAND_COL_WIDTH,
+  RANK_BOARD_COLUMNS,
+  RANK_BOARD_INDEX_COL_WIDTH,
+  RANK_BOARD_MIN_WIDTH,
+  sortRankBoardRows,
+  type RankBoardRow,
+  type RankBoardSortColumn,
 } from "@/lib/dashboard/rank";
 import { cn } from "@/lib/utils";
 
@@ -24,15 +25,15 @@ type SortDir = "asc" | "desc";
 type HeaderMode = "default" | SortDir;
 
 type SortState = {
-  column: BrandLeaderboardSortColumn;
+  column: RankBoardSortColumn;
   dir: HeaderMode;
 };
 
 const DEFAULT_SORT: SortState = { column: "visibility", dir: "desc" };
 
-function cycleSort(state: SortState, column: BrandLeaderboardSortColumn): SortState {
+function cycleSort(state: SortState, column: RankBoardSortColumn): SortState {
   if (state.column !== column) {
-    const col = BRAND_LEADERBOARD_COLUMNS.find((c) => c.id === column)!;
+    const col = RANK_BOARD_COLUMNS.find((c) => c.id === column)!;
     return { column, dir: col.higherIsBetter ? "desc" : "asc" };
   }
   if (state.dir === "desc") return { column, dir: "asc" };
@@ -41,14 +42,13 @@ function cycleSort(state: SortState, column: BrandLeaderboardSortColumn): SortSt
 }
 
 type SortableHeaderProps = {
-  column: BrandLeaderboardSortColumn;
+  column: RankBoardSortColumn;
   label: string;
-  description?: string;
   sort: SortState;
-  onSort: (column: BrandLeaderboardSortColumn) => void;
+  onSort: (column: RankBoardSortColumn) => void;
 };
 
-function SortableHeader({ column, label, description, sort, onSort }: SortableHeaderProps) {
+function SortableHeader({ column, label, sort, onSort }: SortableHeaderProps) {
   const isActive = sort.column === column && sort.dir !== "default";
   const mode = sort.column === column ? sort.dir : "default";
 
@@ -73,24 +73,23 @@ function SortableHeader({ column, label, description, sort, onSort }: SortableHe
       onClick={() => onSort(column)}
     >
       <span>{label}</span>
-      {description ? <ColumnHelp label={label} description={description} /> : null}
       {sortIcon}
     </button>
   );
 }
 
-function BrandLeaderboardSkeletonRows({ count = 5 }: { count?: number }) {
+function RankBoardSkeletonRows({ count = 5 }: { count?: number }) {
   return (
     <>
       {Array.from({ length: count }).map((_, rowIndex) => (
         <tr key={rowIndex} className={performanceTableClasses.row} aria-hidden>
-          <td className="pl-5">
-            <Skeleton className="h-4 w-8" />
+          <td className="tabular-nums">
+            <Skeleton className="h-4 w-5" />
           </td>
           <td>
             <Skeleton className="h-4 w-28" />
           </td>
-          {BRAND_LEADERBOARD_COLUMNS.map((column) => (
+          {RANK_BOARD_COLUMNS.map((column) => (
             <td key={column.id}>
               <Skeleton className="h-4 w-16" />
             </td>
@@ -105,21 +104,21 @@ function metricCellClass(active: boolean): string {
   return cn("font-medium tabular-nums", active && "text-primary");
 }
 
-type BrandLeaderboardTableProps = {
-  rows: BrandLeaderboardRow[];
+type RankBoardTableProps = {
+  rows: RankBoardRow[];
   loading?: boolean;
   className?: string;
 };
 
 /** 排行榜 · 品牌全指标对比表 */
-export function BrandLeaderboardTable({ rows, loading = false, className }: BrandLeaderboardTableProps) {
+export function RankBoardTable({ rows, loading = false, className }: RankBoardTableProps) {
   const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
 
   const sortedRows = useMemo(() => {
     if (sort.dir === "default") {
-      return sortBrandLeaderboardRows(rows, "visibility", "desc");
+      return sortRankBoardRows(rows, "visibility", "desc");
     }
-    return sortBrandLeaderboardRows(rows, sort.column, sort.dir);
+    return sortRankBoardRows(rows, sort.column, sort.dir);
   }, [rows, sort]);
 
   const activeColumn = sort.dir === "default" ? "visibility" : sort.column;
@@ -128,13 +127,13 @@ export function BrandLeaderboardTable({ rows, loading = false, className }: Bran
     <PerformanceTableShell
       className={className}
       loading={loading}
-      scrollMinWidth={BRAND_LEADERBOARD_MIN_WIDTH}
+      scrollMinWidth={RANK_BOARD_MIN_WIDTH}
     >
       <table className={performanceTableClasses.topicTable}>
         <colgroup>
-          <col style={{ width: "6%" }} />
-          <col style={{ width: "26%" }} />
-          {BRAND_LEADERBOARD_COLUMNS.map((column) => (
+          <col style={{ width: RANK_BOARD_INDEX_COL_WIDTH }} />
+          <col style={{ width: RANK_BOARD_BRAND_COL_WIDTH }} />
+          {RANK_BOARD_COLUMNS.map((column) => (
             <col key={column.id} style={{ width: column.width }} />
           ))}
         </colgroup>
@@ -142,12 +141,11 @@ export function BrandLeaderboardTable({ rows, loading = false, className }: Bran
           <tr>
             <th className="pl-5">#</th>
             <th>品牌</th>
-            {BRAND_LEADERBOARD_COLUMNS.map((column) => (
+            {RANK_BOARD_COLUMNS.map((column) => (
               <th key={column.id}>
                 <SortableHeader
                   column={column.id}
                   label={column.label}
-                  description={column.description}
                   sort={sort}
                   onSort={(next) => setSort((prev) => cycleSort(prev, next))}
                 />
@@ -157,11 +155,11 @@ export function BrandLeaderboardTable({ rows, loading = false, className }: Bran
         </thead>
         <tbody>
           {loading ? (
-            <BrandLeaderboardSkeletonRows />
+            <RankBoardSkeletonRows />
           ) : sortedRows.length === 0 ? (
             <tr>
               <td
-                colSpan={BRAND_LEADERBOARD_COLUMNS.length + 2}
+                colSpan={RANK_BOARD_COLUMNS.length + 2}
                 className="text-muted-foreground px-5 py-10 text-center text-sm"
               >
                 暂无排行榜数据
@@ -170,7 +168,7 @@ export function BrandLeaderboardTable({ rows, loading = false, className }: Bran
           ) : (
             sortedRows.map((row, index) => (
               <tr key={row.id} className={performanceTableClasses.row}>
-                <td className="text-muted-foreground pl-5 tabular-nums">#{index + 1}</td>
+                <td className="text-foreground pl-5 tabular-nums">#{index + 1}</td>
                 <td>
                   <div className="flex items-center gap-2 whitespace-nowrap">
                     {buildBrandRankIcon(row.label)}

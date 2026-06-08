@@ -1,21 +1,33 @@
-"""站点 favicon：解析首页 link、常见路径、魔数校验与内存缓存。"""
+"""站点 favicon 解析与缓存。
+
+入口：``GET /api/v1/favicon?domain=...`` → ``resolve_favicon``。
+
+读取：内存（24h）→ 磁盘 primary → 网络抓取（静态路径 → HTML link/meta → headless）。
+
+磁盘：``{FAVICON_STORAGE_DIR}/{domain}/index.json`` + 图标文件；``primary`` 为对外返回的那一张，
+同批抓取成功的其余图标仅存档。写入时首个成功者设为 primary 并回填内存。
+"""
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 import time
 from html import unescape
+from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
 import httpx
 
+from aperix_geo.config import get_settings
 from aperix_geo.utils.domains import (
     is_valid_hostname,
     registrable_domain,
     strip_hostname,
 )
 from aperix_geo.utils.http import HTML_PAGE_FETCH_HEADERS, ICON_FETCH_HEADERS
-from aperix_geo.utils.url import homepage_urls
+from aperix_geo.utils.url import homepage_urls, hostname_from_url
 
 _HTML_FETCH_HEADERS = HTML_PAGE_FETCH_HEADERS
 
@@ -30,6 +42,7 @@ _CONNECT_TIMEOUT_S = 1.5
 _HEADLESS_MIN_TIMEOUT_S = 8.0
 
 _LINK_TAG_RE = re.compile(r"<link\b([^>]+)>", re.IGNORECASE)
+_META_TAG_RE = re.compile(r"<meta\b([^>]+)>", re.IGNORECASE)
 _ATTR_RE = re.compile(
     r"""\b([a-zA-Z_:.-]+)\s*=\s*["']([^"']*)["']""",
     re.IGNORECASE,
@@ -41,6 +54,18 @@ _STANDARD_ICON_PATHS = (
     "/assets/favicon.ico",
     "/static/favicon.ico",
 )
+_CDN_HOST_PREFIXES = ("static", "cdn", "img", "assets")
+_QUICK_FAVICON_PATHS = ("/favicon.ico", "/favicon.png", "/apple-touch-icon.png")
+_HTML_ASSET_HOST_RE = re.compile(r"""(?:src|href)\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
+_META_IMAGE_PROPS = frozenset({"og:image", "twitter:image", "twitter:image:src"})
+_MEDIA_EXT = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+    "image/svg+xml": ".svg",
+    "image/x-icon": ".ico",
+}
 
 _cache: dict[str, tuple[float, bytes, str]] = {}
 
@@ -51,17 +76,30 @@ def _dedupe_urls(urls: list[str]) -> list[str]:
 
 def normalize_favicon_domain(raw: str) -> str:
     """
-    统一为 eTLD+1 主域名（与竞品入库、前端 registrableDomain 一致）。
+    归一 favicon 主机名：去 www / 端口；gov 等子站保留完整主机名（如 yjj.gxzf.gov.cn）。
 
-    接受：主域名、www、子域名、带路径的 URL、含端口的主机名片段。
+    主域（wise.com）仍归一为 eTLD+1；多一级子域不折叠到父域，避免抓错 favicon。
     """
-    host = registrable_domain(raw)
-    if not host:
-        host = strip_hostname(raw)
+    host = strip_hostname(raw).split(":")[0].strip().lower()
+    if host.startswith("www."):
+        host = host[4:]
     if not host:
         return ""
-    # 去掉可能残留的端口
-    return host.split(":")[0].strip().lower()
+    root = registrable_domain(host)
+    if root and host != root and host.endswith(f".{root}"):
+        return host
+    return root or host
+
+
+def _favicon_homepage_urls(host: str) -> list[str]:
+    """favicon 抓取用的首页候选；gov 子站等只请求自身主机，不扩散到父域 www。"""
+    host = host.strip().lower()
+    if not host:
+        return []
+    root = registrable_domain(host)
+    if root and host != root and host.endswith(f".{root}"):
+        return [f"https://{host}/"]
+    return homepage_urls(host) or [f"https://{host}/"]
 
 
 def _cache_get(domain: str) -> tuple[bytes, str] | None:
@@ -80,6 +118,114 @@ def _cache_set(domain: str, body: bytes, media_type: str) -> None:
         oldest = min(_cache.items(), key=lambda x: x[1][0])[0]
         _cache.pop(oldest, None)
     _cache[domain] = (time.monotonic() + _CACHE_TTL_S, body, media_type)
+
+
+def _storage_root() -> Path:
+    root = Path(get_settings().favicon_storage_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def ensure_storage_dir() -> Path:
+    """启动时创建 favicon 持久化根目录（懒写入，首次抓取后才有域名子目录）。"""
+    return _storage_root()
+
+
+def _domain_store_dir(domain: str) -> Path:
+    return _storage_root() / domain
+
+
+def _index_path(domain: str) -> Path:
+    return _domain_store_dir(domain) / "index.json"
+
+
+def _ext_for(media_type: str, url: str) -> str:
+    mt = media_type.split(";")[0].strip().lower()
+    if mt in _MEDIA_EXT:
+        return _MEDIA_EXT[mt]
+    path = urlparse(url).path.lower()
+    for ext in (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico"):
+        if path.endswith(ext):
+            return ".jpg" if ext == ".jpeg" else ext
+    return ".bin"
+
+
+def _file_key_for_url(url: str) -> str:
+    return hashlib.sha256(url.encode()).hexdigest()[:16]
+
+
+def _load_index(domain: str) -> dict:
+    path = _index_path(domain)
+    if not path.is_file():
+        return {"primary": None, "items": []}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"primary": None, "items": []}
+    if not isinstance(data, dict):
+        return {"primary": None, "items": []}
+    items = data.get("items")
+    if not isinstance(items, list):
+        items = []
+    return {"primary": data.get("primary"), "items": items}
+
+
+def _write_index(domain: str, index: dict) -> None:
+    store = _domain_store_dir(domain)
+    store.mkdir(parents=True, exist_ok=True)
+    _index_path(domain).write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _load_primary_from_disk(domain: str) -> tuple[bytes, str] | None:
+    index = _load_index(domain)
+    primary = index.get("primary")
+    if not primary:
+        return None
+    items = index.get("items") or []
+    item = next((row for row in items if isinstance(row, dict) and row.get("file") == primary), None)
+    if not item:
+        return None
+    body_path = _domain_store_dir(domain) / str(item["file"])
+    if not body_path.is_file():
+        return None
+    media_type = str(item.get("media_type") or "image/x-icon")
+    return body_path.read_bytes(), media_type
+
+
+def _save_icon_to_disk(
+    domain: str,
+    *,
+    url: str,
+    body: bytes,
+    media_type: str,
+    primary: bool,
+) -> str:
+    store = _domain_store_dir(domain)
+    store.mkdir(parents=True, exist_ok=True)
+    filename = f"{_file_key_for_url(url)}{_ext_for(media_type, url)}"
+    (store / filename).write_bytes(body)
+
+    index = _load_index(domain)
+    items = [row for row in index["items"] if isinstance(row, dict) and row.get("file") != filename]
+    items.append({"file": filename, "url": url, "media_type": media_type})
+    index["items"] = items
+    if primary or not index.get("primary"):
+        index["primary"] = filename
+    _write_index(domain, index)
+    return filename
+
+
+def _persist_icon(
+    domain: str,
+    *,
+    url: str,
+    body: bytes,
+    media_type: str,
+    primary: bool,
+) -> None:
+    _save_icon_to_disk(domain, url=url, body=body, media_type=media_type, primary=primary)
+    if primary:
+        _cache_set(domain, body, media_type)
 
 
 def _resolve_href(page_url: str, href: str) -> str | None:
@@ -139,10 +285,10 @@ def _classify_link_rel(rel: str) -> int | None:
     """返回排序权重，越小越优先。"""
     rel_l = rel.lower().strip()
     rel_tokens = _split_rel_tokens(rel_l)
-    if "icon" not in rel_tokens:
-        return None
     if "apple-touch-icon" in rel_l:
         return 0
+    if "icon" not in rel_tokens:
+        return None
     if "fluid-icon" in rel_l or "mask-icon" in rel_l:
         return 2
     if "shortcut" in rel_tokens:
@@ -170,16 +316,77 @@ def _parse_link_icons(html: str, page_url: str) -> list[str]:
     return list(dict.fromkeys(u for _, _, u in ranked))
 
 
-def _parse_icon_hrefs(html: str, page_url: str) -> list[str]:
-    """兼容旧测试名：仅解析 link 图标候选。"""
-    return _parse_link_icons(html, page_url)
+def _parse_meta_images(html: str, page_url: str) -> list[str]:
+    """解析 og:image / twitter:image 等 meta 图标候选。"""
+    found: list[str] = []
+    for m in _META_TAG_RE.finditer(html):
+        attrs = _parse_link_tag_attrs(m.group(1))
+        prop = (attrs.get("property") or attrs.get("name") or "").lower()
+        if prop not in _META_IMAGE_PROPS:
+            continue
+        content = attrs.get("content", "").strip()
+        resolved = _resolve_href(page_url, content) if content else None
+        if resolved:
+            found.append(resolved)
+    return list(dict.fromkeys(found))
+
+
+def _collect_page_icon_urls(html: str, page_url: str) -> list[str]:
+    return _dedupe_urls(_parse_link_icons(html, page_url) + _parse_meta_images(html, page_url))
+
+
+def _host_belongs_to_domain(host: str, root_domain: str) -> bool:
+    h = host.lower().strip(".")
+    root = root_domain.lower()
+    return h == root or h.endswith(f".{root}")
+
+
+def _related_hosts_from_html(html: str, root_domain: str) -> list[str]:
+    """从页面 href/src 提取同根域名的其它主机（如 static.example.com）。"""
+    hosts: list[str] = []
+    seen: set[str] = set()
+    for m in _HTML_ASSET_HOST_RE.finditer(html):
+        raw = unescape(m.group(1).strip())
+        if not raw or raw.startswith(("javascript:", "data:", "mailto:", "#")):
+            continue
+        if raw.startswith("//"):
+            raw = f"https:{raw}"
+        host = hostname_from_url(raw if "://" in raw else f"https://{raw.lstrip('/')}")
+        if not host or not _host_belongs_to_domain(host, root_domain):
+            continue
+        if host in seen:
+            continue
+        seen.add(host)
+        hosts.append(host)
+    return hosts
+
+
+def _favicon_urls_for_hosts(hosts: list[str]) -> list[str]:
+    urls: list[str] = []
+    for host in hosts:
+        base = f"https://{host}/"
+        for path in _QUICK_FAVICON_PATHS:
+            urls.append(urljoin(base, path))
+    return _dedupe_urls(urls)
+
+
+def _cdn_subdomain_urls(domain: str) -> list[str]:
+    """常见静态资源子域上的 favicon 路径（无 HTML 时的启发式）。"""
+    urls: list[str] = []
+    for prefix in _CDN_HOST_PREFIXES:
+        base = f"https://{prefix}.{domain}/"
+        for path in _QUICK_FAVICON_PATHS:
+            urls.append(urljoin(base, path))
+    return _dedupe_urls(urls)
 
 
 def _standard_path_urls(domain: str) -> list[str]:
     urls: list[str] = []
-    for home in homepage_urls(domain) or []:
+    for home in _favicon_homepage_urls(domain):
         for path in _STANDARD_ICON_PATHS:
             urls.append(urljoin(home, path))
+        urls.append(urljoin(home, "/apple-touch-icon.png"))
+    urls.extend(_cdn_subdomain_urls(domain))
     return _dedupe_urls(urls)
 
 
@@ -293,6 +500,70 @@ def _iter_crawl_results(raw: object) -> list[object]:
     return [raw]
 
 
+def _referer_for_url(url: str) -> str | None:
+    parsed = urlparse(url)
+    if parsed.scheme in ("http", "https") and parsed.netloc:
+        return f"{parsed.scheme}://{parsed.netloc}/"
+    return None
+
+
+def _is_ssl_error(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    return any(token in msg for token in ("certificate", "ssl", "tlsv1", "hostname mismatch"))
+
+
+async def _client_get(
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    timeout: httpx.Timeout,
+    headers: dict[str, str] | None = None,
+) -> httpx.Response | None:
+    """GET with one retry using verify=False when the site has a misissued cert (common on gov.cn)."""
+    try:
+        return await client.get(
+            url,
+            follow_redirects=True,
+            timeout=timeout,
+            headers=headers,
+        )
+    except httpx.HTTPError as exc:
+        if not _is_ssl_error(exc):
+            return None
+    async with httpx.AsyncClient(
+        headers=client.headers,
+        follow_redirects=True,
+        verify=False,
+    ) as insecure:
+        try:
+            return await insecure.get(
+                url,
+                follow_redirects=True,
+                timeout=timeout,
+                headers=headers,
+            )
+        except httpx.HTTPError:
+            return None
+
+
+async def _warm_homepage_cookies(
+    client: httpx.AsyncClient,
+    domain: str,
+    *,
+    timeout_s: float,
+) -> None:
+    """先访问首页拿 Cookie；部分 WAF 站点直连 /favicon.ico 会 403。"""
+    for home in _favicon_homepage_urls(domain):
+        resp = await _client_get(
+            client,
+            home,
+            timeout=_request_timeout(timeout_s),
+            headers=_HTML_FETCH_HEADERS,
+        )
+        if resp is not None:
+            return
+
+
 async def _fetch_icon_bytes(
     client: httpx.AsyncClient,
     url: str,
@@ -303,15 +574,20 @@ async def _fetch_icon_bytes(
         return _decode_data_url(url)
 
     try:
-        resp = await client.get(
+        req_headers: dict[str, str] = {}
+        referer = _referer_for_url(url)
+        if referer:
+            req_headers["Referer"] = referer
+        resp = await _client_get(
+            client,
             url,
-            follow_redirects=True,
             timeout=_request_timeout(timeout_s),
+            headers=req_headers or None,
         )
     except httpx.HTTPError:
         return None
 
-    if resp.status_code >= 400:
+    if resp is None or resp.status_code >= 400:
         return None
 
     body = resp.content
@@ -336,16 +612,21 @@ async def _try_fetch_candidates(
     source: str,
 ) -> tuple[tuple[bytes, str] | None, int]:
     """
-    顺序尝试候选 URL，首个成功即返回。
+    顺序尝试候选 URL，全部成功结果写入磁盘；返回优先级最高的首个命中。
     返回：(命中结果或 None, 实际尝试次数)。
     """
     attempted = 0
+    best: tuple[bytes, str] | None = None
     for url in _dedupe_urls(candidates):
         attempted += 1
         got = await _fetch_icon_bytes(client, url, timeout_s=timeout_s)
-        if got:
-            return got, attempted
-    return None, attempted
+        if not got:
+            continue
+        body, media = got
+        _persist_icon(host, url=url, body=body, media_type=media, primary=best is None)
+        if best is None:
+            best = (body, media)
+    return best, attempted
 
 
 async def _icons_from_homepage(
@@ -355,23 +636,22 @@ async def _icons_from_homepage(
     timeout_s: float,
 ) -> list[str]:
     found: list[str] = []
-    for home in homepage_urls(domain) or []:
-        try:
-            resp = await client.get(
-                home,
-                follow_redirects=True,
-                timeout=_request_timeout(timeout_s),
-                headers=_HTML_FETCH_HEADERS,
-            )
-        except httpx.HTTPError:
-            continue
-        if resp.status_code >= 500:
+    for home in _favicon_homepage_urls(domain):
+        resp = await _client_get(
+            client,
+            home,
+            timeout=_request_timeout(timeout_s),
+            headers=_HTML_FETCH_HEADERS,
+        )
+        if resp is None or resp.status_code >= 500:
             continue
         page_url = str(resp.url)
         html = resp.text[:_MAX_HOMEPAGE_HTML_CHARS]
-        page_icons = _parse_icon_hrefs(html, page_url)
-        if page_icons:
-            found.extend(page_icons)
+        page_icons = _collect_page_icon_urls(html, page_url)
+        asset_icons = _favicon_urls_for_hosts(_related_hosts_from_html(html, domain))
+        combined = _dedupe_urls(page_icons + asset_icons)
+        if combined:
+            found.extend(combined)
             break
     return _dedupe_urls(found)
 
@@ -380,7 +660,7 @@ async def _icons_from_rendered_homepage(domain: str, *, timeout_s: float) -> lis
     """
     JS 渲染兜底：当原始 HTML 未给出 icon 时，使用 headless 渲染后再解析。
     """
-    homes = homepage_urls(domain) or []
+    homes = _favicon_homepage_urls(domain)
     if not homes:
         return []
     try:
@@ -410,9 +690,11 @@ async def _icons_from_rendered_homepage(domain: str, *, timeout_s: float) -> lis
                     html = _extract_crawl_html(item)[:_MAX_RENDERED_HTML_CHARS]
                     if not html:
                         continue
-                    page_icons = _parse_icon_hrefs(html, page_url)
-                    if page_icons:
-                        return page_icons
+                    page_icons = _collect_page_icon_urls(html, page_url)
+                    asset_icons = _favicon_urls_for_hosts(_related_hosts_from_html(html, domain))
+                    combined = _dedupe_urls(page_icons + asset_icons)
+                    if combined:
+                        return combined
     except Exception:
         return []
 
@@ -432,55 +714,50 @@ async def resolve_favicon(
     if cached:
         return cached
 
+    stored = _load_primary_from_disk(host)
+    if stored:
+        body, media = stored
+        _cache_set(host, body, media)
+        return stored
+
     # 解析与抓取分为三阶段：
-    # 1) 常见静态路径；2) 原始 HTML（link）；3) headless 渲染兜底。
-    tried = 0
+    # 1) 常见静态路径；2) 原始 HTML（link/meta）；3) headless 渲染兜底。
     standard_urls = _standard_path_urls(host)
-    page_icons: list[str] = []
-    rendered_icons: list[str] = []
     async with httpx.AsyncClient(headers=ICON_FETCH_HEADERS) as client:
-        got, attempted = await _try_fetch_candidates(
+        await _warm_homepage_cookies(client, host, timeout_s=timeout_s)
+        got, _ = await _try_fetch_candidates(
             client,
             host,
             standard_urls,
             timeout_s=timeout_s,
             source="standard",
         )
-        tried += attempted
         if got:
-            body, media = got
-            _cache_set(host, body, media)
-            return body, media
+            return got
 
         page_icons = await _icons_from_homepage(client, host, timeout_s=timeout_s)
-        got, attempted = await _try_fetch_candidates(
+        got, _ = await _try_fetch_candidates(
             client,
             host,
             page_icons,
             timeout_s=timeout_s,
             source="homepage",
         )
-        tried += attempted
         if got:
-            body, media = got
-            _cache_set(host, body, media)
-            return body, media
+            return got
 
         rendered_icons = await _icons_from_rendered_homepage(
             host,
             timeout_s=max(timeout_s, _HEADLESS_MIN_TIMEOUT_S),
         )
-        got, attempted = await _try_fetch_candidates(
+        got, _ = await _try_fetch_candidates(
             client,
             host,
             rendered_icons,
             timeout_s=timeout_s,
             source="rendered",
         )
-        tried += attempted
         if got:
-            body, media = got
-            _cache_set(host, body, media)
-            return body, media
+            return got
 
     return None

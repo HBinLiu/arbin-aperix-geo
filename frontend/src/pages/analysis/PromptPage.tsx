@@ -66,7 +66,7 @@ export function PromptPage() {
         }
         trailing={
           <Button variant="default" size="sm" className="h-9 rounded-lg px-3 text-xs" asChild>
-            <Link to={dashboardNavToPath("brand")}>
+            <Link to={dashboardNavToPath("prompt")}>
               <Settings2 className="size-3.5" aria-hidden />
               管理提示词
             </Link>

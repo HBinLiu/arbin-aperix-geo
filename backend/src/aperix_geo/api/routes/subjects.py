@@ -4,27 +4,20 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
-from sqlalchemy.orm import Session
 
-from aperix_geo.api.deps import CurrentUser, DbSession
+from aperix_geo.api.deps import CurrentUser, DbSession, get_subject_for_user
 from aperix_geo.api.routes import subject_setup
-from aperix_geo.db.models import Subject, SubjectType, User
+from aperix_geo.db.models import Subject, SubjectType
 from aperix_geo.schemas.catalog import SubjectCreate, SubjectOut, SubjectUpdate
 from aperix_geo.services.subject.domain_fields import apply_subject_domain_fields
 from aperix_geo.services.sampling.schedule import validate_sampling_interval
 from aperix_geo.services.sampling.subject import validate_sampling_platforms
 from aperix_geo.services.subject.rules import validate_subject_fields
 from aperix_geo.utils.coerce import normalize_monitoring_scope
+from aperix_geo.utils.domains import ensure_brand
 
 router = APIRouter(prefix="/subjects", tags=["subjects"])
 router.include_router(subject_setup.router)
-
-
-def _get_subject(db: Session, user: User, subject_id: UUID) -> Subject:
-    sub = db.get(Subject, subject_id)
-    if not sub or sub.tenant_id != user.tenant_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subject not found")
-    return sub
 
 
 @router.get("", response_model=list[SubjectOut])
@@ -61,7 +54,7 @@ def create_subject(
         tenant_id=current.tenant_id,
         type=st,
         domain=domain,
-        brand=body.brand.strip() if body.brand else "",
+        brand=ensure_brand(body.brand, domain=domain if st == SubjectType.domain else None),
         website_url=website_url,
         aliases=list(body.aliases or []),
         monitoring_scope=normalize_monitoring_scope(
@@ -81,7 +74,7 @@ def get_subject(
     db: DbSession,
     current: CurrentUser,
 ) -> Subject:
-    return _get_subject(db, current, subject_id)
+    return get_subject_for_user(db, current, subject_id)
 
 
 @router.patch("/{subject_id}", response_model=SubjectOut)
@@ -91,7 +84,7 @@ def update_subject(
     db: DbSession,
     current: CurrentUser,
 ) -> Subject:
-    sub = _get_subject(db, current, subject_id)
+    sub = get_subject_for_user(db, current, subject_id)
     if body.domain is not None or body.website_url is not None:
         raw_domain = body.domain.strip() if body.domain is not None else sub.domain
         if body.website_url is not None:
@@ -108,7 +101,10 @@ def update_subject(
         sub.domain = domain
         sub.website_url = website_url
     if body.brand is not None:
-        sub.brand = body.brand.strip()
+        sub.brand = ensure_brand(
+            body.brand,
+            domain=sub.domain if sub.type == SubjectType.domain else None,
+        )
     if body.aliases is not None:
         sub.aliases = list(body.aliases)
     if body.monitoring_scope is not None:
@@ -136,6 +132,6 @@ def delete_subject(
     db: DbSession,
     current: CurrentUser,
 ) -> None:
-    sub = _get_subject(db, current, subject_id)
+    sub = get_subject_for_user(db, current, subject_id)
     db.delete(sub)
     db.commit()

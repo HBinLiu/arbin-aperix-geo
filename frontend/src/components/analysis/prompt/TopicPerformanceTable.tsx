@@ -61,7 +61,7 @@ export function TopicPerformanceTable({
                 引用率
                 <ColumnHelp
                   label="引用率"
-                  description="在提及自有品牌的前提下，伴随指向自有域名来源链接的回复占比。"
+                  description="在含指向自有域名来源链接的回复中，来源页正文提及品牌的占比。"
                 />
               </span>
             </th>

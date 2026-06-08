@@ -110,20 +110,27 @@ export function platformMatrixMetric(id: PlatformMatrixMetricId): PlatformMatrix
 
 export function buildPlatformRankRows(
   current: PlatformPerformance[],
+  previous: PlatformPerformance[],
   platformsMeta: SamplingPlatform[],
   definition: PlatformMatrixMetricDefinition,
 ): RankRow[] {
+  const prevByPlatform = Object.fromEntries(previous.map((row) => [row.platform, row]));
+
   return [...current]
     .sort((a, b) => (definition.pickPerformance(b) ?? -1) - (definition.pickPerformance(a) ?? -1))
     .map((row) => {
       const meta = resolvePlatformMeta(row.platform, platformsMeta);
       const valueNum = definition.pickPerformance(row);
+      const prevRow = prevByPlatform[row.platform];
+      const prevValueNum = prevRow ? definition.pickPerformance(prevRow) : undefined;
       return {
         id: row.platform,
         label: meta.label,
         value: definition.formatValue(valueNum),
         valueNum: valueNum ?? undefined,
-        delta: null,
+        delta: definition.formatDelta(valueNum, prevValueNum),
+        deltaSortNum:
+          valueNum != null && prevValueNum != null ? valueNum - prevValueNum : null,
       };
     });
 }
@@ -197,7 +204,12 @@ export function buildPlatformMetricBundles(
       value: selectedPlatformMetricValue(data, selectedPlatformId, definition),
       series: selectedPlatformSeries(data, selectedPlatformId, definition),
       rankRows: data
-        ? buildPlatformRankRows(data.platform_performance, platformsMeta, definition)
+        ? buildPlatformRankRows(
+            data.platform_performance,
+            data.previous_platform_performance,
+            platformsMeta,
+            definition,
+          )
         : [],
     };
   }

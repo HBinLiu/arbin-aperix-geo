@@ -1,4 +1,4 @@
-import { Info } from "lucide-react";
+import { CircleHelp } from "lucide-react";
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,7 @@ export function ColumnHelp({ label, description }: { label: string; description:
           aria-label={`了解${label}`}
           onClick={() => setOpen((prev) => !prev)}
         >
-          <Info className="size-3.5" aria-hidden />
+          <CircleHelp className="size-4" aria-hidden />
         </button>
       </TooltipTrigger>
       <TooltipContent

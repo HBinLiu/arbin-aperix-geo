@@ -18,7 +18,9 @@ class NicheProfile(TypedDict):
 
 class DiscoveredCompetitor(TypedDict):
     domain: str
-    site_name: str
+    website_url: str
+    brand: str
+    summary: str
 
 
 @dataclass(frozen=True)

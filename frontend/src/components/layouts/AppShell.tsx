@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Bell, Gem, Headphones } from "lucide-react";
 
+import { fetchMe } from "@/api/auth";
 import { Button } from "@/components/ui/button";
-import { userAvatarInitial, userDisplayName } from "@/lib/auth";
-import type { User } from "@/types";
+import { UserMenuDropdown } from "@/components/layouts/UserMenuDropdown";
 import { queryKeys } from "@/lib/queries";
 
 export const HEADER_ICON_BTN_CLASS = "border-border bg-white size-8 rounded-md border";
@@ -19,10 +19,11 @@ type AppShellProps = {
  * 控制台应用外壳（顶栏 + 内容卡片区）。
  */
 export function AppShell({ children, headerStart }: AppShellProps) {
-  const queryClient = useQueryClient();
-  const cachedUser = queryClient.getQueryData<User>(queryKeys.me);
-  const avatar = cachedUser ? userAvatarInitial(cachedUser) : "U";
-  const name = cachedUser ? userDisplayName(cachedUser) : "用户";
+  const { data: user } = useQuery({
+    queryKey: queryKeys.me,
+    queryFn: fetchMe,
+    retry: false,
+  });
 
   return (
     <div className="bg-app-sidebar text-foreground flex h-svh flex-col overflow-hidden">
@@ -63,16 +64,7 @@ export function AppShell({ children, headerStart }: AppShellProps) {
           >
             <Headphones className="size-4" />
           </Button>
-          <button
-            type="button"
-            className="hover:bg-muted/80 ml-1 flex items-center gap-2 rounded-md px-2 py-1 outline-hidden"
-            aria-label="用户菜单"
-          >
-            <span className="bg-primary text-primary-foreground flex size-7 items-center justify-center rounded-full text-xs font-semibold">
-              {avatar}
-            </span>
-            <span className="hidden text-sm font-medium sm:inline">{name}</span>
-          </button>
+          <UserMenuDropdown user={user} />
         </div>
       </header>
 

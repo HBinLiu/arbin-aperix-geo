@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 
 import { AnalysisFilterBar } from "@/components/analysis/common/AnalysisFilterBar";
-import { BrandLeaderboardTable } from "@/components/rank/BrandLeaderboardTable";
-import { useBrandRank } from "@/hooks/useBrandRank";
+import { RankBoardTable } from "@/components/rank/RankBoardTable";
+import { useRankBoardData } from "@/hooks/useRankBoardData";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
 import { ANALYSIS_FILTER_ALL, DEFAULT_ANALYSIS_FILTERS } from "@/lib/analysis";
 import type { AnalysisFilters } from "@/types";
@@ -29,7 +29,7 @@ export function RankContent({ subjectId }: RankContentProps) {
     }));
   }, [subject.id]);
 
-  const { isLoading, rows } = useBrandRank(subjectId, filters);
+  const { isLoading, rows } = useRankBoardData(subjectId, filters);
 
   return (
     <>
@@ -43,7 +43,7 @@ export function RankContent({ subjectId }: RankContentProps) {
           </p>
         </header>
 
-        <BrandLeaderboardTable rows={rows} loading={isLoading} />
+        <RankBoardTable rows={rows} loading={isLoading} />
       </div>
     </>
   );

@@ -293,7 +293,7 @@ export function SimpleLineChart({
                 verticalAlign="bottom"
                 align="center"
                 content={legendContent}
-                wrapperStyle={{ width: "100%", left: 0, paddingTop: 0 }}
+                wrapperStyle={{ width: "100%", left: 0, paddingTop: 6 }}
               />
             ) : null}
             {model.lines.map((line) => (

@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input, inputControlClass } from "@/components/ui/input";
 import { formatApiError } from "@/api/client";
-import { patchSubject } from "@/api/subjects";
+import { patchSubject } from "@/api/subject";
 import { queryKeys } from "@/lib/queries";
 import { hostnameFromWebsiteInput, registrableDomain } from "@/lib/domain";
 import { subjectEditAliases, subjectPrimaryName, subjectWebsiteUrl } from "@/lib/subject";

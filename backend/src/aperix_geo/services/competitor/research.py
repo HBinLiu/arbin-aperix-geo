@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
-import httpx
-
-from aperix_geo.config import get_settings
+from aperix_geo.services.crawl import PageFetchResult, fetch_page, page_crawl_settings
 from aperix_geo.services.web_search import SearchHit, search_text
 from aperix_geo.utils.domains import registrable_domain
 from aperix_geo.utils.html import html_to_text, parse_head_from_html
-from aperix_geo.utils.http import HTML_FETCH_HEADERS
 from aperix_geo.utils.url import homepage_urls
 
 logger = logging.getLogger(__name__)
@@ -31,6 +28,7 @@ _PROFILE_EXTRA_PATHS: tuple[tuple[str, str], ...] = (
 
 _MAX_EXTRA_PAGES = 3
 _EXTRA_PAGE_EXCERPT_CHARS = 2500
+_EXTRA_PAGE_FETCH_CHARS = 120_000
 _REGION_SEARCH_LABELS = {"CN": "中国", "HK": "香港", "TW": "台湾"}
 
 
@@ -47,80 +45,79 @@ def _page_base_url(homepage_url: str, domain: str) -> str:
     return f"https://{root or domain}"
 
 
-async def _fetch_path_excerpt(
-    client: httpx.AsyncClient,
-    base_url: str,
-    path: str,
-    *,
-    timeout_s: float,
-) -> str | None:
-    url = urljoin(base_url.rstrip("/") + "/", path.lstrip("/"))
-    try:
-        resp = await client.get(url, follow_redirects=True, timeout=timeout_s)
-        if resp.status_code >= 400:
-            return None
-        html = resp.text[:120_000]
-        title, description = parse_head_from_html(html)
-        body = html_to_text(html, limit=_EXTRA_PAGE_EXCERPT_CHARS)
-        parts: list[str] = []
-        if title:
-            parts.append(f"title: {title}")
-        if description:
-            parts.append(f"description: {description}")
-        if body:
-            parts.append(body)
-        text = "\n".join(parts).strip()
-        return text if len(text) >= 80 else None
-    except httpx.HTTPError:
+def _excerpt_from_fetch(result: PageFetchResult) -> str | None:
+    if not result.fetch_ok:
         return None
 
+    title = ""
+    description = ""
+    if result.html:
+        title, description = parse_head_from_html(result.html[:_EXTRA_PAGE_FETCH_CHARS])
 
-async def fetch_site_extra_pages_async(
-    domain: str,
-    *,
-    homepage_url: str = "",
-    timeout_s: float = 8.0,
-    max_pages: int = _MAX_EXTRA_PAGES,
-) -> dict[str, str]:
-    base = _page_base_url(homepage_url, domain)
-    seen_paths: set[str] = set()
-    out: dict[str, str] = {}
+    if result.markdown.strip():
+        body = result.markdown.strip()[:_EXTRA_PAGE_EXCERPT_CHARS]
+    elif result.html:
+        body = html_to_text(result.html, limit=_EXTRA_PAGE_EXCERPT_CHARS)
+    else:
+        body = ""
 
-    async with httpx.AsyncClient(headers=HTML_FETCH_HEADERS) as client:
-        for label, path in _PROFILE_EXTRA_PATHS:
-            if len(out) >= max_pages:
-                break
-            norm = path.rstrip("/").lower()
-            if norm in seen_paths:
-                continue
-            seen_paths.add(norm)
-            excerpt = await _fetch_path_excerpt(client, base, path, timeout_s=timeout_s)
-            if not excerpt:
-                continue
-            key = label if label not in out else f"{label}_{path.strip('/')}"
-            out[key] = excerpt
-            logger.info("主体调研: 补充页 %s path=%s chars=%d", domain, path, len(excerpt))
-
-    return out
+    parts: list[str] = []
+    if title:
+        parts.append(f"title: {title}")
+    if description:
+        parts.append(f"description: {description}")
+    if body:
+        parts.append(body)
+    text = "\n".join(parts).strip()
+    return text if len(text) >= 80 else None
 
 
 def fetch_site_extra_pages(
     domain: str,
     *,
     homepage_url: str = "",
-    timeout_s: float | None = None,
     max_pages: int = _MAX_EXTRA_PAGES,
 ) -> dict[str, str]:
-    settings = get_settings()
-    t = timeout_s if timeout_s is not None else settings.competitor_target_fetch_timeout_s
-    return asyncio.run(
-        fetch_site_extra_pages_async(
-            domain,
-            homepage_url=homepage_url,
-            timeout_s=t,
-            max_pages=max_pages,
-        ),
-    )
+    crawl = page_crawl_settings()
+    base = _page_base_url(homepage_url, domain)
+    seen_paths: set[str] = set()
+    pending: list[tuple[str, str]] = []
+    max_chars = min(crawl.max_chars, _EXTRA_PAGE_FETCH_CHARS)
+
+    for label, path in _PROFILE_EXTRA_PATHS:
+        if len(pending) >= max_pages:
+            break
+        norm = path.rstrip("/").lower()
+        if norm in seen_paths:
+            continue
+        seen_paths.add(norm)
+        pending.append((label, path))
+
+    if not pending:
+        return {}
+
+    workers = min(len(pending), max(1, crawl.concurrency))
+
+    def _one(item: tuple[str, str]) -> tuple[str, str, str] | None:
+        label, path = item
+        url = urljoin(base.rstrip("/") + "/", path.lstrip("/"))
+        result = fetch_page(url, crawl=crawl, max_chars=max_chars)
+        excerpt = _excerpt_from_fetch(result)
+        if not excerpt:
+            return None
+        return label, path, excerpt
+
+    out: dict[str, str] = {}
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for row in pool.map(_one, pending):
+            if row is None or len(out) >= max_pages:
+                continue
+            label, path, excerpt = row
+            key = label if label not in out else f"{label}_{path.strip('/')}"
+            out[key] = excerpt
+            logger.info("主体调研: 补充页 %s path=%s chars=%d", domain, path, len(excerpt))
+
+    return out
 
 
 def fetch_brand_research_hits(brand: str, *, region: str, max_results: int = 8) -> list[SearchHit]:

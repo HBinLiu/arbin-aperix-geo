@@ -14,7 +14,7 @@ import { regionDisplay, regionFromMonitoringScope, SETUP_REGIONS } from "@/lib/s
 import type { AnalysisFilters } from "@/types";
 import { cn } from "@/lib/utils";
 
-type FilterSelectProps = {
+export type FilterSelectProps = {
   icon: LucideIcon;
   value: string;
   displayValue?: string;
@@ -23,9 +23,10 @@ type FilterSelectProps = {
   title?: string;
   onValueChange?: (value: string) => void;
   children?: ReactNode;
+  className?: string;
 };
 
-function FilterSelect({
+export function FilterSelect({
   icon: Icon,
   value,
   displayValue,
@@ -34,6 +35,7 @@ function FilterSelect({
   title,
   onValueChange,
   children,
+  className,
 }: FilterSelectProps) {
   return (
     <Select value={value} onValueChange={onValueChange} disabled={disabled}>
@@ -46,6 +48,7 @@ function FilterSelect({
           "focus-visible:border-border focus-visible:shadow-none focus-visible:ring-0",
           "data-[state=open]:border-border data-[state=open]:shadow-none data-[state=open]:ring-0",
           disabled && "opacity-60",
+          className,
         )}
       >
         <Icon className="text-muted-foreground size-3.5 shrink-0" aria-hidden />

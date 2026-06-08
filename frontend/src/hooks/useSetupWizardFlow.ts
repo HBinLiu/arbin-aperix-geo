@@ -116,12 +116,12 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
   };
 
   const validateStep2 = (): boolean => {
-    const { competitors, brand_names } = rowsToPersist(mode, competitorRows);
-    if (mode === "domain" && competitors.length < 1) {
+    const { competitors } = rowsToPersist(mode, competitorRows);
+    if (mode === "domain" && competitors.filter((c) => c.domain).length < 1) {
       toast.error("请至少选择一个竞品域名。");
       return false;
     }
-    if (mode === "brand" && brand_names.length < 1) {
+    if (mode === "brand" && competitors.filter((c) => c.brand && !c.domain).length < 1) {
       toast.error("按品牌监测时，请至少选择一个竞品品牌。");
       return false;
     }
@@ -191,8 +191,11 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
     setGeneratingPrompts(true);
     setStep(3);
     resetDownstream(2);
-    const { competitors, brand_names } = rowsToPersist(mode, competitorRows);
-    const competitorLabels = mode === "domain" ? competitors.map((c) => c.domain) : brand_names;
+    const { competitors } = rowsToPersist(mode, competitorRows);
+    const competitorLabels =
+      mode === "domain"
+        ? competitors.map((c) => c.domain).filter(Boolean)
+        : competitors.map((c) => c.brand).filter(Boolean);
     try {
       const rows = await generateSetupPrompts({
         sessionId,

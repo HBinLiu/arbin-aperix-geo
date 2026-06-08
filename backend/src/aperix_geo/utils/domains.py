@@ -79,6 +79,22 @@ def is_valid_hostname(host: str) -> bool:
     return bool(host) and len(host) <= 253 and bool(_HOSTNAME_RE.match(host))
 
 
+def brand_fallback_from_domain(raw: str) -> str:
+    """brand 为空时，用主域名（eTLD+1）兜底。"""
+    return registrable_domain(raw)
+
+
+def ensure_brand(brand: str | None, *, domain: str | None = None) -> str:
+    """返回非空 brand；缺失且提供了 domain 时回退为主域名。"""
+    name = (brand or "").strip()
+    if name:
+        return name[:255]
+    dom = (domain or "").strip()
+    if dom:
+        return brand_fallback_from_domain(dom)[:255]
+    return ""
+
+
 def site_name_from_title(title: str, *, domain: str) -> str:
     text = title.strip()
     if text:
@@ -99,7 +115,4 @@ def site_name_from_title(title: str, *, domain: str) -> str:
         if text and len(text) <= 60:
             return text
 
-    base = registrable_domain(domain).split(".")[0] or domain
-    if not base:
-        return domain
-    return base[0].upper() + base[1:]
+    return brand_fallback_from_domain(domain) or domain

@@ -7,7 +7,8 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import text as sa_text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -39,7 +40,7 @@ def utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-_NOW = text("now()")
+_NOW = sa_text("now()")
 
 
 class Tenant(Base):
@@ -80,14 +81,14 @@ class User(Base):
             "uq_users_phone",
             "phone",
             unique=True,
-            postgresql_where=text("phone <> ''"),
+            postgresql_where=sa_text("phone <> ''"),
         ),
         Index(
             "uq_users_tenant_email_nn",
             "tenant_id",
             "email",
             unique=True,
-            postgresql_where=text("email <> ''"),
+            postgresql_where=sa_text("email <> ''"),
         ),
     )
 
@@ -102,14 +103,14 @@ class Subject(Base):
     type: Mapped[SubjectType] = mapped_column(SAEnum(SubjectType, name="subject_type"), nullable=False)
     domain: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     brand: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
-    aliases: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+    aliases: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default=sa_text("'[]'::jsonb"))
     website_url: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     monitoring_scope: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+        JSONB, nullable=False, default=dict, server_default=sa_text("'{}'::jsonb")
     )
     profile_summary: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     sampling_platforms: Mapped[list[Any]] = mapped_column(
-        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+        JSONB, nullable=False, server_default=sa_text("'[]'::jsonb")
     )
     sampling_interval: Mapped[int] = mapped_column(Integer, nullable=False, server_default="24")
     last_sampled_at: Mapped[datetime] = mapped_column(
@@ -121,10 +122,7 @@ class Subject(Base):
     )
 
     tenant: Mapped[Tenant] = relationship(back_populates="subjects")
-    competitor_domains: Mapped[list["CompetitorDomain"]] = relationship(
-        back_populates="subject", cascade="all, delete-orphan"
-    )
-    competitor_brands: Mapped[list["CompetitorBrand"]] = relationship(
+    competitors: Mapped[list["Competitor"]] = relationship(
         back_populates="subject", cascade="all, delete-orphan"
     )
     topics: Mapped[list["Topic"]] = relationship(back_populates="subject", cascade="all, delete-orphan")
@@ -142,47 +140,40 @@ class Subject(Base):
     )
 
 
-class CompetitorDomain(Base):
-    __tablename__ = "tb_competitor_domains"
+class Competitor(Base):
+    __tablename__ = "tb_competitors"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     subject_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("tb_subjects.id", ondelete="CASCADE"), nullable=False
     )
-    domain: Mapped[str] = mapped_column(String(255), nullable=False)
+    domain: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     website_url: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
-    site_name: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    brand: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
     )
 
-    subject: Mapped[Subject] = relationship(back_populates="competitor_domains")
+    subject: Mapped[Subject] = relationship(back_populates="competitors")
 
     __table_args__ = (
-        UniqueConstraint("subject_id", "domain", name="uq_competitor_domain"),
-        Index("ix_competitor_domains_subject_id", "subject_id"),
-    )
-
-
-class CompetitorBrand(Base):
-    __tablename__ = "tb_competitor_brands"
-
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    subject_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("tb_subjects.id", ondelete="CASCADE"), nullable=False
-    )
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
-    )
-
-    subject: Mapped[Subject] = relationship(back_populates="competitor_brands")
-
-    __table_args__ = (
-        UniqueConstraint("subject_id", "name", name="uq_competitor_brand"),
-        Index("ix_competitor_brands_subject_id", "subject_id"),
+        Index("ix_competitors_subject_id", "subject_id"),
+        Index(
+            "uq_competitors_subject_domain",
+            "subject_id",
+            "domain",
+            unique=True,
+            postgresql_where=sa_text("domain <> ''"),
+        ),
+        Index(
+            "uq_competitors_subject_brand_no_domain",
+            "subject_id",
+            "brand",
+            unique=True,
+            postgresql_where=sa_text("domain = ''"),
+        ),
     )
 
 
@@ -226,6 +217,12 @@ class Prompt(Base):
     subject: Mapped[Subject] = relationship(back_populates="prompts")
     topic: Mapped[Topic] = relationship(back_populates="prompts")
     responses: Mapped[list["LLMResponse"]] = relationship(back_populates="prompt")
+    citation_urls: Mapped[list["CitationUrl"]] = relationship(
+        back_populates="prompt", cascade="all, delete-orphan"
+    )
+    citation_domains: Mapped[list["CitationDomain"]] = relationship(
+        back_populates="prompt", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         UniqueConstraint("subject_id", "text_hash", name="uq_subject_prompt_hash"),
@@ -248,7 +245,7 @@ class SamplingJob(Base):
         SAEnum(SamplingJobStatus, name="sampling_job_status"),
         nullable=False,
         default=SamplingJobStatus.queued,
-        server_default=text("'queued'::sampling_job_status"),
+        server_default=sa_text("'queued'::sampling_job_status"),
     )
     total_items: Mapped[int] = mapped_column(Integer, default=0)
     completed_items: Mapped[int] = mapped_column(Integer, default=0)
@@ -291,16 +288,16 @@ class LLMResponse(Base):
         SAEnum(LLMResponseStatus, name="llm_response_status"),
         nullable=False,
         default=LLMResponseStatus.pending,
-        server_default=text("'pending'::llm_response_status"),
+        server_default=sa_text("'pending'::llm_response_status"),
     )
     error_text: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     raw_text: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     parsed: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+        JSONB, nullable=False, default=dict, server_default=sa_text("'{}'::jsonb")
     )
     latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     usage: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+        JSONB, nullable=False, default=dict, server_default=sa_text("'{}'::jsonb")
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
     updated_at: Mapped[datetime] = mapped_column(
@@ -309,9 +306,94 @@ class LLMResponse(Base):
 
     sampling_job: Mapped[SamplingJob] = relationship(back_populates="llm_responses")
     prompt: Mapped[Prompt] = relationship(back_populates="responses")
+    citation_urls: Mapped[list["CitationUrl"]] = relationship(
+        back_populates="llm_response", cascade="all, delete-orphan"
+    )
+    citation_domains: Mapped[list["CitationDomain"]] = relationship(
+        back_populates="llm_response", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         UniqueConstraint("sampling_job_id", "prompt_id", "platform", name="uq_job_prompt_platform"),
         Index("ix_llm_responses_job_created", "sampling_job_id", "created_at"),
         Index("ix_llm_responses_created_at", "created_at"),
+    )
+
+
+class CitationDomain(Base):
+    """单次采样回答中的引用域名及出现次数（用于域名维度统计）。"""
+
+    __tablename__ = "tb_citation_domains"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    response_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_llm_responses.id", ondelete="CASCADE"), nullable=False
+    )
+    prompt_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_prompts.id", ondelete="CASCADE"), nullable=False
+    )
+    domain: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
+    cite_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    domain_type: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
+    )
+
+    llm_response: Mapped[LLMResponse] = relationship(
+        back_populates="citation_domains",
+        foreign_keys="CitationDomain.response_id",
+    )
+    prompt: Mapped[Prompt] = relationship(back_populates="citation_domains")
+
+    __table_args__ = (
+        UniqueConstraint("response_id", "domain", name="uq_citation_domain"),
+        Index("ix_citation_domains_prompt_id", "prompt_id"),
+        Index("ix_citation_domains_domain", "domain"),
+        Index("ix_citation_domains_response_id", "response_id"),
+    )
+
+
+class CitationUrl(Base):
+    """单次采样回答中的引用 URL 明细。"""
+
+    __tablename__ = "tb_citation_urls"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    response_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_llm_responses.id", ondelete="CASCADE"), nullable=False
+    )
+    prompt_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_prompts.id", ondelete="CASCADE"), nullable=False
+    )
+    url: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    page_title: Mapped[str] = mapped_column(String(500), nullable=False, default="", server_default="")
+    domain_type: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
+    http_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    headings: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    has_table: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    has_code_block: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    text_snippet: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    llm_analysis: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=sa_text("'{}'::jsonb")
+    )
+    fetch_ok: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    from_api: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    url_type: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
+    )
+
+    llm_response: Mapped[LLMResponse] = relationship(
+        back_populates="citation_urls",
+        foreign_keys="CitationUrl.response_id",
+    )
+    prompt: Mapped[Prompt] = relationship(back_populates="citation_urls")
+
+    __table_args__ = (
+        UniqueConstraint("response_id", "url", name="uq_citation_url"),
+        Index("ix_citation_urls_prompt_id", "prompt_id"),
+        Index("ix_citation_urls_response_id", "response_id"),
     )

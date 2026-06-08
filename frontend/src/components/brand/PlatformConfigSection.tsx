@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select";
 import { formatApiError } from "@/api/client";
 import { fetchSamplingPlatforms } from "@/api/brand";
-import { patchSubject } from "@/api/subjects";
+import { patchSubject } from "@/api/subject";
 import {
   effectiveSamplingPlatforms,
   PLATFORM_MAX_SELECTION,

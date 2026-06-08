@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from aperix_geo.config import Settings
+from aperix_geo.services.chat_result import SamplingChatResult
 from aperix_geo.services.sampling.llm import (
     SamplingLLMError,
     chat_for_platform,
@@ -65,10 +66,11 @@ def test_resolve_unknown_platform():
         assert "nonexistent" in str(e)
 
 
-@patch("aperix_geo.services.sampling.llm.chat_completion")
-def test_chat_for_platform_deepseek(mock_chat):
-    mock_chat.return_value = ("hello", {}, 10)
+@patch("aperix_geo.services.sampling.llm.deepseek_chat")
+def test_chat_for_platform_deepseek(mock_deepseek_chat):
+    mock_deepseek_chat.return_value = SamplingChatResult(text="hello", usage={}, latency_ms=10)
     s = _settings(deepseek_api_key="sk-d")
-    text, usage, ms = chat_for_platform("deepseek", [{"role": "user", "content": "hi"}], settings=s)
-    assert text == "hello"
-    assert ms == 10
+    result = chat_for_platform("deepseek", [{"role": "user", "content": "hi"}], settings=s)
+    assert result.text == "hello"
+    assert result.latency_ms == 10
+    mock_deepseek_chat.assert_called_once()

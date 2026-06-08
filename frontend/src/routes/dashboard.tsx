@@ -1,5 +1,8 @@
-import { BrandPage } from "@/pages/dashboard/BrandPage";
 import { DashboardPlaceholder } from "@/components/dashboard/DashboardPlaceholder";
+import { DiagnosisContent } from "@/pages/dashboard/DiagnosisPage";
+import { PromptContent } from "@/pages/dashboard/PromptPage";
+import { BrandPage } from "@/pages/dashboard/BrandPage";
+import { OpportunityContent } from "@/pages/dashboard/OpportunityPage";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
 import { RankContent } from "@/pages/dashboard/RankPage";
 import { OverviewContent } from "@/pages/dashboard/OverviewPage";
@@ -24,23 +27,23 @@ export function AnalysisRoute() {
   return <AnalysisPage />;
 }
 
-export function VisibilityAnalysisRoute() {
+export function AnalysisVisibilityRoute() {
   return <VisibilityPage />;
 }
 
-export function PromptAnalysisRoute() {
+export function AnalysisPromptRoute() {
   return <PromptPage />;
 }
 
-export function PlatformAnalysisRoute() {
+export function AnalysisPlatformRoute() {
   return <PlatformPage />;
 }
 
-export function SentimentAnalysisRoute() {
+export function AnalysisSentimentRoute() {
   return <SentimentPage />;
 }
 
-export function CitationAnalysisRoute() {
+export function AnalysisCitationRoute() {
   return <CitationPage />;
 }
 
@@ -49,10 +52,20 @@ export function RankRoute() {
   return <RankContent subjectId={subject.id} />;
 }
 
-export function OpportunitiesRoute() {
-  return <DashboardPlaceholder title="机会" />;
+export function OpportunityRoute() {
+  const { subject } = useDashboardContext();
+  return <OpportunityContent subjectId={subject.id} />;
 }
 
 export function AgentRoute() {
   return <DashboardPlaceholder title="智能体" />;
+}
+
+export function DiagnosisRoute() {
+  const { subject } = useDashboardContext();
+  return <DiagnosisContent subjectId={subject.id} />;
+}
+
+export function PromptRoute() {
+  return <PromptContent />;
 }

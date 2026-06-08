@@ -2,7 +2,9 @@ import {
   BarChart3,
   Bot,
   LayoutGrid,
-  Sparkles,
+  Lightbulb,
+  MessageSquare,
+  Stethoscope,
   Tag,
   Trophy,
 } from "lucide-react";
@@ -18,16 +20,22 @@ export const DASHBOARD_NAV_SECTIONS: DashboardNavSection[] = [
     items: [
       { id: "analysis", label: "分析", icon: BarChart3 },
       { id: "rank", label: "排行榜", icon: Trophy },
-      { id: "opportunities", label: "机会", icon: Sparkles },
+      { id: "opportunity", label: "机会", icon: Lightbulb },
     ],
   },
   {
     title: "操作",
-    items: [{ id: "agent", label: "智能体", icon: Bot }],
+    items: [
+      { id: "agent", label: "智能体", icon: Bot },
+      { id: "diagnosis", label: "诊断中心", icon: Stethoscope },
+    ],
   },
   {
     title: "配置",
-    items: [{ id: "brand", label: "品牌", icon: Tag }],
+    items: [
+      { id: "brand", label: "品牌", icon: Tag },
+      { id: "prompt", label: "提示词", icon: MessageSquare },
+    ],
   },
 ];
 
@@ -41,8 +49,10 @@ export const DASHBOARD_SETUP_PATH = `${DASHBOARD_APP_BASE}/setup`;
 export const DASHBOARD_NAV_SEGMENT: Record<Exclude<DashboardNavId, "overview">, string> = {
   analysis: "analysis",
   rank: "rank",
-  opportunities: "opportunities",
+  opportunity: "opportunity",
   agent: "agent",
+  diagnosis: "diagnosis",
+  prompt: "prompt",
   brand: "brand",
 };
 
@@ -56,6 +66,9 @@ export function dashboardNavToPath(id: DashboardNavId): string {
   }
   if (id === "analysis") {
     return `${DASHBOARD_APP_BASE}/analysis/visibility`;
+  }
+  if (id === "opportunity") {
+    return `${DASHBOARD_APP_BASE}/opportunity/content`;
   }
   return `${DASHBOARD_APP_BASE}/${DASHBOARD_NAV_SEGMENT[id]}`;
 }

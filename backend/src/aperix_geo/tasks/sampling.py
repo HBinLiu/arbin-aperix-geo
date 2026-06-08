@@ -20,11 +20,12 @@ from aperix_geo.db.models import (
     SamplingJobStatus,
 )
 from aperix_geo.db.session import SessionLocal
+from aperix_geo.services.sampling.citations import replace_citations_for_response
 from aperix_geo.services.sampling.finalize import finalize_sampling_job_db
 from aperix_geo.services.sampling.parser import parse_llm_output
 from aperix_geo.services.sampling.llm import SamplingLLMError, chat_for_platform, rate_limit_for_platform
 from aperix_geo.services.sampling.recovery import reconcile_stale_sampling_jobs
-from aperix_geo.services.subject.loader import competitor_lists, load_subject_with_competitors
+from aperix_geo.services.subject.loader import load_subject_with_competitors
 
 
 def _rate_limit_check(provider: str, limit_per_minute: int) -> None:
@@ -88,10 +89,9 @@ def sample_one_prompt(self, response_id: str) -> dict:
             _bump_job_counter(db, job.id, success=False)
             db.commit()
             return {"ok": False}
-        comp_domains, comp_brands = competitor_lists(subject)
         messages = [{"role": "user", "content": prompt.text}]
         try:
-            text, usage, latency_ms = chat_for_platform(row.platform, messages)
+            result = chat_for_platform(row.platform, messages)
         except SamplingLLMError as e:
             row.status = LLMResponseStatus.failed
             row.error_text = str(e)[:4000]
@@ -106,18 +106,24 @@ def sample_one_prompt(self, response_id: str) -> dict:
             return {"ok": False, "error": str(e)}
 
         parsed = parse_llm_output(
-            text,
+            result.text,
             subject=subject,
-            competitor_domains=comp_domains,
-            competitor_brands=comp_brands,
+            source_urls=list(result.source_urls),
+            web_search_mode=result.web_search_mode,
         )
-        row.raw_text = text
+        row.raw_text = result.text
         row.parsed = parsed
-        row.usage = usage
-        row.latency_ms = latency_ms
+        row.usage = result.usage
+        row.latency_ms = result.latency_ms
         row.status = LLMResponseStatus.success
         row.error_text = ""
         _bump_job_counter(db, job.id, success=True)
+        replace_citations_for_response(
+            db,
+            response_id=row.id,
+            prompt_id=row.prompt_id,
+            parsed=parsed,
+        )
         db.commit()
         return {"ok": True}
     finally:

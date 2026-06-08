@@ -12,37 +12,14 @@ export function normalizeFaviconDomain(raw: string): string {
   return hostnameFromWebsiteInput(s);
 }
 
-/** 同源 API：后端多源解析 + 校验 */
+/** 同源 API：后端 resolve_favicon 多源解析（静态路径 / HTML / headless）+ 磁盘缓存 */
 export function faviconApiUrl(domain: string): string | null {
   const host = normalizeFaviconDomain(domain);
   if (!host) return null;
   return `/api/v1/favicon?domain=${encodeURIComponent(host)}`;
 }
 
-/** 浏览器直连回退（API 204 / 加载失败时，顺序与后端第三方源对齐） */
-export function faviconFallbackUrls(domain: string): string[] {
-  const host = normalizeFaviconDomain(domain);
-  if (!host) return [];
-  const bases =
-    host.startsWith("www.") || host.split(".").length > 2
-      ? [`https://${host}`]
-      : [`https://${host}`, `https://www.${host}`];
-  const paths = [
-    "/favicon.ico",
-    "/favicon.png",
-    "/apple-touch-icon.png",
-  ];
-  const standard = bases.flatMap((b) => paths.map((p) => `${b}${p}`));
-  return [
-    ...standard,
-    `https://favicon.yandex.net/favicon/v2/${host}?size=32`,
-    `https://icons.duckduckgo.com/ip3/${host}.ico`,
-    `https://icon.horse/icon/${host}`,
-  ];
-}
-
 export function faviconCandidateUrls(domain: string): string[] {
-  const primary = faviconApiUrl(domain);
-  const fallbacks = faviconFallbackUrls(domain);
-  return primary ? [primary, ...fallbacks] : fallbacks;
+  const api = faviconApiUrl(domain);
+  return api ? [api] : [];
 }

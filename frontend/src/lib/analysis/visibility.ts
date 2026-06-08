@@ -142,8 +142,8 @@ const VISIBILITY_METRIC_SOURCES: Record<
   mention: (data) => ({
     series: data.mention_series,
     previousSeries: data.previous_mention_series,
-    currentShare: data.rank.mention_share,
-    previousShare: data.previous_rank.mention_share,
+    currentShare: data.rank.mention_rate,
+    previousShare: data.previous_rank.mention_rate,
   }),
   shareVoice: (data) => ({
     pieLabels: data.share_voice_labels,

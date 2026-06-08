@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { AppShellError, AppShellLoading } from "@/components/common/AppShellState";
 import { fetchMe } from "@/api/auth";
-import { fetchSubjects } from "@/api/subjects";
+import { fetchSubjects } from "@/api/subject";
 import { DashboardProvider } from "@/hooks/useDashboardContext";
 import {
   getStoredActiveSubjectId,

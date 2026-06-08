@@ -2,7 +2,7 @@ import { rowsToPersist, selectedPromptRows, selectedTopicRows } from "@/lib/setu
 import type { FinalizeSetupInput } from "@/types";
 
 export function buildFinalizePayload(input: FinalizeSetupInput) {
-  const { competitors, brand_names } = rowsToPersist(input.mode, input.competitorRows);
+  const { competitors } = rowsToPersist(input.mode, input.competitorRows);
   const topicsToPersist = selectedTopicRows(input.topicRows);
   const domain = input.mode === "domain" ? input.domain.trim() : "";
   const brand = input.mode === "brand" ? input.brand.trim() : "";
@@ -25,7 +25,6 @@ export function buildFinalizePayload(input: FinalizeSetupInput) {
     },
     ...(sessionId ? { setup_session_id: sessionId } : {}),
     competitors,
-    brand_names,
     topics: topicsToPersist.map((t) => ({
       name: t.name.trim(),
       prompts: promptsByTopicId.get(t.id) ?? [],

@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 
-from aperix_geo.api.deps import CurrentUser, DbSession
+from aperix_geo.api.deps import CurrentUser, DbSession, get_subject_for_user
 from aperix_geo.db.models import (
     LLMResponse,
     LLMResponseStatus,
@@ -20,6 +20,7 @@ from aperix_geo.schemas.sampling import (
     SamplingPlatformOut,
     SampleSyncRequest,
 )
+from aperix_geo.services.sampling.citations import replace_citations_for_response
 from aperix_geo.services.sampling.parser import parse_llm_output
 from aperix_geo.services.pipeline import build_pipeline_status
 from aperix_geo.services.sampling.jobs import (
@@ -34,16 +35,8 @@ from aperix_geo.services.sampling.llm import (
     list_sampling_platforms,
     resolve_sampling_platform,
 )
-from aperix_geo.services.subject.loader import competitor_lists, load_subject_with_competitors
 
 router = APIRouter(tags=["sampling"])
-
-
-def _require_subject(db, user, subject_id: UUID):
-    subject = load_subject_with_competitors(db, subject_id, tenant_id=user.tenant_id)
-    if not subject:
-        raise HTTPException(status_code=404, detail="Subject not found")
-    return subject
 
 
 @router.get("/sampling-platforms", response_model=list[SamplingPlatformOut])
@@ -54,7 +47,7 @@ def get_sampling_platforms(current: CurrentUser) -> list[dict[str, str]]:
 
 @router.get("/subjects/{subject_id}/pipeline-status")
 def pipeline_status(subject_id: UUID, db: DbSession, current: CurrentUser) -> dict:
-    _require_subject(db, current, subject_id)
+    get_subject_for_user(db, current, subject_id, with_competitors=True)
     return build_pipeline_status(db, subject_id=subject_id)
 
 
@@ -69,7 +62,7 @@ def create_sampling_job(
     db: DbSession,
     current: CurrentUser,
 ) -> SamplingJob:
-    subject = _require_subject(db, current, subject_id)
+    subject = get_subject_for_user(db, current, subject_id, with_competitors=True)
     try:
         return enqueue_subject_sampling(
             db,
@@ -138,7 +131,7 @@ def sample_sync(
     current: CurrentUser,
 ) -> dict:
     """Call LLM once for a prompt. When persist=True, writes raw_text + parsed."""
-    subject = _require_subject(db, current, subject_id)
+    subject = get_subject_for_user(db, current, subject_id, with_competitors=True)
     prompt = db.get(Prompt, body.prompt_id)
     if not prompt or prompt.subject_id != subject_id:
         raise HTTPException(status_code=404, detail="Prompt not found")
@@ -158,26 +151,27 @@ def sample_sync(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
     try:
-        text, usage, latency_ms = chat_for_platform(platform, [{"role": "user", "content": prompt.text}])
+        result = chat_for_platform(platform, [{"role": "user", "content": prompt.text}])
     except SamplingLLMError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
 
-    result: dict = {
+    result_payload: dict = {
         "platform": platform,
-        "raw_text": text,
-        "usage": usage,
-        "latency_ms": latency_ms,
+        "raw_text": result.text,
+        "usage": result.usage,
+        "latency_ms": result.latency_ms,
+        "source_urls": list(result.source_urls),
+        "web_search_mode": result.web_search_mode,
         "persisted": False,
     }
     if not body.persist:
-        return result
+        return result_payload
 
-    comp_domains, comp_brands = competitor_lists(subject)
     parsed = parse_llm_output(
-        text,
+        result.text,
         subject=subject,
-        competitor_domains=comp_domains,
-        competitor_brands=comp_brands,
+        source_urls=list(result.source_urls),
+        web_search_mode=result.web_search_mode,
     )
     job = SamplingJob(
         tenant_id=current.tenant_id,
@@ -194,16 +188,23 @@ def sample_sync(
         prompt_id=prompt.id,
         platform=platform,
         status=LLMResponseStatus.success,
-        raw_text=text,
+        raw_text=result.text,
         parsed=parsed,
-        usage=usage,
-        latency_ms=latency_ms,
+        usage=result.usage,
+        latency_ms=result.latency_ms,
     )
     db.add(row)
+    db.flush()
+    replace_citations_for_response(
+        db,
+        response_id=row.id,
+        prompt_id=prompt.id,
+        parsed=parsed,
+    )
     db.commit()
     db.refresh(job)
-    result["persisted"] = True
-    result["job_id"] = str(job.id)
-    result["response_id"] = str(row.id)
-    result["parsed"] = parsed
-    return result
+    result_payload["persisted"] = True
+    result_payload["job_id"] = str(job.id)
+    result_payload["response_id"] = str(row.id)
+    result_payload["parsed"] = parsed
+    return result_payload

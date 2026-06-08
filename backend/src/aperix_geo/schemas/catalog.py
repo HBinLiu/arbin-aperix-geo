@@ -60,23 +60,19 @@ class SubjectOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class CompetitorDomainItem(BaseModel):
-    domain: str = Field(..., min_length=1, max_length=255)
+class CompetitorItem(BaseModel):
+    domain: str = Field(default="", max_length=255)
     website_url: str = Field(default="", max_length=255)
-    site_name: str = Field(default="", max_length=255)
+    brand: str = Field(default="", max_length=255)
+    summary: str = Field(default="")
 
 
 class CompetitorsUpdate(BaseModel):
-    competitors: list[CompetitorDomainItem] = Field(default_factory=list)
-    brand_names: list[str] = Field(default_factory=list)
-    # 兼容旧客户端：仅传 domains 时 site_name 为空字符串
-    domains: list[str] = Field(default_factory=list)
+    competitors: list[CompetitorItem] = Field(default_factory=list)
 
 
 class CompetitorsOut(BaseModel):
-    competitors: list[CompetitorDomainItem] = Field(default_factory=list)
-    domains: list[str] = Field(default_factory=list)
-    brand_names: list[str] = Field(default_factory=list)
+    competitors: list[CompetitorItem] = Field(default_factory=list)
 
 
 class DiscoverProfileRequest(BaseModel):
@@ -101,15 +97,15 @@ class DiscoverCompetitorsSearchRequest(BaseModel):
 
 
 class DiscoveredCompetitor(BaseModel):
-    domain: str = Field(..., description="主域名（eTLD+1）")
-    site_name: str = Field(..., description="中文站点名称（来自页面 title）")
+    domain: str = Field(default="", description="主域名（eTLD+1）；品牌模式竞品为空")
+    website_url: str = Field(default="", description="官网 URL")
+    brand: str = Field(..., description="公司/品牌名称（竞品分析阶段总结）")
+    summary: str = Field(default="", description="竞品介绍（竞品分析阶段总结，含定位与竞争关系）")
 
 
 class DiscoverCompetitorsResponse(BaseModel):
     session_id: str | None = Field(default=None, description="关联的设置向导 Redis 会话")
-    domains: list[str] = Field(default_factory=list)
     competitors: list[DiscoveredCompetitor] = Field(default_factory=list)
-    brand_names: list[str] = Field(default_factory=list)
     micro_keywords: list[str] = Field(
         default_factory=list,
         description="确认后的微观利基检索词",
@@ -131,6 +127,11 @@ class GeneratePromptsResponse(BaseModel):
     items: list[TopicPromptsOut]
 
 
+class GenerateSubjectPromptsRequest(BaseModel):
+    topic_id: UUID
+    count: int = Field(..., ge=1, le=20)
+
+
 class SetupTopicItem(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     prompts: list[str] = Field(default_factory=list)
@@ -147,8 +148,7 @@ class SetupFinalizeRequest(BaseModel):
         max_length=64,
         description="设置向导 Redis 会话 ID，用于读取 profile_summary",
     )
-    competitors: list[CompetitorDomainItem] = Field(default_factory=list)
-    brand_names: list[str] = Field(default_factory=list)
+    competitors: list[CompetitorItem] = Field(default_factory=list)
     topics: list[SetupTopicItem] = Field(..., min_length=1)
 
 

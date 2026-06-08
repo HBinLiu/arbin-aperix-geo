@@ -5,7 +5,7 @@ import {
 } from "@/lib/analysis/format";
 import type { RankData } from "@/types";
 
-export type BrandLeaderboardSortColumn =
+export type RankBoardSortColumn =
   | "visibility"
   | "shareVoice"
   | "mention"
@@ -13,7 +13,7 @@ export type BrandLeaderboardSortColumn =
   | "citation"
   | "sentiment";
 
-export type BrandLeaderboardRow = {
+export type RankBoardRow = {
   id: string;
   label: string;
   isOwn: boolean;
@@ -52,7 +52,7 @@ function formatSentiment(value: number | null | undefined): {
   return { text: formatSentimentScore(value), num: value };
 }
 
-export function buildBrandLeaderboardRows(data: RankData): BrandLeaderboardRow[] {
+export function buildRankBoardRows(data: RankData): RankBoardRow[] {
   const labels = Object.keys(data.visibility_share).sort(
     (a, b) => (data.visibility_share[b] ?? 0) - (data.visibility_share[a] ?? 0),
   );
@@ -60,7 +60,7 @@ export function buildBrandLeaderboardRows(data: RankData): BrandLeaderboardRow[]
   return labels.map((label) => {
     const visibilityNum = data.visibility_share[label] ?? 0;
     const shareVoice = formatShareVoice(data.share_voice[label]);
-    const mentionNum = data.mention_share[label] ?? 0;
+    const mentionNum = data.mention_rate[label] ?? 0;
     const averageRank = formatAverageRank(data.average_rank[label]);
     const citationNum = data.citation_share?.[label] ?? 0;
     const sentiment = formatSentiment(data.sentiment_score?.[label]);
@@ -85,10 +85,12 @@ export function buildBrandLeaderboardRows(data: RankData): BrandLeaderboardRow[]
   });
 }
 
-export const BRAND_LEADERBOARD_COLUMNS: {
-  id: BrandLeaderboardSortColumn;
+export const RANK_BOARD_INDEX_COL_WIDTH = "3%";
+export const RANK_BOARD_BRAND_COL_WIDTH = "25%";
+
+export const RANK_BOARD_COLUMNS: {
+  id: RankBoardSortColumn;
   label: string;
-  description?: string;
   /** 数值越大越好；平均排名为 false（越小越好） */
   higherIsBetter: boolean;
   width: string;
@@ -96,59 +98,53 @@ export const BRAND_LEADERBOARD_COLUMNS: {
   {
     id: "visibility",
     label: "可见度",
-    description: "在所选时间窗内，至少提及一次该品牌的 AI 回复占全部成功回复的比例。",
     higherIsBetter: true,
-    width: "11%",
+    width: "12%",
   },
   {
     id: "shareVoice",
     label: "声量份额",
-    description: "品牌在 AI 内容中的提及份额比例，反映 AI 讨论该品牌相对竞品的倾向。",
     higherIsBetter: true,
-    width: "11%",
+    width: "12%",
   },
   {
     id: "mention",
     label: "AI 提及",
-    description: "AI 回复正文中品牌提及的频率占比，反映品牌在内容中的存在感。",
     higherIsBetter: true,
-    width: "11%",
+    width: "12%",
   },
   {
     id: "averageRank",
     label: "平均排名",
-    description: "品牌在 AI 生成回答正文中的平均提及排名，数值越小表示越靠前。",
     higherIsBetter: false,
-    width: "11%",
+    width: "12%",
   },
   {
     id: "citation",
     label: "引用率",
-    description: "AI 回复中引用该品牌域名或页面的比例。",
     higherIsBetter: true,
-    width: "11%",
+    width: "12%",
   },
   {
     id: "sentiment",
     label: "情感倾向分数",
-    description: "AI 在提及该品牌时的平均情感得分，0–100 越高越正向。",
     higherIsBetter: true,
-    width: "13%",
+    width: "12%",
   },
 ];
 
-export const BRAND_LEADERBOARD_MIN_WIDTH = 960;
+export const RANK_BOARD_MIN_WIDTH = 960;
 
-export function sortBrandLeaderboardRows(
-  rows: BrandLeaderboardRow[],
-  column: BrandLeaderboardSortColumn,
+export function sortRankBoardRows(
+  rows: RankBoardRow[],
+  column: RankBoardSortColumn,
   dir: "asc" | "desc",
-): BrandLeaderboardRow[] {
-  const col = BRAND_LEADERBOARD_COLUMNS.find((c) => c.id === column)!;
+): RankBoardRow[] {
+  const col = RANK_BOARD_COLUMNS.find((c) => c.id === column)!;
   const sign = dir === "asc" ? 1 : -1;
   const effectiveSign = col.higherIsBetter ? sign : -sign;
 
-  const valueOf = (row: BrandLeaderboardRow): number | null => {
+  const valueOf = (row: RankBoardRow): number | null => {
     switch (column) {
       case "visibility":
         return row.visibilityNum;

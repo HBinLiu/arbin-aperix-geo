@@ -2,11 +2,13 @@ import { Outlet, useLocation } from "react-router-dom";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { AnalysisDimensionTabs } from "@/components/analysis/common/AnalysisDimensionTabs";
+import { OpportunityTabs } from "@/components/opportunity/OpportunityTabs";
 import { SidebarSection } from "@/components/dashboard/SidebarSection";
 import { SubjectSwitcher } from "@/components/dashboard/SubjectSwitcher";
 import { AppShell } from "@/components/layouts/AppShell";
 import { useDashboardSidebar } from "@/hooks/useDashboardSidebar";
 import { analysisDimensionFromPathname } from "@/lib/analysis";
+import { opportunityTabFromPathname } from "@/lib/opportunity/nav";
 import {
   DASHBOARD_NAV_SECTIONS,
   dashboardNavIdFromPath,
@@ -22,7 +24,9 @@ export function DashboardLayout() {
   const activeNav = getDashboardNavItem(activeNavId);
   const SidebarToggleIcon = sidebarCollapsed ? PanelLeftOpen : PanelLeftClose;
   const isAnalysisPage = activeNav.id === "analysis";
+  const isOpportunityPage = activeNav.id === "opportunity";
   const analysisDimension = analysisDimensionFromPathname(pathname);
+  const opportunityTab = opportunityTabFromPathname(pathname);
 
   return (
     <AppShell headerStart={<SubjectSwitcher />}>
@@ -69,13 +73,15 @@ export function DashboardLayout() {
             </div>
             {isAnalysisPage ? (
               <AnalysisDimensionTabs embedded value={analysisDimension} />
+            ) : isOpportunityPage ? (
+              <OpportunityTabs embedded value={opportunityTab} />
             ) : (
               <div className="flex h-[42px] items-center">
                 <h1 className="text-base font-semibold">{activeNav.label}</h1>
               </div>
             )}
           </div>
-          <div className="min-h-0 min-w-0 w-full flex-1 overflow-x-hidden overflow-y-auto">
+          <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto">
             <Outlet />
           </div>
         </main>

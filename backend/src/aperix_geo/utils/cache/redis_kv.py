@@ -1,0 +1,102 @@
+"""Best-effort Redis JSON key-value helpers (fail open)."""
+
+from __future__ import annotations
+
+import json
+import logging
+import time
+from functools import lru_cache
+from typing import Any
+
+import redis
+
+from aperix_geo.config import get_settings
+from aperix_geo.utils.cache.ttl import is_payload_expired, remaining_ttl_s
+
+logger = logging.getLogger(__name__)
+
+
+@lru_cache(maxsize=1)
+def _redis_client() -> redis.Redis | None:
+    try:
+        return redis.from_url(get_settings().redis_url, decode_responses=True)
+    except Exception:
+        logger.debug("Redis 客户端初始化失败", exc_info=True)
+        return None
+
+
+def redis_get_json(key: str) -> dict[str, Any] | None:
+    client = _redis_client()
+    if client is None:
+        return None
+    try:
+        raw = client.get(key)
+        if not raw:
+            return None
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            return None
+        if is_payload_expired(data):
+            return None
+        return data
+    except Exception:
+        logger.debug("Redis GET 失败 key=%s", key, exc_info=True)
+        return None
+
+
+def redis_get_json_with_remaining_ttl(key: str) -> tuple[dict[str, Any], int] | None:
+    """Return (payload, remaining_seconds) using expires_at when present."""
+    data = redis_get_json(key)
+    if data is None:
+        return None
+    ttl = remaining_ttl_s(data)
+    if ttl <= 0:
+        return None
+    return data, ttl
+
+
+def redis_set_json_exat(key: str, value: dict[str, Any], *, expires_at: int) -> None:
+    if time.time() >= expires_at:
+        return
+    client = _redis_client()
+    if client is None:
+        return
+    try:
+        client.set(key, json.dumps(value, ensure_ascii=False), exat=expires_at)
+    except Exception:
+        logger.debug("Redis SET EXAT 失败 key=%s", key, exc_info=True)
+
+
+def redis_set_json(key: str, value: dict[str, Any], *, ttl_s: int) -> None:
+    """Legacy relative TTL; prefer redis_set_json_exat with expires_at in payload."""
+    if ttl_s <= 0:
+        return
+    payload = dict(value)
+    if "expires_at" not in payload:
+        payload["expires_at"] = int(time.time()) + ttl_s
+    redis_set_json_exat(key, payload, expires_at=int(payload["expires_at"]))
+
+
+def redis_set_nx(key: str, *, ttl_s: int) -> bool:
+    client = _redis_client()
+    if client is None:
+        return True
+    try:
+        return bool(client.set(key, "1", nx=True, ex=max(1, ttl_s)))
+    except Exception:
+        logger.debug("Redis SET NX 失败 key=%s", key, exc_info=True)
+        return True
+
+
+def redis_delete(key: str) -> None:
+    client = _redis_client()
+    if client is None:
+        return
+    try:
+        client.delete(key)
+    except Exception:
+        logger.debug("Redis DEL 失败 key=%s", key, exc_info=True)
+
+
+def clear_redis_kv_cache() -> None:
+    _redis_client.cache_clear()

@@ -19,8 +19,13 @@ export type SubjectPrompt = {
   created_at: string;
 };
 
+export type CompetitorItem = {
+  domain: string;
+  website_url: string;
+  brand: string;
+  summary: string;
+};
+
 export type CompetitorsData = {
-  competitors: { domain: string; site_name: string }[];
-  domains: string[];
-  brand_names: string[];
+  competitors: CompetitorItem[];
 };

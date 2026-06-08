@@ -7,16 +7,18 @@ import { DashboardLayout } from "@/pages/dashboard/DashboardLayout";
 import { DashboardRoot } from "@/pages/dashboard/DashboardRoot";
 import {
   AgentRoute,
+  AnalysisCitationRoute,
+  AnalysisPlatformRoute,
+  AnalysisPromptRoute,
   AnalysisRoute,
+  AnalysisSentimentRoute,
+  AnalysisVisibilityRoute,
   BrandRoute,
-  CitationAnalysisRoute,
-  PlatformAnalysisRoute,
-  PromptAnalysisRoute,
-  RankRoute,
-  OpportunitiesRoute,
+  DiagnosisRoute,
+  OpportunityRoute,
   OverviewRoute,
-  SentimentAnalysisRoute,
-  VisibilityAnalysisRoute,
+  PromptRoute,
+  RankRoute,
 } from "@/routes/dashboard";
 import { SetupRoute } from "@/routes/setup";
 import { AboutPage } from "@/pages/website/AboutPage";
@@ -47,16 +49,21 @@ export function AppRoutes() {
             <Route index element={<OverviewRoute />} />
             <Route path="analysis" element={<AnalysisRoute />}>
               <Route index element={<Navigate to="visibility" replace />} />
-              <Route path="visibility" element={<VisibilityAnalysisRoute />} />
-              <Route path="prompt" element={<PromptAnalysisRoute />} />
-              <Route path="platform" element={<PlatformAnalysisRoute />} />
-              <Route path="sentiment" element={<SentimentAnalysisRoute />} />
-              <Route path="citation" element={<CitationAnalysisRoute />} />
+              <Route path="visibility" element={<AnalysisVisibilityRoute />} />
+              <Route path="prompt" element={<AnalysisPromptRoute />} />
+              <Route path="platform" element={<AnalysisPlatformRoute />} />
+              <Route path="sentiment" element={<AnalysisSentimentRoute />} />
+              <Route path="citation" element={<AnalysisCitationRoute />} />
               <Route path="*" element={<Navigate to="visibility" replace />} />
             </Route>
             <Route path="rank" element={<RankRoute />} />
-            <Route path="opportunities" element={<OpportunitiesRoute />} />
+            <Route path="opportunity">
+              <Route index element={<Navigate to="content" replace />} />
+              <Route path=":tab" element={<OpportunityRoute />} />
+            </Route>
             <Route path="agent" element={<AgentRoute />} />
+            <Route path="diagnosis" element={<DiagnosisRoute />} />
+            <Route path="prompt" element={<PromptRoute />} />
             <Route path="brand" element={<BrandRoute />} />
             <Route path="*" element={<Navigate to={DASHBOARD_APP_BASE} replace />} />
           </Route>

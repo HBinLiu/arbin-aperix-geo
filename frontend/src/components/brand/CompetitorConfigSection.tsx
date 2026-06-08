@@ -9,53 +9,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatApiError } from "@/api/client";
 import { fetchSubjectCompetitors, saveSubjectCompetitors } from "@/api/brand";
-import { domainToDisplayName, MAX_SETUP_COMPETITORS } from "@/lib/setup";
+import { MAX_SETUP_COMPETITORS } from "@/lib/setup";
+import { registrableDomain } from "@/lib/domain";
 import { queryKeys } from "@/lib/queries";
 import { toast } from "@/lib/toast";
-import type { CompetitorsData } from "@/types";
+import type { CompetitorItem } from "@/types";
 
 type CompetitorConfigSectionProps = {
   subjectId: string;
   subjectType: string;
 };
 
-type CompetitorRow =
-  | { kind: "domain"; domain: string; site_name: string }
-  | { kind: "brand"; name: string };
-
-function toRows(data: CompetitorsData, subjectType: string): CompetitorRow[] {
-  if (subjectType === "brand") {
-    return data.brand_names.map((name) => ({ kind: "brand" as const, name }));
-  }
-  return data.competitors.map((c) => ({
-    kind: "domain" as const,
-    domain: c.domain,
-    site_name: c.site_name,
-  }));
+function rowKey(item: CompetitorItem): string {
+  return item.domain ? `d:${item.domain}` : `b:${item.brand}`;
 }
 
-function toPayload(rows: CompetitorRow[]): Pick<CompetitorsData, "competitors" | "brand_names"> {
-  const competitors = rows
-    .filter((r): r is Extract<CompetitorRow, { kind: "domain" }> => r.kind === "domain")
-    .map((r) => ({ domain: r.domain, site_name: r.site_name }));
-  const brand_names = rows
-    .filter((r): r is Extract<CompetitorRow, { kind: "brand" }> => r.kind === "brand")
-    .map((r) => r.name);
-  return { competitors, brand_names };
-}
-
-function rowLabel(row: CompetitorRow): string {
-  if (row.kind === "brand") return row.name;
-  return row.site_name.trim() || row.domain;
-}
-
-function rowDomain(row: CompetitorRow): string {
-  if (row.kind === "brand") return "";
-  return row.domain;
-}
-
-function rowKey(row: CompetitorRow): string {
-  return row.kind === "domain" ? `d:${row.domain}` : `b:${row.name}`;
+function rowLabel(item: CompetitorItem): string {
+  return item.brand.trim() || item.domain;
 }
 
 export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorConfigSectionProps) {
@@ -68,21 +38,21 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
     queryFn: () => fetchSubjectCompetitors(subjectId),
   });
 
-  const rows = useMemo(() => (data ? toRows(data, subjectType) : []), [data, subjectType]);
+  const rows = useMemo(() => data?.competitors ?? [], [data]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((r) => {
       const label = rowLabel(r).toLowerCase();
-      const domain = rowDomain(r).toLowerCase();
-      return label.includes(q) || domain.includes(q);
+      const domain = (r.domain || "").toLowerCase();
+      const summary = (r.summary || "").toLowerCase();
+      return label.includes(q) || domain.includes(q) || summary.includes(q);
     });
   }, [rows, query]);
 
   const saveMutation = useMutation({
-    mutationFn: (next: CompetitorRow[]) =>
-      saveSubjectCompetitors(subjectId, toPayload(next)),
+    mutationFn: (next: CompetitorItem[]) => saveSubjectCompetitors(subjectId, { competitors: next }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.brandCompetitors(subjectId) });
       setAddOpen(false);
@@ -92,8 +62,8 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
     },
   });
 
-  const removeRow = (row: CompetitorRow) => {
-    const key = rowKey(row);
+  const removeRow = (item: CompetitorItem) => {
+    const key = rowKey(item);
     const next = rows.filter((r) => rowKey(r) !== key);
     saveMutation.mutate(next);
   };
@@ -106,19 +76,26 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
     }
 
     if (subjectType === "brand") {
-      saveMutation.mutate([...rows, { kind: "brand", name: raw.trim() }]);
+      saveMutation.mutate([
+        ...rows,
+        { domain: "", website_url: "", brand: raw.trim(), summary: "" },
+      ]);
       return;
     }
 
     saveMutation.mutate([
       ...rows,
-      { kind: "domain", domain: raw, site_name: domainToDisplayName(raw) },
+      {
+        domain: raw,
+        website_url: "",
+        brand: registrableDomain(raw),
+        summary: "",
+      },
     ]);
   };
 
   const existingValues = useMemo(
-    () =>
-      rows.map((r) => (r.kind === "domain" ? r.domain : r.name)),
+    () => rows.map((r) => (r.domain || r.brand).trim()).filter(Boolean),
     [rows],
   );
 

@@ -1,45 +1,54 @@
-"""轻量抓取竞品候选站首页 title / meta description。"""
+"""竞品候选站首页：统一 httpx → Crawl4AI 抓取 title / meta description。"""
 
 from __future__ import annotations
 
 import asyncio
 import logging
 
-import httpx
-
 from aperix_geo.services.competitor.types import SiteHead
+from aperix_geo.services.crawl import PageFetchResult, fetch_page, page_crawl_settings
+from aperix_geo.services.crawl.settings import PageCrawlSettings
 from aperix_geo.utils.domains import registrable_domain
 from aperix_geo.utils.html import parse_head_from_html
-from aperix_geo.utils.http import HTML_FETCH_HEADERS
+from aperix_geo.utils.text import headings_from_markdown
 from aperix_geo.utils.url import homepage_urls
 
 logger = logging.getLogger(__name__)
 
+_HEAD_PARSE_CHARS = 80_000
 
-async def _fetch_one(
-    client: httpx.AsyncClient,
-    domain: str,
-    *,
-    timeout_s: float,
-) -> SiteHead:
+
+def _head_fields(result: PageFetchResult) -> tuple[str, str]:
+    title = ""
+    description = ""
+    if result.html:
+        title, description = parse_head_from_html(result.html[:_HEAD_PARSE_CHARS])
+    if not title and result.markdown.strip():
+        headings = headings_from_markdown(result.markdown)
+        if headings:
+            title = headings.split(" | ", 1)[0][:200]
+    if not title and result.markdown.strip():
+        title = result.markdown.strip().split("\n", 1)[0].lstrip("# ").strip()[:200]
+    return title, description
+
+
+def _fetch_one_sync(domain: str, *, crawl: PageCrawlSettings) -> SiteHead:
     urls = homepage_urls(domain)
     if not urls:
         return SiteHead(domain=domain, title="", description="", reachable=False)
 
+    max_chars = min(crawl.max_chars, _HEAD_PARSE_CHARS)
     for url in urls:
-        try:
-            resp = await client.get(url, follow_redirects=True, timeout=timeout_s)
-            resp.raise_for_status()
-            title, description = parse_head_from_html(resp.text[:80_000])
-            if title or description:
-                return SiteHead(
-                    domain=domain,
-                    title=title,
-                    description=description,
-                    reachable=True,
-                )
-        except httpx.HTTPError:
+        result = fetch_page(url, crawl=crawl, max_chars=max_chars)
+        if not result.fetch_ok:
             continue
+        title, description = _head_fields(result)
+        return SiteHead(
+            domain=domain,
+            title=title,
+            description=description,
+            reachable=True,
+        )
 
     return SiteHead(domain=domain, title="", description="", reachable=False)
 
@@ -47,24 +56,23 @@ async def _fetch_one(
 async def fetch_site_heads_async(
     domains: list[str],
     *,
-    timeout_s: float,
-    concurrency: int,
+    concurrency: int | None = None,
 ) -> dict[str, SiteHead]:
+    crawl = page_crawl_settings()
+    conc = max(1, concurrency if concurrency is not None else crawl.concurrency)
     unique = dedupe_keys(domains)
     if not unique:
         return {}
 
-    sem = asyncio.Semaphore(max(1, concurrency))
+    sem = asyncio.Semaphore(conc)
     out: dict[str, SiteHead] = {}
 
-    async with httpx.AsyncClient(headers=HTML_FETCH_HEADERS) as client:
+    async def run_one(host: str) -> None:
+        async with sem:
+            head = await asyncio.to_thread(_fetch_one_sync, host, crawl=crawl)
+            out[registrable_domain(head.domain)] = head
 
-        async def run_one(host: str) -> None:
-            async with sem:
-                head = await _fetch_one(client, host, timeout_s=timeout_s)
-                out[registrable_domain(head.domain)] = head
-
-        await asyncio.gather(*(run_one(h) for h in unique))
+    await asyncio.gather(*(run_one(h) for h in unique))
 
     ok = sum(1 for h in out.values() if h.reachable)
     logger.info("竞品发现: 抓取站点元数据 %d 个，可打开 %d", len(out), ok)
@@ -74,13 +82,11 @@ async def fetch_site_heads_async(
 def fetch_site_heads(
     domains: list[str],
     *,
-    timeout_s: float = 8.0,
-    concurrency: int = 25,
+    concurrency: int | None = None,
 ) -> dict[str, SiteHead]:
     return asyncio.run(
         fetch_site_heads_async(
             domains,
-            timeout_s=timeout_s,
             concurrency=concurrency,
         ),
     )

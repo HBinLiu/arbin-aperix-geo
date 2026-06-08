@@ -5,6 +5,9 @@ import {
 } from "@/lib/analysis/filters";
 import type { AnalysisQueryFilters } from "@/types";
 import type {
+  BacklinkOpportunityData,
+  ContentOpportunityData,
+  DiagnosisData,
   CitationAnalysisData,
   CitationRankData,
   CitationsData,
@@ -173,6 +176,51 @@ export async function fetchCitations(
 ): Promise<CitationsData> {
   const { data } = await api.get<CitationsData>(`/subjects/${subjectId}/citations`, {
     params: { from, to },
+  });
+  return data;
+}
+
+export async function fetchContentOpportunities(
+  subjectId: string,
+  from: string,
+  to: string,
+  filters?: AnalysisQueryFilters,
+): Promise<ContentOpportunityData> {
+  const { data } = await api.get<ContentOpportunityData>(
+    `/subjects/${subjectId}/content-opportunities`,
+    {
+      params: buildAnalysisParams(from, to, filters),
+      paramsSerializer: ANALYSIS_PARAMS_SERIALIZER,
+    },
+  );
+  return data;
+}
+
+export async function fetchBacklinkOpportunities(
+  subjectId: string,
+  from: string,
+  to: string,
+  filters?: AnalysisQueryFilters,
+): Promise<BacklinkOpportunityData> {
+  const { data } = await api.get<BacklinkOpportunityData>(
+    `/subjects/${subjectId}/backlink-opportunities`,
+    {
+      params: buildAnalysisParams(from, to, filters),
+      paramsSerializer: ANALYSIS_PARAMS_SERIALIZER,
+    },
+  );
+  return data;
+}
+
+export async function fetchDiagnosis(
+  subjectId: string,
+  from: string,
+  to: string,
+  filters?: AnalysisQueryFilters,
+): Promise<DiagnosisData> {
+  const { data } = await api.get<DiagnosisData>(`/subjects/${subjectId}/diagnosis`, {
+    params: buildAnalysisParams(from, to, filters),
+    paramsSerializer: ANALYSIS_PARAMS_SERIALIZER,
   });
   return data;
 }

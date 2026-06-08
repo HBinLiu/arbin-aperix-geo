@@ -23,6 +23,23 @@ export function userDisplayName(user: User): string {
   return "用户";
 }
 
+/** 用户菜单主标题：优先手机号 */
+export function userPrimaryLabel(user: User): string {
+  const phone = user.phone?.trim();
+  if (phone) return phone;
+  const email = user.email?.trim();
+  if (email) return email;
+  return "用户";
+}
+
+/** 用户菜单副标题：有手机号时展示邮箱 */
+export function userSecondaryLabel(user: User): string | null {
+  const phone = user.phone?.trim();
+  const email = user.email?.trim();
+  if (phone && email) return email;
+  return null;
+}
+
 export function userAvatarInitial(user: User): string {
   return userDisplayName(user).slice(0, 1).toUpperCase();
 }

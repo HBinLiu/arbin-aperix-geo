@@ -1,4 +1,4 @@
-"""竞品发现网页搜索（SearXNG JSON API）。"""
+"""SearXNG JSON API 客户端（竞品发现 + DeepSeek/Kimi 采样联网）。"""
 
 from __future__ import annotations
 

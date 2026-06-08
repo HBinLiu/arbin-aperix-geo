@@ -122,7 +122,7 @@ def discover_competitors_from_session(
     t0 = time.perf_counter()
 
     if subject_type == "domain":
-        result = search_domain_competitors(profile, target)
+        result = search_domain_competitors(profile, target, region=region, language=language)
     else:
         result = search_brand_competitors(profile, target, region=region, language=language)
 
@@ -134,7 +134,6 @@ def discover_competitors_from_session(
         profile_fields=profile_dict,
         subject_type=subject_type,
         competitors=result.get("competitors"),
-        brand_names=result.get("brand_names"),
         region_label=region_label(region),
         language_label=language_label(language),
     )
@@ -147,18 +146,15 @@ def discover_competitors_from_session(
             "micro_keywords": keywords,
             "profile_summary": profile_summary,
             "last_competitors": {
-                "domains": result.get("domains", []),
                 "competitors": result.get("competitors", []),
-                "brand_names": result.get("brand_names", []),
             },
         },
     )
 
     logger.info(
-        "设置向导: 搜索结束 session=%s %.1fs domains=%s brands=%s",
+        "设置向导: 搜索结束 session=%s %.1fs competitors=%d",
         session_id[:8],
         time.perf_counter() - t0,
-        result.get("domains"),
-        result.get("brand_names"),
+        len(result.get("competitors") or []),
     )
     return result

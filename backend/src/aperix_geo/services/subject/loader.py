@@ -18,10 +18,7 @@ def load_subject_with_competitors(
 ) -> Subject | None:
     q = (
         select(Subject)
-        .options(
-            joinedload(Subject.competitor_domains),
-            joinedload(Subject.competitor_brands),
-        )
+        .options(joinedload(Subject.competitors))
         .where(Subject.id == subject_id)
     )
     if tenant_id is not None:
@@ -30,7 +27,14 @@ def load_subject_with_competitors(
 
 
 def competitor_lists(subject: Subject) -> tuple[list[str], list[str]]:
-    return (
-        [c.domain for c in subject.competitor_domains],
-        [c.name for c in subject.competitor_brands],
-    )
+    """返回 (domains, brand_names) 供采样解析使用。"""
+    domains: list[str] = []
+    brands: list[str] = []
+    for c in subject.competitors:
+        domain = (c.domain or "").strip()
+        brand = (c.brand or "").strip()
+        if domain:
+            domains.append(domain)
+        if brand:
+            brands.append(brand)
+    return domains, brands

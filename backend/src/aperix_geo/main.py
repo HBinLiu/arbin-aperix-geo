@@ -8,6 +8,8 @@ warnings.filterwarnings(
     message=r"urllib3 .* or chardet .* doesn't match a supported version",
 )
 
+from contextlib import asynccontextmanager
+
 from aperix_geo.utils.logging import configure
 
 configure()
@@ -19,8 +21,16 @@ from fastapi.responses import RedirectResponse, Response
 from aperix_geo.api.routes import analysis, auth, competitors
 from aperix_geo.api.routes import favicon as favicon_routes
 from aperix_geo.api.routes import prompts, responses, sampling, sampling_debug, subjects, topics
+from aperix_geo.services.favicon import ensure_storage_dir
 
-app = FastAPI(title="Aperix AI API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    ensure_storage_dir()
+    yield
+
+
+app = FastAPI(title="Aperix AI API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

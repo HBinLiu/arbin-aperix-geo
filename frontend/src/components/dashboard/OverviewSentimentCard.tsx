@@ -1,4 +1,4 @@
-import { Info } from "lucide-react";
+import { CircleHelp } from "lucide-react";
 import { useState } from "react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -36,7 +36,7 @@ function MetricTitleInfo({ description }: { description: string }) {
           aria-label="了解情感倾向"
           onClick={() => setOpen((prev) => !prev)}
         >
-          <Info className="size-4" aria-hidden />
+          <CircleHelp className="size-4" aria-hidden />
         </button>
       </TooltipTrigger>
       <TooltipContent
@@ -57,8 +57,9 @@ export function OverviewSentimentCard({
   className,
 }: OverviewSentimentCardProps) {
   const label = sentimentLabelFromScore(score);
-  const scoreText = score != null ? (score * 100).toFixed(1) : "-";
-  const progress = score != null ? Math.min(100, Math.max(0, score * 100)) : 0;
+  const points = score != null ? (score <= 1 ? score * 100 : score) : null;
+  const scoreText = points != null ? points.toFixed(1) : "-";
+  const progress = points != null ? Math.min(100, Math.max(0, points)) : 0;
 
   return (
     <div

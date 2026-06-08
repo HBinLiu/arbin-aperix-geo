@@ -13,7 +13,7 @@ from aperix_geo.services.competitor.summary import (
     merge_competitors_into_summary,
     replace_summary_section,
 )
-from aperix_geo.services.web_context import _metadata_from_crawl
+from aperix_geo.services.competitor.web_context import _metadata_from_crawl
 from aperix_geo.utils.text import headings_from_markdown
 
 
@@ -155,8 +155,8 @@ def test_merge_competitors_into_summary_domain() -> None:
         base,
         subject_type="domain",
         competitors=[
-            {"domain": "rival.com", "site_name": "竞品A"},
-            {"domain": "other.cn", "site_name": "竞品B"},
+            {"domain": "rival.com", "brand": "竞品A", "summary": "同业竞品"},
+            {"domain": "other.cn", "brand": "竞品B", "summary": "同业竞品"},
         ],
     )
     assert "rival.com" in updated
@@ -170,10 +170,13 @@ def test_merge_competitors_into_summary_brand() -> None:
     updated = merge_competitors_into_summary(
         base,
         subject_type="brand",
-        brand_names=["竞品甲", "竞品乙"],
+        competitors=[
+            {"domain": "", "brand": "竞品甲", "summary": "简介甲"},
+            {"domain": "", "brand": "竞品乙", "summary": "简介乙"},
+        ],
     )
     assert "竞品甲" in updated
-    assert "同业竞品品牌" in updated
+    assert "简介甲" in updated
 
 
 def test_replace_summary_section() -> None:
@@ -189,3 +192,18 @@ def test_replace_summary_section() -> None:
     assert "面向细分赛道" in updated
     assert "信息科主任" in updated
     assert "旧定位" not in updated
+
+
+def test_company_from_setup_session() -> None:
+    from unittest.mock import patch
+
+    from aperix_geo.services.setup.helpers import company_from_setup_session
+
+    with patch(
+        "aperix_geo.services.setup.helpers.get_session",
+        return_value={"profile": {"company": "深睿医疗"}},
+    ):
+        assert company_from_setup_session(user_id="u1", setup_session_id="abc") == "深睿医疗"
+
+    with patch("aperix_geo.services.setup.helpers.get_session", return_value=None):
+        assert company_from_setup_session(user_id="u1", setup_session_id="abc") is None

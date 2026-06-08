@@ -1,5 +1,5 @@
 import { hostnameFromWebsiteInput, registrableDomain } from "@/lib/domain";
-import type { CompetitorRow, DiscoveredCompetitor, SubjectMode } from "@/types";
+import type { CompetitorItem, CompetitorRow, DiscoveredCompetitor, SubjectMode } from "@/types";
 
 export const MAX_SETUP_COMPETITORS = 5;
 
@@ -8,6 +8,7 @@ export function newCompetitorRow(partial?: Partial<CompetitorRow>): CompetitorRo
     id: crypto.randomUUID(),
     name: "",
     domain: "",
+    summary: "",
     selected: true,
     ...partial,
   };
@@ -22,42 +23,40 @@ export function domainToDisplayName(domain: string): string {
   return base.charAt(0).toUpperCase() + base.slice(1);
 }
 
-export function rowsFromDiscover(
-  mode: SubjectMode,
-  competitors: DiscoveredCompetitor[],
-  brandNames: string[],
-): CompetitorRow[] {
-  if (mode === "domain") {
-    return competitors.slice(0, MAX_SETUP_COMPETITORS).map((c) =>
-      newCompetitorRow({
-        name: c.site_name.trim(),
-        domain: registrableDomain(c.domain),
-        selected: true,
-      }),
-    );
-  }
-  return brandNames.slice(0, MAX_SETUP_COMPETITORS).map((name) =>
-    newCompetitorRow({ name: name.trim(), domain: "", selected: true }),
+export function rowsFromDiscover(competitors: DiscoveredCompetitor[]): CompetitorRow[] {
+  return competitors.slice(0, MAX_SETUP_COMPETITORS).map((c) =>
+    newCompetitorRow({
+      name: c.brand.trim() || (c.domain ? registrableDomain(c.domain) : ""),
+      domain: c.domain ? registrableDomain(c.domain) : "",
+      summary: (c.summary ?? "").trim(),
+      selected: true,
+    }),
   );
 }
 
-export function rowsToPersist(
-  mode: SubjectMode,
-  rows: CompetitorRow[],
-): { competitors: { domain: string; site_name: string }[]; brand_names: string[] } {
+export function rowsToPersist(mode: SubjectMode, rows: CompetitorRow[]): { competitors: CompetitorItem[] } {
   const selected = rows.filter((r) => r.selected);
   if (mode === "domain") {
     const seen = new Set<string>();
-    const competitors: { domain: string; site_name: string }[] = [];
+    const competitors: CompetitorItem[] = [];
     for (const r of selected) {
       const domain = registrableDomain(r.domain || r.name);
       if (domain.length < 3 || seen.has(domain)) continue;
       seen.add(domain);
-      const site_name = r.name.trim() || domainToDisplayName(domain);
-      competitors.push({ domain, site_name });
+      const brand = r.name.trim() || registrableDomain(domain);
+      competitors.push({ domain, website_url: "", brand, summary: r.summary.trim() });
     }
-    return { competitors, brand_names: [] };
+    return { competitors };
   }
-  const brand_names = selected.map((r) => r.name.trim()).filter(Boolean);
-  return { competitors: [], brand_names: [...new Set(brand_names)] };
+  const seen = new Set<string>();
+  const competitors: CompetitorItem[] = [];
+  for (const r of selected) {
+    const brand = r.name.trim();
+    if (!brand) continue;
+    const key = brand.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    competitors.push({ domain: "", website_url: "", brand, summary: r.summary.trim() });
+  }
+  return { competitors };
 }

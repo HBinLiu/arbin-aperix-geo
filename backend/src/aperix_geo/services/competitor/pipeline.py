@@ -9,6 +9,8 @@ from typing import Any
 from aperix_geo.config import get_settings
 from aperix_geo.services.competitor.cross_validate import build_pack_order, run_cross_validate
 from aperix_geo.services.competitor.defaults import RESULT_MAX, RESULT_MIN
+from aperix_geo.services.competitor.enrich import enrich_discovered_competitors
+from aperix_geo.services.competitor.profile import language_label, region_label
 from aperix_geo.utils.domains import registrable_domain
 from aperix_geo.services.competitor.output import package_discovered_competitors
 from aperix_geo.services.competitor.search import (
@@ -18,7 +20,7 @@ from aperix_geo.services.competitor.search import (
     search_candidate_domains,
 )
 from aperix_geo.services.competitor.selection import select_brand_names
-from aperix_geo.services.competitor.types import CrossValidateResult, NicheProfile, SearchPool
+from aperix_geo.services.competitor.types import CrossValidateResult, DiscoveredCompetitor, NicheProfile, SearchPool
 from aperix_geo.services.providers import LLMProviderError
 
 logger = logging.getLogger(__name__)
@@ -34,7 +36,13 @@ def _exclude_self_brand(brands: list[str], *, target: str) -> list[str]:
     return [b for b in brands if b.strip().casefold() != key]
 
 
-def search_domain_competitors(profile: NicheProfile, domain: str) -> dict[str, Any]:
+def search_domain_competitors(
+    profile: NicheProfile,
+    domain: str,
+    *,
+    region: str = "CN",
+    language: str = "zh-CN",
+) -> dict[str, Any]:
     """SearXNG + 交叉验算（须已有确认的微观利基画像）。"""
     settings = get_settings()
     t0 = time.perf_counter()
@@ -46,7 +54,7 @@ def search_domain_competitors(profile: NicheProfile, domain: str) -> dict[str, A
 
     pool: SearchPool = empty_search_pool()
     validation: CrossValidateResult | None = None
-    competitors: list = []
+    competitors: list[DiscoveredCompetitor] = []
 
     for round_idx, query in enumerate(queries, start=1):
         pool = run_search_query(
@@ -101,15 +109,21 @@ def search_domain_competitors(profile: NicheProfile, domain: str) -> dict[str, A
             min_count,
         )
 
-    result = {
-        "domains": [c["domain"] for c in competitors],
-        "competitors": competitors,
-        "brand_names": [],
-    }
+    heads = validation.heads if validation else {}
+    competitors = enrich_discovered_competitors(
+        competitors,
+        profile=profile,
+        subject_type="domain",
+        heads=heads,
+        region_label=region_label(region),
+        language_label=language_label(language),
+    )
+
+    result = {"competitors": competitors}
     logger.info(
-        "竞品发现: 域名搜索完成 target=%s domains=%s %.1fs",
+        "竞品发现: 域名搜索完成 target=%s competitors=%d %.1fs",
         domain,
-        result["domains"],
+        len(competitors),
         time.perf_counter() - t0,
     )
     return result
@@ -124,7 +138,18 @@ def search_brand_competitors(
 ) -> dict[str, Any]:
     pool = search_candidate_domains(profile, exclude_domain=None)
     brands = select_brand_names(profile, brand=brand, pool=pool, region=region, language=language)
-    brands = _exclude_self_brand(brands, target=brand)
+    brands = _exclude_self_brand(brands, target=brand)[:RESULT_MAX]
     if not brands:
         logger.warning("竞品发现: 品牌模式未得到有效竞品品牌")
-    return {"domains": [], "competitors": [], "brand_names": brands[:RESULT_MAX]}
+
+    seeds: list[DiscoveredCompetitor] = [
+        DiscoveredCompetitor(domain="", website_url="", brand=b.strip(), summary="") for b in brands if b.strip()
+    ]
+    competitors = enrich_discovered_competitors(
+        seeds,
+        profile=profile,
+        subject_type="brand",
+        region_label=region_label(region),
+        language_label=language_label(language),
+    )
+    return {"competitors": competitors}

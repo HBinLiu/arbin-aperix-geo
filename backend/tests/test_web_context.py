@@ -1,14 +1,26 @@
 """Unit tests for web_context URL helpers."""
 
-from aperix_geo.services.web_context import _result_markdown
+from aperix_geo.services.competitor.web_context import _result_markdown
 from aperix_geo.utils.domains import strip_hostname
 from aperix_geo.utils.text import headings_from_markdown, truncate_text
-from aperix_geo.utils.url import homepage_urls, host_resolves, normalize_page_url
+from aperix_geo.utils.url import (
+    homepage_urls,
+    host_resolves,
+    normalize_crawl_cache_url,
+    normalize_page_url,
+)
 
 
 def test_normalize_page_url() -> None:
     assert normalize_page_url("https://Example.com/about/") == "https://example.com/about"
     assert normalize_page_url("https://example.com/pricing#x") == "https://example.com/pricing"
+
+
+def test_normalize_crawl_cache_url() -> None:
+    assert normalize_crawl_cache_url("https://Example.com/page/?utm_source=x&a=1") == (
+        "https://example.com/page?a=1"
+    )
+    assert normalize_crawl_cache_url("https://example.com/page/?fbclid=abc") == "https://example.com/page"
 
 
 def test_strip_hostname() -> None:

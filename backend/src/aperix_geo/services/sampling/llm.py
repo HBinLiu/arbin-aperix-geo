@@ -2,14 +2,25 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
 
 from aperix_geo.config import Settings, get_settings
-from aperix_geo.services.providers import LLMProviderError, chat_completion
-from aperix_geo.services.providers.openai import openai_chat_completion
-from aperix_geo.services.providers.yuanbao import YuanbaoProviderError, yuanbao_chat_completion
+from aperix_geo.services.chat_result import SamplingChatResult
+from aperix_geo.services.providers.doubao import (
+    DoubaoProviderError,
+    doubao_chat_fallback,
+    doubao_responses_chat,
+)
+from aperix_geo.services.providers.deepseek import deepseek_chat
+from aperix_geo.services.providers.ernie import ernie_chat
+from aperix_geo.services.providers.errors import ProviderError
+from aperix_geo.services.providers.kimi import kimi_chat
+from aperix_geo.services.providers.qianwen import qianwen_generation_chat
+from aperix_geo.services.providers.yuanbao import yuanbao_chat
+
+logger = logging.getLogger(__name__)
 
 
 class SamplingLLMError(Exception):
@@ -23,7 +34,15 @@ class SamplingPlatformSpec:
     llm_model: Callable[[Settings], str]
     is_configured: Callable[[Settings], bool]
     rate_limit_per_minute: Callable[[Settings], int]
-    chat: Callable[[list[dict[str, str]]], tuple[str, dict[str, Any], int]]
+    chat: Callable[[list[dict[str, str]]], SamplingChatResult]
+
+
+@dataclass(frozen=True)
+class _PlatformDef:
+    platform: str
+    label: str
+    prefix: str
+    chat_factory: Callable[[Settings], Callable[[list[dict[str, str]]], SamplingChatResult]]
 
 
 def _has_key(key: str) -> Callable[[Settings], bool]:
@@ -38,145 +57,147 @@ def _limit(field: str, default: int = 30) -> Callable[[Settings], int]:
     return lambda s: int(getattr(s, field, default) or default)
 
 
-def _openai_provider_chat(
-    *,
-    settings: Settings,
-    provider_label: str,
-    api_key: str,
-    base_url: str,
-    path: str,
-    model: str,
-    error_cls: type[Exception],
-) -> Callable[[list[dict[str, str]]], tuple[str, dict[str, Any], int]]:
-    url = base_url.rstrip("/") + path
-
-    def _call(messages: list[dict[str, str]]) -> tuple[str, dict[str, Any], int]:
-        return openai_chat_completion(
-            url=url,
-            api_key=api_key,
-            model=model,
-            messages=messages,
-            error_cls=error_cls,
-            provider_label=provider_label,
+def _doubao_chat(settings: Settings) -> Callable[[list[dict[str, str]]], SamplingChatResult]:
+    def _call(messages: list[dict[str, str]]) -> SamplingChatResult:
+        if settings.doubao_web_search_enabled:
+            try:
+                return doubao_responses_chat(
+                    messages,
+                    api_key=settings.doubao_api_key,
+                    base_url=settings.doubao_base_url,
+                    model=settings.doubao_model,
+                    web_search=True,
+                    timeout_s=settings.doubao_responses_timeout_s,
+                )
+            except DoubaoProviderError as exc:
+                logger.warning("Doubao web search failed, fallback to chat/completions: %s", exc)
+        return doubao_chat_fallback(
+            messages,
+            api_key=settings.doubao_api_key,
+            base_url=settings.doubao_base_url,
+            model=settings.doubao_model,
         )
 
     return _call
 
 
+def _deepseek_chat(settings: Settings) -> Callable[[list[dict[str, str]]], SamplingChatResult]:
+    def _call(messages: list[dict[str, str]]) -> SamplingChatResult:
+        return deepseek_chat(
+            messages,
+            api_key=settings.deepseek_api_key,
+            base_url=settings.deepseek_base_url,
+            model=settings.deepseek_model,
+            web_search=settings.deepseek_web_search_enabled,
+            searxng_max_results=settings.sampling_searxng_max_results,
+            timeout_s=settings.deepseek_chat_timeout_s,
+        )
+
+    return _call
+
+
+def _qianwen_chat(settings: Settings) -> Callable[[list[dict[str, str]]], SamplingChatResult]:
+    def _call(messages: list[dict[str, str]]) -> SamplingChatResult:
+        return qianwen_generation_chat(
+            messages,
+            api_key=settings.qianwen_api_key,
+            base_url=settings.qianwen_base_url,
+            model=settings.qianwen_model,
+            web_search=settings.qianwen_web_search_enabled,
+            timeout_s=settings.qianwen_generation_timeout_s,
+        )
+
+    return _call
+
+
+def _yuanbao_chat(settings: Settings) -> Callable[[list[dict[str, str]]], SamplingChatResult]:
+    def _call(messages: list[dict[str, str]]) -> SamplingChatResult:
+        return yuanbao_chat(
+            messages,
+            api_key=settings.yuanbao_api_key,
+            base_url=settings.yuanbao_base_url,
+            model=settings.yuanbao_model,
+            web_search=settings.yuanbao_web_search_enabled,
+            timeout_s=settings.yuanbao_chat_timeout_s,
+        )
+
+    return _call
+
+
+def _kimi_chat(settings: Settings) -> Callable[[list[dict[str, str]]], SamplingChatResult]:
+    def _call(messages: list[dict[str, str]]) -> SamplingChatResult:
+        return kimi_chat(
+            messages,
+            api_key=settings.kimi_api_key,
+            base_url=settings.kimi_base_url,
+            model=settings.kimi_model,
+            web_search=settings.kimi_web_search_enabled,
+            searxng_max_results=settings.sampling_searxng_max_results,
+            timeout_s=settings.kimi_chat_timeout_s,
+        )
+
+    return _call
+
+
+def _ernie_chat(settings: Settings) -> Callable[[list[dict[str, str]]], SamplingChatResult]:
+    def _call(messages: list[dict[str, str]]) -> SamplingChatResult:
+        return ernie_chat(
+            messages,
+            api_key=settings.ernie_api_key,
+            base_url=settings.ernie_base_url,
+            model=settings.ernie_model,
+            web_search=settings.ernie_web_search_enabled,
+            timeout_s=settings.ernie_chat_timeout_s,
+        )
+
+    return _call
+
+
+_PLATFORM_DEFS: tuple[_PlatformDef, ...] = (
+    _PlatformDef("doubao", "豆包", "doubao", _doubao_chat),
+    _PlatformDef("deepseek", "DeepSeek", "deepseek", _deepseek_chat),
+    _PlatformDef("qianwen", "通义千问", "qianwen", _qianwen_chat),
+    _PlatformDef("yuanbao", "腾讯元宝", "yuanbao", _yuanbao_chat),
+    _PlatformDef("kimi", "Kimi", "kimi", _kimi_chat),
+    _PlatformDef("ernie", "文心一言", "ernie", _ernie_chat),
+)
+
+_cached_specs: list[SamplingPlatformSpec] | None = None
+_cached_settings_id: int | None = None
+
+
 def _build_specs(settings: Settings) -> list[SamplingPlatformSpec]:
     specs: list[SamplingPlatformSpec] = []
-
-    if settings.doubao_api_key.strip():
+    for defn in _PLATFORM_DEFS:
+        api_key_field = f"{defn.prefix}_api_key"
+        if not getattr(settings, api_key_field, "").strip():
+            continue
         specs.append(
             SamplingPlatformSpec(
-                platform="doubao",
-                label="豆包",
-                llm_model=_model("doubao_model"),
-                is_configured=_has_key("doubao_api_key"),
-                rate_limit_per_minute=_limit("doubao_rate_limit_per_minute"),
-                chat=_openai_provider_chat(
-                    settings=settings,
-                    provider_label="Doubao",
-                    api_key=settings.doubao_api_key,
-                    base_url=settings.doubao_base_url,
-                    path="/chat/completions",
-                    model=settings.doubao_model,
-                    error_cls=SamplingLLMError,
-                ),
+                platform=defn.platform,
+                label=defn.label,
+                llm_model=_model(f"{defn.prefix}_model"),
+                is_configured=_has_key(api_key_field),
+                rate_limit_per_minute=_limit(f"{defn.prefix}_rate_limit_per_minute"),
+                chat=defn.chat_factory(settings),
             )
         )
-
-    if settings.deepseek_api_key.strip():
-        specs.append(
-            SamplingPlatformSpec(
-                platform="deepseek",
-                label="DeepSeek",
-                llm_model=_model("deepseek_model"),
-                is_configured=_has_key("deepseek_api_key"),
-                rate_limit_per_minute=_limit("deepseek_rate_limit_per_minute"),
-                chat=lambda messages, s=settings: chat_completion(messages),
-            )
-        )
-
-    if settings.qianwen_api_key.strip():
-        specs.append(
-            SamplingPlatformSpec(
-                platform="qianwen",
-                label="通义千问",
-                llm_model=_model("qianwen_model"),
-                is_configured=_has_key("qianwen_api_key"),
-                rate_limit_per_minute=_limit("qianwen_rate_limit_per_minute"),
-                chat=_openai_provider_chat(
-                    settings=settings,
-                    provider_label="Qianwen",
-                    api_key=settings.qianwen_api_key,
-                    base_url=settings.qianwen_base_url,
-                    path="/chat/completions",
-                    model=settings.qianwen_model,
-                    error_cls=SamplingLLMError,
-                ),
-            )
-        )
-
-    if settings.yuanbao_api_key.strip():
-        specs.append(
-            SamplingPlatformSpec(
-                platform="yuanbao",
-                label="腾讯元宝",
-                llm_model=_model("yuanbao_model"),
-                is_configured=_has_key("yuanbao_api_key"),
-                rate_limit_per_minute=_limit("yuanbao_rate_limit_per_minute"),
-                chat=lambda messages: yuanbao_chat_completion(messages),
-            )
-        )
-
-    if settings.kimi_api_key.strip():
-        specs.append(
-            SamplingPlatformSpec(
-                platform="kimi",
-                label="Kimi",
-                llm_model=_model("kimi_model"),
-                is_configured=_has_key("kimi_api_key"),
-                rate_limit_per_minute=_limit("kimi_rate_limit_per_minute"),
-                chat=_openai_provider_chat(
-                    settings=settings,
-                    provider_label="Kimi",
-                    api_key=settings.kimi_api_key,
-                    base_url=settings.kimi_base_url,
-                    path="/chat/completions",
-                    model=settings.kimi_model,
-                    error_cls=SamplingLLMError,
-                ),
-            )
-        )
-
-    if settings.ernie_api_key.strip():
-        specs.append(
-            SamplingPlatformSpec(
-                platform="ernie",
-                label="文心一言",
-                llm_model=_model("ernie_model"),
-                is_configured=_has_key("ernie_api_key"),
-                rate_limit_per_minute=_limit("ernie_rate_limit_per_minute"),
-                chat=_openai_provider_chat(
-                    settings=settings,
-                    provider_label="Ernie",
-                    api_key=settings.ernie_api_key,
-                    base_url=settings.ernie_base_url,
-                    path="/chat/completions",
-                    model=settings.ernie_model,
-                    error_cls=SamplingLLMError,
-                ),
-            )
-        )
-
     return specs
+
+
+def _get_specs(settings: Settings) -> list[SamplingPlatformSpec]:
+    global _cached_specs, _cached_settings_id
+    sid = id(settings)
+    if _cached_specs is None or _cached_settings_id != sid:
+        _cached_specs = _build_specs(settings)
+        _cached_settings_id = sid
+    return _cached_specs
 
 
 def list_sampling_platforms(*, settings: Settings | None = None) -> list[dict[str, str]]:
     s = settings or get_settings()
     out: list[dict[str, str]] = []
-    for spec in _build_specs(s):
+    for spec in _get_specs(s):
         if spec.is_configured(s):
             out.append({"platform": spec.platform, "label": spec.label})
     return out
@@ -202,7 +223,7 @@ def prefer_default_platforms(*, settings: Settings | None = None) -> list[str]:
 
 def resolve_sampling_platform(platform: str, *, settings: Settings | None = None) -> SamplingPlatformSpec:
     s = settings or get_settings()
-    for spec in _build_specs(s):
+    for spec in _get_specs(s):
         if spec.is_configured(s) and spec.platform == platform:
             return spec
     raise SamplingLLMError(f"Unknown or unconfigured platform: {platform}")
@@ -212,24 +233,16 @@ def llm_model_for_platform(platform: str, *, settings: Settings | None = None) -
     return resolve_sampling_platform(platform, settings=settings).llm_model(settings or get_settings())
 
 
-def platform_for_llm_model(llm_model: str, *, settings: Settings | None = None) -> str | None:
-    s = settings or get_settings()
-    for spec in _build_specs(s):
-        if spec.is_configured(s) and spec.llm_model(s) == llm_model:
-            return spec.platform
-    return None
-
-
 def chat_for_platform(
     platform: str,
     messages: list[dict[str, str]],
     *,
     settings: Settings | None = None,
-) -> tuple[str, dict[str, Any], int]:
+) -> SamplingChatResult:
     spec = resolve_sampling_platform(platform, settings=settings)
     try:
         return spec.chat(messages)
-    except (LLMProviderError, YuanbaoProviderError) as e:
+    except ProviderError as e:
         raise SamplingLLMError(str(e)) from e
     except SamplingLLMError:
         raise

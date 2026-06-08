@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input, InputGroup } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  domainToDisplayName,
   MAX_SETUP_COMPETITORS,
   newCompetitorRow,
 } from "@/lib/setup";
@@ -278,7 +277,7 @@ export function SetupStepCompetitor({ mode, rows, onChange }: SetupStepCompetito
     onChange([
       ...rows,
       newCompetitorRow({
-        name: domainToDisplayName(main),
+        name: main,
         domain: main,
         selected: true,
       }),

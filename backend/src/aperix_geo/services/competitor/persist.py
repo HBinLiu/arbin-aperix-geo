@@ -2,32 +2,45 @@
 
 from __future__ import annotations
 
-from aperix_geo.db.models import CompetitorBrand, CompetitorDomain, Subject
+from aperix_geo.db.models import Competitor, Subject
+from aperix_geo.schemas.catalog import CompetitorItem
 from aperix_geo.services.subject.domain_fields import prepare_domain_and_website_url
-from aperix_geo.schemas.catalog import CompetitorDomainItem
-from aperix_geo.utils.domains import site_name_from_title
+from aperix_geo.utils.domains import ensure_brand
 
 
 def apply_competitors(
     subject: Subject,
     *,
-    competitors: list[CompetitorDomainItem],
-    brand_names: list[str],
+    competitors: list[CompetitorItem],
 ) -> None:
     seen_domains: set[str] = set()
+    seen_brands: set[str] = set()
     for item in competitors:
-        domain, website_url = prepare_domain_and_website_url(item.domain, item.website_url)
-        if not domain or len(domain) < 3 or domain in seen_domains:
+        summary = (item.summary or "").strip()
+        domain_raw = (item.domain or "").strip()
+        if domain_raw:
+            domain, website_url = prepare_domain_and_website_url(domain_raw, item.website_url)
+            if not domain or len(domain) < 3 or domain in seen_domains:
+                continue
+            seen_domains.add(domain)
+            brand = ensure_brand(item.brand, domain=domain)
+            subject.competitors.append(
+                Competitor(
+                    domain=domain,
+                    website_url=website_url,
+                    brand=brand,
+                    summary=summary,
+                )
+            )
             continue
-        seen_domains.add(domain)
-        site_name = (item.site_name or "").strip()[:255]
-        if not site_name:
-            site_name = site_name_from_title("", domain=domain)
-        subject.competitor_domains.append(
-            CompetitorDomain(domain=domain, website_url=website_url, site_name=site_name)
-        )
 
-    for name in brand_names:
-        name = name.strip()
-        if name:
-            subject.competitor_brands.append(CompetitorBrand(name=name))
+        brand = ensure_brand(item.brand)
+        if not brand:
+            continue
+        key = brand.casefold()
+        if key in seen_brands:
+            continue
+        seen_brands.add(key)
+        subject.competitors.append(
+            Competitor(domain="", website_url="", brand=brand, summary=summary)
+        )

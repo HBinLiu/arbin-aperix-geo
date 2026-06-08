@@ -56,8 +56,7 @@ export async function discoverCompetitors(input: {
   microKeywords: string[];
 }): Promise<{ competitorRows: CompetitorRow[]; topicRows?: TopicRow[] }> {
   const { data } = await api.post<{
-    competitors: { domain: string; site_name: string }[];
-    brand_names: string[];
+    competitors: { domain: string; website_url?: string; brand: string; summary: string }[];
     micro_keywords?: string[];
   }>(
     "/subjects/discover-competitors",
@@ -65,7 +64,7 @@ export async function discoverCompetitors(input: {
     { timeout: DISCOVER_COMPETITORS_TIMEOUT_MS },
   );
   return {
-    competitorRows: rowsFromDiscover(input.mode, data.competitors ?? [], data.brand_names ?? []),
+    competitorRows: rowsFromDiscover(data.competitors ?? []),
     topicRows: data.micro_keywords?.length ? topicRowsFromDiscover(data.micro_keywords) : undefined,
   };
 }

@@ -8,12 +8,26 @@ from aperix_geo.config import get_settings
 from aperix_geo.services.competitor.cross_validate import expand_ranked_domains
 from aperix_geo.utils.domains import is_valid_hostname, strip_hostname
 from aperix_geo.services.competitor.types import CrossValidateResult, NicheProfile, SearchPool
+from aperix_geo.services.providers.prompts import (
+    COMPETITOR_BRAND_SELECTION_SYSTEM,
+    brand_selection_user_content,
+)
 from aperix_geo.services.providers import chat_completion
 from aperix_geo.utils.json import extract_json_object
 
 logger = logging.getLogger(__name__)
 
 _REGION_LABELS = {"CN": "中国大陆", "HK": "中国香港", "TW": "中国台湾"}
+
+
+def _format_search_block(pool: SearchPool) -> str:
+    lines: list[str] = []
+    for idx, hit in enumerate(pool.hits[:20], start=1):
+        title = (hit.title or "（无标题）")[:120]
+        snippet = (hit.snippet or "（无摘要）")[:220]
+        url = (hit.url or "")[:200]
+        lines.append(f"{idx}. {title}\n   摘要：{snippet}\n   来源：{url or '—'}")
+    return "\n".join(lines)
 
 
 def select_domain_shortlist(
@@ -45,30 +59,24 @@ def select_brand_names(
     region: str,
     language: str,
 ) -> list[str]:
-    region_label = _REGION_LABELS.get(region, region)
-    if pool.hits:
-        search_block = "搜索结果摘要：\n" + "\n".join(
-            f"- {h.title[:100]} | {h.snippet[:180]}" for h in pool.hits[:20]
-        )
-    else:
-        search_block = "（无搜索结果，请结合公开认知谨慎列举。）"
+    from aperix_geo.services.competitor.defaults import RESULT_MAX
 
+    if not pool.hits:
+        logger.warning("品牌模式竞品筛选：无搜索结果，跳过 LLM 抽取")
+        return []
+
+    region_label = _REGION_LABELS.get(region, region)
     messages = [
-        {
-            "role": "system",
-            "content": (
-                '你是竞品研究专家。只输出 JSON：{"domains": [], "brand_names": string[]}。'
-                "只填 brand_names（最多 5 个）。"
-            ),
-        },
+        {"role": "system", "content": COMPETITOR_BRAND_SELECTION_SYSTEM},
         {
             "role": "user",
-            "content": (
-                f"目标品牌：{brand}\n"
-                f"行业：{profile.get('industry') or '—'}\n"
-                f"市场：{region_label}（{language}）\n\n"
-                f"{search_block}\n\n"
-                "列出直接竞品品牌名，禁止编造。"
+            "content": brand_selection_user_content(
+                brand=brand,
+                profile=profile,
+                region_label=region_label,
+                language=language,
+                search_block=_format_search_block(pool),
+                max_brands=RESULT_MAX,
             ),
         },
     ]

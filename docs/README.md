@@ -50,7 +50,7 @@
 |--------|----------|
 | 可见度 | `visibility_rate` |
 | AI 提及 | `mention_intensity` |
-| 声量份额 | `share_of_voice` |
+| 声量份额 | `share_voice` |
 | 平均排名 | `average_rank` |
 | 引用率 | `citation_rate` |
 | 情感倾向 | `sentiment_score` |

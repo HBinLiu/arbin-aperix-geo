@@ -3,34 +3,13 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query
-from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload
+from fastapi import APIRouter, Query
 
-from aperix_geo.api.deps import CurrentUser, DbSession
-from aperix_geo.db.models import Subject, User
+from aperix_geo.api.deps import CurrentUser, DbSession, get_subject_for_user
 from aperix_geo.services import analysis as analysis_svc
 from aperix_geo.utils.datetime import parse_iso_datetime
 
 router = APIRouter(tags=["analysis"])
-
-
-def _sub(db: Session, user: User, subject_id: UUID) -> Subject:
-    s = (
-        db.execute(
-            select(Subject)
-            .options(
-                joinedload(Subject.competitor_domains),
-                joinedload(Subject.competitor_brands),
-            )
-            .where(Subject.id == subject_id, Subject.tenant_id == user.tenant_id)
-        )
-        .unique()
-        .scalar_one_or_none()
-    )
-    if not s:
-        raise HTTPException(status_code=404, detail="Subject not found")
-    return s
 
 
 @router.get("/subjects/{subject_id}/overview")
@@ -43,7 +22,7 @@ def overview(
     platform: Annotated[list[str] | None, Query()] = None,
     topic_id: Annotated[UUID | None, Query()] = None,
 ) -> dict:
-    s = _sub(db, current, subject_id)
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
     f = parse_iso_datetime(dt_from)
     t = parse_iso_datetime(dt_to)
     return analysis_svc.build_overview(
@@ -66,7 +45,7 @@ def topics_performance(
     platform: Annotated[list[str] | None, Query()] = None,
     topic_id: Annotated[UUID | None, Query()] = None,
 ) -> list[dict]:
-    _sub(db, current, subject_id)
+    get_subject_for_user(db, current, subject_id, with_competitors=True)
     f = parse_iso_datetime(dt_from)
     t = parse_iso_datetime(dt_to)
     return analysis_svc.build_topics_performance(
@@ -89,7 +68,7 @@ def rank(
     platform: Annotated[list[str] | None, Query()] = None,
     topic_id: Annotated[UUID | None, Query()] = None,
 ) -> dict:
-    s = _sub(db, current, subject_id)
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
     f = parse_iso_datetime(dt_from)
     t = parse_iso_datetime(dt_to)
     return analysis_svc.build_rank(
@@ -112,7 +91,7 @@ def prompts_performance(
     platform: Annotated[list[str] | None, Query()] = None,
     topic_id: Annotated[UUID | None, Query()] = None,
 ) -> list[dict]:
-    _sub(db, current, subject_id)
+    get_subject_for_user(db, current, subject_id, with_competitors=True)
     f = parse_iso_datetime(dt_from)
     t = parse_iso_datetime(dt_to)
     return analysis_svc.build_prompts_performance(
@@ -135,7 +114,7 @@ def citations(
     platform: Annotated[list[str] | None, Query()] = None,
     topic_id: Annotated[UUID | None, Query()] = None,
 ) -> dict:
-    s = _sub(db, current, subject_id)
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
     f = parse_iso_datetime(dt_from)
     t = parse_iso_datetime(dt_to)
     return analysis_svc.build_citations(
@@ -158,7 +137,7 @@ def visibility_analysis(
     platform: Annotated[list[str] | None, Query()] = None,
     topic_id: Annotated[UUID | None, Query()] = None,
 ) -> dict:
-    s = _sub(db, current, subject_id)
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
     f = parse_iso_datetime(dt_from)
     t = parse_iso_datetime(dt_to)
     return analysis_svc.build_visibility_analysis(
@@ -181,7 +160,7 @@ def platforms_performance(
     platform: Annotated[list[str] | None, Query()] = None,
     topic_id: Annotated[UUID | None, Query()] = None,
 ) -> list[dict]:
-    _sub(db, current, subject_id)
+    get_subject_for_user(db, current, subject_id, with_competitors=True)
     f = parse_iso_datetime(dt_from)
     t = parse_iso_datetime(dt_to)
     return analysis_svc.build_platform_performance(
@@ -204,7 +183,7 @@ def platform_matrix(
     platform: Annotated[list[str] | None, Query()] = None,
     topic_id: Annotated[UUID | None, Query()] = None,
 ) -> dict:
-    s = _sub(db, current, subject_id)
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
     f = parse_iso_datetime(dt_from)
     t = parse_iso_datetime(dt_to)
     return analysis_svc.build_platform_matrix_analysis(
@@ -228,7 +207,7 @@ def citation_analysis(
     topic_id: Annotated[UUID | None, Query()] = None,
     prompt_id: Annotated[UUID | None, Query()] = None,
 ) -> dict:
-    s = _sub(db, current, subject_id)
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
     f = parse_iso_datetime(dt_from)
     t = parse_iso_datetime(dt_to)
     return analysis_svc.build_citation_analysis(
@@ -252,7 +231,7 @@ def citation_rank(
     platform: Annotated[list[str] | None, Query()] = None,
     topic_id: Annotated[UUID | None, Query()] = None,
 ) -> dict:
-    s = _sub(db, current, subject_id)
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
     f = parse_iso_datetime(dt_from)
     t = parse_iso_datetime(dt_to)
     return analysis_svc.build_citation_brand_rank(
@@ -276,7 +255,7 @@ def sentiment_analysis(
     topic_id: Annotated[UUID | None, Query()] = None,
     prompt_id: Annotated[UUID | None, Query()] = None,
 ) -> dict:
-    s = _sub(db, current, subject_id)
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
     f = parse_iso_datetime(dt_from)
     t = parse_iso_datetime(dt_to)
     return analysis_svc.build_sentiment_analysis(
@@ -300,10 +279,79 @@ def daily_sentiment(
     platform: Annotated[list[str] | None, Query()] = None,
     topic_id: Annotated[UUID | None, Query()] = None,
 ) -> dict:
-    s = _sub(db, current, subject_id)
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
     f = parse_iso_datetime(dt_from)
     t = parse_iso_datetime(dt_to)
     return analysis_svc.build_daily_sentiment_series(
+        db,
+        subject=s,
+        dt_from=f,
+        dt_to=t,
+        platforms=platform or None,
+        topic_id=topic_id,
+    )
+
+
+@router.get("/subjects/{subject_id}/content-opportunities")
+def content_opportunities(
+    subject_id: UUID,
+    dt_from: Annotated[str, Query(alias="from")],
+    dt_to: Annotated[str, Query(alias="to")],
+    db: DbSession,
+    current: CurrentUser,
+    platform: Annotated[list[str] | None, Query()] = None,
+    topic_id: Annotated[UUID | None, Query()] = None,
+) -> dict:
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
+    f = parse_iso_datetime(dt_from)
+    t = parse_iso_datetime(dt_to)
+    return analysis_svc.build_content_opportunities(
+        db,
+        subject=s,
+        dt_from=f,
+        dt_to=t,
+        platforms=platform or None,
+        topic_id=topic_id,
+    )
+
+
+@router.get("/subjects/{subject_id}/backlink-opportunities")
+def backlink_opportunities(
+    subject_id: UUID,
+    dt_from: Annotated[str, Query(alias="from")],
+    dt_to: Annotated[str, Query(alias="to")],
+    db: DbSession,
+    current: CurrentUser,
+    platform: Annotated[list[str] | None, Query()] = None,
+    topic_id: Annotated[UUID | None, Query()] = None,
+) -> dict:
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
+    f = parse_iso_datetime(dt_from)
+    t = parse_iso_datetime(dt_to)
+    return analysis_svc.build_backlink_opportunities(
+        db,
+        subject=s,
+        dt_from=f,
+        dt_to=t,
+        platforms=platform or None,
+        topic_id=topic_id,
+    )
+
+
+@router.get("/subjects/{subject_id}/diagnosis")
+def diagnosis(
+    subject_id: UUID,
+    dt_from: Annotated[str, Query(alias="from")],
+    dt_to: Annotated[str, Query(alias="to")],
+    db: DbSession,
+    current: CurrentUser,
+    platform: Annotated[list[str] | None, Query()] = None,
+    topic_id: Annotated[UUID | None, Query()] = None,
+) -> dict:
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
+    f = parse_iso_datetime(dt_from)
+    t = parse_iso_datetime(dt_to)
+    return analysis_svc.build_diagnosis(
         db,
         subject=s,
         dt_from=f,

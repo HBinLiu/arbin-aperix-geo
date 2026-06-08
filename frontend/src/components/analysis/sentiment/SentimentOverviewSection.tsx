@@ -1,4 +1,4 @@
-import { Info } from "lucide-react";
+import { CircleHelp } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { AnalysisRankTable, type RankRow } from "@/components/analysis/common/AnalysisRankTable";
@@ -35,7 +35,7 @@ function DistributionTitleInfo() {
           aria-label="了解情感分布"
           onClick={() => setOpen((prev) => !prev)}
         >
-          <Info className="size-4" aria-hidden />
+          <CircleHelp className="size-4" aria-hidden />
         </button>
       </TooltipTrigger>
       <TooltipContent
@@ -63,7 +63,8 @@ type DistributionCardProps = {
 };
 
 function SentimentDistributionCard({ score, scoreLabel, series, loading }: DistributionCardProps) {
-  const scoreText = score != null ? (score * 100).toFixed(1) : null;
+  const points = score != null ? (score <= 1 ? score * 100 : score) : null;
+  const scoreText = points != null ? points.toFixed(1) : null;
 
   return (
     <div className="flex min-w-[min(100%,480px)] flex-[3] flex-col p-5" style={{ minHeight: SENTIMENT_SECTION_HEIGHT }}>

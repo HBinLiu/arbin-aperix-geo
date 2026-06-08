@@ -4,13 +4,10 @@ import { Trash2 } from "lucide-react";
 
 import { FaviconImage } from "@/components/common/FaviconImage";
 import { cn } from "@/lib/utils";
-
-export type CompetitorHoverRow =
-  | { kind: "domain"; domain: string; site_name: string }
-  | { kind: "brand"; name: string };
+import type { CompetitorItem } from "@/types";
 
 type CompetitorHoverCardProps = {
-  row: CompetitorHoverRow;
+  row: CompetitorItem;
   className?: string;
 };
 
@@ -37,17 +34,9 @@ function SectionBadge({ children }: { children: string }) {
   );
 }
 
-function rowLabel(row: CompetitorHoverRow): string {
-  if (row.kind === "brand") return row.name;
-  return row.site_name.trim() || row.domain;
+function rowLabel(row: CompetitorItem): string {
+  return row.brand.trim() || row.domain;
 }
-
-function rowDomain(row: CompetitorHoverRow): string {
-  if (row.kind === "brand") return "";
-  return row.domain;
-}
-
-const DEFAULT_DESCRIPTION = "阿达发的是";
 
 const HOVER_CARD_GAP = 4;
 const VIEWPORT_BOTTOM_PAD = 10;
@@ -107,8 +96,8 @@ function useHoverCardPosition(
 export function CompetitorHoverCard({ row, className }: CompetitorHoverCardProps) {
   const [expanded, setExpanded] = useState(false);
   const label = rowLabel(row);
-  const domain = rowDomain(row);
-  const description = DEFAULT_DESCRIPTION;
+  const domain = row.domain.trim();
+  const description = row.summary.trim() || "暂无简介。";
   const canExpand = description.length > 72;
 
   return (
@@ -120,9 +109,9 @@ export function CompetitorHoverCard({ row, className }: CompetitorHoverCardProps
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center gap-3">
-        {row.kind === "domain" ? (
+        {domain ? (
           <div className="border-border flex size-12 shrink-0 items-center justify-center rounded-md border bg-white p-2">
-            <FaviconImage domain={row.domain} size={32} className="size-8" iconClassName="size-5" />
+            <FaviconImage domain={domain} size={32} className="size-8" iconClassName="size-5" />
           </div>
         ) : (
           <div className="bg-muted flex size-12 shrink-0 items-center justify-center rounded-full text-base font-semibold">
@@ -165,7 +154,7 @@ export function CompetitorHoverCard({ row, className }: CompetitorHoverCardProps
 }
 
 type CompetitorTableRowProps = {
-  row: CompetitorHoverRow;
+  row: CompetitorItem;
   onRemove: () => void;
   removeDisabled?: boolean;
 };
@@ -193,11 +182,11 @@ export function CompetitorTableRow({ row, onRemove, removeDisabled }: Competitor
   return (
     <li className="relative grid grid-cols-[minmax(0,1fr)_6rem_4rem] items-center gap-2 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_7rem_4rem]">
       <div className="flex min-w-0 items-center gap-2">
-        {row.kind === "domain" ? (
+        {row.domain ? (
           <FaviconImage domain={row.domain} size={20} className="size-5 shrink-0" />
         ) : (
           <span className="bg-muted flex size-5 shrink-0 items-center justify-center rounded text-[10px] font-semibold">
-            {row.name.slice(0, 1)}
+            {row.brand.slice(0, 1)}
           </span>
         )}
         <div

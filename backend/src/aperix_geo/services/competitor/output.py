@@ -5,8 +5,6 @@ from __future__ import annotations
 import logging
 
 from aperix_geo.services.competitor.defaults import (
-    METADATA_CONCURRENCY,
-    METADATA_TIMEOUT_S,
     RESULT_MAX,
     RESULT_MIN,
 )
@@ -46,11 +44,7 @@ def package_discovered_competitors(
     if need_fetch:
         heads = {
             **heads,
-            **fetch_site_heads(
-                need_fetch,
-                timeout_s=METADATA_TIMEOUT_S,
-                concurrency=METADATA_CONCURRENCY,
-            ),
+            **fetch_site_heads(need_fetch),
         }
 
     out: list[DiscoveredCompetitor] = []
@@ -64,7 +58,9 @@ def package_discovered_competitors(
         out.append(
             DiscoveredCompetitor(
                 domain=domain,
-                site_name=site_name_from_title(head.title, domain=domain),
+                website_url=f"https://{domain}",
+                brand=site_name_from_title(head.title, domain=domain),
+                summary="",
             ),
         )
 
@@ -78,6 +74,6 @@ def package_discovered_competitors(
     logger.info(
         "竞品发现: 输出 %d 个竞品 %s",
         len(out),
-        ", ".join(f"{c['domain']}({c['site_name']})" for c in out),
+        ", ".join(f"{c['domain']}({c['brand']})" for c in out),
     )
     return out

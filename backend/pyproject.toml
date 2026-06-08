@@ -19,6 +19,8 @@ dependencies = [
     "celery[redis]>=5.4.0",
     "redis>=5.2.0",
     "httpx>=0.28.0",
+    "openai>=1.55.0",
+    "dashscope>=1.22.0",
     # requests 2.32 与 chardet>=6 不兼容；Crawl4AI 仅需 >=5.2
     "chardet>=5.2.0,<6",
     "crawl4ai>=0.8.0",

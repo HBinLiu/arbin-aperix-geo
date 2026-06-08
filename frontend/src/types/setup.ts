@@ -15,13 +15,16 @@ export type PromptRow = {
 
 export type DiscoveredCompetitor = {
   domain: string;
-  site_name: string;
+  website_url?: string;
+  brand: string;
+  summary: string;
 };
 
 export type CompetitorRow = {
   id: string;
   name: string;
   domain: string;
+  summary: string;
   selected: boolean;
 };
 

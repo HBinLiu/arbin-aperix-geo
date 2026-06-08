@@ -52,6 +52,8 @@ export function CitationPage() {
         <CitationDetailSection
           domains={overview.domains}
           urls={overview.urls}
+          ownLabel={ownLabel}
+          ownBrand={subject.brand}
           loading={isLoading}
         />
       </div>

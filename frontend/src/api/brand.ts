@@ -23,7 +23,7 @@ export async function fetchSubjectCompetitors(subjectId: string): Promise<Compet
 
 export async function saveSubjectCompetitors(
   subjectId: string,
-  body: Pick<CompetitorsData, "competitors" | "brand_names">,
+  body: Pick<CompetitorsData, "competitors">,
 ): Promise<CompetitorsData> {
   const { data } = await api.put<CompetitorsData>(`/subjects/${subjectId}/competitors`, body, {
     skipErrorToast: true,

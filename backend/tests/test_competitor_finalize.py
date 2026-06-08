@@ -18,7 +18,7 @@ def test_package_reuses_heads(_mock_dns) -> None:
     )
     assert len(out) == 1
     assert out[0]["domain"] == "wise.com"
-    assert out[0]["site_name"] == "万里汇"
+    assert out[0]["brand"] == "万里汇"
 
 
 @patch("aperix_geo.services.competitor.output.host_resolves", return_value=True)

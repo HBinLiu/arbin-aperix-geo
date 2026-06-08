@@ -98,7 +98,7 @@ export function PlatformMetricSection({
             title={`${metric.label}排名`}
             valueHeader={metric.rankHeader}
             rows={rankRowsWithIcons}
-            showDeltaColumn={false}
+            entityHeader="平台"
             emptyMessage="暂无平台排名数据"
           />
         </div>

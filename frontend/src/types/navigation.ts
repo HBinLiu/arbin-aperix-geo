@@ -4,8 +4,10 @@ export type DashboardNavId =
   | "overview"
   | "analysis"
   | "rank"
-  | "opportunities"
+  | "opportunity"
   | "agent"
+  | "diagnosis"
+  | "prompt"
   | "brand";
 
 export type DashboardNavItem = {

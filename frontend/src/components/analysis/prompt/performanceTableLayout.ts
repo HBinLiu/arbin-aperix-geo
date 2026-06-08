@@ -69,7 +69,7 @@ export const PROMPT_TABLE_COLUMN_COUNT = PROMPT_TABLE_COLUMNS.length;
 
 export const performanceTableClasses = {
   head: "text-muted-foreground bg-muted/80 text-left text-sm [&_th]:whitespace-nowrap [&_th]:px-4 [&_th]:py-3 [&_th]:font-medium",
-  row: "border-border border-t [&>td]:align-middle [&>td]:whitespace-nowrap [&>td]:px-4 [&>td]:py-3",
+  row: "border-border border-t [&>td]:align-middle [&>td]:whitespace-nowrap [&>td]:px-4 [&>td]:py-2",
   topicTable: "w-full table-fixed text-sm",
   promptTable: "w-full table-fixed text-sm",
 } as const;

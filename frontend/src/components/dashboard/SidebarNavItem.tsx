@@ -22,8 +22,8 @@ export function SidebarNavItem({ item, collapsed }: SidebarNavItemProps) {
         "flex h-9 w-full items-center rounded-md text-sm transition-colors",
         collapsed ? "justify-center px-0" : "gap-2.5 px-2.5",
         isActive
-          ? "bg-primary/10 text-primary font-semibold"
-          : "text-sidebar-nav hover:bg-muted/80 hover:text-foreground",
+          ? "text-primary font-bold bg-primary/10"
+          : "text-foreground font-medium hover:bg-primary/10 hover:text-primary",
       )}
     >
       <>

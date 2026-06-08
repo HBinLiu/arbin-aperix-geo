@@ -2,7 +2,7 @@ export type OverviewMetrics = {
   window: { from: string; to: string };
   filters: { platforms: string[]; topic_id: string | null };
   visibility_rate: number | null;
-  mention_intensity: number | null;
+  mention_rate: number | null;
   share_voice: number | null;
   average_rank: number | null;
   citation_rate: number | null;
@@ -16,7 +16,7 @@ export type BrandRankData = {
   mention_counts: Record<string, number>;
   visibility_counts: Record<string, number>;
   visibility_share: Record<string, number>;
-  mention_share: Record<string, number>;
+  mention_rate: Record<string, number>;
   share_voice: Record<string, number>;
   average_rank: Record<string, number | null>;
   citation_share: Record<string, number>;
@@ -31,7 +31,7 @@ export type PromptPerformance = {
   topic_id: string | null;
   topic_name: string | null;
   visibility_rate: number | null;
-  mention_intensity: number | null;
+  mention_rate: number | null;
   average_rank: number | null;
   citation_rate: number | null;
   sentiment_score: number | null;
@@ -42,7 +42,7 @@ export type TopicPerformance = {
   topic_id: string;
   topic_name: string;
   visibility_rate: number | null;
-  mention_intensity: number | null;
+  mention_rate: number | null;
   average_rank: number | null;
   citation_rate: number | null;
   sentiment_score: number | null;
@@ -52,7 +52,7 @@ export type TopicPerformance = {
 export type PlatformPerformance = {
   platform: string;
   visibility_rate: number | null;
-  mention_intensity: number | null;
+  mention_rate: number | null;
   share_voice: number | null;
   average_rank: number | null;
   citation_rate: number | null;
@@ -87,6 +87,7 @@ export type PlatformMatrixData = {
     Record<string, Record<string, number | null>>
   >;
   platform_performance: PlatformPerformance[];
+  previous_platform_performance: PlatformPerformance[];
   platform_series: Record<
     string,
     Record<
@@ -134,10 +135,20 @@ export type CitationDomainRow = {
   domain_type: string | null;
 };
 
+export type CitationMentionedBrand = {
+  label: string;
+  domain: string | null;
+};
+
 export type CitationUrlRow = {
   url: string;
+  host: string;
+  title: string;
+  url_type: string | null;
   count: number;
   citation_rate: number;
+  has_brand_analysis?: boolean;
+  mentioned_brands: CitationMentionedBrand[];
 };
 
 export type CitationAnalysisData = {
@@ -173,6 +184,7 @@ export type SentimentResponseRow = {
   prompt_text: string;
   sentiment: "positive" | "neutral" | "negative" | string;
   sentiment_score: number | null;
+  sentiment_reason?: string | null;
   reply_preview: string;
   created_at: string;
 };
@@ -194,6 +206,91 @@ export type CitationsData = {
   url_host_counts: { host: string; count: number }[];
   citation_coverage: number | null;
   citation_rate: number | null;
+};
+
+export type OpportunityPriority = "high" | "medium" | "low";
+
+export type OpportunityTab = "content" | "backlink" | "social";
+
+export type ContentOpportunityItem = {
+  id: string;
+  prompt_id: string;
+  prompt_text: string;
+  platform: string;
+  priority: OpportunityPriority;
+  competitors: string[];
+  brand_gap_rate: number;
+  brand_own_count: number;
+  brand_total_count: number;
+  source_gap_rate: number;
+  source_own_count: number;
+  source_total_count: number;
+};
+
+export type ContentOpportunityData = {
+  items: ContentOpportunityItem[];
+};
+
+export type BacklinkDomainType = "enterprise" | "other";
+
+export type BacklinkOpportunityItem = {
+  id: string;
+  host: string;
+  platform: string;
+  priority: OpportunityPriority;
+  domain_type: BacklinkDomainType;
+  prompt_count: number;
+  chat_count: number;
+};
+
+export type BacklinkOpportunityData = {
+  items: BacklinkOpportunityItem[];
+};
+
+export type DiagnosisStatus = "excellent" | "good" | "needs_improvement" | "critical";
+
+export type DiagnosisIssueType = "not_mentioned" | "low_mention" | "poor_rank" | "healthy";
+
+export type DiagnosisMentionItem = {
+  id: string;
+  prompt_id: string;
+  prompt_text: string;
+  platform: string;
+  priority: OpportunityPriority;
+  mention_rate: number;
+  mention_own_count: number;
+  mention_total_count: number;
+  average_rank: number | null;
+  issue_type: DiagnosisIssueType;
+  competitors: string[];
+};
+
+export type DiagnosisPromptItem = {
+  id: string;
+  prompt_id: string;
+  prompt_text: string;
+  priority: OpportunityPriority;
+  mention_rate: number;
+  mention_own_count: number;
+  mention_total_count: number;
+  average_rank: number | null;
+  issue_type: DiagnosisIssueType;
+};
+
+export type DiagnosisDimensionSummary = {
+  health_score: number;
+  priority_counts: Record<OpportunityPriority, number>;
+};
+
+export type DiagnosisData = {
+  overall_score: number;
+  overall_status: DiagnosisStatus;
+  dimensions: {
+    mention: DiagnosisDimensionSummary;
+    prompt: DiagnosisDimensionSummary;
+  };
+  mention_items: DiagnosisMentionItem[];
+  prompt_items: DiagnosisPromptItem[];
 };
 
 export type AnalysisQueryFilters = {

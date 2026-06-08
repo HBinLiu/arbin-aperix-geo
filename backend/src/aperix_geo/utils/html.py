@@ -13,6 +13,12 @@ _META_DESC_RE = re.compile(
 )
 _TAG_RE = re.compile(r"<(script|style)[^>]*>.*?</\1>", re.IGNORECASE | re.DOTALL)
 _TAG_STRIP_RE = re.compile(r"<[^>]+>")
+_HEADING_RE = re.compile(r"<h([1-6])[^>]*>(.*?)</h\1>", re.IGNORECASE | re.DOTALL)
+_TABLE_RE = re.compile(r"<table\b", re.IGNORECASE)
+_CODE_BLOCK_RE = re.compile(
+    r"<(?:pre|code)\b|```",
+    re.IGNORECASE,
+)
 
 
 def _normalize_text(raw: str, *, limit: int | None = None) -> str:
@@ -36,3 +42,22 @@ def html_to_text(html: str, *, limit: int | None = None) -> str:
     cleaned = _TAG_RE.sub(" ", html)
     text = _TAG_STRIP_RE.sub(" ", cleaned)
     return _normalize_text(text, limit=limit)
+
+
+def extract_headings_from_html(html: str, *, limit: int = 20) -> list[str]:
+    headings: list[str] = []
+    for match in _HEADING_RE.finditer(html or ""):
+        text = _normalize_text(_TAG_STRIP_RE.sub(" ", match.group(2)), limit=300)
+        if text:
+            headings.append(text)
+        if len(headings) >= limit:
+            break
+    return headings
+
+
+def html_has_table(html: str) -> bool:
+    return bool(_TABLE_RE.search(html or ""))
+
+
+def html_has_code_block(html: str) -> bool:
+    return bool(_CODE_BLOCK_RE.search(html or ""))

@@ -9,8 +9,6 @@ from typing import Any
 from aperix_geo.config import get_settings
 from aperix_geo.services.competitor.defaults import (
     CROSS_VALIDATE_BATCH_SIZE,
-    METADATA_CONCURRENCY,
-    METADATA_TIMEOUT_S,
     RESULT_MAX,
 )
 from aperix_geo.utils.domains import registrable_domain
@@ -22,31 +20,15 @@ from aperix_geo.services.competitor.types import (
     SearchPool,
     SiteHead,
 )
+from aperix_geo.services.providers.prompts import (
+    COMPETITOR_CROSS_VALIDATE_SYSTEM,
+    cross_validate_user_content,
+)
 from aperix_geo.services.providers import chat_completion
 from aperix_geo.utils.json import extract_json_object
 from aperix_geo.services.web_search import SearchHit
 
 logger = logging.getLogger(__name__)
-
-_SYSTEM_PROMPT = """你是一位资深 B2B 行业分析师，负责对「目标企业 A」与「候选企业 B」做交叉比对并打分。
-
-评分维度（综合为 0–10 的 score）：
-1. 客户重合度：目标客户是否为同一类人/同一采购决策链？
-2. 功能重合度：核心卖点与解决的痛点是否一致？
-3. 客单价/体量匹配度：是否处于相同生态位（非大厂无关子业务、非媒体/测评/资讯站）？
-
-硬性降分规则（应给 0–4 分）：
-- B 是媒体、博客、知乎专栏、新闻、排行榜、测评聚合站
-- B 是大厂的一个不相干子业务或泛平台入口
-- B 与 A 客单价/体量相差超过 10 倍且不在同一细分赛道
-- 元数据过少无法判断时给 3–5 分并说明不确定
-
-高分规则（8–10 分）：
-- 仅当 B 能够直接抢走 A 的核心客户、在同一垂直品类正面竞争时
-
-输出必须是合法 JSON，且包含关键字 json，格式：
-{"scores": [{"domain": "b.com", "score": 9, "reason": "一句话理由"}, ...]}
-不要输出 Markdown 或其它说明。"""
 
 
 def _target_payload(profile: NicheProfile, *, target_domain: str) -> dict[str, str]:
@@ -104,14 +86,12 @@ def _score_batch(
     candidates: list[dict[str, str]],
 ) -> list[CompetitorScore]:
     messages = [
-        {"role": "system", "content": _SYSTEM_PROMPT},
+        {"role": "system", "content": COMPETITOR_CROSS_VALIDATE_SYSTEM},
         {
             "role": "user",
-            "content": (
-                "目标企业 A：\n"
-                f"{json.dumps(target, ensure_ascii=False, indent=2)}\n\n"
-                "候选企业列表（请对每个 B 打分）：\n"
-                f"{json.dumps(candidates, ensure_ascii=False, indent=2)}"
+            "content": cross_validate_user_content(
+                target_json=json.dumps(target, ensure_ascii=False, indent=2),
+                candidates_json=json.dumps(candidates, ensure_ascii=False, indent=2),
             ),
         },
     ]
@@ -240,11 +220,7 @@ def run_cross_validate(
             heads=prior_heads,
         )
 
-    new_heads = fetch_site_heads(
-        new_hosts,
-        timeout_s=METADATA_TIMEOUT_S,
-        concurrency=METADATA_CONCURRENCY,
-    )
+    new_heads = fetch_site_heads(new_hosts)
     heads = {**prior_heads, **new_heads}
     new_scores = _score_new_hosts(
         profile,

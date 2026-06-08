@@ -18,8 +18,12 @@ from aperix_geo.services.competitor.persist import apply_competitors
 from aperix_geo.services.sampling.jobs import create_and_enqueue_sampling_job
 from aperix_geo.services.sampling.schedule import DEFAULT_SAMPLING_INTERVAL_HOURS
 from aperix_geo.services.sampling.subject import resolve_subject_sampling_platforms
-from aperix_geo.services.setup.helpers import profile_summary_from_setup_session
+from aperix_geo.services.setup.helpers import (
+    company_from_setup_session,
+    profile_summary_from_setup_session,
+)
 from aperix_geo.services.subject.domain_fields import apply_subject_domain_fields
+from aperix_geo.utils.domains import ensure_brand
 from aperix_geo.services.subject.rules import validate_brand_competitors, validate_subject_fields
 from aperix_geo.utils.coerce import normalize_monitoring_scope
 from aperix_geo.utils.text import prompt_text_hash
@@ -46,16 +50,28 @@ def finalize_setup(
     if prompt_count < 1:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="至少需要一条提示词")
 
-    if st == SubjectType.domain and not body.competitors:
+    if st == SubjectType.domain and not any((c.domain or "").strip() for c in body.competitors):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="按网站监测时至少需要一个竞品域名")
-    if st == SubjectType.brand and not body.brand_names:
+    if st == SubjectType.brand and not any(
+        (c.brand or "").strip() and not (c.domain or "").strip() for c in body.competitors
+    ):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="按品牌监测时至少需要一个竞品品牌")
+
+    setup_session_id = body.setup_session_id.strip() if body.setup_session_id else None
+    profile_company = company_from_setup_session(
+        user_id=str(user.id),
+        setup_session_id=setup_session_id,
+    )
+    brand = ensure_brand(
+        profile_company or (body.brand.strip() if body.brand else ""),
+        domain=domain if st == SubjectType.domain else None,
+    )
 
     subject = Subject(
         tenant_id=user.tenant_id,
         type=st,
         domain=domain,
-        brand=body.brand.strip() if body.brand else "",
+        brand=brand,
         website_url=website_url,
         aliases=[],
         monitoring_scope=normalize_monitoring_scope(
@@ -63,12 +79,12 @@ def finalize_setup(
         ),
         profile_summary=profile_summary_from_setup_session(
             user_id=str(user.id),
-            setup_session_id=body.setup_session_id,
+            setup_session_id=setup_session_id,
         ),
         sampling_interval=DEFAULT_SAMPLING_INTERVAL_HOURS,
     )
     validate_subject_fields(subject)
-    apply_competitors(subject, competitors=body.competitors, brand_names=body.brand_names)
+    apply_competitors(subject, competitors=body.competitors)
     validate_brand_competitors(subject)
 
     db.add(subject)
