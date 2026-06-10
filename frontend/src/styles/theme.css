@@ -6,7 +6,7 @@
 :root {
   --radius: 0.5rem;
 
-  --background: #f7fafc;
+  --background: #f5f5f5;
   --foreground: #090909;
 
   --card: #fafafa;
@@ -32,6 +32,9 @@
 
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
+
+  --error: #dc2626;
+  --success: #16a34a;
 
   --border: #e4e4e4;
   --input: #e4e4e4;
@@ -103,6 +106,9 @@
 
   --destructive: #b91c1c;
   --destructive-foreground: #ffffff;
+
+  --error: #b91c1c;
+  --success: #16a34a;
 
   --border: #2a3444;
   --input: #2a3444;

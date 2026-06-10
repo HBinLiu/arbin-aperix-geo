@@ -140,6 +140,11 @@ export type CitationMentionedBrand = {
   domain: string | null;
 };
 
+export type CitationUrlCitingPrompt = {
+  prompt_text: string;
+  topic_name: string;
+};
+
 export type CitationUrlRow = {
   url: string;
   host: string;
@@ -149,6 +154,7 @@ export type CitationUrlRow = {
   citation_rate: number;
   has_brand_analysis?: boolean;
   mentioned_brands: CitationMentionedBrand[];
+  citing_prompts?: CitationUrlCitingPrompt[];
 };
 
 export type CitationAnalysisData = {
@@ -162,6 +168,30 @@ export type CitationAnalysisData = {
   domains: CitationDomainRow[];
   urls: CitationUrlRow[];
 };
+
+export type CitationDomainAnalysisData = {
+  host: string;
+  count: number;
+  citation_rate: number;
+  domain_type: string | null;
+  prev_count: number;
+  series: VisibilitySeriesPoint[];
+  previous_series: VisibilitySeriesPoint[];
+  urls: CitationUrlRow[];
+  prompts: CitationDomainBreakdownRow[];
+  topics: CitationDomainBreakdownRow[];
+  platforms: CitationDomainBreakdownRow[];
+};
+
+export type CitationDomainBreakdownRow = {
+  id: string;
+  name: string;
+  topic_name?: string | null;
+  count: number;
+  citation_rate: number;
+};
+
+export type CitationDomainDetailTab = "pages" | "prompt" | "topic" | "platform";
 
 export type CitationDetailTab = "domain" | "url";
 
@@ -305,4 +335,64 @@ export type AnalysisFilters = AnalysisQueryFilters & {
 
 export type AnalysisOutletContext = {
   subjectId: string;
+};
+
+export type PromptDetailResponseRow = {
+  response_id: string;
+  platform: string;
+  reply_preview: string;
+  mentioned: boolean;
+  rank: number | null;
+  region: string;
+  created_at: string;
+  cited_own_domain?: boolean;
+};
+
+export type PromptDetailData = {
+  region: string;
+  chat_responses: PromptDetailResponseRow[];
+  citation_responses: PromptDetailResponseRow[];
+  query_expansions: unknown[];
+};
+
+/** LLM 回复 parsed 字段（与后端 sampling parser 一致） */
+export type AbsaBrandEntry = {
+  mentioned?: boolean;
+  score?: number | null;
+  framing_tags?: string[];
+  evidence?: string;
+};
+
+export type CitationResponseAbsa = {
+  analysis_timestamp?: string;
+  analysis_source?: string;
+  brands_sentiment_absa?: Record<string, AbsaBrandEntry>;
+};
+
+export type LlmResponseParsed = {
+  urls?: string[];
+  url_hosts?: string[];
+  mentions_own?: boolean;
+  mentions_competitors?: Record<string, boolean>;
+  mention_counts_competitors?: Record<string, number>;
+  sentiment_score_own?: number | null;
+  sentiment_scores_competitors?: Record<string, number>;
+  rank_hints_first_index?: Record<string, number | null>;
+  source_urls_from_api?: string[];
+  citation_urls_own?: string[];
+  citation_response_absa?: CitationResponseAbsa;
+};
+
+export type LlmResponseDetail = {
+  id: string;
+  sampling_job_id: string;
+  prompt_id: string;
+  platform: string;
+  status: string;
+  error_text: string | null;
+  raw_text: string;
+  parsed: LlmResponseParsed | null;
+  latency_ms: number | null;
+  usage: unknown;
+  created_at: string;
 };

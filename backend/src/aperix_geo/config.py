@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     # 重启后 queued/running 且无 worker 推进时，超过该秒数视为 stale 并重新入队
     sampling_stale_job_seconds: int = Field(default=90, ge=30, le=600)
     sampling_resume_debounce_seconds: int = Field(default=90, ge=30, le=600)
+    # Celery 单条 response 采样重试：指数退避 base/cap 与最大次数
+    sampling_retry_base_s: int = Field(default=20, ge=1, le=300)
+    sampling_retry_cap_s: int = Field(default=120, ge=1, le=600)
+    sampling_retry_max: int = Field(default=8, ge=0, le=20)
     # 开发调试入口：curl 手动触发采样（须同时设 SAMPLING_DEBUG_ENABLED 与 SAMPLING_DEBUG_SECRET）
     sampling_debug_enabled: bool = False
     sampling_debug_secret: str = ""
@@ -143,6 +147,7 @@ class Settings(BaseSettings):
 
     # favicon 本地持久化目录（按域名子目录保存全部成功抓取的图标）
     favicon_storage_dir: str = Field(default=str(_BACKEND_DIR / "data" / "favicons"))
+    favicon_warm_concurrency: int = Field(default=6, ge=1, le=32)
 
 
 @lru_cache

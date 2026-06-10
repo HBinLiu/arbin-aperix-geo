@@ -82,3 +82,11 @@ export function filterPromptRowsBySearch<T extends { promptText: string; topicNa
       row.topicName.toLowerCase().includes(query),
   );
 }
+
+export function filterPromptRowsByTopic<T extends { topicId: string | null }>(
+  rows: T[],
+  topicId: string | null | undefined,
+): T[] {
+  if (!topicId) return rows;
+  return rows.filter((row) => row.topicId === topicId);
+}

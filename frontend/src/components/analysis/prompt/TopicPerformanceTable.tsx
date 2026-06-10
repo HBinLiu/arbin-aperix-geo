@@ -11,9 +11,12 @@ import {
   TOPIC_TABLE_MIN_WIDTH,
 } from "@/components/analysis/prompt/performanceTableLayout";
 import type { TopicPerformanceRow } from "@/lib/analysis/prompt";
+import { cn } from "@/lib/utils";
 
 type TopicPerformanceTableProps = {
   rows: TopicPerformanceRow[];
+  selectedTopicId?: string | null;
+  onTopicSelect?: (topicId: string | null) => void;
   loading?: boolean;
   className?: string;
 };
@@ -21,9 +24,12 @@ type TopicPerformanceTableProps = {
 /** 主题表现汇总表：列宽自适应（百分比），table 始终铺满容器 */
 export function TopicPerformanceTable({
   rows,
+  selectedTopicId = null,
+  onTopicSelect,
   loading = false,
   className,
 }: TopicPerformanceTableProps) {
+  const selectable = Boolean(onTopicSelect);
   const columnCount = TOPIC_TABLE_COLUMNS.length;
 
   return (
@@ -77,19 +83,36 @@ export function TopicPerformanceTable({
               </td>
             </tr>
           ) : (
-            rows.map((row) => (
-              <tr key={row.id} className={performanceTableClasses.row}>
-                <td className="text-foreground pl-5 font-medium">{row.topicName}</td>
-                <td>
-                  <VisibilityMetricCell value={row.visibility} delta={row.visibilityDelta} />
-                </td>
-                <td>
-                  <SentimentMetricCell value={row.sentiment} delta={null} />
-                </td>
-                <td>{row.averageRank}</td>
-                <td>{row.citationRate}</td>
-              </tr>
-            ))
+            rows.map((row) => {
+              const selected = selectable && selectedTopicId === row.id;
+
+              return (
+                <tr
+                  key={row.id}
+                  className={cn(
+                    performanceTableClasses.row,
+                    selectable && "cursor-pointer transition-colors hover:bg-muted/80",
+                    selected && "bg-primary/10 hover:bg-primary/10",
+                  )}
+                  aria-selected={selected || undefined}
+                  onClick={
+                    selectable
+                      ? () => onTopicSelect?.(selected ? null : row.id)
+                      : undefined
+                  }
+                >
+                  <td className="text-foreground pl-5 font-medium">{row.topicName}</td>
+                  <td>
+                    <VisibilityMetricCell value={row.visibility} delta={row.visibilityDelta} />
+                  </td>
+                  <td>
+                    <SentimentMetricCell value={row.sentiment} delta={null} />
+                  </td>
+                  <td>{row.averageRank}</td>
+                  <td>{row.citationRate}</td>
+                </tr>
+              );
+            })
           )}
         </tbody>
       </table>

@@ -196,7 +196,7 @@ export function LoginPage() {
               <Button
                 type="button"
                 variant="secondary"
-                className="h-11 w-28 shrink-0 justify-center px-2 font-medium tabular-nums"
+                className="bg-muted h-11 w-28 shrink-0 justify-center px-2 font-medium tabular-nums"
                 disabled={loading || cooldown > 0}
                 onClick={sendPhoneCode}
               >

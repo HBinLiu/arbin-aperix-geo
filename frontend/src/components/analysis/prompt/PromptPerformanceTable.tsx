@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -27,6 +28,7 @@ import {
   PROMPT_TABLE_COLUMNS,
 } from "@/components/analysis/prompt/performanceTableLayout";
 import type { PromptPerformanceRow } from "@/lib/analysis/prompt";
+import { promptDetailPath } from "@/lib/analysis/nav";
 import { cn } from "@/lib/utils";
 
 type PromptPerformanceTableProps = {
@@ -119,6 +121,7 @@ export function PromptPerformanceTable({
   loading = false,
   className,
 }: PromptPerformanceTableProps) {
+  const navigate = useNavigate();
   const [sort, setSort] = useState<SortState>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
@@ -249,7 +252,14 @@ export function PromptPerformanceTable({
             </tr>
           ) : (
             pageRows.map((row) => (
-              <tr key={row.id} className={performanceTableClasses.row}>
+              <tr
+                key={row.id}
+                className={cn(
+                  performanceTableClasses.row,
+                  "cursor-pointer transition-colors hover:bg-muted/80",
+                )}
+                onClick={() => navigate(promptDetailPath(row.id))}
+              >
                 <td
                   className="text-foreground max-w-0 overflow-hidden pl-5 font-medium"
                   style={promptTableColumnCellStyle(promptTableColumn("prompt"))}

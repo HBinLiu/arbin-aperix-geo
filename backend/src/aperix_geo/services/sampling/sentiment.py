@@ -40,8 +40,6 @@ def parsed_sentiment_from_absa(
     *,
     own_brand: str,
     competitor_keys: list[tuple[str, str]],
-    mentions_own: bool,
-    mentions_competitors: dict[str, bool],
 ) -> dict[str, Any]:
     """Convert response-level ABSA output to legacy parsed sentiment fields."""
     if response_absa.get("analysis_source") == "failed":
@@ -51,18 +49,12 @@ def parsed_sentiment_from_absa(
     if not isinstance(brands, dict):
         return _empty_result(sentiment_source="failed")
 
-    sentiment_own = "neutral"
-    sentiment_score_own: float | None = None
-    sentiment_reason_own: str | None = None
-    if mentions_own:
-        sentiment_own, sentiment_score_own, sentiment_reason_own = _absa_brand_entry(brands.get(own_brand))
+    sentiment_own, sentiment_score_own, sentiment_reason_own = _absa_brand_entry(brands.get(own_brand))
 
     sentiment_competitors: dict[str, str] = {}
     sentiment_scores_competitors: dict[str, float] = {}
     sentiment_reasons_competitors: dict[str, str] = {}
     for absa_key, output_label in competitor_keys:
-        if not mentions_competitors.get(output_label):
-            continue
         label, score, reason = _absa_brand_entry(brands.get(absa_key))
         if score is None:
             continue

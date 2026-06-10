@@ -123,6 +123,7 @@ def build_platform_performance(
     dt_to: datetime,
     platforms: list[str] | None = None,
     topic_id: UUID | None = None,
+    prompt_id: UUID | None = None,
 ) -> list[dict[str, Any]]:
     rows = responses_in_window(
         db,
@@ -131,6 +132,7 @@ def build_platform_performance(
         dt_to=dt_to,
         platforms=platforms,
         topic_id=topic_id,
+        prompt_id=prompt_id,
     )
     by_platform: dict[str, list] = defaultdict(list)
     for r in rows:
@@ -145,6 +147,7 @@ def build_platform_performance(
                 "platform": platform,
                 "visibility_rate": metrics.visibility_rate if metrics else None,
                 "mention_rate": metrics.mention_rate if metrics else None,
+                "average_rank": metrics.average_rank if metrics else None,
                 "citation_rate": metrics.citation_rate if metrics else None,
                 "sentiment_score": metrics.sentiment_score if metrics else None,
             }

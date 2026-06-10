@@ -9,7 +9,7 @@ from aperix_geo.api.deps import DbSession
 from aperix_geo.db.models import SamplingJob
 from aperix_geo.schemas.sampling import SamplingJobCreate, SamplingJobOut
 from aperix_geo.services.sampling.debug import assert_sampling_debug_access
-from aperix_geo.services.sampling.jobs import SamplingJobError, enqueue_subject_sampling
+from aperix_geo.services.sampling.workflow import SamplingJobError, enqueue_subject_sampling
 from aperix_geo.services.subject.loader import load_subject_with_competitors
 
 router = APIRouter(tags=["sampling-debug"])

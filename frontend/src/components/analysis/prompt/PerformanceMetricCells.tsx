@@ -33,18 +33,33 @@ export function ColumnHelp({ label, description }: { label: string; description:
 }
 
 /** 提示词列正文：超出列宽省略，hover 展示全文 */
-export function PromptTextCell({ text }: { text: string }) {
+export function PromptTextCell({
+  text,
+  tooltipMaxLength,
+}: {
+  text: string;
+  /** 设置后 tooltip 仅展示截断后的内容 */
+  tooltipMaxLength?: number;
+}) {
+  const tooltipText =
+    tooltipMaxLength != null && text.length > tooltipMaxLength
+      ? `${text.slice(0, tooltipMaxLength).trimEnd()}…`
+      : text;
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="block w-full min-w-0 cursor-default truncate">{text}</span>
+        <span className="text-muted-foreground block w-full min-w-0 cursor-default truncate">{text}</span>
       </TooltipTrigger>
       <TooltipContent
         side="top"
         sideOffset={8}
-        className="max-w-[min(100vw-2rem,28rem)] px-3 py-2.5 text-sm font-medium leading-relaxed text-left text-wrap"
+        className={cn(
+          "px-3 py-2.5 text-sm font-medium leading-relaxed text-left text-wrap",
+          tooltipMaxLength != null ? "max-w-xs" : "max-w-[min(100vw-2rem,28rem)]",
+        )}
       >
-        <p className="w-full text-wrap">{text}</p>
+        <p className="w-full text-wrap">{tooltipText}</p>
       </TooltipContent>
     </Tooltip>
   );

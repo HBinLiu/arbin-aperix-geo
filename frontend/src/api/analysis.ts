@@ -9,6 +9,7 @@ import type {
   ContentOpportunityData,
   DiagnosisData,
   CitationAnalysisData,
+  CitationDomainAnalysisData,
   CitationRankData,
   CitationsData,
   DailySentimentSeries,
@@ -16,6 +17,7 @@ import type {
   PlatformPerformance,
   PlatformMatrixData,
   PromptPerformance,
+  PromptDetailData,
   RankData,
   SentimentAnalysisData,
   TopicPerformance,
@@ -91,10 +93,15 @@ export async function fetchPlatformPerformance(
   subjectId: string,
   from: string,
   to: string,
+  filters?: AnalysisQueryFilters,
+  promptId?: string | null,
 ): Promise<PlatformPerformance[]> {
   const { data } = await api.get<PlatformPerformance[]>(
     `/subjects/${subjectId}/platforms-performance`,
-    { params: { from, to } },
+    {
+      params: buildAnalysisParams(from, to, filters, promptId),
+      paramsSerializer: ANALYSIS_PARAMS_SERIALIZER,
+    },
   );
   return data;
 }
@@ -104,11 +111,12 @@ export async function fetchVisibilityAnalysis(
   from: string,
   to: string,
   filters?: AnalysisQueryFilters,
+  promptId?: string | null,
 ): Promise<VisibilityAnalysisData> {
   const { data } = await api.get<VisibilityAnalysisData>(
     `/subjects/${subjectId}/visibility-analysis`,
     {
-      params: buildAnalysisParams(from, to, filters),
+      params: buildAnalysisParams(from, to, filters, promptId),
       paramsSerializer: ANALYSIS_PARAMS_SERIALIZER,
     },
   );
@@ -120,11 +128,29 @@ export async function fetchCitationAnalysis(
   from: string,
   to: string,
   filters?: AnalysisQueryFilters,
+  promptId?: string | null,
 ): Promise<CitationAnalysisData> {
   const { data } = await api.get<CitationAnalysisData>(
     `/subjects/${subjectId}/citation-analysis`,
     {
-      params: buildAnalysisParams(from, to, filters),
+      params: buildAnalysisParams(from, to, filters, promptId),
+      paramsSerializer: ANALYSIS_PARAMS_SERIALIZER,
+    },
+  );
+  return data;
+}
+
+export async function fetchCitationDomainAnalysis(
+  subjectId: string,
+  host: string,
+  from: string,
+  to: string,
+  filters?: AnalysisQueryFilters,
+): Promise<CitationDomainAnalysisData> {
+  const { data } = await api.get<CitationDomainAnalysisData>(
+    `/subjects/${subjectId}/citation-domain-analysis`,
+    {
+      params: { ...buildAnalysisParams(from, to, filters), host },
       paramsSerializer: ANALYSIS_PARAMS_SERIALIZER,
     },
   );
@@ -180,16 +206,31 @@ export async function fetchCitations(
   return data;
 }
 
+export async function fetchPromptDetail(
+  subjectId: string,
+  from: string,
+  to: string,
+  filters?: AnalysisQueryFilters,
+  promptId?: string | null,
+): Promise<PromptDetailData> {
+  const { data } = await api.get<PromptDetailData>(`/subjects/${subjectId}/prompt-detail`, {
+    params: buildAnalysisParams(from, to, filters, promptId),
+    paramsSerializer: ANALYSIS_PARAMS_SERIALIZER,
+  });
+  return data;
+}
+
 export async function fetchContentOpportunities(
   subjectId: string,
   from: string,
   to: string,
   filters?: AnalysisQueryFilters,
+  promptId?: string | null,
 ): Promise<ContentOpportunityData> {
   const { data } = await api.get<ContentOpportunityData>(
     `/subjects/${subjectId}/content-opportunities`,
     {
-      params: buildAnalysisParams(from, to, filters),
+      params: buildAnalysisParams(from, to, filters, promptId),
       paramsSerializer: ANALYSIS_PARAMS_SERIALIZER,
     },
   );

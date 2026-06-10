@@ -12,7 +12,7 @@ from dashscope import Generation
 
 from aperix_geo.services.chat_result import SamplingChatResult
 from aperix_geo.services.providers._helpers import dedupe_urls, to_plain, with_system_prompt
-from aperix_geo.services.providers.errors import QianwenProviderError
+from aperix_geo.services.providers.errors import QianwenProviderError, raise_provider_error
 from aperix_geo.services.providers.prompts import QIANWEN_WEB_SEARCH_SYSTEM
 
 logger = logging.getLogger(__name__)
@@ -132,7 +132,11 @@ def qianwen_generation_chat(
     if status_code is not None and status_code != HTTPStatus.OK:
         message = str(getattr(response, "message", "") or "")[:800]
         code = getattr(response, "code", "") or status_code
-        raise QianwenProviderError(f"Qianwen HTTP {status_code}: {code} {message}")
+        raise_provider_error(
+            QianwenProviderError,
+            f"Qianwen HTTP {status_code}: {code} {message}",
+            status_code=status_code,
+        )
 
     code = getattr(response, "code", None)
     if code:

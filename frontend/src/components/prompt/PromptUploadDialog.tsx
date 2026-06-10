@@ -1,11 +1,16 @@
 import * as React from "react";
-import { Download, Upload, X } from "lucide-react";
+import { Download, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogTitle,
+  useDialog,
+} from "@/components/ui/dialog";
 import { downloadPromptCsvTemplate } from "@/lib/prompt/upload";
 import { cn } from "@/lib/utils";
-
-const DIALOG_EXIT_MS = 200;
 
 type PromptUploadDialogProps = {
   open: boolean;
@@ -16,6 +21,31 @@ type PromptUploadDialogProps = {
   onImport: () => void;
 };
 
+function PromptUploadDialogFooter({
+  submitting,
+  hasFile,
+  onImport,
+}: {
+  submitting: boolean;
+  hasFile: boolean;
+  onImport: () => void;
+}) {
+  const { requestClose } = useDialog();
+
+  return (
+    <div className="border-border flex shrink-0 items-center justify-end gap-3 border-t px-5 py-4">
+      <div className="flex shrink-0 gap-2">
+        <Button type="button" variant="outline" disabled={submitting} onClick={requestClose}>
+          取消
+        </Button>
+        <Button type="button" disabled={submitting || !hasFile} onClick={onImport}>
+          {submitting ? "导入中…" : "导入"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /** 提示词管理 · CSV 上传对话框 */
 export function PromptUploadDialog({
   open,
@@ -25,40 +55,8 @@ export function PromptUploadDialog({
   onOpenChange,
   onImport,
 }: PromptUploadDialogProps) {
-  const [present, setPresent] = React.useState(open);
-  const [closing, setClosing] = React.useState(false);
   const [dragging, setDragging] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
-
-  React.useEffect(() => {
-    if (open) {
-      setPresent(true);
-      setClosing(false);
-      return;
-    }
-    if (!present) return;
-    setClosing(true);
-    const timer = window.setTimeout(() => {
-      setPresent(false);
-      setClosing(false);
-    }, DIALOG_EXIT_MS);
-    return () => window.clearTimeout(timer);
-  }, [open, present]);
-
-  React.useEffect(() => {
-    if (!present || closing) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !submitting) onOpenChange(false);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [present, closing, submitting, onOpenChange]);
-
-  if (!present) return null;
-
-  const requestClose = () => {
-    if (!submitting) onOpenChange(false);
-  };
 
   const acceptFile = (next: File | null) => {
     if (!next) return;
@@ -67,40 +65,14 @@ export function PromptUploadDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        type="button"
-        className={cn(
-          "absolute inset-0 bg-black/80",
-          closing ? "animate-out fade-out-0 duration-200" : "animate-in fade-in-0 duration-200",
-        )}
-        aria-label="关闭对话框"
-        onClick={requestClose}
-      />
-      <div
-        role="dialog"
-        aria-modal="true"
+    <Dialog open={open} onOpenChange={onOpenChange} closeDisabled={submitting}>
+      <DialogContent
+        className="flex max-h-[90vh] max-w-2xl flex-col overflow-hidden"
         aria-labelledby="prompt-upload-dialog-title"
-        className={cn(
-          "border-border relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border bg-white shadow-lg",
-          closing
-            ? "animate-out fade-out-0 zoom-out-95 duration-200"
-            : "animate-in fade-in-0 zoom-in-95 duration-200",
-        )}
       >
         <div className="flex shrink-0 items-center justify-between px-5 pt-5 pb-2">
-          <h2 id="prompt-upload-dialog-title" className="text-base font-semibold">
-            上传提示词
-          </h2>
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-foreground rounded-md p-1"
-            aria-label="关闭"
-            disabled={submitting}
-            onClick={requestClose}
-          >
-            <X className="size-5" aria-hidden />
-          </button>
+          <DialogTitle id="prompt-upload-dialog-title">上传提示词</DialogTitle>
+          <DialogClose />
         </div>
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 pb-5">
@@ -187,17 +159,12 @@ export function PromptUploadDialog({
           </div>
         </div>
 
-        <div className="border-border flex shrink-0 items-center justify-end gap-3 border-t px-5 py-4">
-          <div className="flex shrink-0 gap-2">
-            <Button type="button" variant="outline" disabled={submitting} onClick={requestClose}>
-              取消
-            </Button>
-            <Button type="button" disabled={submitting || !file} onClick={onImport}>
-              {submitting ? "导入中…" : "导入"}
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
+        <PromptUploadDialogFooter
+          submitting={submitting}
+          hasFile={Boolean(file)}
+          onImport={onImport}
+        />
+      </DialogContent>
+    </Dialog>
   );
 }

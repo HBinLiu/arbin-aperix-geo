@@ -24,6 +24,7 @@ export type CompetitorItem = {
   website_url: string;
   brand: string;
   summary: string;
+  aliases?: string[];
 };
 
 export type CompetitorsData = {

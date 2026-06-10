@@ -2,12 +2,14 @@ import { Outlet, useLocation } from "react-router-dom";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { AnalysisDimensionTabs } from "@/components/analysis/common/AnalysisDimensionTabs";
+import { PromptAnalysisHeader } from "@/components/analysis/prompt/PromptAnalysisHeader";
+import { CitationDomainHeader } from "@/components/analysis/citation/CitationDomainHeader";
 import { OpportunityTabs } from "@/components/opportunity/OpportunityTabs";
 import { SidebarSection } from "@/components/dashboard/SidebarSection";
 import { SubjectSwitcher } from "@/components/dashboard/SubjectSwitcher";
 import { AppShell } from "@/components/layouts/AppShell";
 import { useDashboardSidebar } from "@/hooks/useDashboardSidebar";
-import { analysisDimensionFromPathname } from "@/lib/analysis";
+import { analysisDimensionFromPathname, citationDomainFromPathname, promptIdFromPathname } from "@/lib/analysis";
 import { opportunityTabFromPathname } from "@/lib/opportunity/nav";
 import {
   DASHBOARD_NAV_SECTIONS,
@@ -26,6 +28,8 @@ export function DashboardLayout() {
   const isAnalysisPage = activeNav.id === "analysis";
   const isOpportunityPage = activeNav.id === "opportunity";
   const analysisDimension = analysisDimensionFromPathname(pathname);
+  const citationDomain = citationDomainFromPathname(pathname);
+  const promptDetailId = promptIdFromPathname(pathname);
   const opportunityTab = opportunityTabFromPathname(pathname);
 
   return (
@@ -59,8 +63,8 @@ export function DashboardLayout() {
         </aside>
 
         <main className="bg-white border-border shadow-[8px_10px_24px_-10px_rgba(15,23,42,0.12)] flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border">
-          <div className="border-border flex min-w-0 shrink-0 items-end border-b px-4">
-            <div className="flex h-[42px] shrink-0 items-center pr-2">
+          <div className="border-border flex h-[48px] min-w-0 shrink-0 items-stretch border-b px-4">
+            <div className="flex shrink-0 items-center pr-2">
               <button
                 type="button"
                 aria-label={sidebarCollapsed ? "展开侧栏" : "收起侧栏"}
@@ -71,12 +75,16 @@ export function DashboardLayout() {
                 <SidebarToggleIcon className="size-4" aria-hidden />
               </button>
             </div>
-            {isAnalysisPage ? (
+            {isAnalysisPage && citationDomain ? (
+              <CitationDomainHeader host={citationDomain} />
+            ) : isAnalysisPage && promptDetailId ? (
+              <PromptAnalysisHeader promptId={promptDetailId} />
+            ) : isAnalysisPage ? (
               <AnalysisDimensionTabs embedded value={analysisDimension} />
             ) : isOpportunityPage ? (
               <OpportunityTabs embedded value={opportunityTab} />
             ) : (
-              <div className="flex h-[42px] items-center">
+              <div className="flex min-w-0 flex-1 items-center">
                 <h1 className="text-base font-semibold">{activeNav.label}</h1>
               </div>
             )}

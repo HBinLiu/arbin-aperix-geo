@@ -8,9 +8,9 @@ from typing import Any
 from urllib.parse import urljoin, urlparse
 
 from aperix_geo.services.crawl import PageFetchResult, fetch_page, page_crawl_settings
+from aperix_geo.services.crawl.metadata import HEAD_PARSE_MAX_CHARS, extract_page_metadata
 from aperix_geo.services.web_search import SearchHit, search_text
 from aperix_geo.utils.domains import registrable_domain
-from aperix_geo.utils.html import html_to_text, parse_head_from_html
 from aperix_geo.utils.url import homepage_urls
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ _PROFILE_EXTRA_PATHS: tuple[tuple[str, str], ...] = (
 
 _MAX_EXTRA_PAGES = 3
 _EXTRA_PAGE_EXCERPT_CHARS = 2500
-_EXTRA_PAGE_FETCH_CHARS = 120_000
+_EXTRA_PAGE_FETCH_CHARS = HEAD_PARSE_MAX_CHARS
 _REGION_SEARCH_LABELS = {"CN": "中国", "HK": "香港", "TW": "台湾"}
 
 
@@ -49,25 +49,20 @@ def _excerpt_from_fetch(result: PageFetchResult) -> str | None:
     if not result.fetch_ok:
         return None
 
-    title = ""
-    description = ""
-    if result.html:
-        title, description = parse_head_from_html(result.html[:_EXTRA_PAGE_FETCH_CHARS])
-
-    if result.markdown.strip():
-        body = result.markdown.strip()[:_EXTRA_PAGE_EXCERPT_CHARS]
-    elif result.html:
-        body = html_to_text(result.html, limit=_EXTRA_PAGE_EXCERPT_CHARS)
-    else:
-        body = ""
+    parsed = extract_page_metadata(
+        html=result.html,
+        markdown=result.markdown,
+        html_parse_limit=_EXTRA_PAGE_FETCH_CHARS,
+        body_limit=_EXTRA_PAGE_EXCERPT_CHARS,
+    )
 
     parts: list[str] = []
-    if title:
-        parts.append(f"title: {title}")
-    if description:
-        parts.append(f"description: {description}")
-    if body:
-        parts.append(body)
+    if parsed.title:
+        parts.append(f"title: {parsed.title}")
+    if parsed.description:
+        parts.append(f"description: {parsed.description}")
+    if parsed.body_text:
+        parts.append(parsed.body_text)
     text = "\n".join(parts).strip()
     return text if len(text) >= 80 else None
 

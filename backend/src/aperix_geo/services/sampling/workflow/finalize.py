@@ -22,19 +22,25 @@ def finalize_sampling_job_db(db: Session, job_id: UUID) -> SamplingJob | None:
     pending = sum(1 for r in rows if r.status == LLMResponseStatus.pending)
     job.completed_items = ok
     job.failed_items = fail
+
     if pending:
-        job.status = SamplingJobStatus.partial
-        job.error_message = f"{pending} response(s) still pending after workers finished"
+        # Another chord may still be processing; keep job active.
+        job.status = SamplingJobStatus.running
+        job.error_message = ""
+        job.finished_at = None
     elif fail == 0:
         job.status = SamplingJobStatus.succeed
         job.error_message = ""
+        job.finished_at = datetime.now(UTC)
     elif ok == 0:
         job.status = SamplingJobStatus.failed
         job.error_message = "All sampling items failed"
+        job.finished_at = datetime.now(UTC)
     else:
         job.status = SamplingJobStatus.partial
         job.error_message = ""
-    job.finished_at = datetime.now(UTC)
+        job.finished_at = datetime.now(UTC)
+
     db.commit()
     db.refresh(job)
     return job

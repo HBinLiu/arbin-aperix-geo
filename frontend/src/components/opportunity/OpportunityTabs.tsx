@@ -58,7 +58,11 @@ export function OpportunityTabs({ value, className, embedded = false }: Opportun
   const tabList = (
     <div
       ref={containerRef}
-      className={cn("relative flex min-w-0 flex-wrap items-end", embedded && "flex-1", className)}
+      className={cn(
+        "relative flex min-w-0 flex-wrap items-center",
+        embedded && "h-full min-w-0 flex-1",
+        className,
+      )}
       role="tablist"
       onMouseLeave={() => setHoverId(null)}
     >

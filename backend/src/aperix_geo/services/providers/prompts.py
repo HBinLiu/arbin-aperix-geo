@@ -414,149 +414,44 @@ def citation_response_absa_user_content(
 
 
 # ---------------------------------------------------------------------------
-# 引用来源页 · 逐 URL GEO 分类 + 来源页品牌提及（不含情感打分）
+# 引用来源页 · GEO 分类 + 来源页品牌提及（不含情感打分；单页/批量共用）
 # ---------------------------------------------------------------------------
 
 CITATION_PAGE_GEO_SYSTEM = """# 任务
-你是 GEO（生成引擎优化）数据分析专家。请**仅**根据【引用网页元数据】完成「主域名分类」「网页类型分类」与「来源页品牌提及」三项任务，并严格以 JSON 输出。
-本任务不阅读、不使用 AI 采样原文；情感打分由另一条流水线单独完成。
+你是 GEO 数据分析专家。请对输入的 JSON 数组 `pages` 中的**每一条**数据，独立完成网页内容类型、主域名分类及品牌提及分析，严格以 JSON 格式输出。
 
-# 任务一：GEO 网页内容类型分类标准（仅在以下 11 个标签中选择）
-1. 品牌官网: 企业的门户首页。
-2. 产品详情页: 官网普通产品功能、技术特性介绍页。
-3. 价格方案页: 价格阶梯矩阵、收费标准或订阅方案页。
-4. 对比评测页: 横向对比多个品牌，页面包含直观的对比表格（Table）。
-5. 盘点清单文: 如“Top 10软件推荐”、“好用的系统清单”，高度依赖列表结构。
-6. 实操指南: 以步骤、代码、配置为主的 How-to 操作教程或技术部署文章。
-7. 客户案例: 包含背景、挑战、解决方案、实际成效（带量化数据）的真实项目案例。
-8. 行业报告与深度综述: 包含行业发展报告、技术白皮书、宏观概念深度科普、行业现状与趋势分析的长文。
-9. 动态新闻: 某次发布会、快讯、融资、近期事件的简短媒体报道。
-10. 社区讨论: 知乎、Reddit等论坛帖子，情绪词较多，包含大量用户散乱的回帖和吐槽。
-11. 其他类型: 无法归入上述10类的网页（如纯图片页、后台登录页）。
+# 任务一：网页内容类型（仅选其一，优先匹配硬特征）
+1. 品牌官网: 企业主页、门户首页或品牌整体介绍单页。
+2. 产品详情: 具体软件、系统、技术方案的功能介绍、规格参数、收费价格页。
+3. 对比评测: 横向对比多品牌/产品的文章或页面。【硬特征：has_table 为 True 且正文涉及多品牌】。
+4. 盘点清单: 条目化罗列推荐的文章。【硬特征：内容高度依赖 ol/ul 列表结构】。
+5. 实操指南: 步骤讲解、代码演示、系统配置部署教程。【硬特征：has_code_block 为 True 或有明显步骤指引】。
+6. 普通文章: 无特殊结构的普通行业文本。如行业科普、干货分享、心得观点、案例故事。
+7. 动态新闻: 具备强时效性的公关快讯、发布会、融资公告、近期事件报道。
+8. 行业报告: 篇幅长、专业性极高的白皮书、宏观市场分析、政策标准深度解读。
+9. 社区讨论: 知乎、Reddit 等论坛 UGC 帖子，含多人回帖、吐槽或散碎观点交流。
+10. 其它类型: 404报错、登录页、纯图片、PDF直链，或 `http_status` 异常、元数据不足无法判定。
 
-# 任务二：主域名类型分类标准（仅在以下 10 个标签中选择）
-1. 企业/品牌官网: 本品牌、竞品厂商或上下游供应商的官方域名。
-2. 软件市场/垂直目录: 软件应用商店、SaaS选型平台、企业服务目录等聚合同行和评分的站点。
-3. 科技/垂直行业媒体: 专门报道科技、IT、数字化转型、垂直行业风口的新闻媒体或商业博客。
-4. 大众/综合新闻媒体: 传统综合门户、报业集团官网等权威新闻发布渠道。
-5. 政府/公共机构: 政府部门官网、行业监管机构、国家标准公开平台等。
-6. 教育/科研机构: 高校官网、科研院所、学术研究中心网站。
-7. 参考资料/百科文献: 权威在线百科、行业公认知识库、学术期刊网络。
-8. 社区/社交平台: 知乎、Reddit等用户生成内容（UGC）的互动问答与社交讨论平台。
-9. 代码/开源托管平台: GitHub、Hugging Face等专门托管代码、开源项目与开发文档的技术站点。
-10. 其它分类: 个人博客、未定义类型的综合网站或无法明确识别大类的长尾流量站点。
+# 任务二：主域名类型分类（仅选其一）
+1. 企业/品牌官网: 本品牌、竞品厂商或上下游供应商的官方网站。
+2. 软件市场/垂直目录: 聚合厂商评分与选型的平台（如 SaaS 选型网、应用商店）。
+3. 科技/垂直行业媒体: IT 科技、数字化转型、垂直行业风口的新闻媒体或商业博客。
+4. 大众/综合新闻媒体: 传统综合门户、权威报业集团官网。
+5. 政府/公共机构: 政府部门官网、监管机构、国标公开平台（.gov）。
+6. 教育/科研机构: 高校官网、科研院所、学术研究中心（.edu）。
+7. 参考资料/百科: 在线百科、行业公认知识库、学术期刊网。
+8. 社区/社交平台: 知乎、Reddit、行业论坛等 UGC 互动问答平台。
+9. 代码/开源平台: GitHub、Hugging Face 等代码托管、开源项目与开发者社区。
+10. 其它类型: 个人博客、无法明确识别大类的长尾流量或综合站点。
 
-# 任务三：来源页品牌提及
-- `page_mentioned_brands`：数组，列出在【正文切片】正文中被提及的本品牌与竞品名称（使用 user 消息给出的品牌名）。
-- **仅依据【正文切片】**判断是否在来源页正文提及。
-- 若 `http_status` 不是 200，或正文切片为空/不可用，则 `page_mentioned_brands` 必须为 `[]`。
+# 任务三：来源页品牌提及规则
+- `page_mentioned_brands` (数组): 仅依据【正文切片】判断是否提及 user 指定的本品牌与竞品名称。
+- 若 `http_status` 不是 200，或正文切片为空/不可用，该字段必须强制输出为 `[]`。
 
 # 🔴 核心约束
-1. 必须严格以 JSON 格式输出，不要包含任何前后解释文字。
-2. 特征强制逻辑：若 `has_table` 为 True 且正文涉及多品牌，优先判定【对比评测页】；若 `has_code_block` 为 True，优先【实操指南】。
-3. 分类仅依据页面元数据与正文切片；若 `http_status` 不是 200 或元数据不足，type 可留空并在 reason 中说明「元数据不足无法判定」。
-
-# 输入数据（user 消息按以下结构提供）
-- 本品牌 / 竞品列表（用于 page_mentioned_brands 的键名）
-- [引用网页元数据]:
-  - URL: {url}
-  - 主域名: {domain}
-  - HTTP 状态码: {http_status}
-  - Title: {title}
-  - Description: {description}
-  - Headings 大纲: {headings_list}
-  - 包含表格(has_table): {has_table}
-  - 包含代码(has_code_block): {has_code_block}
-  - 正文切片: \"\"\"{text_snippet}\"\"\"
-
-# 输出 JSON 格式
-{
-  "analysis_timestamp": "当前时间戳",
-  "domain_classification": {
-    "type": "填写10个主域名类型标签中的一个",
-    "reason": "判定依据"
-  },
-  "url_classification": {
-    "type": "填写11个网页内容类型标签中的一个",
-    "reason": "判定依据"
-  },
-  "page_mentioned_brands": ["竞品A"]
-}
-`page_mentioned_brands` 仅包含在来源页正文中被提及的品牌名，无则 `[]`。禁止 Markdown 或其它说明。"""
-
-
-def citation_page_geo_user_content(
-    *,
-    own_brand: str,
-    competitors: list[str],
-    url: str,
-    domain: str,
-    http_status: int | None,
-    title: str,
-    description: str,
-    headings_list: str,
-    has_table: bool,
-    has_code_block: bool,
-    text_snippet: str,
-) -> str:
-    comp_text = ", ".join(competitors) if competitors else "（无）"
-    status_text = str(http_status) if http_status is not None else "（未知）"
-    return (
-        f"# 输入数据\n"
-        f"- 本品牌：{own_brand}\n"
-        f"- 竞品列表：[{comp_text}]\n"
-        f"- [引用网页元数据]:\n"
-        f"  - URL: {url}\n"
-        f"  - 主域名: {domain}\n"
-        f"  - HTTP 状态码: {status_text}\n"
-        f"  - Title: {title or '（无）'}\n"
-        f"  - Description: {description or '（无）'}\n"
-        f"  - Headings 大纲: {headings_list}\n"
-        f"  - 包含表格(has_table): {has_table}\n"
-        f"  - 包含代码(has_code_block): {has_code_block}\n"
-        f'  - 正文切片: """{text_snippet or "（无）"}"""'
-    )
-
-
-def _page_geo_entry(
-    *,
-    url: str,
-    domain: str,
-    http_status: int | None,
-    title: str,
-    description: str,
-    headings_list: str,
-    has_table: bool,
-    has_code_block: bool,
-    text_snippet: str,
-) -> dict[str, object]:
-    status_text = str(http_status) if http_status is not None else "（未知）"
-    return {
-        "url": url,
-        "domain": domain,
-        "http_status": status_text,
-        "title": title or "（无）",
-        "description": description or "（无）",
-        "headings_list": headings_list,
-        "has_table": has_table,
-        "has_code_block": has_code_block,
-        "text_snippet": text_snippet or "（无）",
-    }
-
-
-CITATION_PAGE_GEO_BATCH_SYSTEM = """# 任务
-你是 GEO 数据分析专家。user 消息包含同一采样任务下的**多条**引用网页元数据。
-请对**每一条**独立完成任务一（主域名分类）、任务二（网页内容类型分类）、任务三（来源页品牌提及），并严格以 JSON 输出。
-
-分类标准与单页任务相同：
-- 网页内容类型 11 选 1：品牌官网、产品详情页、价格方案页、对比评测页、盘点清单文、实操指南、客户案例、行业报告与深度综述、动态新闻、社区讨论、其他类型
-- 主域名类型 10 选 1：企业/品牌官网、软件市场/垂直目录、科技/垂直行业媒体、大众/综合新闻媒体、政府/公共机构、教育/科研机构、参考资料/百科文献、社区/社交平台、代码/开源托管平台、其它分类
-
-# 约束
-1. 必须严格 JSON 输出，不要 Markdown 或解释文字。
-2. 输出 `pages` 数组，**顺序与输入 pages 数组一致**，每项必须含 `url` 字段以便对齐。
-3. `page_mentioned_brands` 仅依据对应页正文切片；http_status 非 200 或正文不可用则为 `[]`。
-4. has_table 为 true 且多品牌对比优先【对比评测页】；has_code_block 为 true 优先【实操指南】。
+1. 必须严格以给定的 JSON 格式输出，不包含任何 Markdown 包裹标记（如 ```json ）或前后解释文本。
+2. 输出的 `pages` 数组顺序、数量必须与输入完全一致，每项须包含 `url` 字段以便对齐。
+3. 若因状态码异常或元数据不足导致无法判定，type 填"其它类型"，在 reason 中注明「元数据不足无法判定」。
 
 # 输出 JSON 格式
 {
@@ -564,15 +459,15 @@ CITATION_PAGE_GEO_BATCH_SYSTEM = """# 任务
     {
       "url": "与输入一致",
       "analysis_timestamp": "ISO8601",
-      "domain_classification": {"type": "...", "reason": "..."},
-      "url_classification": {"type": "...", "reason": "..."},
+      "url_classification": {"type": "填写任务一标签", "reason": "判定依据"},
+      "domain_classification": {"type": "填写任务二标签", "reason": "判定依据"},
       "page_mentioned_brands": []
     }
   ]
 }"""
 
 
-def citation_page_geo_batch_user_content(
+def citation_page_geo_user_content(
     *,
     own_brand: str,
     competitors: list[str],
@@ -580,11 +475,9 @@ def citation_page_geo_batch_user_content(
 ) -> str:
     import json
 
-    comp_text = competitors if competitors else []
     payload = {
         "own_brand": own_brand,
-        "competitors": comp_text,
+        "competitors": competitors if competitors else [],
         "pages": pages,
     }
     return json.dumps(payload, ensure_ascii=False, indent=2)
-

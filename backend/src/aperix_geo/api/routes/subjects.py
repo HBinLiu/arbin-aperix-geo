@@ -10,7 +10,7 @@ from aperix_geo.api.routes import subject_setup
 from aperix_geo.db.models import Subject, SubjectType
 from aperix_geo.schemas.catalog import SubjectCreate, SubjectOut, SubjectUpdate
 from aperix_geo.services.subject.domain_fields import apply_subject_domain_fields
-from aperix_geo.services.sampling.schedule import validate_sampling_interval
+from aperix_geo.services.sampling.workflow import validate_sampling_interval
 from aperix_geo.services.sampling.subject import validate_sampling_platforms
 from aperix_geo.services.subject.rules import validate_subject_fields
 from aperix_geo.utils.coerce import normalize_monitoring_scope

@@ -94,6 +94,7 @@ def build_visibility_analysis(
     dt_to: datetime,
     platforms: list[str] | None = None,
     topic_id: UUID | None = None,
+    prompt_id: UUID | None = None,
 ) -> dict[str, Any]:
     """Rank + daily 序列，并附带上一周期 rank 与自有品牌对齐 daily 序列。"""
     prev_from, prev_to = previous_date_range(dt_from, dt_to)
@@ -104,6 +105,7 @@ def build_visibility_analysis(
         dt_to=dt_to,
         platforms=platforms,
         topic_id=topic_id,
+        prompt_id=prompt_id,
     )
     current_rows = [r for r in all_rows if dt_from <= r.created_at <= dt_to]
     prev_rows = [r for r in all_rows if prev_from <= r.created_at <= prev_to]

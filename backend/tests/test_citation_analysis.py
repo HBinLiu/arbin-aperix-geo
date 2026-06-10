@@ -1,6 +1,6 @@
 """Tests for citation source LLM analysis normalization."""
 
-from aperix_geo.services.sampling.citation_analysis import (
+from aperix_geo.services.sampling.citation import (
     ai_mentioned_brand_names,
     normalize_page_geo,
     normalize_response_absa,

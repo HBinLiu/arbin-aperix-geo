@@ -9,8 +9,10 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import LLMResponse, LLMResponseStatus, SamplingJobStatus
-from aperix_geo.services.sampling.recovery import reconcile_active_sampling_job
-from aperix_geo.services.sampling.schedule import get_latest_sampling_job
+from aperix_geo.services.sampling.workflow import (
+    get_latest_sampling_job,
+    reconcile_active_sampling_job,
+)
 
 
 def build_pipeline_status(db: Session, *, subject_id: UUID) -> dict[str, Any]:

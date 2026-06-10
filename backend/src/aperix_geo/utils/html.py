@@ -1,24 +1,19 @@
-"""HTML text extraction helpers."""
+"""HTML text extraction helpers (BeautifulSoup + html.parser)."""
 
 from __future__ import annotations
 
 import html as html_lib
 import re
 
-_TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
-_META_DESC_RE = re.compile(
-    r'<meta[^>]+(?:name|property)=["\'](?:description|og:description)["\'][^>]+content=["\']([^"\']*)["\']'
-    r'|<meta[^>]+content=["\']([^"\']*)["\'][^>]+(?:name|property)=["\'](?:description|og:description)["\']',
-    re.IGNORECASE,
-)
-_TAG_RE = re.compile(r"<(script|style)[^>]*>.*?</\1>", re.IGNORECASE | re.DOTALL)
-_TAG_STRIP_RE = re.compile(r"<[^>]+>")
-_HEADING_RE = re.compile(r"<h([1-6])[^>]*>(.*?)</h\1>", re.IGNORECASE | re.DOTALL)
-_TABLE_RE = re.compile(r"<table\b", re.IGNORECASE)
-_CODE_BLOCK_RE = re.compile(
-    r"<(?:pre|code)\b|```",
-    re.IGNORECASE,
-)
+from bs4 import BeautifulSoup, SoupStrainer
+
+_HEAD_STRAINER = SoupStrainer(["title", "meta"])
+_TABLE_STRAINER = SoupStrainer("table")
+_CODE_STRAINER = SoupStrainer(["pre", "code"])
+_DESC_META_KEYS = ("description", "og:description")
+_TITLE_FALLBACK_KEYS = ("og:title",)
+_CODE_FENCE_RE = re.compile(r"```")
+_STRIP_TAGS = ("script", "style", "noscript")
 
 
 def _normalize_text(raw: str, *, limit: int | None = None) -> str:
@@ -28,26 +23,49 @@ def _normalize_text(raw: str, *, limit: int | None = None) -> str:
     return text
 
 
+def _meta_content(soup: BeautifulSoup, *keys: str) -> str:
+    for key in keys:
+        for attr in ("name", "property"):
+            tag = soup.find("meta", attrs={attr: key})
+            if tag and tag.get("content"):
+                return str(tag["content"]).strip()
+    return ""
+
+
 def parse_head_from_html(html: str) -> tuple[str, str]:
+    if not (html or "").strip():
+        return "", ""
+
+    soup = BeautifulSoup(html, "html.parser", parse_only=_HEAD_STRAINER)
     title = ""
-    description = ""
-    if m := _TITLE_RE.search(html):
-        title = _normalize_text(m.group(1), limit=500)
-    if m := _META_DESC_RE.search(html):
-        description = _normalize_text(m.group(1) or m.group(2) or "", limit=2000)
+    if soup.title:
+        title = _normalize_text(soup.title.get_text(), limit=500)
+    if not title:
+        title = _normalize_text(_meta_content(soup, *_TITLE_FALLBACK_KEYS), limit=500)
+
+    description = _normalize_text(_meta_content(soup, *_DESC_META_KEYS), limit=2000)
     return title, description
 
 
 def html_to_text(html: str, *, limit: int | None = None) -> str:
-    cleaned = _TAG_RE.sub(" ", html)
-    text = _TAG_STRIP_RE.sub(" ", cleaned)
+    if not (html or "").strip():
+        return ""
+
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup.find_all(_STRIP_TAGS):
+        tag.decompose()
+    text = soup.get_text(separator=" ", strip=True)
     return _normalize_text(text, limit=limit)
 
 
 def extract_headings_from_html(html: str, *, limit: int = 20) -> list[str]:
+    if not (html or "").strip():
+        return []
+
+    soup = BeautifulSoup(html, "html.parser")
     headings: list[str] = []
-    for match in _HEADING_RE.finditer(html or ""):
-        text = _normalize_text(_TAG_STRIP_RE.sub(" ", match.group(2)), limit=300)
+    for tag in soup.find_all(re.compile(r"^h[1-6]$", re.I)):
+        text = _normalize_text(tag.get_text(separator=" ", strip=True), limit=300)
         if text:
             headings.append(text)
         if len(headings) >= limit:
@@ -56,8 +74,16 @@ def extract_headings_from_html(html: str, *, limit: int = 20) -> list[str]:
 
 
 def html_has_table(html: str) -> bool:
-    return bool(_TABLE_RE.search(html or ""))
+    if not (html or "").strip():
+        return False
+    soup = BeautifulSoup(html, "html.parser", parse_only=_TABLE_STRAINER)
+    return soup.find("table") is not None
 
 
 def html_has_code_block(html: str) -> bool:
-    return bool(_CODE_BLOCK_RE.search(html or ""))
+    if _CODE_FENCE_RE.search(html or ""):
+        return True
+    if not (html or "").strip():
+        return False
+    soup = BeautifulSoup(html, "html.parser", parse_only=_CODE_STRAINER)
+    return soup.find(["pre", "code"]) is not None

@@ -7,10 +7,9 @@ import logging
 
 from aperix_geo.services.competitor.types import SiteHead
 from aperix_geo.services.crawl import PageFetchResult, fetch_page, page_crawl_settings
+from aperix_geo.services.crawl.metadata import extract_page_metadata
 from aperix_geo.services.crawl.settings import PageCrawlSettings
 from aperix_geo.utils.domains import registrable_domain
-from aperix_geo.utils.html import parse_head_from_html
-from aperix_geo.utils.text import headings_from_markdown
 from aperix_geo.utils.url import homepage_urls
 
 logger = logging.getLogger(__name__)
@@ -19,17 +18,13 @@ _HEAD_PARSE_CHARS = 80_000
 
 
 def _head_fields(result: PageFetchResult) -> tuple[str, str]:
-    title = ""
-    description = ""
-    if result.html:
-        title, description = parse_head_from_html(result.html[:_HEAD_PARSE_CHARS])
-    if not title and result.markdown.strip():
-        headings = headings_from_markdown(result.markdown)
-        if headings:
-            title = headings.split(" | ", 1)[0][:200]
-    if not title and result.markdown.strip():
-        title = result.markdown.strip().split("\n", 1)[0].lstrip("# ").strip()[:200]
-    return title, description
+    parsed = extract_page_metadata(
+        html=result.html,
+        markdown=result.markdown,
+        html_parse_limit=_HEAD_PARSE_CHARS,
+        include_body=False,
+    )
+    return parsed.title, parsed.description
 
 
 def _fetch_one_sync(domain: str, *, crawl: PageCrawlSettings) -> SiteHead:

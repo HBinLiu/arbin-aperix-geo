@@ -150,6 +150,7 @@ class Competitor(Base):
     domain: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     website_url: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     brand: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
+    aliases: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default=sa_text("'[]'::jsonb"))
     summary: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
     updated_at: Mapped[datetime] = mapped_column(

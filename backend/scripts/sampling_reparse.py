@@ -10,8 +10,7 @@ from sqlalchemy import select
 
 from aperix_geo.db.models import LLMResponse, LLMResponseStatus, SamplingJob
 from aperix_geo.db.session import SessionLocal
-from aperix_geo.services.sampling.citations import replace_citations_for_response
-from aperix_geo.services.sampling.parser import parse_llm_output
+from aperix_geo.services.sampling.workflow import reparse_response_row
 from aperix_geo.services.subject.loader import load_subject_with_competitors
 
 
@@ -45,20 +44,10 @@ def main() -> int:
             if not subject:
                 skipped += 1
                 continue
-            parsed = parse_llm_output(
-                row.raw_text or "",
-                subject=subject,
-            )
             if args.dry_run:
                 updated += 1
                 continue
-            row.parsed = parsed
-            replace_citations_for_response(
-                db,
-                response_id=row.id,
-                prompt_id=row.prompt_id,
-                parsed=parsed,
-            )
+            reparse_response_row(db, row=row, subject=subject)
             updated += 1
         if not args.dry_run:
             db.commit()

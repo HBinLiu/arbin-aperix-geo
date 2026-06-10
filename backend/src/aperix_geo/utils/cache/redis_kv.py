@@ -98,5 +98,10 @@ def redis_delete(key: str) -> None:
         logger.debug("Redis DEL 失败 key=%s", key, exc_info=True)
 
 
+def shared_redis_client() -> redis.Redis | None:
+    """Process-wide Redis client (decode_responses=True)."""
+    return _redis_client()
+
+
 def clear_redis_kv_cache() -> None:
     _redis_client.cache_clear()

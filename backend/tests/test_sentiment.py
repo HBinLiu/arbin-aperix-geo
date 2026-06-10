@@ -38,8 +38,6 @@ def test_parsed_sentiment_from_absa() -> None:
         response_absa,
         own_brand="Aperix",
         competitor_keys=[("Beta", "Beta")],
-        mentions_own=True,
-        mentions_competitors={"Beta": True},
     )
     assert result["sentiment_source"] == "llm"
     assert result["sentiment_own"] == "positive"
@@ -50,13 +48,49 @@ def test_parsed_sentiment_from_absa() -> None:
     assert result["sentiment_reasons_competitors"]["Beta"] == "客观对比 Beta"
 
 
+def test_parsed_sentiment_from_absa_ignores_parser_mentions() -> None:
+    """ABSA mention detection drives sentiment even when parser would miss the brand."""
+    response_absa = {
+        "analysis_source": "llm",
+        "brands_sentiment_absa": {
+            "阿里健康": {
+                "mentioned": True,
+                "score": 0.6,
+                "framing_tags": [],
+                "evidence": "阿里健康在医药电商领域表现突出",
+            },
+        },
+    }
+    result = parsed_sentiment_from_absa(
+        response_absa,
+        own_brand="阿里健康",
+        competitor_keys=[],
+    )
+    assert result["sentiment_own"] == "positive"
+    assert result["sentiment_score_own"] == 80.0
+
+
+def test_parsed_sentiment_from_absa_not_mentioned() -> None:
+    response_absa = {
+        "analysis_source": "llm",
+        "brands_sentiment_absa": {
+            "Aperix": {"mentioned": False, "score": 0.9, "framing_tags": [], "evidence": ""},
+        },
+    }
+    result = parsed_sentiment_from_absa(
+        response_absa,
+        own_brand="Aperix",
+        competitor_keys=[],
+    )
+    assert result["sentiment_own"] == "neutral"
+    assert result["sentiment_score_own"] is None
+
+
 def test_parsed_sentiment_from_absa_failed() -> None:
     result = parsed_sentiment_from_absa(
         {"analysis_source": "failed"},
         own_brand="Aperix",
         competitor_keys=[],
-        mentions_own=True,
-        mentions_competitors={},
     )
     assert result["sentiment_source"] == "failed"
     assert result["sentiment_score_own"] is None

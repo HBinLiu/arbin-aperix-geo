@@ -86,7 +86,11 @@ export function VisibilityPage() {
             );
           })}
 
-          <TopicVisibilityRankTable rows={topicVisibilityRanks} loading={isLoading} />
+          <TopicVisibilityRankTable
+            rows={topicVisibilityRanks}
+            ownLabel={ownLabel}
+            loading={isLoading}
+          />
         </div>
       </div>
     </>

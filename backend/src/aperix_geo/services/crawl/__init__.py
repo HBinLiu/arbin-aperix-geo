@@ -2,6 +2,14 @@
 
 from aperix_geo.services.crawl.page import fetch_page
 from aperix_geo.services.crawl.types import PageFetchResult
+from aperix_geo.services.crawl.metadata import PageMetadata, extract_page_metadata
 from aperix_geo.services.crawl.settings import PageCrawlSettings, page_crawl_settings
 
-__all__ = ["PageFetchResult", "PageCrawlSettings", "fetch_page", "page_crawl_settings"]
+__all__ = [
+    "PageFetchResult",
+    "PageMetadata",
+    "PageCrawlSettings",
+    "extract_page_metadata",
+    "fetch_page",
+    "page_crawl_settings",
+]

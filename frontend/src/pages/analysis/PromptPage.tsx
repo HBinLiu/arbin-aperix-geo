@@ -8,7 +8,7 @@ import { TopicPerformanceTable } from "@/components/analysis/prompt/TopicPerform
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAnalysisOutletContext } from "@/hooks/useAnalysisContext";
-import { filterPromptRowsBySearch, usePromptAnalysis } from "@/hooks/usePromptAnalysis";
+import { filterPromptRowsBySearch, filterPromptRowsByTopic, usePromptAnalysis } from "@/hooks/usePromptAnalysis";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
 import { ANALYSIS_FILTER_ALL, DEFAULT_ANALYSIS_FILTERS } from "@/lib/analysis";
 import { dashboardNavToPath } from "@/lib/dashboard";
@@ -24,6 +24,7 @@ export function PromptPage() {
   const { subject } = useDashboardContext();
   const [filters, setFilters] = useState<AnalysisFilters>(DEFAULT_ANALYSIS_FILTERS);
   const [search, setSearch] = useState("");
+  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
 
   useEffect(() => {
     setFilters((prev) => ({
@@ -33,13 +34,18 @@ export function PromptPage() {
       platformId: ANALYSIS_FILTER_ALL,
     }));
     setSearch("");
+    setSelectedTopicId(null);
   }, [subject.id]);
 
   const { isLoading, topicRows, promptRows } = usePromptAnalysis(subjectId, filters);
 
   const filteredPromptRows = useMemo(
-    () => filterPromptRowsBySearch(promptRows, search),
-    [promptRows, search],
+    () =>
+      filterPromptRowsBySearch(
+        filterPromptRowsByTopic(promptRows, selectedTopicId),
+        search,
+      ),
+    [promptRows, selectedTopicId, search],
   );
 
   return (
@@ -82,7 +88,12 @@ export function PromptPage() {
           </p>
         </header>
 
-        <TopicPerformanceTable rows={topicRows} loading={isLoading} />
+        <TopicPerformanceTable
+          rows={topicRows}
+          selectedTopicId={selectedTopicId}
+          onTopicSelect={setSelectedTopicId}
+          loading={isLoading}
+        />
         <PromptPerformanceTable rows={filteredPromptRows} loading={isLoading} />
       </div>
     </div>

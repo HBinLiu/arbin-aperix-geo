@@ -15,6 +15,7 @@ const SKELETON_GRID_COLUMNS = `${TOPIC_COLUMN_WIDTH} ${RANK_SLOTS.map(() => RANK
 
 type TopicVisibilityRankTableProps = {
   rows: TopicVisibilityRankRow[];
+  ownLabel?: string;
   loading?: boolean;
   className?: string;
 };
@@ -45,6 +46,7 @@ function TopicVisibilityRankSkeleton() {
 /** 主题可见度排名：每行主题 + Top5 品牌图标 */
 export function TopicVisibilityRankTable({
   rows,
+  ownLabel = "",
   loading = false,
   className,
 }: TopicVisibilityRankTableProps) {
@@ -100,7 +102,16 @@ export function TopicVisibilityRankTable({
                   key={row.topicId}
                   className="border-border border-t [&>td]:align-middle [&>td]:whitespace-nowrap [&>td]:px-4 [&>td]:py-3"
                 >
-                  <td className="text-foreground pl-5 font-medium">{row.topicName}</td>
+                  <td className="text-foreground pl-5 font-medium">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span>{row.topicName}</span>
+                      {ownLabel && row.ranks[0] === ownLabel ? (
+                        <span className="inline-flex shrink-0 items-center rounded-full bg-primary px-2 py-0.5 text-xs font-bold text-white">
+                          领先
+                        </span>
+                      ) : null}
+                    </span>
+                  </td>
                   {RANK_SLOTS.map((slot, index) => (
                     <td key={slot} className="text-center">
                       <div className="flex h-7 items-center justify-center">

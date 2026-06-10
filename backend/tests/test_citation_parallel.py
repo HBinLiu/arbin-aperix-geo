@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 from unittest.mock import patch
 
-from aperix_geo.services.sampling.citation_page import (
+from aperix_geo.services.sampling.citation import (
     CitationPageMeta,
     fetch_citation_pages_parallel,
 )
@@ -28,7 +28,7 @@ def test_fetch_citation_pages_parallel_preserves_order() -> None:
                 active["n"] -= 1
 
     with patch(
-        "aperix_geo.services.sampling.citation_page.fetch_citation_page_meta",
+        "aperix_geo.services.sampling.citation.page.fetch_citation_page_meta",
         side_effect=_fetch,
     ):
         pages = fetch_citation_pages_parallel(urls, concurrency=2)

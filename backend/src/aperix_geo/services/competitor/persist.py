@@ -24,11 +24,13 @@ def apply_competitors(
                 continue
             seen_domains.add(domain)
             brand = ensure_brand(item.brand, domain=domain)
+            alias_list = [str(a).strip() for a in (item.aliases or []) if str(a).strip()]
             subject.competitors.append(
                 Competitor(
                     domain=domain,
                     website_url=website_url,
                     brand=brand,
+                    aliases=alias_list,
                     summary=summary,
                 )
             )
@@ -41,6 +43,7 @@ def apply_competitors(
         if key in seen_brands:
             continue
         seen_brands.add(key)
+        alias_list = [str(a).strip() for a in (item.aliases or []) if str(a).strip()]
         subject.competitors.append(
-            Competitor(domain="", website_url="", brand=brand, summary=summary)
+            Competitor(domain="", website_url="", brand=brand, aliases=alias_list, summary=summary)
         )

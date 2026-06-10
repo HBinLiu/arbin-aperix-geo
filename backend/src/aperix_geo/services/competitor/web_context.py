@@ -5,11 +5,12 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from aperix_geo.services.crawl import PageFetchResult, fetch_page, page_crawl_settings
+from aperix_geo.services.crawl import fetch_page, page_crawl_settings
 from aperix_geo.services.crawl._crawl4ai import result_markdown as _result_markdown
+from aperix_geo.services.crawl.metadata import extract_page_metadata, homepage_metadata_dict
 from aperix_geo.services.crawl.settings import PageCrawlSettings
 from aperix_geo.utils.domains import strip_hostname
-from aperix_geo.utils.text import headings_from_markdown, truncate_text
+from aperix_geo.utils.text import truncate_text
 from aperix_geo.utils.url import homepage_urls, host_resolves
 
 logger = logging.getLogger(__name__)
@@ -32,38 +33,6 @@ def _pick_start_url(root: str) -> str:
     return urls[0] if urls else f"https://{strip_hostname(root) or root}/"
 
 
-def _metadata_from_fetch(result: PageFetchResult, *, body: str) -> dict[str, str]:
-    from aperix_geo.utils.html import parse_head_from_html
-
-    title = ""
-    description = ""
-    if result.html:
-        title, description = parse_head_from_html(result.html[:120_000])
-    h1_h2 = headings_from_markdown(body) if body.startswith("#") else headings_from_markdown(result.markdown)
-    if not h1_h2 and result.html:
-        from aperix_geo.utils.html import extract_headings_from_html
-
-        parts = extract_headings_from_html(result.html[:120_000])
-        h1_h2 = " | ".join(parts[:6])
-    if not title and h1_h2:
-        title = h1_h2.split(" | ", 1)[0][:200]
-    return {
-        "title": title[:500],
-        "description": description[:2000],
-        "h1_h2": h1_h2[:500],
-    }
-
-
-def _body_from_fetch(result: PageFetchResult, *, max_chars: int) -> str:
-    if result.markdown.strip():
-        return truncate_text(result.markdown, max_chars)
-    if result.html:
-        from aperix_geo.utils.html import html_to_text
-
-        return truncate_text(html_to_text(result.html, limit=max_chars), max_chars)
-    return ""
-
-
 def fetch_site_homepage_context(
     domain: str,
     *,
@@ -83,11 +52,16 @@ def fetch_site_homepage_context(
 
     start_url = _pick_start_url(root)
     result = fetch_page(start_url, crawl=settings, max_chars=max_chars)
-    body = _body_from_fetch(result, max_chars=max_chars)
+    parsed = extract_page_metadata(
+        html=result.html,
+        markdown=result.markdown,
+        body_limit=max_chars,
+    )
+    body = truncate_text(parsed.body_text, max_chars) if parsed.body_text else ""
     if not result.fetch_ok or not body:
         return HomepageContext(url=start_url, metadata={}, markdown="")
 
-    meta = _metadata_from_fetch(result, body=body)
+    meta = homepage_metadata_dict(parsed)
     logger.info(
         "竞品发现: 首页抓取完成 域名=%s source=%s title=%r 字符数=%d",
         root,

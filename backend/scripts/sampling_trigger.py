@@ -19,7 +19,7 @@ from sqlalchemy import select
 from aperix_geo.config import get_settings
 from aperix_geo.db.models import Subject
 from aperix_geo.db.session import SessionLocal
-from aperix_geo.services.sampling.jobs import SamplingJobError, enqueue_subject_sampling
+from aperix_geo.services.sampling.workflow import SamplingJobError, enqueue_subject_sampling
 from aperix_geo.services.subject.loader import load_subject_with_competitors
 
 

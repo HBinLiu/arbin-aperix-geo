@@ -89,6 +89,33 @@ Beat 按 `SAMPLING_SCHEDULER_TICK_SECONDS`（默认 15 分钟）扫描到期主�
 
 ## 网页爬取（Crawl4AI）
 
+统一入口：`services/crawl/page.py` 的 `fetch_page()`（httpx 优先，无效时回退 Crawl4AI）。  
+元数据提取：`services/crawl/metadata.py` 的 `extract_page_metadata()`（引用页、竞品首页、head 抓取、主体调研共用）。
+
+### 页面元数据提取规则
+
+| 字段 | 来源优先级 |
+|------|-----------|
+| `title` / `description` | HTML `<head>`（BeautifulSoup，含 `og:title` / `og:description`）→ markdown 首个 `#` 标题或首行 |
+| `body_text` / `headings` / `has_table` / `has_code_block` | markdown 正文 ≥ 40 字 **或** HTML 正文不足 40 字 → 用 markdown；否则 `html_to_text` + HTML 标题 |
+| favicon | **不在此模块**；仍走 `services/favicon/_parse.py`（只解析 HTML） |
+
+**输入形态：**
+
+- httpx 成功：通常只有 `html`，无 `markdown`
+- Crawl4AI 兜底：通常 `html` + `markdown` 并存；正文类字段按上表择优，title/description 仍优先 HTML head
+
+**消费方：**
+
+| 模块 | 用途 |
+|------|------|
+| `sampling/citation/page.py` | 引用页 `text_snippet`、品牌提及检测 |
+| `competitor/web_context.py` | 竞品首页 LLM 画像 |
+| `competitor/head_fetch.py` | 竞品候选站 title（`include_body=False`） |
+| `competitor/research.py` | 主体调研补充页摘录 |
+
+常量：`HEAD_PARSE_MAX_CHARS=120_000`，`MIN_BODY_CHARS=40`（与 `PageFetchResult.fetch_ok` 阈值一致）。
+
 竞品发现流程（`discover-competitors`，代码在 `services/competitor/`）：
 
 **Onboarding 分步 API（推荐）**

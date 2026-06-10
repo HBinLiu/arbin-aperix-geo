@@ -5,17 +5,13 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
+from uuid import UUID
+
 from aperix_geo.services.crawl import fetch_page, page_crawl_settings
+from aperix_geo.services.crawl.metadata import extract_page_metadata
 from aperix_geo.services.crawl.settings import PageCrawlSettings
-from aperix_geo.utils.html import (
-    extract_headings_from_html,
-    html_has_code_block,
-    html_has_table,
-    html_to_text,
-    parse_head_from_html,
-)
-from aperix_geo.utils.text import headings_from_markdown, truncate_text
 from aperix_geo.utils.domains import registrable_domain
+from aperix_geo.utils.text import truncate_text
 from aperix_geo.utils.url import hostname_from_url
 
 
@@ -52,6 +48,22 @@ class CitationPageMeta:
             "fetch_source": self.fetch_source,
         }
 
+    @classmethod
+    def from_dict(cls, data: dict) -> CitationPageMeta:
+        return cls(
+            url=str(data.get("url") or ""),
+            domain=str(data.get("domain") or ""),
+            http_status=data.get("http_status"),
+            title=str(data.get("title") or ""),
+            description=str(data.get("description") or ""),
+            headings=list(data.get("headings") or []),
+            has_table=bool(data.get("has_table")),
+            has_code_block=bool(data.get("has_code_block")),
+            text_snippet=str(data.get("text_snippet") or ""),
+            fetch_ok=bool(data.get("fetch_ok")),
+            fetch_source=str(data.get("fetch_source") or "none"),
+        )
+
 
 def _primary_domain(url: str) -> str:
     host = (hostname_from_url(url) or "").strip().lower()
@@ -60,37 +72,31 @@ def _primary_domain(url: str) -> str:
     return registrable_domain(host) or host
 
 
-def _headings_from_markdown(markdown: str) -> list[str]:
-    text = headings_from_markdown(markdown)
-    if not text:
-        return []
-    return [part.strip() for part in text.split(" | ") if part.strip()]
-
-
-def _markdown_has_table(markdown: str) -> bool:
-    lines = markdown.splitlines()
-    for idx, line in enumerate(lines):
-        if "|" not in line:
-            continue
-        nxt = lines[idx + 1] if idx + 1 < len(lines) else ""
-        if "|" in nxt and ("---" in nxt or ":---" in nxt):
-            return True
-    return False
-
-
 def fetch_citation_page_meta(
     url: str,
     *,
     crawl: PageCrawlSettings | None = None,
     snippet_chars: int = 4_000,
     max_html_chars: int | None = None,
+    sampling_job_id: UUID | None = None,
 ) -> CitationPageMeta:
     """Fetch a citation URL (httpx → Crawl4AI) and extract structured metadata."""
+    from aperix_geo.services.sampling.citation.cache.page_meta import (
+        get_job_citation_page,
+        set_job_citation_page,
+    )
+
     key = url.strip()
     domain = _primary_domain(key)
-    meta = CitationPageMeta(url=key, domain=domain)
     if not key:
-        return meta
+        return CitationPageMeta(url=key, domain=domain)
+
+    if sampling_job_id is not None:
+        cached = get_job_citation_page(sampling_job_id, key)
+        if cached is not None:
+            return CitationPageMeta.from_dict(cached)
+
+    meta = CitationPageMeta(url=key, domain=domain)
 
     settings = crawl or page_crawl_settings()
     html_limit = max_html_chars if max_html_chars is not None else settings.max_chars
@@ -100,28 +106,26 @@ def fetch_citation_page_meta(
     meta.fetch_source = fetched.source
 
     if not fetched.fetch_ok:
+        if sampling_job_id is not None:
+            set_job_citation_page(sampling_job_id, meta.to_dict())
         return meta
 
-    html = fetched.html
-    if html:
-        title, description = parse_head_from_html(html)
-        headings = extract_headings_from_html(html)
-        body_text = html_to_text(html, limit=html_limit)
-        meta.title = title
-        meta.description = description
-        meta.headings = headings
-        meta.has_table = html_has_table(html)
-        meta.has_code_block = html_has_code_block(html)
-        meta.text_snippet = truncate_text(body_text, snippet_chars) if body_text else ""
-    elif fetched.markdown:
-        headings = _headings_from_markdown(fetched.markdown)
-        meta.title = headings[0] if headings else ""
-        meta.headings = headings
-        meta.has_table = _markdown_has_table(fetched.markdown)
-        meta.has_code_block = "```" in fetched.markdown
-        meta.text_snippet = truncate_text(fetched.markdown, snippet_chars)
+    parsed = extract_page_metadata(
+        html=fetched.html,
+        markdown=fetched.markdown,
+        html_parse_limit=html_limit,
+        body_limit=html_limit,
+    )
+    meta.title = parsed.title
+    meta.description = parsed.description
+    meta.headings = list(parsed.headings)
+    meta.has_table = parsed.has_table
+    meta.has_code_block = parsed.has_code_block
+    meta.text_snippet = truncate_text(parsed.body_text, snippet_chars) if parsed.body_text else ""
+    meta.fetch_ok = parsed.has_content()
 
-    meta.fetch_ok = bool(meta.text_snippet or meta.title or meta.description)
+    if sampling_job_id is not None:
+        set_job_citation_page(sampling_job_id, meta.to_dict())
     return meta
 
 
@@ -132,6 +136,7 @@ def fetch_citation_pages_parallel(
     snippet_chars: int = 4_000,
     max_html_chars: int | None = None,
     concurrency: int | None = None,
+    sampling_job_id: UUID | None = None,
 ) -> list[CitationPageMeta]:
     """Fetch multiple citation URLs concurrently; output order matches input."""
     if not urls:
@@ -145,6 +150,7 @@ def fetch_citation_pages_parallel(
                 crawl=settings,
                 snippet_chars=snippet_chars,
                 max_html_chars=max_html_chars,
+                sampling_job_id=sampling_job_id,
             ),
         ]
 
@@ -156,6 +162,7 @@ def fetch_citation_pages_parallel(
             crawl=settings,
             snippet_chars=snippet_chars,
             max_html_chars=max_html_chars,
+            sampling_job_id=sampling_job_id,
         )
 
     with ThreadPoolExecutor(max_workers=workers) as pool:

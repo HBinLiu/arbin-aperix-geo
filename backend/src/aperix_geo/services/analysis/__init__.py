@@ -21,6 +21,7 @@ from aperix_geo.services.analysis._series import (
 from aperix_geo.services.analysis.citation import (
     build_citation_analysis,
     build_citation_brand_rank,
+    build_citation_domain_analysis,
     build_citations,
     citation_share_from_rows as _citation_share_from_rows,
 )
@@ -37,6 +38,7 @@ from aperix_geo.services.analysis.performance import (
     build_prompts_performance,
     build_topics_performance,
 )
+from aperix_geo.services.analysis.prompt_detail import build_prompt_detail_responses
 from aperix_geo.services.analysis.platform import build_platform_matrix_analysis
 from aperix_geo.services.analysis.rank import build_rank, rank_from_rows as _rank_from_rows
 from aperix_geo.services.analysis.sentiment import (
@@ -57,6 +59,7 @@ __all__ = [
     "build_rank",
     "build_topics_performance",
     "build_prompts_performance",
+    "build_prompt_detail_responses",
     "build_citations",
     "build_topic_visibility_ranks",
     "build_visibility_analysis",
@@ -64,6 +67,7 @@ __all__ = [
     "build_platform_matrix_analysis",
     "build_citation_analysis",
     "build_citation_brand_rank",
+    "build_citation_domain_analysis",
     "build_daily_sentiment_series",
     "build_sentiment_analysis",
     "build_content_opportunities",

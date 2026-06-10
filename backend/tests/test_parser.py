@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 from aperix_geo.db.models import Competitor, Subject, SubjectType
-from aperix_geo.services.sampling.citation_page import CitationPageMeta
+from aperix_geo.services.sampling.citation import CitationPageMeta
 from aperix_geo.services.sampling.parser import (
     _competitor_entries,
     _own_names,
@@ -69,7 +69,12 @@ def _patch_citation_fetch_by_default():
         return _default_page(url, text="")
 
     def _response_absa(raw_text, *, own_brand, competitors, **kwargs):
-        ai_mentioned = [own_brand] if own_brand and own_brand in raw_text else []
+        ai_mentioned = []
+        if own_brand and own_brand in raw_text:
+            ai_mentioned.append(own_brand)
+        for name in competitors:
+            if name and name in raw_text:
+                ai_mentioned.append(name)
         return _default_response_absa(
             own_brand=own_brand,
             competitors=competitors,
@@ -97,13 +102,13 @@ def _patch_citation_fetch_by_default():
 
     with (
         patch("aperix_geo.config.get_settings", return_value=mock_settings),
-        patch("aperix_geo.services.sampling.citation_page.fetch_citation_page_meta", side_effect=_fetch),
+        patch("aperix_geo.services.sampling.citation.page.fetch_citation_page_meta", side_effect=_fetch),
         patch(
-            "aperix_geo.services.sampling.citation_analysis.analyze_citation_response_absa",
+            "aperix_geo.services.sampling.parser.analyze_citation_response_absa",
             side_effect=_response_absa,
         ),
         patch(
-            "aperix_geo.services.sampling.citation_analysis.analyze_citation_pages_geo",
+            "aperix_geo.services.sampling.citation.resolve.analyze_citation_pages_geo",
             side_effect=_pages_geo,
         ),
     ):
@@ -120,23 +125,29 @@ def _mock_fetch_page(*, text: str = "Aperix product documentation and guides.", 
         return _default_page(url, text=text)
 
     def _response_absa(raw_text, *, own_brand, competitors, **kwargs):
+        ai_mentioned = []
+        if own_brand and own_brand in raw_text:
+            ai_mentioned.append(own_brand)
+        for name in competitors:
+            if name and name in raw_text:
+                ai_mentioned.append(name)
         return _default_response_absa(
             own_brand=own_brand,
             competitors=competitors,
-            ai_mentioned=["Aperix"] if "Aperix" in raw_text else [],
+            ai_mentioned=ai_mentioned,
         )
 
     def _pages_geo(pages, *, own_brand, competitors, cache_ttl_s=0, batch_size=8):
         return [_default_page_geo(page_mentioned=brands_on_page) for _ in pages]
 
     with (
-        patch("aperix_geo.services.sampling.citation_page.fetch_citation_page_meta", side_effect=_fetch),
+        patch("aperix_geo.services.sampling.citation.page.fetch_citation_page_meta", side_effect=_fetch),
         patch(
-            "aperix_geo.services.sampling.citation_analysis.analyze_citation_response_absa",
+            "aperix_geo.services.sampling.parser.analyze_citation_response_absa",
             side_effect=_response_absa,
         ),
         patch(
-            "aperix_geo.services.sampling.citation_analysis.analyze_citation_pages_geo",
+            "aperix_geo.services.sampling.citation.resolve.analyze_citation_pages_geo",
             side_effect=_pages_geo,
         ),
     ):

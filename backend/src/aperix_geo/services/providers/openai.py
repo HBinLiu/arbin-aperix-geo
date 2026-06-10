@@ -18,9 +18,28 @@ from aperix_geo.services.providers._helpers import (
     response_data,
     with_system_prompt,
 )
-from aperix_geo.services.providers.errors import ProviderError
+from aperix_geo.services.providers.errors import ProviderError, raise_provider_error
 
 logger = logging.getLogger(__name__)
+
+
+def _raise_completion_error(
+    error_cls: Type[Exception],
+    message: str,
+    *,
+    status_code: int | None = None,
+    retryable: bool | None = None,
+    cause: BaseException | None = None,
+) -> None:
+    if isinstance(error_cls, type) and issubclass(error_cls, ProviderError):
+        raise_provider_error(
+            error_cls,
+            message,
+            status_code=status_code,
+            retryable=retryable,
+            cause=cause,
+        )
+    raise error_cls(message) from cause
 
 
 def _usage_dict(usage: Any) -> dict[str, Any]:
@@ -75,15 +94,25 @@ def openai_chat_completion(
     try:
         response = client.chat.completions.create(**kwargs)
     except APITimeoutError as e:
-        raise error_cls(f"{provider_label} timeout: {e}") from e
+        _raise_completion_error(
+            error_cls,
+            f"{provider_label} timeout: {e}",
+            retryable=True,
+            cause=e,
+        )
     except APIError as e:
         detail = (getattr(e, "message", None) or str(e))[:800]
         status = getattr(e, "status_code", None)
         if status is not None:
-            raise error_cls(f"{provider_label} HTTP {status}: {detail}") from e
-        raise error_cls(f"{provider_label} API error: {detail}") from e
+            _raise_completion_error(
+                error_cls,
+                f"{provider_label} HTTP {status}: {detail}",
+                status_code=status,
+                cause=e,
+            )
+        _raise_completion_error(error_cls, f"{provider_label} API error: {detail}", cause=e)
     except Exception as e:
-        raise error_cls(f"{provider_label} error: {e}") from e
+        _raise_completion_error(error_cls, f"{provider_label} error: {e}", cause=e)
 
     latency_ms = int((time.perf_counter() - t0) * 1000)
 
@@ -179,15 +208,33 @@ def openai_web_search_chat(
     try:
         response = client.chat.completions.create(**kwargs)
     except APITimeoutError as exc:
-        raise spec.error_cls(f"{spec.provider_label} timeout: {exc}") from exc
+        _raise_completion_error(
+            spec.error_cls,
+            f"{spec.provider_label} timeout: {exc}",
+            retryable=True,
+            cause=exc,
+        )
     except APIError as exc:
         detail = (getattr(exc, "message", None) or str(exc))[:800]
         status = getattr(exc, "status_code", None)
         if status is not None:
-            raise spec.error_cls(f"{spec.provider_label} HTTP {status}: {detail}") from exc
-        raise spec.error_cls(f"{spec.provider_label} API error: {detail}") from exc
+            _raise_completion_error(
+                spec.error_cls,
+                f"{spec.provider_label} HTTP {status}: {detail}",
+                status_code=status,
+                cause=exc,
+            )
+        _raise_completion_error(
+            spec.error_cls,
+            f"{spec.provider_label} API error: {detail}",
+            cause=exc,
+        )
     except Exception as exc:
-        raise spec.error_cls(f"{spec.provider_label} error: {exc}") from exc
+        _raise_completion_error(
+            spec.error_cls,
+            f"{spec.provider_label} error: {exc}",
+            cause=exc,
+        )
     latency_ms = int((time.perf_counter() - t0) * 1000)
 
     text, source_urls, searched = spec.parse_payload(response)

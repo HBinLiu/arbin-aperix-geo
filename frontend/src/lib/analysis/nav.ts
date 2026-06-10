@@ -70,3 +70,61 @@ export function isAnalysisPathname(pathname: string): boolean {
   const normalized = pathname.replace(/\/+$/, "");
   return normalized === ANALYSIS_BASE_PATH || normalized.startsWith(`${ANALYSIS_BASE_PATH}/`);
 }
+
+const CITATION_DOMAIN_DETAIL_PREFIX = `${ANALYSIS_BASE_PATH}/citation/`;
+
+export function citationDomainDetailPath(host: string): string {
+  return `${CITATION_DOMAIN_DETAIL_PREFIX}${encodeURIComponent(host)}`;
+}
+
+export function citationDomainFromPathname(pathname: string): string | null {
+  const normalized = pathname.replace(/\/+$/, "");
+  if (normalized === `${ANALYSIS_BASE_PATH}/citation`) {
+    return null;
+  }
+  if (!normalized.startsWith(CITATION_DOMAIN_DETAIL_PREFIX)) {
+    return null;
+  }
+  const encoded = normalized.slice(CITATION_DOMAIN_DETAIL_PREFIX.length).split("/")[0] ?? "";
+  if (!encoded) {
+    return null;
+  }
+  try {
+    return decodeURIComponent(encoded).trim().toLowerCase();
+  } catch {
+    return encoded.trim().toLowerCase();
+  }
+}
+
+export function isCitationDomainDetailPathname(pathname: string): boolean {
+  return citationDomainFromPathname(pathname) != null;
+}
+
+const PROMPT_DETAIL_PREFIX = `${ANALYSIS_BASE_PATH}/prompt/`;
+
+export function promptDetailPath(promptId: string): string {
+  return `${PROMPT_DETAIL_PREFIX}${encodeURIComponent(promptId)}`;
+}
+
+export function promptIdFromPathname(pathname: string): string | null {
+  const normalized = pathname.replace(/\/+$/, "");
+  if (normalized === `${ANALYSIS_BASE_PATH}/prompt`) {
+    return null;
+  }
+  if (!normalized.startsWith(PROMPT_DETAIL_PREFIX)) {
+    return null;
+  }
+  const encoded = normalized.slice(PROMPT_DETAIL_PREFIX.length).split("/")[0] ?? "";
+  if (!encoded) {
+    return null;
+  }
+  try {
+    return decodeURIComponent(encoded).trim();
+  } catch {
+    return encoded.trim();
+  }
+}
+
+export function isPromptDetailPathname(pathname: string): boolean {
+  return promptIdFromPathname(pathname) != null;
+}

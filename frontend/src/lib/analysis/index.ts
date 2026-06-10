@@ -29,6 +29,12 @@ export {
   DEFAULT_ANALYSIS_DIMENSION,
   isAnalysisPathname,
   parseAnalysisDimension,
+  citationDomainDetailPath,
+  citationDomainFromPathname,
+  isCitationDomainDetailPathname,
+  promptDetailPath,
+  promptIdFromPathname,
+  isPromptDetailPathname,
 } from "@/lib/analysis/nav";
 export {
   buildBrandRankRows,

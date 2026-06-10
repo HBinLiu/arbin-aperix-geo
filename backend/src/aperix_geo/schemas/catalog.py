@@ -64,6 +64,7 @@ class CompetitorItem(BaseModel):
     domain: str = Field(default="", max_length=255)
     website_url: str = Field(default="", max_length=255)
     brand: str = Field(default="", max_length=255)
+    aliases: list[str] = Field(default_factory=list)
     summary: str = Field(default="")
 
 

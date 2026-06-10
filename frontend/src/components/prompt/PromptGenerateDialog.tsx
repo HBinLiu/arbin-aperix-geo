@@ -1,12 +1,15 @@
-import * as React from "react";
-import { Sparkles, X } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 import { SetupSelect } from "@/components/setup/SetupField";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogTitle,
+  useDialog,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
-
-const DIALOG_EXIT_MS = 200;
 
 type PromptGenerateDialogProps = {
   open: boolean;
@@ -21,6 +24,32 @@ type PromptGenerateDialogProps = {
   onSubmit: () => void;
 };
 
+function PromptGenerateDialogFooter({
+  submitting,
+  canSubmit,
+  onSubmit,
+}: {
+  submitting: boolean;
+  canSubmit: boolean;
+  onSubmit: () => void;
+}) {
+  const { requestClose } = useDialog();
+
+  return (
+    <div className="border-border flex shrink-0 items-center justify-between gap-3 border-t px-5 py-4">
+      <p className="text-muted-foreground text-xs">选择一个主题以生成用于 AI 监控的提示词。</p>
+      <div className="flex shrink-0 gap-2">
+        <Button type="button" variant="outline" disabled={submitting} onClick={requestClose}>
+          取消
+        </Button>
+        <Button type="button" disabled={submitting || !canSubmit} onClick={onSubmit}>
+          {submitting ? "生成中…" : "生成提示词"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /** 提示词管理 · 生成提示词对话框 */
 export function PromptGenerateDialog({
   open,
@@ -34,79 +63,20 @@ export function PromptGenerateDialog({
   onOpenChange,
   onSubmit,
 }: PromptGenerateDialogProps) {
-  const [present, setPresent] = React.useState(open);
-  const [closing, setClosing] = React.useState(false);
-
-  React.useEffect(() => {
-    if (open) {
-      setPresent(true);
-      setClosing(false);
-      return;
-    }
-    if (!present) return;
-    setClosing(true);
-    const timer = window.setTimeout(() => {
-      setPresent(false);
-      setClosing(false);
-    }, DIALOG_EXIT_MS);
-    return () => window.clearTimeout(timer);
-  }, [open, present]);
-
-  React.useEffect(() => {
-    if (!present || closing) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !submitting) onOpenChange(false);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [present, closing, submitting, onOpenChange]);
-
-  if (!present) return null;
-
-  const requestClose = () => {
-    if (!submitting) onOpenChange(false);
-  };
-
   const canSubmit = Boolean(topicId && count > 0 && remaining > 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        type="button"
-        className={cn(
-          "absolute inset-0 bg-black/80",
-          closing ? "animate-out fade-out-0 duration-200" : "animate-in fade-in-0 duration-200",
-        )}
-        aria-label="关闭对话框"
-        onClick={requestClose}
-      />
-      <div
-        role="dialog"
-        aria-modal="true"
+    <Dialog open={open} onOpenChange={onOpenChange} closeDisabled={submitting}>
+      <DialogContent
+        className="flex max-h-[90vh] max-w-3xl flex-col overflow-hidden"
         aria-labelledby="prompt-generate-dialog-title"
-        className={cn(
-          "border-border relative z-10 flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border bg-white shadow-lg",
-          closing
-            ? "animate-out fade-out-0 zoom-out-95 duration-200"
-            : "animate-in fade-in-0 zoom-in-95 duration-200",
-        )}
       >
         <div className="border-border flex shrink-0 items-center justify-between border-b px-5 py-4">
           <div className="flex items-center gap-2">
             <Sparkles className="text-primary size-4" aria-hidden />
-            <h2 id="prompt-generate-dialog-title" className="text-base font-semibold">
-              配置提示词生成
-            </h2>
+            <DialogTitle id="prompt-generate-dialog-title">配置提示词生成</DialogTitle>
           </div>
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-foreground rounded-md p-1"
-            aria-label="关闭"
-            disabled={submitting}
-            onClick={requestClose}
-          >
-            <X className="size-5" aria-hidden />
-          </button>
+          <DialogClose />
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
@@ -155,19 +125,13 @@ export function PromptGenerateDialog({
           </div>
         </div>
 
-        <div className="border-border flex shrink-0 items-center justify-between gap-3 border-t px-5 py-4">
-          <p className="text-muted-foreground text-xs">选择一个主题以生成用于 AI 监控的提示词。</p>
-          <div className="flex shrink-0 gap-2">
-            <Button type="button" variant="outline" disabled={submitting} onClick={requestClose}>
-              取消
-            </Button>
-            <Button type="button" disabled={submitting || !canSubmit} onClick={onSubmit}>
-              {submitting ? "生成中…" : "生成提示词"}
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
+        <PromptGenerateDialogFooter
+          submitting={submitting}
+          canSubmit={canSubmit}
+          onSubmit={onSubmit}
+        />
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -23,6 +23,7 @@ export type TopicPerformanceRow = {
 export type PromptPerformanceRow = {
   id: string;
   promptText: string;
+  topicId: string | null;
   topicName: string;
   visibility: string;
   visibilityDelta: string | null;
@@ -80,6 +81,7 @@ export function buildPromptPerformanceRows(
     return {
       id: row.prompt_id,
       promptText: row.prompt_text,
+      topicId: row.topic_id,
       topicName: row.topic_name ?? "—",
       visibility: formatRate(row.visibility_rate),
       visibilityDelta: formatDelta(row.visibility_rate, prev?.visibility_rate),

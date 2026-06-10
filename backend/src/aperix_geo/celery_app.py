@@ -34,11 +34,15 @@ def make_celery() -> Celery:
             },
         },
     )
-    app.conf.include = ["aperix_geo.tasks.sampling"]
+    app.conf.include = ["aperix_geo.tasks.sampling", "aperix_geo.tasks.favicon"]
     return app
 
 
 celery_app = make_celery()
+
+from aperix_geo.utils.logging import configure  # noqa: E402
+
+configure()
 
 
 @worker_ready.connect

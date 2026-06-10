@@ -10,7 +10,7 @@ from openai import APIError, APITimeoutError, OpenAI
 
 from aperix_geo.services.chat_result import SamplingChatResult
 from aperix_geo.services.providers._helpers import dedupe_urls, response_data, with_system_prompt
-from aperix_geo.services.providers.errors import DoubaoProviderError
+from aperix_geo.services.providers.errors import DoubaoProviderError, raise_provider_error
 from aperix_geo.services.providers.openai import _usage_dict, openai_chat_completion
 from aperix_geo.services.providers.prompts import DOUBAO_WEB_SEARCH_SYSTEM
 
@@ -103,15 +103,25 @@ def doubao_responses_chat(
     try:
         response = client.responses.create(**kwargs)
     except APITimeoutError as exc:
-        raise DoubaoProviderError(f"Doubao timeout: {exc}") from exc
+        raise_provider_error(
+            DoubaoProviderError,
+            f"Doubao timeout: {exc}",
+            retryable=True,
+            cause=exc,
+        )
     except APIError as exc:
         detail = (getattr(exc, "message", None) or str(exc))[:800]
         status = getattr(exc, "status_code", None)
         if status is not None:
-            raise DoubaoProviderError(f"Doubao HTTP {status}: {detail}") from exc
-        raise DoubaoProviderError(f"Doubao API error: {detail}") from exc
+            raise_provider_error(
+                DoubaoProviderError,
+                f"Doubao HTTP {status}: {detail}",
+                status_code=status,
+                cause=exc,
+            )
+        raise_provider_error(DoubaoProviderError, f"Doubao API error: {detail}", cause=exc)
     except Exception as exc:
-        raise DoubaoProviderError(f"Doubao error: {exc}") from exc
+        raise_provider_error(DoubaoProviderError, f"Doubao error: {exc}", cause=exc)
     latency_ms = int((time.perf_counter() - t0) * 1000)
 
     text, source_urls, searched = parse_responses_payload(response)

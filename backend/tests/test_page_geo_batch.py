@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from aperix_geo.services.sampling.citation_analysis import analyze_citation_pages_geo
-from aperix_geo.services.sampling.citation_page import CitationPageMeta
-from aperix_geo.services.sampling._geo_cache import clear_page_geo_cache
+from aperix_geo.services.sampling.citation import (
+    analyze_citation_pages_geo,
+    CitationPageMeta,
+    clear_page_geo_cache,
+)
 
 
 def _page(url: str) -> CitationPageMeta:
@@ -48,7 +50,7 @@ def test_analyze_citation_pages_geo_batch_single_call() -> None:
         return json.dumps(payload), {}, 10
 
     with patch(
-        "aperix_geo.services.sampling.citation_analysis.chat_completion",
+        "aperix_geo.services.sampling.citation.page_geo.chat_completion",
         side_effect=_chat,
     ):
         out = analyze_citation_pages_geo(

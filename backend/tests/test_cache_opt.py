@@ -10,7 +10,7 @@ from aperix_geo.services.crawl._cache import (
     _pack_redis_fields,
     _unpack_redis_fields,
 )
-from aperix_geo.services.sampling._geo_cache import (
+from aperix_geo.services.sampling.citation.cache.page_geo import (
     clear_page_geo_cache,
     get_page_geo_cached,
     set_page_geo_cached,

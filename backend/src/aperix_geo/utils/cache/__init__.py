@@ -2,6 +2,7 @@
 
 from aperix_geo.utils.cache.bounded import BoundedTTLCache
 from aperix_geo.utils.cache.coalesce import run_single_flight
+from aperix_geo.utils.cache.tiered_json import TieredJsonCache
 from aperix_geo.utils.cache.redis_kv import (
     clear_redis_kv_cache,
     redis_delete,
@@ -10,6 +11,7 @@ from aperix_geo.utils.cache.redis_kv import (
     redis_set_json,
     redis_set_json_exat,
     redis_set_nx,
+    shared_redis_client,
 )
 from aperix_geo.utils.cache.ttl import expires_at_from_ttl, is_payload_expired, remaining_ttl_s
 
@@ -24,6 +26,8 @@ __all__ = [
     "redis_set_json",
     "redis_set_json_exat",
     "redis_set_nx",
+    "shared_redis_client",
     "remaining_ttl_s",
     "run_single_flight",
+    "TieredJsonCache",
 ]

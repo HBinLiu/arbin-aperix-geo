@@ -5,16 +5,16 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "010_drop_citation_url_mention_cols"
+revision: str = "010_drop_citation_mentions"
 down_revision: Union[str, None] = "009_citation_url_crawl_analysis"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.drop_column("tb_citation_urls", "mention_target")
-    op.drop_column("tb_citation_urls", "mention_brand")
-    op.drop_column("tb_citation_urls", "mentions_own")
+    op.execute("ALTER TABLE tb_citation_urls DROP COLUMN IF EXISTS mention_target")
+    op.execute("ALTER TABLE tb_citation_urls DROP COLUMN IF EXISTS mention_brand")
+    op.execute("ALTER TABLE tb_citation_urls DROP COLUMN IF EXISTS mentions_own")
 
 
 def downgrade() -> None:

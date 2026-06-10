@@ -64,11 +64,11 @@ def test_parse_llm_output_runs_absa_and_citation_in_parallel() -> None:
     with (
         patch("aperix_geo.config.get_settings", return_value=mock_settings),
         patch(
-            "aperix_geo.services.sampling.citation_analysis.analyze_citation_response_absa",
+            "aperix_geo.services.sampling.parser.analyze_citation_response_absa",
             side_effect=_slow_absa,
         ),
         patch(
-            "aperix_geo.services.sampling.parser._resolve_citation_sources",
+            "aperix_geo.services.sampling.parser.resolve_citation_sources",
             side_effect=_slow_citation,
         ),
     ):

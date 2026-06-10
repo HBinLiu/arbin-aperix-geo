@@ -24,6 +24,7 @@ dependencies = [
     # requests 2.32 与 chardet>=6 不兼容；Crawl4AI 仅需 >=5.2
     "chardet>=5.2.0,<6",
     "crawl4ai>=0.8.0",
+    "beautifulsoup4>=4.12.0",
     "passlib[bcrypt]>=1.7.4",
     "python-jose[cryptography]>=3.3.0",
     "email-validator>=2.2.0",

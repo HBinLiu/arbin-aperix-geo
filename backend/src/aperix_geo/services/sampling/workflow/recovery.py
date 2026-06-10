@@ -5,27 +5,31 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-import redis
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
-
 from aperix_geo.config import get_settings
 from aperix_geo.db.models import LLMResponse, LLMResponseStatus, SamplingJob, SamplingJobStatus
-from aperix_geo.services.sampling.finalize import finalize_sampling_job_db
+from aperix_geo.services.sampling.workflow.finalize import finalize_sampling_job_db
+from aperix_geo.utils.cache.redis_kv import redis_set_nx
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 
 def count_pending_responses(db: Session, job_id: UUID) -> int:
-    return int(
+    return len(pending_response_ids(db, job_id))
+
+
+def pending_response_ids(db: Session, job_id: UUID) -> list[UUID]:
+    return list(
         db.execute(
-            select(func.count())
-            .select_from(LLMResponse)
-            .where(
+            select(LLMResponse.id).where(
                 LLMResponse.sampling_job_id == job_id,
                 LLMResponse.status == LLMResponseStatus.pending,
             )
-        ).scalar_one()
-        or 0
+        ).scalars().all()
     )
+
+
+def pending_response_id_strs(db: Session, job_id: UUID) -> list[str]:
+    return [str(response_id) for response_id in pending_response_ids(db, job_id)]
 
 
 def _ensure_utc(dt: datetime) -> datetime:
@@ -55,8 +59,10 @@ def _resume_debounce_key(job_id: UUID) -> str:
 def try_schedule_sampling_resume(job_id: UUID) -> bool:
     """Return True when a resume task was newly scheduled (Redis debounce)."""
     settings = get_settings()
-    rcli = redis.from_url(settings.redis_url)
-    return bool(rcli.set(_resume_debounce_key(job_id), "1", nx=True, ex=settings.sampling_resume_debounce_seconds))
+    return redis_set_nx(
+        _resume_debounce_key(job_id),
+        ttl_s=settings.sampling_resume_debounce_seconds,
+    )
 
 
 def reconcile_active_sampling_job(
@@ -70,8 +76,8 @@ def reconcile_active_sampling_job(
     if job.status not in (SamplingJobStatus.queued, SamplingJobStatus.running):
         return False
 
-    pending = count_pending_responses(db, job.id)
-    if pending == 0:
+    pending_ids = pending_response_ids(db, job.id)
+    if not pending_ids:
         finalize_sampling_job_db(db, job.id)
         return True
 
@@ -81,9 +87,9 @@ def reconcile_active_sampling_job(
     if not try_schedule_sampling_resume(job.id):
         return False
 
-    from aperix_geo.tasks.sampling import sampling_orchestrate_job
+    from aperix_geo.services.sampling.workflow.orchestrate import enqueue_sampling_resume
 
-    sampling_orchestrate_job.delay(str(job.id))
+    enqueue_sampling_resume(job.id, pending_ids)
     return True
 
 

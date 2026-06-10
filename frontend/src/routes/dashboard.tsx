@@ -8,8 +8,10 @@ import { RankContent } from "@/pages/dashboard/RankPage";
 import { OverviewContent } from "@/pages/dashboard/OverviewPage";
 import { AnalysisPage } from "@/pages/dashboard/AnalysisPage";
 import { CitationPage } from "@/pages/analysis/CitationPage";
+import { CitationDomainPage } from "@/pages/analysis/CitationDomainPage";
 import { PlatformPage } from "@/pages/analysis/PlatformPage";
 import { PromptPage } from "@/pages/analysis/PromptPage";
+import { PromptDetailPage } from "@/pages/analysis/PromptDetailPage";
 import { SentimentPage } from "@/pages/analysis/SentimentPage";
 import { VisibilityPage } from "@/pages/analysis/VisibilityPage";
 
@@ -35,6 +37,10 @@ export function AnalysisPromptRoute() {
   return <PromptPage />;
 }
 
+export function AnalysisPromptDetailRoute() {
+  return <PromptDetailPage />;
+}
+
 export function AnalysisPlatformRoute() {
   return <PlatformPage />;
 }
@@ -45,6 +51,10 @@ export function AnalysisSentimentRoute() {
 
 export function AnalysisCitationRoute() {
   return <CitationPage />;
+}
+
+export function AnalysisCitationDomainRoute() {
+  return <CitationDomainPage />;
 }
 
 export function RankRoute() {

@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 /**
  * 提示词表现页 · 两张表格的布局约定
  *
- * 主题表：table 始终 100% 宽，列宽按百分比随容器伸缩；内容不换行；过窄时横向滚动。
+ * 主题表 / 提示词详情回复表：table 始终 100% 宽，列宽按百分比随容器伸缩；内容不换行；过窄时横向滚动。
  * 提示词表：table 始终 100% 宽；提示词列 flex 吸收剩余宽度，其余列锁定 minWidth；过窄时横向滚动。
  */
 
@@ -66,6 +66,18 @@ export const PROMPT_TABLE_MIN_WIDTH = PROMPT_TABLE_COLUMNS.reduce(
 );
 
 export const PROMPT_TABLE_COLUMN_COUNT = PROMPT_TABLE_COLUMNS.length;
+
+/** 提示词详情 · 回复列表表列宽（百分比，合计 100%） */
+export const PROMPT_DETAIL_RESPONSE_TABLE_COLUMNS = [
+  { id: "platform", width: "14%" },
+  { id: "reply", width: "38%" },
+  { id: "mentioned", width: "16%" },
+  { id: "rank", width: "16%" },
+  { id: "date", width: "16%" },
+] as const;
+
+/** 回复列表最小宽度：容器更窄时出现横向滚动条 */
+export const PROMPT_DETAIL_RESPONSE_TABLE_MIN_WIDTH = 760;
 
 export const performanceTableClasses = {
   head: "text-muted-foreground bg-muted/80 text-left text-sm [&_th]:whitespace-nowrap [&_th]:px-4 [&_th]:py-3 [&_th]:font-medium",

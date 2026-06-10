@@ -3,6 +3,12 @@ import { X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input, inputControlClass } from "@/components/ui/input";
 import { formatApiError } from "@/api/client";
 import { patchSubject } from "@/api/subject";
@@ -109,15 +115,6 @@ export function EditBrandDialog({ subject, open, onOpenChange }: EditBrandDialog
     setSummary(subject.profile_summary.trim());
   }, [open, subject]);
 
-  React.useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !saving) onOpenChange(false);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, saving, onOpenChange]);
-
   const onSave = async () => {
     const trimmedName = name.trim();
     if (!trimmedName) {
@@ -165,37 +162,15 @@ export function EditBrandDialog({ subject, open, onOpenChange }: EditBrandDialog
     }
   };
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/80"
-        aria-label="关闭对话框"
-        onClick={() => {
-          if (!saving) onOpenChange(false);
-        }}
-      />
-      <div
-        role="dialog"
-        aria-modal="true"
+    <Dialog open={open} onOpenChange={onOpenChange} closeDisabled={saving}>
+      <DialogContent
+        className="flex max-h-[min(90vh,720px)] max-w-5xl flex-col"
         aria-labelledby="edit-brand-title"
-        className="border-border relative z-10 flex max-h-[min(90vh,720px)] w-full max-w-5xl flex-col rounded-xl border bg-white shadow-lg"
       >
         <div className="border-border flex shrink-0 items-center justify-between border-b px-5 py-4">
-          <h2 id="edit-brand-title" className="text-base font-semibold">
-            编辑品牌详情
-          </h2>
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-foreground rounded-md p-1"
-            aria-label="关闭"
-            disabled={saving}
-            onClick={() => onOpenChange(false)}
-          >
-            <X className="size-5" aria-hidden />
-          </button>
+          <DialogTitle id="edit-brand-title">编辑品牌详情</DialogTitle>
+          <DialogClose />
         </div>
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
@@ -242,7 +217,7 @@ export function EditBrandDialog({ subject, open, onOpenChange }: EditBrandDialog
             {saving ? "保存中…" : "保存更改"}
           </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -5,7 +5,11 @@ import { Slot } from "radix-ui"
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3",
+  [
+    "inline-flex w-fit shrink-0 items-center justify-center gap-1 whitespace-nowrap",
+    "rounded-full border border-transparent px-2 py-1 text-xs font-medium",
+    "[&>svg]:pointer-events-none [&>svg]:size-3",
+  ].join(" "),
   {
     variants: {
       variant: {
@@ -13,16 +17,20 @@ const badgeVariants = cva(
         secondary:
           "bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
         destructive:
-          "bg-destructive text-white focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40 [a&]:hover:bg-destructive/90",
+          "bg-destructive text-white dark:bg-destructive/60 [a&]:hover:bg-destructive/90",
         outline:
-          "border-border text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
-        ghost: "[a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 [a&]:hover:underline",
+          "border-border bg-transparent text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
+        ghost:
+          "bg-transparent text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
+        link: "bg-transparent text-primary underline-offset-4 [a&]:hover:underline",
         primary: "bg-primary/10 text-primary [a&]:hover:bg-primary/15",
         green: "bg-emerald-50 text-emerald-600 [a&]:hover:bg-emerald-100",
         red: "bg-red-50 text-red-600 [a&]:hover:bg-red-100",
         orange: "bg-orange-50 text-orange-600 [a&]:hover:bg-orange-100",
         muted: "bg-muted text-muted-foreground [a&]:hover:bg-muted/80",
+        grayBlack: "bg-background text-foreground",
+        success: "bg-success/10 text-success [a&]:hover:bg-success/15",
+        error: "bg-error/10 text-error [a&]:hover:bg-error/15",
       },
     },
     defaultVariants: {

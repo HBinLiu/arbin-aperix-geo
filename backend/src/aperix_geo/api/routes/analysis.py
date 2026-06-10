@@ -136,6 +136,7 @@ def visibility_analysis(
     current: CurrentUser,
     platform: Annotated[list[str] | None, Query()] = None,
     topic_id: Annotated[UUID | None, Query()] = None,
+    prompt_id: Annotated[UUID | None, Query()] = None,
 ) -> dict:
     s = get_subject_for_user(db, current, subject_id, with_competitors=True)
     f = parse_iso_datetime(dt_from)
@@ -147,6 +148,7 @@ def visibility_analysis(
         dt_to=t,
         platforms=platform or None,
         topic_id=topic_id,
+        prompt_id=prompt_id,
     )
 
 
@@ -159,6 +161,7 @@ def platforms_performance(
     current: CurrentUser,
     platform: Annotated[list[str] | None, Query()] = None,
     topic_id: Annotated[UUID | None, Query()] = None,
+    prompt_id: Annotated[UUID | None, Query()] = None,
 ) -> list[dict]:
     get_subject_for_user(db, current, subject_id, with_competitors=True)
     f = parse_iso_datetime(dt_from)
@@ -170,6 +173,7 @@ def platforms_performance(
         dt_to=t,
         platforms=platform or None,
         topic_id=topic_id,
+        prompt_id=prompt_id,
     )
 
 
@@ -213,6 +217,33 @@ def citation_analysis(
     return analysis_svc.build_citation_analysis(
         db,
         subject=s,
+        dt_from=f,
+        dt_to=t,
+        platforms=platform or None,
+        topic_id=topic_id,
+        prompt_id=prompt_id,
+    )
+
+
+@router.get("/subjects/{subject_id}/citation-domain-analysis")
+def citation_domain_analysis(
+    subject_id: UUID,
+    dt_from: Annotated[str, Query(alias="from")],
+    dt_to: Annotated[str, Query(alias="to")],
+    host: Annotated[str, Query(min_length=1, max_length=255)],
+    db: DbSession,
+    current: CurrentUser,
+    platform: Annotated[list[str] | None, Query()] = None,
+    topic_id: Annotated[UUID | None, Query()] = None,
+    prompt_id: Annotated[UUID | None, Query()] = None,
+) -> dict:
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
+    f = parse_iso_datetime(dt_from)
+    t = parse_iso_datetime(dt_to)
+    return analysis_svc.build_citation_domain_analysis(
+        db,
+        subject=s,
+        host=host,
         dt_from=f,
         dt_to=t,
         platforms=platform or None,
@@ -301,6 +332,7 @@ def content_opportunities(
     current: CurrentUser,
     platform: Annotated[list[str] | None, Query()] = None,
     topic_id: Annotated[UUID | None, Query()] = None,
+    prompt_id: Annotated[UUID | None, Query()] = None,
 ) -> dict:
     s = get_subject_for_user(db, current, subject_id, with_competitors=True)
     f = parse_iso_datetime(dt_from)
@@ -312,6 +344,32 @@ def content_opportunities(
         dt_to=t,
         platforms=platform or None,
         topic_id=topic_id,
+        prompt_id=prompt_id,
+    )
+
+
+@router.get("/subjects/{subject_id}/prompt-detail")
+def prompt_detail(
+    subject_id: UUID,
+    dt_from: Annotated[str, Query(alias="from")],
+    dt_to: Annotated[str, Query(alias="to")],
+    db: DbSession,
+    current: CurrentUser,
+    platform: Annotated[list[str] | None, Query()] = None,
+    topic_id: Annotated[UUID | None, Query()] = None,
+    prompt_id: Annotated[UUID | None, Query()] = None,
+) -> dict:
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
+    f = parse_iso_datetime(dt_from)
+    t = parse_iso_datetime(dt_to)
+    return analysis_svc.build_prompt_detail_responses(
+        db,
+        subject=s,
+        dt_from=f,
+        dt_to=t,
+        platforms=platform or None,
+        topic_id=topic_id,
+        prompt_id=prompt_id,
     )
 
 

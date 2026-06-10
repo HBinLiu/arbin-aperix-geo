@@ -15,8 +15,10 @@ from aperix_geo.db.models import (
 )
 from aperix_geo.schemas.catalog import SetupFinalizeRequest
 from aperix_geo.services.competitor.persist import apply_competitors
-from aperix_geo.services.sampling.jobs import create_and_enqueue_sampling_job
-from aperix_geo.services.sampling.schedule import DEFAULT_SAMPLING_INTERVAL_HOURS
+from aperix_geo.services.sampling.workflow import (
+    DEFAULT_SAMPLING_INTERVAL_HOURS,
+    create_and_enqueue_sampling_job,
+)
 from aperix_geo.services.sampling.subject import resolve_subject_sampling_platforms
 from aperix_geo.services.setup.helpers import (
     company_from_setup_session,

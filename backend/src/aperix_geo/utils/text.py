@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections import Counter
 
 
 def normalize_whitespace(text: str) -> str:
@@ -34,3 +35,11 @@ def headings_from_markdown(markdown: str, *, limit: int = 4) -> str:
         if len(headings) >= limit:
             break
     return " | ".join(headings)
+
+
+def mode_nonempty(values: list[str]) -> str:
+    """Most common non-empty string; empty when none."""
+    cleaned = [value.strip() for value in values if value and value.strip()]
+    if not cleaned:
+        return ""
+    return Counter(cleaned).most_common(1)[0][0]

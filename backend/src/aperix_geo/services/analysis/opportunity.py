@@ -34,6 +34,7 @@ def build_content_opportunities(
     dt_to: datetime,
     platforms: list[str] | None = None,
     topic_id: UUID | None = None,
+    prompt_id: UUID | None = None,
 ) -> dict[str, Any]:
     """按提示词 × 平台聚合内容机会：品牌提及差距与引用差距。"""
     rows = responses_in_window(
@@ -43,6 +44,7 @@ def build_content_opportunities(
         dt_to=dt_to,
         platforms=platforms,
         topic_id=topic_id,
+        prompt_id=prompt_id,
     )
     own = own_label(subject)
     labels = rank_labels(subject)
@@ -111,9 +113,9 @@ def build_content_opportunities(
 
 
 def citation_root_for_subject(subject: Subject) -> str | None:
-    from aperix_geo.services.sampling.parser import _citation_root
+    from aperix_geo.services.sampling.citation import citation_root
 
-    return _citation_root(subject)
+    return citation_root(subject)
 
 
 def enterprise_domain_roots(db: Session, subject: Subject) -> set[str]:

@@ -13,7 +13,7 @@ from aperix_geo.services.competitor.summary import (
     merge_competitors_into_summary,
     replace_summary_section,
 )
-from aperix_geo.services.competitor.web_context import _metadata_from_crawl
+from aperix_geo.services.crawl.metadata import extract_page_metadata, homepage_metadata_dict
 from aperix_geo.utils.text import headings_from_markdown
 
 
@@ -117,13 +117,13 @@ def test_search_query_prefers_micro_keywords() -> None:
 
 
 def test_metadata_from_crawl() -> None:
-    class _R:
-        metadata = {"title": "深睿医疗", "description": "AI辅助诊断"}
-        markdown = "# 用AI赋能\n\n## 改变未来"
+    html = "<head><title>深睿医疗</title><meta name=description content='AI辅助诊断'></head>"
+    markdown = "# 用AI赋能\n\n## 改变未来"
 
-    meta = _metadata_from_crawl(_R(), markdown=_R.markdown)
+    parsed = extract_page_metadata(html=html, markdown=markdown)
+    meta = homepage_metadata_dict(parsed)
     assert meta["title"] == "深睿医疗"
-    assert headings_from_markdown(_R.markdown) == "用AI赋能 | 改变未来"
+    assert headings_from_markdown(markdown) == "用AI赋能 | 改变未来"
 
 
 def test_fallback_profile_summary_sections() -> None:

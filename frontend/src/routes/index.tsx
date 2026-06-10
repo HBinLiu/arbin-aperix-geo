@@ -8,8 +8,10 @@ import { DashboardRoot } from "@/pages/dashboard/DashboardRoot";
 import {
   AgentRoute,
   AnalysisCitationRoute,
+  AnalysisCitationDomainRoute,
   AnalysisPlatformRoute,
   AnalysisPromptRoute,
+  AnalysisPromptDetailRoute,
   AnalysisRoute,
   AnalysisSentimentRoute,
   AnalysisVisibilityRoute,
@@ -50,10 +52,12 @@ export function AppRoutes() {
             <Route path="analysis" element={<AnalysisRoute />}>
               <Route index element={<Navigate to="visibility" replace />} />
               <Route path="visibility" element={<AnalysisVisibilityRoute />} />
+              <Route path="prompt/:promptId" element={<AnalysisPromptDetailRoute />} />
               <Route path="prompt" element={<AnalysisPromptRoute />} />
               <Route path="platform" element={<AnalysisPlatformRoute />} />
               <Route path="sentiment" element={<AnalysisSentimentRoute />} />
               <Route path="citation" element={<AnalysisCitationRoute />} />
+              <Route path="citation/:host" element={<AnalysisCitationDomainRoute />} />
               <Route path="*" element={<Navigate to="visibility" replace />} />
             </Route>
             <Route path="rank" element={<RankRoute />} />

@@ -15,7 +15,7 @@ from aperix_geo.services.providers.doubao import (
 )
 from aperix_geo.services.providers.deepseek import deepseek_chat
 from aperix_geo.services.providers.ernie import ernie_chat
-from aperix_geo.services.providers.errors import ProviderError
+from aperix_geo.services.providers.errors import ProviderError, parse_http_status_from_message
 from aperix_geo.services.providers.kimi import kimi_chat
 from aperix_geo.services.providers.qianwen import qianwen_generation_chat
 from aperix_geo.services.providers.yuanbao import yuanbao_chat
@@ -25,6 +25,35 @@ logger = logging.getLogger(__name__)
 
 class SamplingLLMError(Exception):
     """Any provider failure during sampling."""
+
+    status_code: int | None
+    retryable: bool | None
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        retryable: bool | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.retryable = retryable
+
+
+def sampling_llm_error_from(exc: BaseException) -> SamplingLLMError:
+    if isinstance(exc, SamplingLLMError):
+        return exc
+    status_code: int | None = None
+    retryable: bool | None = None
+    if isinstance(exc, ProviderError):
+        status_code = exc.status_code
+        retryable = exc.retryable
+        if status_code is None:
+            status_code = parse_http_status_from_message(str(exc))
+    elif isinstance(exc, (TimeoutError, ConnectionError, OSError)):
+        retryable = True
+    return SamplingLLMError(str(exc), status_code=status_code, retryable=retryable)
 
 
 @dataclass(frozen=True)
@@ -243,11 +272,11 @@ def chat_for_platform(
     try:
         return spec.chat(messages)
     except ProviderError as e:
-        raise SamplingLLMError(str(e)) from e
+        raise sampling_llm_error_from(e) from e
     except SamplingLLMError:
         raise
     except Exception as e:
-        raise SamplingLLMError(str(e)) from e
+        raise sampling_llm_error_from(e) from e
 
 
 def rate_limit_for_platform(platform: str, *, settings: Settings | None = None) -> tuple[str, int]:

@@ -5,8 +5,8 @@ from __future__ import annotations
 import uuid
 from unittest.mock import MagicMock
 
-from aperix_geo.db.models import CitationDomain, CitationUrl, Subject, SubjectType
-from aperix_geo.services.sampling.citations import (
+from aperix_geo.db.models import CitationDomain, CitationUrl, Prompt, Subject, SubjectType, Topic
+from aperix_geo.services.sampling.citation import (
     aggregate_citation_urls,
     citations_from_parsed,
     domain_counts_from_url_rows,
@@ -124,14 +124,16 @@ def test_aggregate_citation_urls_groups_metadata() -> None:
         website_url="https://aperix.com",
     )
     response_id = uuid.uuid4()
+    prompt_id = uuid.uuid4()
+    topic_id = uuid.uuid4()
     rows = [
-        MagicMock(id=response_id, parsed={"urls": ["https://stripe.com/blog/a"]}),
-        MagicMock(id=uuid.uuid4(), parsed={"urls": ["https://stripe.com/blog/a"]}),
+        MagicMock(id=response_id, parsed={"urls": ["https://stripe.com/blog/a"]}, prompt_id=prompt_id),
+        MagicMock(id=uuid.uuid4(), parsed={"urls": ["https://stripe.com/blog/a"]}, prompt_id=prompt_id),
     ]
     records = [
         CitationUrl(
             response_id=response_id,
-            prompt_id=uuid.uuid4(),
+            prompt_id=prompt_id,
             url="https://stripe.com/blog/a",
             page_title="Stripe Blog",
             url_type="Article",
@@ -142,7 +144,7 @@ def test_aggregate_citation_urls_groups_metadata() -> None:
         ),
         CitationUrl(
             response_id=rows[1].id,
-            prompt_id=uuid.uuid4(),
+            prompt_id=prompt_id,
             url="https://stripe.com/blog/a",
             page_title="Stripe Blog",
             url_type="Article",
@@ -152,8 +154,30 @@ def test_aggregate_citation_urls_groups_metadata() -> None:
             },
         ),
     ]
+    prompt = Prompt(
+        id=prompt_id,
+        subject_id=subject.id,
+        topic_id=topic_id,
+        text="订购大模型品牌能见度监测系统",
+        text_hash="abc",
+    )
+    topic = Topic(id=topic_id, subject_id=subject.id, name="AI品牌能见度监测")
+
+    def _execute(stmt):
+        entity = stmt.column_descriptions[0]["entity"]
+        result = MagicMock()
+        if entity is CitationUrl:
+            result.scalars.return_value.all.return_value = records
+        elif entity is Prompt:
+            result.scalars.return_value.all.return_value = [prompt]
+        elif entity is Topic:
+            result.scalars.return_value.all.return_value = [topic]
+        else:
+            result.scalars.return_value.all.return_value = []
+        return result
+
     db = MagicMock()
-    db.execute.return_value.scalars.return_value.all.return_value = records
+    db.execute.side_effect = _execute
 
     aggregated = aggregate_citation_urls(db, rows, subject=subject)
     assert len(aggregated) == 1
@@ -164,3 +188,6 @@ def test_aggregate_citation_urls_groups_metadata() -> None:
     assert row["count"] == 2
     assert row["has_brand_analysis"] is True
     assert row["mentioned_brands"] == [{"label": "Beta", "domain": None}]
+    assert row["citing_prompts"] == [
+        {"prompt_text": "订购大模型品牌能见度监测系统", "topic_name": "AI品牌能见度监测"},
+    ]

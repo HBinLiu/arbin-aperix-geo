@@ -1,5 +1,7 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useId, useMemo } from "react";
 import {
+  Area,
+  AreaChart,
   CartesianGrid,
   Legend,
   Line,
@@ -17,6 +19,7 @@ import {
   CHART_COLORS,
   CHART_HEIGHT,
   formatChartTooltipDate,
+  SINGLE_SERIES_KEY,
   type ChartLegendItem,
   type MultiSeriesPoint,
   type SingleSeriesPoint,
@@ -38,6 +41,9 @@ type SimpleLineChartProps = {
   showPreviousSeries?: boolean;
   valueFormatter?: (v: number) => string;
   yAxisMode?: "rate" | "score";
+  variant?: "line" | "area";
+  /** 单序列 tooltip 标签（如「引用次数」） */
+  tooltipLabel?: string;
   className?: string;
   height?: number;
 };
@@ -109,6 +115,7 @@ type ChartTooltipProps = TooltipProps<number, string> & {
   showCurrentSeries?: boolean;
   showPreviousSeries?: boolean;
   valueFormatter: (v: number) => string;
+  tooltipLabel?: string;
 };
 
 function ChartTooltip({
@@ -121,6 +128,7 @@ function ChartTooltip({
   showCurrentSeries,
   showPreviousSeries,
   valueFormatter,
+  tooltipLabel,
 }: ChartTooltipProps) {
   if (!active || !payload?.length) return null;
 
@@ -128,7 +136,7 @@ function ChartTooltip({
   const valuesByKey = Object.fromEntries(
     payload.map((entry) => [String(entry.dataKey), Number(entry.value ?? 0)]),
   );
-  const rows = buildChartTooltipRows({
+  let rows = buildChartTooltipRows({
     valuesByKey,
     labels,
     hiddenLegendKeys,
@@ -138,6 +146,16 @@ function ChartTooltip({
     showPreviousSeries,
     valueFormatter,
   });
+
+  if (rows.length === 0 && tooltipLabel && valuesByKey[SINGLE_SERIES_KEY] != null) {
+    rows = [
+      {
+        label: tooltipLabel,
+        value: valueFormatter(valuesByKey[SINGLE_SERIES_KEY]),
+        color: CHART_COLORS[0],
+      },
+    ];
+  }
 
   if (rows.length === 0) return null;
 
@@ -175,11 +193,15 @@ export function SimpleLineChart({
   showPreviousSeries = true,
   valueFormatter = formatRate,
   yAxisMode = "rate",
+  variant = "line",
+  tooltipLabel,
   className,
   height = CHART_HEIGHT,
 }: SimpleLineChartProps) {
+  const gradientId = useId().replace(/:/g, "");
   const fixedHeight = height != null;
   const chartHeight = fixedHeight ? height : CHART_HEIGHT;
+  const ChartComponent = variant === "area" ? AreaChart : LineChart;
 
   const model = useMemo(
     () =>
@@ -224,6 +246,7 @@ export function SimpleLineChart({
         showCurrentSeries={showCurrentSeries}
         showPreviousSeries={showPreviousSeries}
         valueFormatter={valueFormatter}
+        tooltipLabel={tooltipLabel}
       />
     ),
     [
@@ -234,6 +257,7 @@ export function SimpleLineChart({
       showCurrentSeries,
       showPreviousSeries,
       valueFormatter,
+      tooltipLabel,
     ],
   );
 
@@ -264,7 +288,24 @@ export function SimpleLineChart({
     <div className={cn("flex w-full min-w-0 flex-col", className)} style={rootStyle}>
       <div className={cn("min-h-0 h-full w-full", plotAreaClass)}>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={model.rows} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+          <ChartComponent data={model.rows} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+            {variant === "area" ? (
+              <defs>
+                {model.lines.map((line) => (
+                  <linearGradient
+                    key={line.key}
+                    id={`${gradientId}-${line.key}`}
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop offset="0%" stopColor={line.color} stopOpacity={0.28} />
+                    <stop offset="100%" stopColor={line.color} stopOpacity={0.02} />
+                  </linearGradient>
+                ))}
+              </defs>
+            ) : null}
             <CartesianGrid vertical={false} stroke={GRID_STROKE} strokeDasharray="4 4" />
             <XAxis
               dataKey="dateLabel"
@@ -296,27 +337,48 @@ export function SimpleLineChart({
                 wrapperStyle={{ width: "100%", left: 0, paddingTop: 6 }}
               />
             ) : null}
-            {model.lines.map((line) => (
-              <Line
-                key={line.key}
-                name={line.key}
-                type="linear"
-                dataKey={line.key}
-                stroke={line.color}
-                strokeWidth={2}
-                strokeDasharray={line.dashed ? "5 4" : undefined}
-                dot={false}
-                activeDot={{
-                  r: 4,
-                  stroke: "#fff",
-                  strokeWidth: 2,
-                  fill: line.color,
-                }}
-                animationDuration={600}
-                animationEasing="ease-out"
-              />
-            ))}
-          </LineChart>
+            {model.lines.map((line) =>
+              variant === "area" ? (
+                <Area
+                  key={line.key}
+                  name={line.key}
+                  type="linear"
+                  dataKey={line.key}
+                  stroke={line.color}
+                  strokeWidth={2}
+                  fill={`url(#${gradientId}-${line.key})`}
+                  dot={false}
+                  activeDot={{
+                    r: 4,
+                    stroke: "#fff",
+                    strokeWidth: 2,
+                    fill: line.color,
+                  }}
+                  animationDuration={600}
+                  animationEasing="ease-out"
+                />
+              ) : (
+                <Line
+                  key={line.key}
+                  name={line.key}
+                  type="linear"
+                  dataKey={line.key}
+                  stroke={line.color}
+                  strokeWidth={2}
+                  strokeDasharray={line.dashed ? "5 4" : undefined}
+                  dot={false}
+                  activeDot={{
+                    r: 4,
+                    stroke: "#fff",
+                    strokeWidth: 2,
+                    fill: line.color,
+                  }}
+                  animationDuration={600}
+                  animationEasing="ease-out"
+                />
+              ),
+            )}
+          </ChartComponent>
         </ResponsiveContainer>
       </div>
     </div>

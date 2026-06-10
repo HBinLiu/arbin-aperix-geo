@@ -64,7 +64,7 @@ def create_and_enqueue_sampling_job(
     platforms: list[str] | None = None,
     update_schedule_anchor: bool = False,
 ) -> SamplingJob:
-    resolved_platforms = platforms or resolve_subject_sampling_platforms(subject)
+    resolved_platforms = platforms if platforms is not None else resolve_platforms_for_sampling(subject)
     if not resolved_platforms:
         raise SamplingJobError("No LLM providers configured for sampling")
 
@@ -100,10 +100,9 @@ def create_and_enqueue_sampling_job(
 
     db.commit()
     db.refresh(job)
-    # 延迟导入，避免 tasks.sampling -> services.sampling(parser) -> services.sampling.jobs 的循环依赖。
-    from aperix_geo.tasks.sampling import sampling_orchestrate_job
+    from aperix_geo.services.sampling.workflow.orchestrate import enqueue_sampling_orchestration
 
-    sampling_orchestrate_job.delay(str(job.id))
+    enqueue_sampling_orchestration(job.id)
     return job
 
 

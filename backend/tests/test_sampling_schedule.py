@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from aperix_geo.db.models import Subject, SubjectType
-from aperix_geo.services.sampling.schedule import (
+from aperix_geo.services.sampling.workflow import (
     ALLOWED_SAMPLING_INTERVAL_HOURS,
     is_subject_due_for_scheduled_sampling,
     validate_sampling_interval,

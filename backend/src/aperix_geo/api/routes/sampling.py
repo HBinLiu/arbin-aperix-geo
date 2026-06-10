@@ -20,18 +20,17 @@ from aperix_geo.schemas.sampling import (
     SamplingPlatformOut,
     SampleSyncRequest,
 )
-from aperix_geo.services.sampling.citations import replace_citations_for_response
-from aperix_geo.services.sampling.parser import parse_llm_output
 from aperix_geo.services.pipeline import build_pipeline_status
-from aperix_geo.services.sampling.jobs import (
+from aperix_geo.services.sampling.workflow import (
     SamplingJobError,
-    resolve_default_sampling_platforms,
-    resolve_platforms_for_sampling,
+    chat_prompt_on_platform,
     enqueue_subject_sampling,
+    parse_chat_result,
+    persist_successful_response,
+    resolve_platforms_for_sampling,
 )
 from aperix_geo.services.sampling.llm import (
     SamplingLLMError,
-    chat_for_platform,
     list_sampling_platforms,
     resolve_sampling_platform,
 )
@@ -137,10 +136,10 @@ def sample_sync(
         raise HTTPException(status_code=404, detail="Prompt not found")
 
     try:
-        if body.platform:
-            platforms = resolve_platforms_for_sampling(subject, [body.platform])
-        else:
-            platforms = resolve_default_sampling_platforms()
+        platforms = resolve_platforms_for_sampling(
+            subject,
+            [body.platform] if body.platform else None,
+        )
     except SamplingJobError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -151,7 +150,7 @@ def sample_sync(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
     try:
-        result = chat_for_platform(platform, [{"role": "user", "content": prompt.text}])
+        result = chat_prompt_on_platform(platform, prompt.text)
     except SamplingLLMError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
 
@@ -167,12 +166,7 @@ def sample_sync(
     if not body.persist:
         return result_payload
 
-    parsed = parse_llm_output(
-        result.text,
-        subject=subject,
-        source_urls=list(result.source_urls),
-        web_search_mode=result.web_search_mode,
-    )
+    parsed = parse_chat_result(result, subject=subject)
     job = SamplingJob(
         tenant_id=current.tenant_id,
         subject_id=subject_id,
@@ -187,20 +181,11 @@ def sample_sync(
         sampling_job_id=job.id,
         prompt_id=prompt.id,
         platform=platform,
-        status=LLMResponseStatus.success,
-        raw_text=result.text,
-        parsed=parsed,
-        usage=result.usage,
-        latency_ms=result.latency_ms,
+        status=LLMResponseStatus.pending,
     )
     db.add(row)
     db.flush()
-    replace_citations_for_response(
-        db,
-        response_id=row.id,
-        prompt_id=prompt.id,
-        parsed=parsed,
-    )
+    persist_successful_response(db, row=row, result=result, parsed=parsed)
     db.commit()
     db.refresh(job)
     result_payload["persisted"] = True

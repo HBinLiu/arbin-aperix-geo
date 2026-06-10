@@ -27,6 +27,7 @@ export function buildAnalysisParams(
   from: string,
   to: string,
   filters?: AnalysisQueryFilters,
+  promptId?: string | null,
 ): Record<string, string | string[]> {
   const params: Record<string, string | string[]> = { from, to };
   if (filters?.topicId && filters.topicId !== ANALYSIS_FILTER_ALL) {
@@ -34,6 +35,9 @@ export function buildAnalysisParams(
   }
   if (filters?.platformId && filters.platformId !== ANALYSIS_FILTER_ALL) {
     params.platform = filters.platformId;
+  }
+  if (promptId) {
+    params.prompt_id = promptId;
   }
   return params;
 }

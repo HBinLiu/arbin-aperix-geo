@@ -15,6 +15,13 @@ export const CITATION_DETAIL_TABS = [
   { id: "url" as const, label: "URL" },
 ];
 
+export const CITATION_DOMAIN_DETAIL_TABS = [
+  { id: "pages" as const, label: "热门页面" },
+  { id: "prompt" as const, label: "提示词" },
+  { id: "topic" as const, label: "主题" },
+  { id: "platform" as const, label: "平台" },
+];
+
 export type CitationOverviewData = {
   ownValue: number | null | undefined;
   prevOwnValue: number | null | undefined;

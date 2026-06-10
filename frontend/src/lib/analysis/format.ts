@@ -36,6 +36,12 @@ export function formatScore(value: number | null | undefined): string {
   return value.toFixed(2);
 }
 
+/** 计数类指标（引用次数等） */
+export function formatCount(value: number | null | undefined): string {
+  if (value == null) return "-";
+  return String(Math.round(value));
+}
+
 export function formatRank(value: number | null | undefined): string {
   if (value == null) return "-";
   return `#${value.toFixed(1)}`;
@@ -52,6 +58,13 @@ export function formatSentimentScore(value: number | null | undefined): string {
   if (value == null) return "-";
   const points = value <= 1 ? value * 100 : value;
   return points.toFixed(1);
+}
+
+/** ABSA 原始分（-1~1）转为 0–100 分制，与后端 absa_score_to_points 一致 */
+export function absaScoreToPoints(score: number | null | undefined): number | null {
+  if (score == null) return null;
+  const value = ((Number(score) + 1) / 2) * 100;
+  return Math.round(Math.max(0, Math.min(100, value)) * 10) / 10;
 }
 
 export function formatSentimentDelta(
