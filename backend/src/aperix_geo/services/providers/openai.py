@@ -10,7 +10,7 @@ from typing import Any, Type
 
 from openai import APIError, APITimeoutError, OpenAI
 
-from aperix_geo.services.chat_result import SamplingChatResult
+from aperix_geo.services.providers.result import SamplingChatResult
 from aperix_geo.services.providers._helpers import (
     collect_url_field,
     dedupe_urls,

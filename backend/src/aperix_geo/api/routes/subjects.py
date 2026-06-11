@@ -11,13 +11,23 @@ from aperix_geo.db.models import Subject, SubjectType
 from aperix_geo.schemas.catalog import SubjectCreate, SubjectOut, SubjectUpdate
 from aperix_geo.services.subject.domain_fields import apply_subject_domain_fields
 from aperix_geo.services.sampling.workflow import validate_sampling_interval
-from aperix_geo.services.sampling.subject import validate_sampling_platforms
+from aperix_geo.services.sampling.platforms import (
+    SamplingPlatformError,
+    validate_explicit_sampling_platforms,
+)
 from aperix_geo.services.subject.rules import validate_subject_fields
 from aperix_geo.utils.coerce import normalize_monitoring_scope
 from aperix_geo.utils.domains import ensure_brand
 
 router = APIRouter(prefix="/subjects", tags=["subjects"])
 router.include_router(subject_setup.router)
+
+
+def _validate_sampling_platforms(platforms: list[str]) -> list[str]:
+    try:
+        return validate_explicit_sampling_platforms(platforms)
+    except SamplingPlatformError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @router.get("", response_model=list[SubjectOut])
@@ -114,7 +124,7 @@ def update_subject(
     if body.profile_summary is not None:
         sub.profile_summary = body.profile_summary
     if body.sampling_platforms is not None:
-        sub.sampling_platforms = validate_sampling_platforms(body.sampling_platforms)
+        sub.sampling_platforms = _validate_sampling_platforms(body.sampling_platforms)
     if body.sampling_interval is not None:
         try:
             sub.sampling_interval = validate_sampling_interval(body.sampling_interval)

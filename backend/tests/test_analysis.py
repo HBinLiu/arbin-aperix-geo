@@ -1,12 +1,16 @@
-"""Tests for compute_subject_metrics and KPI aggregation."""
+"""Tests for KPI aggregation from signal rows."""
 
 from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
 
-from aperix_geo.db.models import LLMResponse, LLMResponseStatus, Subject, SubjectType
-from aperix_geo.services.analysis import compute_subject_metrics
+from aperix_geo.db.models import Competitor, LLMResponse, LLMResponseStatus, Subject, SubjectType
+from aperix_geo.services.analysis.aggregate import aggregate_metrics, metrics_from_signals
+from aperix_geo.services.analysis.entity import OWN_ENTITY_ID
+from aperix_geo.services.analysis.signal_load import LLMResponseSignalRow
+from aperix_geo.services.sampling.signal_draft import EntitySignalDraft
+from tests.parsed_fixtures import competitor_signal, entity_signal, parsed_payload, signal_rows_from_payload
 
 
 def _subject() -> Subject:
@@ -31,146 +35,34 @@ def _row(parsed: dict) -> LLMResponse:
     )
 
 
-def test_compute_subject_metrics_six_kpis():
+def _signals_for_rows(rows: list[LLMResponse], subject: Subject, payloads: list[dict]) -> list[LLMResponseSignalRow]:
+    return signal_rows_from_payload(rows, subject, parsed_payloads=payloads)
+
+
+def test_aggregate_metrics_core_kpis():
     subject = _subject()
-    rows = [
-        _row(
-            {
-                "mentions_own": True,
-                "mention_count_own": 2,
-                "mention_counts_competitors": {"Beta": 1},
-                "rank_own": 1,
-                "has_own_domain_link": True,
-                "cited_own_domain": True,
-                "sentiment_score_own": 1.0,
-            }
+    payloads = [
+        parsed_payload(
+            entity_signal(mentioned=True, mention_count=2, mention_rank=1, has_domain_link=True, cited_on_source=True, sentiment_score=100.0),
+            competitor_signal(mentioned=True, mention_count=1),
         ),
-        _row(
-            {
-                "mentions_own": True,
-                "mention_count_own": 1,
-                "mention_counts_competitors": {"Beta": 2},
-                "rank_own": 2,
-                "has_own_domain_link": True,
-                "cited_own_domain": False,
-                "sentiment_score_own": 0.5,
-            }
+        parsed_payload(
+            entity_signal(mentioned=True, mention_count=1, mention_rank=2, has_domain_link=True, cited_on_source=False, sentiment_score=50.0),
+            competitor_signal(mentioned=True, mention_count=2),
         ),
-        _row(
-            {
-                "mentions_own": False,
-                "mention_count_own": 0,
-                "mention_counts_competitors": {"Beta": 0},
-            }
-        ),
+        parsed_payload(competitor_signal(mentioned=False, mention_count=0)),
     ]
-    m = compute_subject_metrics(rows, subject=subject)
-    assert m.response_count == 3
-    assert m.visibility_rate == round(2 / 3, 4)
-    assert m.mention_rate == round(3 / 3, 4)
-    assert m.share_voice == round(3 / (3 + 3), 4)
-    assert m.average_rank == round((1 + 2) / 2, 2)
-    assert m.citation_rate == round(1 / 2, 4)
-    assert m.sentiment_score == 75.0
-
-
-def test_empty_rows():
-    m = compute_subject_metrics([], subject=_subject())
-    assert m.response_count == 0
-    assert m.visibility_rate is None
-    assert m.mention_rate is None
-
-
-def test_rank_from_rows_visibility_share():
-    from aperix_geo.services.analysis import _rank_from_rows
-
-    subject = _subject()
-    subject.competitors = []
-    rows = [
-        _row({"mentions_own": True}),
-        _row({"mentions_own": False}),
-    ]
-    rank = _rank_from_rows(rows, subject=subject)
-    assert rank["own_label"] == "aperix.com"
-    assert rank["visibility_share"]["aperix.com"] == 0.5
-
-
-def test_rank_from_rows_mention_rate():
-    from aperix_geo.services.analysis import _rank_from_rows
-
-    subject = _subject()
-    subject.competitors = []
-    rows = [
-        _row({"mentions_own": True, "mention_count_own": 2}),
-        _row({"mentions_own": False, "mention_count_own": 0}),
-    ]
-    rank = _rank_from_rows(rows, subject=subject)
-    assert rank["mention_rate"]["aperix.com"] == 1.0
-
-
-def test_rank_from_rows_share_voice_and_average_rank():
-    from aperix_geo.db.models import Competitor
-    from aperix_geo.services.analysis import _rank_from_rows
-
-    subject = _subject()
-    subject.competitors = [Competitor(subject_id=subject.id, brand="Beta", domain="")]
-    rows = [
-        _row(
-            {
-                "mentions_own": True,
-                "mention_count_own": 3,
-                "mention_counts_competitors": {"Beta": 1},
-                "rank_own": 1,
-                "rank_hints_first_index": {"aperix.com": 0, "Beta": 50},
-            }
-        ),
-        _row(
-            {
-                "mentions_own": True,
-                "mention_count_own": 1,
-                "mention_counts_competitors": {"Beta": 2},
-                "rank_own": 2,
-                "rank_hints_first_index": {"aperix.com": 10, "Beta": 0},
-            }
-        ),
-    ]
-    rank = _rank_from_rows(rows, subject=subject)
-    assert rank["share_voice"]["aperix.com"] == round(4 / (4 + 3), 4)
-    assert rank["average_rank"]["aperix.com"] == round((1 + 2) / 2, 2)
-
-
-def test_rank_from_rows_citation_and_sentiment():
-    from aperix_geo.db.models import Competitor
-    from aperix_geo.services.analysis import _rank_from_rows
-
-    subject = _subject()
-    subject.competitors = [Competitor(subject_id=subject.id, brand="Beta", domain="")]
-    rows = [
-        _row(
-            {
-                "mentions_own": True,
-                "mention_count_own": 1,
-                "mentions_competitors": {"Beta": True},
-                "cited_own_domain": True,
-                "sentiment_score_own": 80,
-                "sentiment_scores_competitors": {"Beta": 20},
-            }
-        ),
-        _row(
-            {
-                "mentions_own": False,
-                "mentions_competitors": {"Beta": True},
-                "sentiment_scores_competitors": {"Beta": 90},
-            }
-        ),
-    ]
-    rows[0].raw_text = "Aperix is great. Beta is bad."
-    rows[1].raw_text = "Beta is recommended."
-
-    rank = _rank_from_rows(rows, subject=subject)
-    assert rank["citation_share"]["aperix.com"] == 0.5
-    assert rank["sentiment_score"]["aperix.com"] == 80.0
-    assert rank["sentiment_score"]["Beta"] == 55.0
+    rows = [_row(payload) for payload in payloads]
+    all_signals = _signals_for_rows(rows, subject, payloads)
+    own_signals = [row for row in all_signals if row.entity_id == OWN_ENTITY_ID]
+    metrics = metrics_from_signals(own_signals, subject=subject, all_signals_for_voice=all_signals)
+    assert metrics.response_count == 2
+    assert metrics.visibility_rate == 1.0
+    assert metrics.mention_rate == 1.5
+    assert metrics.share_voice == round(3 / 6, 4)
+    assert metrics.average_rank == 1.5
+    assert metrics.citation_rate == 0.5
+    assert metrics.sentiment_score == 75.0
 
 
 def test_build_content_opportunities():
@@ -180,7 +72,9 @@ def test_build_content_opportunities():
     from aperix_geo.services.analysis import build_content_opportunities
 
     subject = _subject()
-    subject.competitors = [Competitor(subject_id=subject.id, brand="Beta", domain="")]
+    subject.competitors = [
+        Competitor(id=uuid.uuid4(), subject_id=subject.id, brand="Beta", domain="")
+    ]
     prompt_id = uuid4()
     prompt = Prompt(id=prompt_id, subject_id=subject.id, topic_id=uuid4(), text="AI 搜索关键词")
 
@@ -202,10 +96,11 @@ def test_build_content_opportunities():
         def get(self, _model, _id):
             return subject
 
-    rows = [
-        _row({"mentions_own": False, "mentions_competitors": {"Beta": True}}),
-        _row({"mentions_own": False, "mentions_competitors": {"Beta": True}, "cited_own_domain": False}),
+    payloads = [
+        parsed_payload(entity_signal(mentioned=False), competitor_signal(mentioned=True)),
+        parsed_payload(entity_signal(mentioned=False, cited_on_source=False), competitor_signal(mentioned=True)),
     ]
+    rows = [_row(payload) for payload in payloads]
     rows[0].prompt_id = prompt_id
     rows[0].platform = "deepseek"
     rows[1].prompt_id = prompt_id
@@ -213,18 +108,19 @@ def test_build_content_opportunities():
 
     from datetime import UTC, datetime, timedelta
 
-    from aperix_geo.services import analysis as analysis_mod
+    from aperix_geo.services.analysis.signal_load import load_llm_response_signals
 
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
-    original = analysis_mod._responses_in_window.override
-    analysis_mod._responses_in_window.override = lambda *args, **kwargs: rows
+    signals = _signals_for_rows(rows, subject, payloads)
+    original = load_llm_response_signals.override
+    load_llm_response_signals.override = lambda *args, **kwargs: signals
     try:
         out = build_content_opportunities(
             FakeDb(), subject=subject, dt_from=dt_from, dt_to=dt_to
         )
     finally:
-        analysis_mod._responses_in_window.override = original
+        load_llm_response_signals.override = original
 
     assert len(out["items"]) == 1
     item = out["items"][0]
@@ -241,6 +137,7 @@ def test_build_backlink_opportunities():
     from aperix_geo.db.models import Competitor
     from aperix_geo.services import analysis as analysis_mod
     from aperix_geo.services.analysis import build_backlink_opportunities
+    from aperix_geo.services.analysis.signal_load import load_llm_response_signals
 
     subject = _subject()
     subject.competitors = [
@@ -267,34 +164,32 @@ def test_build_backlink_opportunities():
 
             return R()
 
-    rows = [
-        _row(
-            {
-                "cited_own_domain": False,
-                "url_hosts": ["support.google.com", "aperix.com"],
-            }
-        ),
-        _row(
-            {
-                "cited_own_domain": False,
-                "url_hosts": ["support.google.com"],
-            }
-        ),
+    payloads = [
+        parsed_payload(entity_signal(cited_on_source=False), url_hosts=["support.google.com", "aperix.com"]),
+        parsed_payload(entity_signal(cited_on_source=False), url_hosts=["support.google.com"]),
     ]
+    rows = [_row(payload) for payload in payloads]
     rows[0].platform = "deepseek"
     rows[1].platform = "deepseek"
     rows[0].prompt_id = rows[1].prompt_id
 
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
-    original = analysis_mod._responses_in_window.override
+    signals = _signals_for_rows(rows, subject, payloads)
+    own_signals = [row for row in signals if row.entity_id == OWN_ENTITY_ID]
+    original_responses = analysis_mod._responses_in_window.override
+    original_signals = load_llm_response_signals.override
     analysis_mod._responses_in_window.override = lambda *args, **kwargs: rows
+    load_llm_response_signals.override = lambda *args, **kwargs: (
+        own_signals if kwargs.get("entity_id") == OWN_ENTITY_ID else signals
+    )
     try:
         out = build_backlink_opportunities(
             FakeDb(), subject=subject, dt_from=dt_from, dt_to=dt_to
         )
     finally:
-        analysis_mod._responses_in_window.override = original
+        analysis_mod._responses_in_window.override = original_responses
+        load_llm_response_signals.override = original_signals
 
     assert len(out["items"]) == 1
     item = out["items"][0]
@@ -310,11 +205,13 @@ def test_build_diagnosis():
     from uuid import uuid4
 
     from aperix_geo.db.models import Competitor, Prompt
-    from aperix_geo.services import analysis as analysis_mod
     from aperix_geo.services.analysis import build_diagnosis
+    from aperix_geo.services.analysis.signal_load import load_llm_response_signals
 
     subject = _subject()
-    subject.competitors = [Competitor(subject_id=subject.id, brand="Beta", domain="")]
+    subject.competitors = [
+        Competitor(id=uuid.uuid4(), subject_id=subject.id, brand="Beta", domain="")
+    ]
     prompt_id = uuid4()
     prompt = Prompt(id=prompt_id, subject_id=subject.id, topic_id=uuid4(), text="追踪AI搜索推荐流量的工具推荐")
 
@@ -333,22 +230,24 @@ def test_build_diagnosis():
 
             return R()
 
-    rows = [
-        _row({"mentions_own": False, "mentions_competitors": {"Beta": True}}),
-        _row({"mentions_own": False, "mentions_competitors": {"Beta": True}}),
+    payloads = [
+        parsed_payload(entity_signal(mentioned=False), competitor_signal(mentioned=True)),
+        parsed_payload(entity_signal(mentioned=False), competitor_signal(mentioned=True)),
     ]
+    rows = [_row(payload) for payload in payloads]
     for row in rows:
         row.prompt_id = prompt_id
         row.platform = "deepseek"
 
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
-    original = analysis_mod._responses_in_window.override
-    analysis_mod._responses_in_window.override = lambda *args, **kwargs: rows
+    signals = _signals_for_rows(rows, subject, payloads)
+    original = load_llm_response_signals.override
+    load_llm_response_signals.override = lambda *args, **kwargs: signals
     try:
         out = build_diagnosis(FakeDb(), subject=subject, dt_from=dt_from, dt_to=dt_to)
     finally:
-        analysis_mod._responses_in_window.override = original
+        load_llm_response_signals.override = original
 
     assert "overall_score" in out
     assert out["overall_status"] in {"excellent", "good", "needs_improvement", "critical"}
@@ -416,7 +315,9 @@ def test_build_topic_visibility_ranks():
     topic_b = uuid.uuid4()
     prompt_a = uuid.uuid4()
     prompt_b = uuid.uuid4()
-    subject.competitors = [Competitor(subject_id=subject.id, brand="Beta", domain="")]
+    subject.competitors = [
+        Competitor(id=uuid.uuid4(), subject_id=subject.id, brand="Beta", domain="")
+    ]
 
     class FakeDb:
         def execute(self, stmt):
@@ -439,43 +340,151 @@ def test_build_topic_visibility_ranks():
 
             return R()
 
-    rows = [
-        _row(
-            {
-                "mentions_own": True,
-                "mention_count_own": 2,
-                "mentions_competitors": {"Beta": True},
-                "mention_counts_competitors": {"Beta": 1},
-            }
+    payloads = [
+        parsed_payload(
+            entity_signal(mentioned=True, mention_count=2),
+            competitor_signal(mentioned=True, mention_count=1),
         ),
-        _row(
-            {
-                "mentions_own": False,
-                "mention_count_own": 0,
-                "mentions_competitors": {"Beta": True},
-                "mention_counts_competitors": {"Beta": 3},
-            }
+        parsed_payload(
+            entity_signal(mentioned=False, mention_count=0),
+            competitor_signal(mentioned=True, mention_count=3),
         ),
     ]
+    rows = [_row(payload) for payload in payloads]
     rows[0].prompt_id = prompt_a
     rows[1].prompt_id = prompt_b
 
     from datetime import UTC, datetime, timedelta
 
-    from aperix_geo.services import analysis as analysis_mod
+    from aperix_geo.services.analysis.signal_load import load_llm_response_signals
 
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
-    original = analysis_mod._responses_in_window.override
-    analysis_mod._responses_in_window.override = lambda *args, **kwargs: rows
+    signals = _signals_for_rows(rows, subject, payloads)
+    original = load_llm_response_signals.override
+    load_llm_response_signals.override = lambda *args, **kwargs: signals
     try:
         out = build_topic_visibility_ranks(
             FakeDb(), subject=subject, dt_from=dt_from, dt_to=dt_to
         )
     finally:
-        analysis_mod._responses_in_window.override = original
+        load_llm_response_signals.override = original
 
     assert len(out) == 2
     assert out[0]["topic_name"] == "Topic A"
     assert out[0]["ranks"][0] == "aperix.com"
     assert out[1]["ranks"][0] == "Beta"
+
+
+def _subject_with_competitor() -> Subject:
+    subject = Subject(
+        id=uuid.uuid4(),
+        tenant_id=uuid.uuid4(),
+        type=SubjectType.brand,
+        brand="Aperix",
+        website_url="https://aperix.com",
+        domain="aperix.com",
+    )
+    subject.competitors = [
+        Competitor(
+            id=uuid.uuid4(),
+            subject_id=subject.id,
+            brand="Beta",
+            domain="beta.com",
+        )
+    ]
+    return subject
+
+
+def test_metrics_from_signals_matches_core_kpis():
+    subject = _subject_with_competitor()
+    response_id = uuid.uuid4()
+    created = datetime.now(UTC)
+    own_row = LLMResponseSignalRow(
+        response_id=response_id,
+        subject_id=subject.id,
+        prompt_id=uuid.uuid4(),
+        platform="doubao",
+        entity_id=OWN_ENTITY_ID,
+        entity_kind="own",
+        mentioned=True,
+        mention_count=2,
+        mention_rank=1,
+        sentiment_score=80.0,
+        sentiment_label="positive",
+        has_domain_link=True,
+        cited_on_source=True,
+        created_at=created,
+    )
+    comp_row = LLMResponseSignalRow(
+        response_id=response_id,
+        subject_id=subject.id,
+        prompt_id=own_row.prompt_id,
+        platform="doubao",
+        entity_id=str(subject.competitors[0].id),
+        entity_kind="competitor",
+        mentioned=True,
+        mention_count=1,
+        mention_rank=2,
+        sentiment_score=55.0,
+        sentiment_label="neutral",
+        has_domain_link=False,
+        cited_on_source=False,
+        created_at=created,
+    )
+    all_signals = [own_row, comp_row]
+    metrics = metrics_from_signals([own_row], subject=subject, all_signals_for_voice=all_signals)
+    assert metrics.visibility_rate == 1.0
+    assert metrics.mention_rate == 2.0
+    assert metrics.share_voice == round(2 / 3, 4)
+    assert metrics.citation_rate == 1.0
+    assert metrics.sentiment_score == 80.0
+
+
+def test_aggregate_metrics_entity_group():
+    subject = _subject_with_competitor()
+    response_id = uuid.uuid4()
+    created = datetime.now(UTC)
+    entity_signals = [
+        EntitySignalDraft(
+            entity_id=OWN_ENTITY_ID,
+            entity_kind="own",
+            entity_label="aperix.com",
+            mentioned=True,
+            mention_count=1,
+            mention_rank=1,
+        ),
+        EntitySignalDraft(
+            entity_id=str(subject.competitors[0].id),
+            entity_kind="competitor",
+            entity_label="beta.com",
+            mentioned=False,
+            mention_count=0,
+        ),
+    ]
+    result = aggregate_metrics(
+        [
+            LLMResponseSignalRow(
+                response_id=response_id,
+                subject_id=subject.id,
+                prompt_id=uuid.uuid4(),
+                platform="doubao",
+                entity_id=sig.entity_id,
+                entity_kind=sig.entity_kind,
+                mentioned=sig.mentioned,
+                mention_count=sig.mention_count,
+                mention_rank=sig.mention_rank,
+                sentiment_score=None,
+                sentiment_label="neutral",
+                has_domain_link=False,
+                cited_on_source=False,
+                created_at=created,
+            )
+            for sig in entity_signals
+        ],
+        subject=subject,
+        group_by="entity",
+    )
+    assert len(result.rows) == 2
+    own = next(row for row in result.rows if row["kind"] == "own")
+    assert own["metrics"]["visibility_rate"] == 1.0

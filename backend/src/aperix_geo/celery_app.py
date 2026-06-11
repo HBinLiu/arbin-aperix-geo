@@ -34,7 +34,7 @@ def make_celery() -> Celery:
             },
         },
     )
-    app.conf.include = ["aperix_geo.tasks.sampling", "aperix_geo.tasks.favicon"]
+    app.conf.include = ["aperix_geo.tasks.sampling", "aperix_geo.tasks.favicon", "aperix_geo.tasks.brand"]
     return app
 
 

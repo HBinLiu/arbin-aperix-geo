@@ -15,29 +15,30 @@ export function useDashboardOverview(subjectId: string, filters: AnalysisFilters
   const queryFilters = toAnalysisQueryFilters(filters);
   const { from, to } = useMemo(() => dateRangeDays(Number(filters.days)), [filters.days]);
   const prevRange = useMemo(() => previousDateRange(from, to), [from, to]);
-  const { topicId, platformId } = queryFilters;
+  const { entityId, platformId, topicId } = queryFilters;
 
   const overviewQuery = useQuery({
-    queryKey: queryKeys.analysisOverview(subjectId, from, to, topicId, platformId),
-    queryFn: () => fetchOverview(subjectId, from, to, queryFilters),
+    queryKey: queryKeys.analysisOverview(subjectId, entityId, platformId, topicId, from, to),
+    queryFn: () => fetchOverview(subjectId, queryFilters, from, to),
   });
 
   const [topicsCurrent, topicsPrevious] = useQueries({
     queries: [
       {
-        queryKey: queryKeys.analysisTopics(subjectId, from, to, topicId, platformId),
-        queryFn: () => fetchTopicsPerformance(subjectId, from, to, queryFilters),
+        queryKey: queryKeys.analysisTopics(subjectId, entityId, platformId, topicId, from, to),
+        queryFn: () => fetchTopicsPerformance(subjectId, queryFilters, from, to),
       },
       {
         queryKey: queryKeys.analysisTopics(
           subjectId,
+          entityId,
+          platformId,
+          topicId,
           prevRange.from,
           prevRange.to,
-          topicId,
-          platformId,
         ),
         queryFn: () =>
-          fetchTopicsPerformance(subjectId, prevRange.from, prevRange.to, queryFilters),
+          fetchTopicsPerformance(subjectId, queryFilters, prevRange.from, prevRange.to),
       },
     ],
   });

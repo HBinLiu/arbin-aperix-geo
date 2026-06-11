@@ -11,11 +11,11 @@ import type { AnalysisFilters } from "@/types";
 export function useRankBoardData(subjectId: string, filters: AnalysisFilters) {
   const queryFilters = toAnalysisQueryFilters(filters);
   const { from, to } = useMemo(() => dateRangeDays(Number(filters.days)), [filters.days]);
-  const { topicId, platformId } = queryFilters;
+  const { entityId, platformId, topicId } = queryFilters;
 
   const query = useQuery({
-    queryKey: queryKeys.analysisRank(subjectId, from, to, topicId, platformId),
-    queryFn: () => fetchRank(subjectId, from, to, queryFilters),
+    queryKey: queryKeys.analysisRank(subjectId, entityId, platformId, topicId, from, to),
+    queryFn: () => fetchRank(subjectId, queryFilters, from, to),
   });
 
   const rows = useMemo(

@@ -10,7 +10,7 @@ from typing import Any
 import dashscope
 from dashscope import Generation
 
-from aperix_geo.services.chat_result import SamplingChatResult
+from aperix_geo.services.providers.result import SamplingChatResult
 from aperix_geo.services.providers._helpers import dedupe_urls, to_plain, with_system_prompt
 from aperix_geo.services.providers.errors import QianwenProviderError, raise_provider_error
 from aperix_geo.services.providers.prompts import QIANWEN_WEB_SEARCH_SYSTEM

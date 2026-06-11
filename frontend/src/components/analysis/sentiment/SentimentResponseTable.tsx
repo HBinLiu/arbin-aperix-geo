@@ -6,6 +6,7 @@ import {
   TABLE_PAGE_SIZE_OPTIONS,
   TablePagination,
 } from "@/components/analysis/common/TablePagination";
+import { PromptDetailResponseDialog } from "@/components/analysis/prompt/PromptDetailResponseDialog";
 import { PromptTextCell, SentimentMetricCell } from "@/components/analysis/prompt/PerformanceMetricCells";
 import { PlatformLogo } from "@/components/brand/PlatformLogo";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,7 +16,7 @@ import {
   formatSentimentDateTime,
   sentimentLabelFromTab,
 } from "@/lib/analysis/sentiment";
-import type { SamplingPlatform, SentimentResponseRow, SentimentTab } from "@/types";
+import type { LlmResponseDialogRow, SamplingPlatform, SentimentResponseRow, SentimentTab } from "@/types";
 
 const SENTIMENT_RESPONSE_SKELETON_ROWS = 6;
 /** 约 6 行数据 + 表头的可视最小高度 */
@@ -65,6 +66,19 @@ export function SentimentResponseTable({
 }: SentimentResponseTableProps) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
+  const [selectedRow, setSelectedRow] = useState<LlmResponseDialogRow | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [promptText, setPromptText] = useState("");
+
+  const openResponseDialog = (row: SentimentResponseRow) => {
+    setSelectedRow({
+      response_id: row.response_id,
+      platform: row.platform,
+      reply_preview: row.reply_preview,
+    });
+    setPromptText(row.prompt_text);
+    setDialogOpen(true);
+  };
 
   const filteredRows = useMemo(
     () => filterSentimentResponses(responses, activeTab),
@@ -125,7 +139,11 @@ export function SentimentResponseTable({
                 const platformMeta = resolvePlatformMeta(row.platform, platformsMeta);
                 const sentimentLabel = sentimentLabelFromTab(row.sentiment);
                 return (
-                  <tr key={row.response_id} className="border-border border-t [&>td]:py-3">
+                  <tr
+                    key={row.response_id}
+                    className="border-border hover:bg-muted/40 cursor-pointer border-t [&>td]:py-3"
+                    onClick={() => openResponseDialog(row)}
+                  >
                     <td className="pl-5">
                       <div className="flex items-center gap-2 whitespace-nowrap">
                         <PlatformLogo
@@ -166,6 +184,14 @@ export function SentimentResponseTable({
           onPageSizeChange={handlePageSizeChange}
         />
       ) : null}
+
+      <PromptDetailResponseDialog
+        row={selectedRow}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        promptText={promptText}
+        platformsMeta={platformsMeta}
+      />
     </div>
   );
 }

@@ -18,11 +18,11 @@ export function useBacklinkOpportunity(
 ) {
   const queryFilters = toAnalysisQueryFilters(filters);
   const { from, to } = useMemo(() => dateRangeDays(Number(filters.days)), [filters.days]);
-  const { topicId, platformId } = queryFilters;
+  const { entityId, platformId, topicId } = queryFilters;
 
   const query = useQuery({
-    queryKey: queryKeys.backlinkOpportunities(subjectId, from, to, topicId, platformId),
-    queryFn: () => fetchBacklinkOpportunities(subjectId, from, to, queryFilters),
+    queryKey: queryKeys.backlinkOpportunities(subjectId, entityId, platformId, topicId, from, to),
+    queryFn: () => fetchBacklinkOpportunities(subjectId, queryFilters, from, to),
     enabled,
   });
 

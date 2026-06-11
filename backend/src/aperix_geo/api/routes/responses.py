@@ -6,6 +6,8 @@ from fastapi import APIRouter, HTTPException
 
 from aperix_geo.api.deps import CurrentUser, DbSession
 from aperix_geo.db.models import LLMResponse, SamplingJob
+from aperix_geo.services.sampling.signals import parsed_api_dict
+from aperix_geo.services.subject.loader import load_subject_with_competitors
 
 router = APIRouter(tags=["responses"])
 
@@ -22,6 +24,9 @@ def get_response(
     job = db.get(SamplingJob, row.sampling_job_id)
     if not job or job.tenant_id != current.tenant_id:
         raise HTTPException(status_code=404, detail="Response not found")
+    subject = load_subject_with_competitors(db, job.subject_id)
+    if not subject:
+        raise HTTPException(status_code=404, detail="Response not found")
     raw = row.raw_text or ""
     return {
         "id": str(row.id),
@@ -31,7 +36,7 @@ def get_response(
         "status": row.status.value,
         "error_text": row.error_text,
         "raw_text": raw,
-        "parsed": row.parsed,
+        "parsed": parsed_api_dict(db, row=row, subject=subject),
         "latency_ms": row.latency_ms,
         "usage": row.usage,
         "created_at": row.created_at.isoformat(),

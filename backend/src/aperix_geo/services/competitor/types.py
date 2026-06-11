@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TypedDict
 
-from aperix_geo.services.web_search import SearchHit
+from aperix_geo.services.searxng import SearchHit
 
 
 class NicheProfile(TypedDict):

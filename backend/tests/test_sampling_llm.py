@@ -5,7 +5,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from aperix_geo.config import Settings
-from aperix_geo.services.chat_result import SamplingChatResult
+from aperix_geo.services.providers.result import SamplingChatResult
 from aperix_geo.services.sampling.llm import (
     SamplingLLMError,
     chat_for_platform,

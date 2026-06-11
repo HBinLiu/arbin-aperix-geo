@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from aperix_geo.config import Settings, get_settings
+from aperix_geo.config import Settings
 from aperix_geo.db.models import (
     LLMResponse,
     LLMResponseStatus,
@@ -17,8 +17,11 @@ from aperix_geo.db.models import (
     SamplingJobStatus,
     Subject,
 )
-from aperix_geo.services.sampling.llm import configured_platforms, prefer_default_platforms
-from aperix_geo.services.sampling.subject import resolve_subject_sampling_platforms
+from aperix_geo.services.sampling.platforms import (
+    SamplingPlatformError,
+    resolve_default_sampling_platforms as _resolve_default_sampling_platforms,
+    resolve_platforms_for_sampling as _resolve_platforms_for_sampling,
+)
 from aperix_geo.services.subject.rules import validate_brand_competitors, validate_subject_fields
 
 
@@ -32,27 +35,17 @@ def resolve_platforms_for_sampling(
     *,
     settings: Settings | None = None,
 ) -> list[str]:
-    """Explicit platforms when requested is non-empty; otherwise subject config or default."""
-    settings = settings or get_settings()
-    available = configured_platforms(settings=settings)
-    if not available:
-        raise SamplingJobError("No LLM providers configured for sampling")
-    if requested:
-        deduped = list(dict.fromkeys(p.strip() for p in requested if p.strip()))
-        unknown = [p for p in deduped if p not in available]
-        if unknown:
-            raise SamplingJobError(f"Unknown or unconfigured platform(s): {', '.join(unknown)}")
-        return deduped
-    return resolve_subject_sampling_platforms(subject, settings=settings)
+    try:
+        return _resolve_platforms_for_sampling(subject, requested, settings=settings)
+    except SamplingPlatformError as e:
+        raise SamplingJobError(str(e)) from e
 
 
 def resolve_default_sampling_platforms(*, settings: Settings | None = None) -> list[str]:
-    """First configured default platform (sync smoke test, no subject context)."""
-    settings = settings or get_settings()
-    available = configured_platforms(settings=settings)
-    if not available:
-        raise SamplingJobError("No LLM providers configured for sampling")
-    return prefer_default_platforms(settings=settings)
+    try:
+        return _resolve_default_sampling_platforms(settings=settings)
+    except SamplingPlatformError as e:
+        raise SamplingJobError(str(e)) from e
 
 
 def create_and_enqueue_sampling_job(

@@ -25,6 +25,7 @@ __all__ = [
     "redis_get_json_with_remaining_ttl",
     "redis_set_json",
     "redis_set_json_exat",
+    "redis_set_json_persistent",
     "redis_set_nx",
     "shared_redis_client",
     "remaining_ttl_s",

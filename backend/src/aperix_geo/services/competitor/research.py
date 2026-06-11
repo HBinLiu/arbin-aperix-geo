@@ -9,7 +9,7 @@ from urllib.parse import urljoin, urlparse
 
 from aperix_geo.services.crawl import PageFetchResult, fetch_page, page_crawl_settings
 from aperix_geo.services.crawl.metadata import HEAD_PARSE_MAX_CHARS, extract_page_metadata
-from aperix_geo.services.web_search import SearchHit, search_text
+from aperix_geo.services.searxng import SearchHit, search_text
 from aperix_geo.utils.domains import registrable_domain
 from aperix_geo.utils.url import homepage_urls
 

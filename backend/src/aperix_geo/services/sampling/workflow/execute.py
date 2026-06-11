@@ -7,11 +7,11 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import LLMResponse, LLMResponseStatus, Subject
-from aperix_geo.services.chat_result import SamplingChatResult
-from aperix_geo.services.sampling.citation import replace_citations_for_response
+from aperix_geo.services.providers.result import SamplingChatResult
 from aperix_geo.services.sampling.llm import chat_for_platform
-from aperix_geo.services.sampling.parser import parse_llm_output_typed
+from aperix_geo.services.sampling.parse import parse_llm_output
 from aperix_geo.services.sampling.parsed import ParsedSamplingResult
+from aperix_geo.services.sampling.persist import persist_successful_response, refresh_parsed_artifacts
 
 
 def chat_prompt_on_platform(platform: str, prompt_text: str) -> SamplingChatResult:
@@ -24,7 +24,7 @@ def parse_chat_result(
     subject: Subject,
     sampling_job_id: UUID | None = None,
 ) -> ParsedSamplingResult:
-    return parse_llm_output_typed(
+    return parse_llm_output(
         result.text,
         subject=subject,
         source_urls=list(result.source_urls),
@@ -43,33 +43,12 @@ def parse_stored_raw_text(
 ) -> ParsedSamplingResult:
     """Re-parse an existing response; restores source_urls / web_search_mode when omitted."""
     prior = parsed.to_dict() if isinstance(parsed, ParsedSamplingResult) else (parsed or {})
-    return parse_llm_output_typed(
+    return parse_llm_output(
         raw_text,
         subject=subject,
         source_urls=list(prior.get("source_urls_from_api") or []),
         web_search_mode=web_search_mode or str(prior.get("web_search_mode") or "none"),
         sampling_job_id=sampling_job_id,
-    )
-
-
-def persist_successful_response(
-    db: Session,
-    *,
-    row: LLMResponse,
-    result: SamplingChatResult,
-    parsed: ParsedSamplingResult,
-) -> None:
-    row.raw_text = result.text
-    row.parsed = parsed.to_dict()
-    row.usage = result.usage
-    row.latency_ms = result.latency_ms
-    row.status = LLMResponseStatus.success
-    row.error_text = ""
-    replace_citations_for_response(
-        db,
-        response_id=row.id,
-        prompt_id=row.prompt_id,
-        parsed=parsed,
     )
 
 
@@ -88,7 +67,7 @@ def run_sample(
     """Call LLM, parse, and persist citations on one response row (caller commits)."""
     result = chat_prompt_on_platform(row.platform, prompt_text)
     parsed = parse_chat_result(result, subject=subject, sampling_job_id=row.sampling_job_id)
-    persist_successful_response(db, row=row, result=result, parsed=parsed)
+    persist_successful_response(db, row=row, result=result, parsed=parsed, subject=subject)
     return result
 
 
@@ -106,10 +85,5 @@ def reparse_response_row(
         sampling_job_id=row.sampling_job_id,
     )
     row.parsed = parsed.to_dict()
-    replace_citations_for_response(
-        db,
-        response_id=row.id,
-        prompt_id=row.prompt_id,
-        parsed=parsed,
-    )
+    refresh_parsed_artifacts(db, row=row, subject=subject, parsed=parsed)
     return parsed

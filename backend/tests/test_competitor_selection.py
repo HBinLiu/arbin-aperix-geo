@@ -8,7 +8,7 @@ from unittest.mock import patch
 from aperix_geo.services.competitor.selection import select_brand_names
 from aperix_geo.services.competitor.types import NicheProfile, SearchPool
 from aperix_geo.services.providers.prompts import brand_selection_user_content
-from aperix_geo.services.web_search import SearchHit
+from aperix_geo.services.searxng import SearchHit
 
 
 def _sample_profile() -> NicheProfile:

@@ -33,7 +33,7 @@ export function RankContent({ subjectId }: RankContentProps) {
 
   return (
     <>
-      <AnalysisFilterBar value={filters} onChange={setFilters} />
+      <AnalysisFilterBar value={filters} onChange={setFilters} hideEntityFilter />
 
       <div className="flex flex-col gap-4 px-4 py-4 sm:px-6">
         <header>

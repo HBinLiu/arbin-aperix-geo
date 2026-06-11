@@ -105,6 +105,9 @@ def sample_one_prompt(self, response_id: str) -> dict:
             return {"ok": False, "error": str(e)}
 
         db.commit()
+        from aperix_geo.services.brand.backfill import maybe_enqueue_brand_domain_backfill
+
+        maybe_enqueue_brand_domain_backfill(row.id)
         return {"ok": True}
     finally:
         db.close()

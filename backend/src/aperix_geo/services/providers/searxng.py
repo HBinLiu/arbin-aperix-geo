@@ -6,10 +6,10 @@ import logging
 import time
 from typing import Type
 
-from aperix_geo.services.chat_result import SamplingChatResult
+from aperix_geo.services.providers.result import SamplingChatResult
 from aperix_geo.services.providers.openai import openai_chat_completion
 from aperix_geo.services.providers.prompts import SEARXNG_WEB_SEARCH_SYSTEM
-from aperix_geo.services.web_search import SearchHit, search_text
+from aperix_geo.services.searxng import SearchHit, search_text
 
 from aperix_geo.services.providers.errors import SearxngProviderError
 

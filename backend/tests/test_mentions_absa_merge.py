@@ -5,11 +5,14 @@ from __future__ import annotations
 import uuid
 
 from aperix_geo.db.models import Competitor, Subject, SubjectType
-from aperix_geo.services.sampling.mentions import (
-    CompetitorEntry,
-    absa_competitor_keys,
-    merge_absa_mention_flags,
-    parse_mentions_and_rank,
+from aperix_geo.services.analysis.entity import OWN_ENTITY_ID
+from aperix_geo.services.sampling.mentions import CompetitorEntry, absa_competitor_keys
+from aperix_geo.services.sampling.sentiment import apply_absa_to_drafts
+from aperix_geo.services.sampling.signal_draft import (
+    build_mention_entity_signals,
+    compute_mention_ranks,
+    draft_for_entity_label,
+    own_draft,
 )
 
 
@@ -29,6 +32,19 @@ def _subject(*, competitors: list[Competitor] | None = None) -> Subject:
     return subject
 
 
+def _subject_with_beta() -> Subject:
+    subject = _subject()
+    subject.competitors = [
+        Competitor(
+            id=uuid.uuid4(),
+            subject_id=subject.id,
+            brand="Beta",
+            domain="beta.com",
+        )
+    ]
+    return subject
+
+
 def test_absa_competitor_keys_includes_aliases() -> None:
     entry = CompetitorEntry(
         label="beta.com",
@@ -44,12 +60,16 @@ def test_absa_competitor_keys_includes_aliases() -> None:
 
 
 def test_merge_absa_overrides_rule_when_absa_says_mentioned() -> None:
-    stats = {
-        "mentions_own": False,
-        "mention_count_own": 0,
-        "mentions_competitors": {"beta.com": False},
-        "mention_counts_competitors": {"beta.com": 0},
-    }
+    subject = _subject_with_beta()
+    drafts, competitors = build_mention_entity_signals("ignored", subject=subject, url_hosts=[])
+    own = own_draft(drafts)
+    own.mentioned = False
+    own.mention_count = 0
+    comp = draft_for_entity_label(drafts, "beta.com")
+    assert comp is not None
+    comp.mentioned = False
+    comp.mention_count = 0
+
     response_absa = {
         "analysis_source": "llm",
         "brands_sentiment_absa": {
@@ -57,25 +77,30 @@ def test_merge_absa_overrides_rule_when_absa_says_mentioned() -> None:
             "Beta": {"mentioned": True, "score": 0.5},
         },
     }
-    merged = merge_absa_mention_flags(
-        stats,
+    apply_absa_to_drafts(
+        drafts,
         response_absa,
         own_brand="Aperix",
         competitor_absa_keys=[("Beta", "beta.com")],
+        competitors=competitors,
     )
-    assert merged["mentions_own"] is True
-    assert merged["mention_count_own"] == 1
-    assert merged["mentions_competitors"]["beta.com"] is True
-    assert merged["mention_counts_competitors"]["beta.com"] == 1
+    assert own.mentioned is True
+    assert own.mention_count == 1
+    assert comp.mentioned is True
+    assert comp.mention_count == 1
 
 
 def test_merge_absa_clears_rule_mention_when_absa_denies() -> None:
-    stats = {
-        "mentions_own": True,
-        "mention_count_own": 3,
-        "mentions_competitors": {"beta.com": True},
-        "mention_counts_competitors": {"beta.com": 2},
-    }
+    subject = _subject_with_beta()
+    drafts, competitors = build_mention_entity_signals("ignored", subject=subject, url_hosts=[])
+    own = own_draft(drafts)
+    own.mentioned = True
+    own.mention_count = 3
+    comp = draft_for_entity_label(drafts, "beta.com")
+    assert comp is not None
+    comp.mentioned = True
+    comp.mention_count = 2
+
     response_absa = {
         "analysis_source": "llm",
         "brands_sentiment_absa": {
@@ -83,32 +108,34 @@ def test_merge_absa_clears_rule_mention_when_absa_denies() -> None:
             "Beta": {"mentioned": False},
         },
     }
-    merged = merge_absa_mention_flags(
-        stats,
+    apply_absa_to_drafts(
+        drafts,
         response_absa,
         own_brand="Aperix",
         competitor_absa_keys=[("Beta", "beta.com")],
+        competitors=competitors,
     )
-    assert merged["mentions_own"] is False
-    assert merged["mention_count_own"] == 0
-    assert merged["mentions_competitors"]["beta.com"] is False
-    assert merged["mention_counts_competitors"]["beta.com"] == 0
+    assert own.mentioned is False
+    assert own.mention_count == 0
+    assert comp.mentioned is False
+    assert comp.mention_count == 0
 
 
 def test_competitor_alias_in_rule_matching() -> None:
     subject = _subject(competitors=[])
-    subject_id = subject.id
     subject.competitors = [
         Competitor(
             id=uuid.uuid4(),
-            subject_id=subject_id,
+            subject_id=subject.id,
             brand="Beta",
             domain="beta.com",
             aliases=["贝塔科技"],
         ),
     ]
-    stats = parse_mentions_and_rank("推荐贝塔科技的产品", subject=subject, url_hosts=[])
-    assert stats["mentions_competitors"].get("beta.com") is True
+    drafts, _ = build_mention_entity_signals("推荐贝塔科技的产品", subject=subject, url_hosts=[])
+    comp = draft_for_entity_label(drafts, "beta.com")
+    assert comp is not None
+    assert comp.mentioned is True
 
 
 def test_merge_absa_preserves_host_only_competitor_mention() -> None:
@@ -118,24 +145,89 @@ def test_merge_absa_preserves_host_only_competitor_mention() -> None:
         terms=("Beta", "beta.com"),
         domain="beta.com",
     )
-    stats = {
-        "mentions_own": False,
-        "mention_count_own": 0,
-        "mentions_competitors": {"beta.com": True},
-        "mention_counts_competitors": {"beta.com": 0},
-    }
+    subject = _subject_with_beta()
+    drafts, competitors = build_mention_entity_signals("ignored", subject=subject, url_hosts=[])
+    comp = draft_for_entity_label(drafts, "beta.com")
+    assert comp is not None
+    comp.mentioned = True
+    comp.mention_count = 0
+
     response_absa = {
         "analysis_source": "llm",
         "brands_sentiment_absa": {
             "Beta": {"mentioned": False},
         },
     }
-    merged = merge_absa_mention_flags(
-        stats,
+    apply_absa_to_drafts(
+        drafts,
         response_absa,
         own_brand="Aperix",
         competitor_absa_keys=[("Beta", "beta.com")],
         url_hosts=["beta.com"],
         competitors=[entry],
     )
-    assert merged["mentions_competitors"]["beta.com"] is True
+    assert comp.mentioned is True
+
+
+def test_absa_only_mention_gets_mention_rank() -> None:
+    subject = _subject_with_beta()
+    drafts, competitors = build_mention_entity_signals("ignored", subject=subject, url_hosts=[])
+    own = own_draft(drafts)
+    own.mentioned = False
+    own.mention_count = 0
+    own.rank_hint_first_index = None
+
+    text = "综合对比后更推荐 Aperix。"
+    response_absa = {
+        "analysis_source": "llm",
+        "brands_sentiment_absa": {
+            "Aperix": {
+                "mentioned": True,
+                "score": 0.8,
+                "evidence": "更推荐 Aperix",
+            },
+            "Beta": {"mentioned": False},
+        },
+    }
+    apply_absa_to_drafts(
+        drafts,
+        response_absa,
+        own_brand="Aperix",
+        competitor_absa_keys=[("Beta", "beta.com")],
+        competitors=competitors,
+        text=text,
+    )
+    compute_mention_ranks(drafts)
+
+    assert own.mentioned is True
+    assert own.mention_rank == 1
+    assert own.rank_hint_first_index is not None
+
+
+def test_absa_denial_clears_mention_rank() -> None:
+    subject = _subject_with_beta()
+    text = "推荐 Aperix 与 Beta。"
+    drafts, competitors = build_mention_entity_signals(text, subject=subject, url_hosts=[])
+    comp = draft_for_entity_label(drafts, "beta.com")
+    assert comp is not None
+    assert comp.mention_rank is not None
+
+    response_absa = {
+        "analysis_source": "llm",
+        "brands_sentiment_absa": {
+            "Aperix": {"mentioned": True, "score": 0.5},
+            "Beta": {"mentioned": False},
+        },
+    }
+    apply_absa_to_drafts(
+        drafts,
+        response_absa,
+        own_brand="Aperix",
+        competitor_absa_keys=[("Beta", "beta.com")],
+        competitors=competitors,
+        text=text,
+    )
+    compute_mention_ranks(drafts)
+
+    assert comp.mentioned is False
+    assert comp.mention_rank is None

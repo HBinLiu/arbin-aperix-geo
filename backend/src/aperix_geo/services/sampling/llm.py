@@ -7,7 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from aperix_geo.config import Settings, get_settings
-from aperix_geo.services.chat_result import SamplingChatResult
+from aperix_geo.services.providers.result import SamplingChatResult
 from aperix_geo.services.providers.doubao import (
     DoubaoProviderError,
     doubao_chat_fallback,

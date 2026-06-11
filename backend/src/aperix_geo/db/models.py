@@ -7,7 +7,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy import text as sa_text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB
@@ -36,6 +36,12 @@ class LLMResponseStatus(str, enum.Enum):
     failed = "failed"
 
 
+class EntityKind(str, enum.Enum):
+    own = "own"
+    competitor = "competitor"
+    other = "other"
+
+
 def utc_now() -> datetime:
     return datetime.now(UTC)
 
@@ -55,6 +61,49 @@ class Tenant(Base):
 
     users: Mapped[list["User"]] = relationship(back_populates="tenant")
     subjects: Mapped[list["Subject"]] = relationship(back_populates="tenant")
+    brands: Mapped[list["Brand"]] = relationship(back_populates="tenant")
+
+
+class Brand(Base):
+    """Tenant-scoped canonical brand registry (shared across subjects)."""
+
+    __tablename__ = "tb_brands"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    brand: Mapped[str] = mapped_column(String(255), nullable=False)
+    domain: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
+    website_url: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
+    aliases: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default=sa_text("'[]'::jsonb"))
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
+    )
+
+    tenant: Mapped[Tenant] = relationship(back_populates="brands")
+    llm_response_signals: Mapped[list["LLMResponseSignal"]] = relationship(back_populates="brand")
+
+    __table_args__ = (
+        Index("ix_brands_tenant_id", "tenant_id"),
+        Index("ix_brands_tenant_brand", "tenant_id", "brand"),
+        Index(
+            "uq_brands_tenant_domain",
+            "tenant_id",
+            "domain",
+            unique=True,
+            postgresql_where=sa_text("domain <> ''"),
+        ),
+        Index(
+            "uq_brands_tenant_brand_no_domain",
+            "tenant_id",
+            "brand",
+            unique=True,
+            postgresql_where=sa_text("domain = ''"),
+        ),
+    )
 
 
 class User(Base):
@@ -313,11 +362,60 @@ class LLMResponse(Base):
     citation_domains: Mapped[list["CitationDomain"]] = relationship(
         back_populates="llm_response", cascade="all, delete-orphan"
     )
+    llm_response_signals: Mapped[list["LLMResponseSignal"]] = relationship(
+        back_populates="llm_response", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         UniqueConstraint("sampling_job_id", "prompt_id", "platform", name="uq_job_prompt_platform"),
         Index("ix_llm_responses_job_created", "sampling_job_id", "created_at"),
         Index("ix_llm_responses_created_at", "created_at"),
+    )
+
+
+class LLMResponseSignal(Base):
+    """Per-response, per-entity analytical signals (flat fact table for KPI aggregation)."""
+
+    __tablename__ = "tb_llm_response_signals"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    response_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_llm_responses.id", ondelete="CASCADE"), nullable=False
+    )
+    subject_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_subjects.id", ondelete="CASCADE"), nullable=False
+    )
+    prompt_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_prompts.id", ondelete="CASCADE"), nullable=False
+    )
+    platform: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
+    entity_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    entity_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    brand_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_brands.id", ondelete="SET NULL"), nullable=True
+    )
+    entity_label: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
+    primary_domain: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
+    mentioned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    mention_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    mention_rank: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sentiment_score: Mapped[float | None] = mapped_column(nullable=True)
+    sentiment_label: Mapped[str] = mapped_column(String(16), nullable=False, default="neutral", server_default="neutral")
+    has_domain_link: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    cited_on_source: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
+
+    llm_response: Mapped[LLMResponse] = relationship(back_populates="llm_response_signals")
+    subject: Mapped["Subject"] = relationship()
+    prompt: Mapped["Prompt"] = relationship()
+    brand: Mapped["Brand | None"] = relationship(back_populates="llm_response_signals")
+
+    __table_args__ = (
+        UniqueConstraint("response_id", "entity_id", name="uq_llm_response_signal"),
+        Index("ix_llm_response_signals_subject_entity_created", "subject_id", "entity_id", "created_at"),
+        Index("ix_llm_response_signals_subject_prompt_entity", "subject_id", "prompt_id", "entity_id"),
+        Index("ix_llm_response_signals_response_id", "response_id"),
+        Index("ix_llm_response_signals_brand_id", "brand_id"),
     )
 
 

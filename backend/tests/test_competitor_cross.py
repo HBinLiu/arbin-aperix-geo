@@ -7,7 +7,7 @@ from aperix_geo.services.competitor.cross_validate import (
     run_cross_validate,
 )
 from aperix_geo.services.competitor.types import SearchPool, SiteHead
-from aperix_geo.services.web_search import SearchHit
+from aperix_geo.services.searxng import SearchHit
 
 
 def _profile():

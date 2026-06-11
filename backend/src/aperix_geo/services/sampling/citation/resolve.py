@@ -1,11 +1,12 @@
-"""Citation URL resolution: page fetch, GEO analysis, own/competitor link flags."""
+"""Citation URL resolution: page fetch, GEO analysis, source metadata."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from aperix_geo.db.models import Subject, SubjectType
+from aperix_geo.services.sampling.citation.document import CitationDocument
 from aperix_geo.services.sampling.citation.labels import brand_names_match, page_mentioned_brand_names
 from aperix_geo.services.sampling.citation.page import fetch_citation_pages_parallel
 from aperix_geo.services.sampling.citation.page_geo import (
@@ -27,17 +28,6 @@ def citation_root(subject: Subject) -> str | None:
     if subject.type == SubjectType.domain and subject.domain:
         return normalize_domain(subject.domain)
     return None
-
-
-def empty_citation_result() -> dict[str, Any]:
-    return {
-        "citation_urls_own": [],
-        "has_own_domain_link": False,
-        "cited_own_domain": False,
-        "citation_sources": [],
-        "has_competitor_domain_links": {},
-        "cited_competitors_on_source": {},
-    }
 
 
 def _url_matches_competitor(url: str, entry: CompetitorEntry) -> bool:
@@ -69,24 +59,13 @@ def resolve_citation_sources(
     geo_cache_ttl_s: int,
     geo_batch_size: int,
     sampling_job_id: UUID | None = None,
-) -> dict[str, Any]:
+) -> CitationDocument:
     """并行抓取来源页；批量 Page GEO / 来源页提及分析。"""
     competitor_brand_names = [entry.brand or entry.label for entry in competitors if entry.brand or entry.label]
     own_brand_keys = collect_match_terms(own_brand, *own_names)
 
     citation_urls_own = [url for url in urls if root and host_matches_root(hostname_from_url(url), root)]
-    has_own_domain_link = len(citation_urls_own) > 0
-
-    has_competitor_domain_links: dict[str, bool] = {entry.label: False for entry in competitors}
-    cited_competitors_on_source: dict[str, bool] = {entry.label: False for entry in competitors}
-
-    for url in urls:
-        for entry in competitors:
-            if _url_matches_competitor(url, entry):
-                has_competitor_domain_links[entry.label] = True
-
-    citation_sources: list[dict[str, Any]] = []
-    cited_own_domain = False
+    citation_sources: list[dict] = []
 
     pages = fetch_citation_pages_parallel(
         urls,
@@ -127,13 +106,6 @@ def resolve_citation_sources(
         target = _url_target(page.url, root=root, competitors=competitors)
         page_mentioned = page_mentioned_brand_names(page_analysis)
 
-        if target == "own" and brand_names_match(own_brand_keys, page_mentioned):
-            cited_own_domain = True
-        for entry in competitors:
-            entry_keys = list(entry.terms) or collect_match_terms(entry.brand, entry.label)
-            if brand_names_match(entry_keys, page_mentioned):
-                cited_competitors_on_source[entry.label] = True
-
         domain_cls = (
             page_analysis.get("domain_classification")
             if isinstance(page_analysis.get("domain_classification"), dict)
@@ -158,17 +130,14 @@ def resolve_citation_sources(
                 "text_snippet": page.text_snippet,
                 "fetch_ok": page.fetch_ok,
                 "target": target,
+                "page_mentions_brand": target == "own" and brand_names_match(own_brand_keys, page_mentioned),
                 "domain_type": str(domain_cls.get("type") or domain_cls.get("detected_domain_type") or "").strip(),
                 "url_type": str(url_cls.get("type") or url_cls.get("detected_type") or "").strip(),
                 "llm_analysis": page_analysis,
             }
         )
 
-    return {
-        "citation_urls_own": citation_urls_own,
-        "has_own_domain_link": has_own_domain_link,
-        "cited_own_domain": cited_own_domain,
-        "citation_sources": citation_sources,
-        "has_competitor_domain_links": has_competitor_domain_links,
-        "cited_competitors_on_source": cited_competitors_on_source,
-    }
+    return CitationDocument(
+        citation_urls_own=citation_urls_own,
+        citation_sources=citation_sources,
+    )

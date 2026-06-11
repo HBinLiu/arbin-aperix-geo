@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from aperix_geo.services.chat_result import SamplingChatResult
+from aperix_geo.services.providers.result import SamplingChatResult
 from aperix_geo.services.providers.errors import DeepseekProviderError
 from aperix_geo.services.providers.searxng import augmented_chat
 

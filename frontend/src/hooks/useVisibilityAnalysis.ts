@@ -16,11 +16,11 @@ export type { VisibilityMetricBundle, VisibilityMetricId };
 export function useVisibilityAnalysis(subjectId: string, filters: AnalysisFilters) {
   const queryFilters = toAnalysisQueryFilters(filters);
   const { from, to } = dateRangeDays(Number(filters.days));
-  const { topicId, platformId } = queryFilters;
+  const { entityId, platformId, topicId } = queryFilters;
 
   const query = useQuery({
-    queryKey: queryKeys.visibilityAnalysis(subjectId, from, to, topicId, platformId),
-    queryFn: () => fetchVisibilityAnalysis(subjectId, from, to, queryFilters),
+    queryKey: queryKeys.visibilityAnalysis(subjectId, entityId, platformId, topicId, from, to),
+    queryFn: () => fetchVisibilityAnalysis(subjectId, queryFilters, from, to),
   });
 
   const data = query.data;

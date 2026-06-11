@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import { fetchAnalysisEntities } from "@/api/analysis";
 import { fetchSamplingPlatforms, fetchSubjectTopics } from "@/api/brand";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
 import {
@@ -8,9 +9,14 @@ import {
 } from "@/lib/brand";
 import { queryKeys } from "@/lib/queries";
 
-/** 分析页筛选项：主题列表 + 主体已选平台。 */
+/** 分析页筛选项：实体目录、主题列表、主体已选平台。 */
 export function useAnalysisFilter() {
   const { subject } = useDashboardContext();
+
+  const entitiesQuery = useQuery({
+    queryKey: queryKeys.analysisEntities(subject.id),
+    queryFn: () => fetchAnalysisEntities(subject.id),
+  });
 
   const topicsQuery = useQuery({
     queryKey: queryKeys.subjectTopics(subject.id),
@@ -28,8 +34,9 @@ export function useAnalysisFilter() {
   );
 
   return {
+    entities: entitiesQuery.data?.entities ?? [],
     topics: topicsQuery.data ?? [],
     platforms,
-    isLoading: topicsQuery.isLoading || platformsQuery.isLoading,
+    isLoading: entitiesQuery.isLoading || topicsQuery.isLoading || platformsQuery.isLoading,
   };
 }

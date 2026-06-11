@@ -8,7 +8,7 @@ from typing import Any
 
 from openai import APIError, APITimeoutError, OpenAI
 
-from aperix_geo.services.chat_result import SamplingChatResult
+from aperix_geo.services.providers.result import SamplingChatResult
 from aperix_geo.services.providers._helpers import dedupe_urls, response_data, with_system_prompt
 from aperix_geo.services.providers.errors import DoubaoProviderError, raise_provider_error
 from aperix_geo.services.providers.openai import _usage_dict, openai_chat_completion

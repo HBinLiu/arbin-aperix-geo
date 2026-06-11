@@ -10,11 +10,11 @@ import type { AnalysisFilters } from "@/types";
 export function useSentimentAnalysis(subjectId: string, filters: AnalysisFilters) {
   const queryFilters = toAnalysisQueryFilters(filters);
   const { from, to } = dateRangeDays(Number(filters.days));
-  const { topicId, platformId } = queryFilters;
+  const { entityId, platformId, topicId } = queryFilters;
 
   const analysisQuery = useQuery({
-    queryKey: queryKeys.sentimentAnalysis(subjectId, from, to, topicId, platformId),
-    queryFn: () => fetchSentimentAnalysis(subjectId, from, to, queryFilters),
+    queryKey: queryKeys.sentimentAnalysis(subjectId, entityId, platformId, topicId, from, to),
+    queryFn: () => fetchSentimentAnalysis(subjectId, queryFilters, from, to),
   });
 
   const platformsMetaQuery = useQuery({

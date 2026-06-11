@@ -18,11 +18,11 @@ export function useContentOpportunity(
 ) {
   const queryFilters = toAnalysisQueryFilters(filters);
   const { from, to } = useMemo(() => dateRangeDays(Number(filters.days)), [filters.days]);
-  const { topicId, platformId } = queryFilters;
+  const { entityId, platformId, topicId } = queryFilters;
 
   const query = useQuery({
-    queryKey: queryKeys.contentOpportunities(subjectId, from, to, topicId, platformId),
-    queryFn: () => fetchContentOpportunities(subjectId, from, to, queryFilters),
+    queryKey: queryKeys.contentOpportunities(subjectId, entityId, platformId, topicId, from, to),
+    queryFn: () => fetchContentOpportunities(subjectId, queryFilters, from, to),
     enabled,
   });
 

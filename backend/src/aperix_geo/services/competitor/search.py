@@ -12,7 +12,7 @@ from aperix_geo.services.competitor.profile import build_search_queries
 from aperix_geo.services.competitor.types import NicheProfile, SearchPool
 from aperix_geo.utils.url import host_resolves
 from aperix_geo.utils.url import hostname_from_url
-from aperix_geo.services.web_search import SearchHit, search_text
+from aperix_geo.services.searxng import SearchHit, search_text
 
 logger = logging.getLogger(__name__)
 

@@ -392,9 +392,18 @@ CITATION_RESPONSE_ABSA_SYSTEM = """# 任务
       "framing_tags": ["高并发", "架构领先"],
       "evidence": "从【AI原始回答文本】中抽取的直接证据"
     }
+  },
+  "other_brands_sentiment_absa": {
+    "[其它商业品牌名]": {
+      "mentioned": true,
+      "score": 0.5,
+      "framing_tags": [],
+      "evidence": "证据"
+    }
   }
 }
-brands_sentiment_absa 必须包含输入的本品牌与全部竞品键。禁止 Markdown 或其它说明。"""
+- brands_sentiment_absa 必须包含输入的本品牌与全部竞品键。
+- other_brands_sentiment_absa：仅包含【AI原始回答文本】中出现的其它商业品牌/产品名；不得重复本品牌或竞品列表中的名称；不得包含媒体、平台、政府机构等非商业主体；未提及则输出 `{}`。禁止 Markdown 或其它说明。"""
 
 
 def citation_response_absa_user_content(

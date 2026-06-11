@@ -14,6 +14,7 @@ export {
 } from "@/lib/analysis/format";
 export {
   ANALYSIS_DATE_OPTIONS,
+  ANALYSIS_ENTITY_OWN,
   ANALYSIS_FILTER_ALL,
   ANALYSIS_PARAMS_SERIALIZER,
   analysisFilterKey,

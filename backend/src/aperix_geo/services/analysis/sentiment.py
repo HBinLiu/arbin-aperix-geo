@@ -11,38 +11,46 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import Prompt, Subject
-from aperix_geo.services.analysis._labels import own_label
-from aperix_geo.services.analysis._parsed import avg_sentiment_points, mentions_own, parsed_sentiment_score, reply_text
+from aperix_geo.utils.text import reply_text
 from aperix_geo.services.analysis._query import responses_in_window
 from aperix_geo.services.analysis._series import previous_date_range
-from aperix_geo.services.analysis.metrics import compute_subject_metrics, platform_metrics_from_rows
+from aperix_geo.services.analysis.aggregate import (
+    aggregate_metrics,
+    daily_sentiment_distribution_from_signals,
+    metrics_from_signals,
+)
+from aperix_geo.services.analysis.entity import resolve_analysis_entity
+from aperix_geo.services.analysis.signal_load import LLMResponseSignalRow, load_llm_response_signals
 
 
-def daily_sentiment_distribution(rows: list) -> list[dict[str, Any]]:
-    """按日统计自有品牌提及回复的情感占比（正面 / 中立 / 负面）。"""
-    by_date: dict[date, list] = defaultdict(list)
-    for r in rows:
-        if mentions_own(r.parsed or {}):
-            by_date[r.created_at.date()].append(r)
-
-    series: list[dict[str, Any]] = []
-    for day in sorted(by_date.keys()):
-        counts = {"positive": 0, "neutral": 0, "negative": 0}
-        for r in by_date[day]:
-            label = (r.parsed or {}).get("sentiment_own") or "neutral"
-            if label not in counts:
-                label = "neutral"
-            counts[label] += 1
-        total = sum(counts.values()) or 1
-        series.append(
+def _platform_performance_from_signals(
+    signals: list[LLMResponseSignalRow],
+    *,
+    subject: Subject,
+    entity_id: str,
+    all_signals: list[LLMResponseSignalRow],
+) -> list[dict[str, Any]]:
+    aggregated = aggregate_metrics(
+        signals,
+        subject=subject,
+        group_by="platform",
+        entity_id=entity_id,
+    )
+    out: list[dict[str, Any]] = []
+    for row in aggregated.rows:
+        metrics = row["metrics"]
+        out.append(
             {
-                "date": day.isoformat(),
-                "positive": round(counts["positive"] / total, 4),
-                "neutral": round(counts["neutral"] / total, 4),
-                "negative": round(counts["negative"] / total, 4),
+                "platform": row["id"],
+                "visibility_rate": metrics["visibility_rate"],
+                "share_voice": metrics["share_voice"],
+                "citation_rate": metrics["citation_rate"],
+                "average_rank": metrics["average_rank"],
+                "sentiment_score": metrics["sentiment_score"],
             }
         )
-    return series
+    _ = all_signals
+    return sorted(out, key=lambda x: -(x["sentiment_score"] or -1))
 
 
 def build_daily_sentiment_series(
@@ -53,35 +61,35 @@ def build_daily_sentiment_series(
     dt_to: datetime,
     platforms: list[str] | None = None,
     topic_id: UUID | None = None,
+    entity_id: str | None = None,
 ) -> dict[str, Any]:
-    rows = responses_in_window(
+    entity = resolve_analysis_entity(subject, entity_id)
+    all_signals = load_llm_response_signals(
         db,
-        subject_id=subject.id,
+        subject=subject,
         dt_from=dt_from,
         dt_to=dt_to,
         platforms=platforms,
         topic_id=topic_id,
     )
-    by_date: dict[date, list] = defaultdict(list)
-    for r in rows:
-        by_date[r.created_at.date()].append(r)
+    entity_signals = [row for row in all_signals if row.entity_id == entity.id]
+
+    by_date: dict[date, list[LLMResponseSignalRow]] = defaultdict(list)
+    for row in entity_signals:
+        if row.mentioned and row.sentiment_score is not None:
+            by_date[row.created_at.date()].append(row)
 
     series: list[dict[str, Any]] = []
     for day in sorted(by_date.keys()):
-        day_rows = by_date[day]
-        scores: list[float] = []
-        for r in day_rows:
-            score = parsed_sentiment_score(r.parsed or {})
-            if score is not None:
-                scores.append(score)
+        scores = [float(row.sentiment_score) for row in by_date[day] if row.sentiment_score is not None]
         series.append(
             {
                 "date": day.isoformat(),
-                "value": avg_sentiment_points(scores),
+                "value": round(sum(scores) / len(scores), 1) if scores else None,
             }
         )
 
-    return {"own_label": own_label(subject), "series": series}
+    return {"entity_id": entity.id, "own_label": entity.label, "series": series}
 
 
 def build_sentiment_analysis(
@@ -93,63 +101,85 @@ def build_sentiment_analysis(
     platforms: list[str] | None = None,
     topic_id: UUID | None = None,
     prompt_id: UUID | None = None,
+    entity_id: str | None = None,
 ) -> dict[str, Any]:
     """情感倾向页：分布趋势、平台排名、回复明细。"""
+    entity = resolve_analysis_entity(subject, entity_id)
     prev_from, prev_to = previous_date_range(dt_from, dt_to)
-    all_rows = responses_in_window(
+    all_signals = load_llm_response_signals(
         db,
-        subject_id=subject.id,
+        subject=subject,
         dt_from=prev_from,
         dt_to=dt_to,
         platforms=platforms,
         topic_id=topic_id,
         prompt_id=prompt_id,
     )
-    current_rows = [r for r in all_rows if dt_from <= r.created_at <= dt_to]
-    prev_rows = [r for r in all_rows if prev_from <= r.created_at <= prev_to]
+    current_signals = [row for row in all_signals if dt_from <= row.created_at <= dt_to]
+    prev_signals = [row for row in all_signals if prev_from <= row.created_at <= prev_to]
+    entity_current = [row for row in current_signals if row.entity_id == entity.id]
+    entity_prev = [row for row in prev_signals if row.entity_id == entity.id]
 
-    metrics = compute_subject_metrics(current_rows, subject=subject)
-    by_platform_current: dict[str, list] = defaultdict(list)
-    for r in current_rows:
-        by_platform_current[r.platform].append(r)
-    by_platform_prev: dict[str, list] = defaultdict(list)
-    for r in prev_rows:
-        by_platform_prev[r.platform].append(r)
+    metrics = metrics_from_signals(entity_current, subject=subject, all_signals_for_voice=current_signals)
 
     prompts = {
         p.id: p
         for p in db.execute(select(Prompt).where(Prompt.subject_id == subject.id)).scalars().all()
     }
 
+    response_rows = responses_in_window(
+        db,
+        subject_id=subject.id,
+        dt_from=dt_from,
+        dt_to=dt_to,
+        platforms=platforms,
+        topic_id=topic_id,
+        prompt_id=prompt_id,
+    )
+    signal_by_response = {row.response_id: row for row in entity_current if row.mentioned}
+
     responses: list[dict[str, Any]] = []
-    for r in sorted(current_rows, key=lambda row: row.created_at, reverse=True):
-        parsed = r.parsed or {}
-        if not mentions_own(parsed):
+    for response in sorted(response_rows, key=lambda row: row.created_at, reverse=True):
+        signal = signal_by_response.get(response.id)
+        if not signal:
             continue
-        prompt = prompts.get(r.prompt_id)
+        prompt = prompts.get(response.prompt_id)
         responses.append(
             {
-                "response_id": str(r.id),
-                "platform": r.platform,
-                "prompt_id": str(r.prompt_id),
+                "response_id": str(response.id),
+                "platform": response.platform,
+                "prompt_id": str(response.prompt_id),
                 "prompt_text": prompt.text if prompt else "",
-                "sentiment": parsed.get("sentiment_own") or "neutral",
-                "sentiment_score": parsed_sentiment_score(parsed),
-                "sentiment_reason": parsed.get("sentiment_reason_own"),
-                "reply_preview": reply_text(r.raw_text),
-                "created_at": r.created_at.isoformat(),
+                "sentiment": signal.sentiment_label or "neutral",
+                "sentiment_score": signal.sentiment_score,
+                "sentiment_reason": (response.parsed or {}).get(
+                    f"sentiment_reason_{'own' if entity.kind == 'own' else 'competitor'}"
+                ),
+                "reply_preview": reply_text(response.raw_text),
+                "created_at": response.created_at.isoformat(),
             }
         )
 
-    platform_performance = platform_metrics_from_rows(by_platform_current, subject=subject)
-    platform_performance.sort(key=lambda row: -(row["sentiment_score"] or -1))
-
     return {
-        "own_label": own_label(subject),
+        "entity_id": entity.id,
+        "own_label": entity.label,
         "sentiment_score": metrics.sentiment_score,
         "sentiment_count": metrics.sentiment_count,
-        "distribution_series": daily_sentiment_distribution(current_rows),
-        "platform_performance": platform_performance,
-        "previous_platform_performance": platform_metrics_from_rows(by_platform_prev, subject=subject),
+        "distribution_series": daily_sentiment_distribution_from_signals(
+            current_signals,
+            entity_id=entity.id,
+        ),
+        "platform_performance": _platform_performance_from_signals(
+            current_signals,
+            subject=subject,
+            entity_id=entity.id,
+            all_signals=current_signals,
+        ),
+        "previous_platform_performance": _platform_performance_from_signals(
+            prev_signals,
+            subject=subject,
+            entity_id=entity.id,
+            all_signals=prev_signals,
+        ),
         "responses": responses,
     }

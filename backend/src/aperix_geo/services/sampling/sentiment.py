@@ -1,25 +1,36 @@
-"""Map citation response ABSA to parsed sampling sentiment fields."""
+"""Apply response ABSA onto entity signal drafts (mentions + sentiment)."""
 
 from __future__ import annotations
 
 from typing import Any
 
+from aperix_geo.services.brand.domain import extract_domain_from_text_for_brand, other_entity_id
+from aperix_geo.services.brand.keys import configured_brand_keys
+from aperix_geo.services.brand.resolve import normalize_brand_key
+from aperix_geo.services.sampling.mentions import (
+    CompetitorEntry,
+    absa_brand_mentioned,
+    count_term,
+    first_idx_any,
+    host_mentions_domain,
+)
+from aperix_geo.services.sampling.signal_draft import EntitySignalDraft, compute_mention_ranks
 from aperix_geo.utils.sentiment import absa_score_to_label, absa_score_to_points
 
 
-def _empty_result(*, sentiment_source: str) -> dict[str, Any]:
-    return {
-        "sentiment_own": "neutral",
-        "sentiment_score_own": None,
-        "sentiment_reason_own": None,
-        "sentiment_competitors": {},
-        "sentiment_scores_competitors": {},
-        "sentiment_reasons_competitors": {},
-        "sentiment_source": sentiment_source,
-    }
+def absa_sentiment_source(response_absa: dict[str, Any]) -> str:
+    if not response_absa:
+        return "none"
+    if response_absa.get("analysis_source") == "failed":
+        return "failed"
+    if response_absa.get("analysis_source") == "llm" and isinstance(
+        response_absa.get("brands_sentiment_absa"), dict
+    ):
+        return "llm"
+    return "failed"
 
 
-def _absa_brand_entry(entry: Any) -> tuple[str, float | None, str | None]:
+def absa_brand_sentiment(entry: Any) -> tuple[str, float | None, str | None]:
     if not isinstance(entry, dict) or entry.get("mentioned") is False:
         return "neutral", None, None
     score_raw = entry.get("score")
@@ -35,40 +46,272 @@ def _absa_brand_entry(entry: Any) -> tuple[str, float | None, str | None]:
     return label, points, reason
 
 
-def parsed_sentiment_from_absa(
+def reset_sentiment_drafts(drafts: list[EntitySignalDraft]) -> None:
+    for draft in drafts:
+        draft.sentiment_label = "neutral"
+        draft.sentiment_score = None
+        draft.sentiment_reason = None
+
+
+def _rank_hint_from_absa(text: str, brand_key: str, entry: Any) -> int | None:
+    idx = first_idx_any(text, (brand_key,))
+    if idx is not None:
+        return idx
+    if not text or not isinstance(entry, dict):
+        return None
+    evidence = str(entry.get("evidence") or "").strip()
+    if not evidence:
+        return None
+    pos = text.casefold().find(evidence.casefold())
+    return pos if pos >= 0 else None
+
+
+def _fallback_rank_hint(text: str) -> int:
+    return len(text) if text else 0
+
+
+def _other_brand_has_domain_link(label: str, text: str, url_hosts: list[str]) -> bool:
+    if not url_hosts:
+        return False
+    domain = extract_domain_from_text_for_brand(text, label, None)
+    if domain and host_mentions_domain(domain, url_hosts):
+        return True
+    brand_key = label.strip().casefold()
+    if not brand_key:
+        return False
+    return any(brand_key in (host or "").casefold() for host in url_hosts)
+
+
+def _competitor_keys_by_label(
+    competitor_absa_keys: list[tuple[str, str]],
+) -> dict[str, list[str]]:
+    keys_by_label: dict[str, list[str]] = {}
+    for absa_key, output_label in competitor_absa_keys:
+        keys_by_label.setdefault(output_label, []).append(absa_key)
+    return keys_by_label
+
+
+def _apply_absa_mentions(
+    drafts: list[EntitySignalDraft],
+    brands: dict[str, Any],
+    *,
+    own_brand: str,
+    competitor_absa_keys: list[tuple[str, str]],
+    url_hosts: list[str] | None,
+    competitors: list[CompetitorEntry] | None,
+    text: str,
+) -> None:
+    by_entity_label = {draft.entity_label: draft for draft in drafts}
+    own_draft = next(draft for draft in drafts if draft.entity_kind == "own")
+    own_entry = brands.get(own_brand)
+    own_flag = absa_brand_mentioned(brands, own_brand)
+    if own_flag is True:
+        own_draft.mentioned = True
+        if own_draft.mention_count == 0:
+            own_draft.mention_count = 1
+        if own_draft.rank_hint_first_index is None:
+            own_draft.rank_hint_first_index = _rank_hint_from_absa(text, own_brand, own_entry)
+            if own_draft.rank_hint_first_index is None:
+                own_draft.rank_hint_first_index = _fallback_rank_hint(text)
+    elif own_flag is False:
+        own_draft.mentioned = False
+        own_draft.mention_count = 0
+        own_draft.rank_hint_first_index = None
+
+    entries_by_label = {entry.label: entry for entry in (competitors or [])}
+    for output_label, keys in _competitor_keys_by_label(competitor_absa_keys).items():
+        draft = by_entity_label.get(output_label)
+        if draft is None:
+            continue
+        flags = [absa_brand_mentioned(brands, key) for key in keys]
+        resolved = [flag for flag in flags if flag is not None]
+        if not resolved:
+            continue
+        if any(resolved):
+            draft.mentioned = True
+            if draft.mention_count == 0:
+                draft.mention_count = 1
+            if draft.rank_hint_first_index is None:
+                for key in keys:
+                    hint = _rank_hint_from_absa(text, key, brands.get(key))
+                    if hint is not None:
+                        draft.rank_hint_first_index = hint
+                        break
+                if draft.rank_hint_first_index is None:
+                    draft.rank_hint_first_index = _fallback_rank_hint(text)
+        else:
+            entry = entries_by_label.get(output_label)
+            host_only = (
+                draft.mentioned
+                and draft.mention_count == 0
+                and entry is not None
+                and host_mentions_domain(entry.domain, url_hosts or [])
+            )
+            if host_only:
+                continue
+            draft.mentioned = False
+            draft.mention_count = 0
+            draft.rank_hint_first_index = None
+
+
+def _absa_entry_for_competitor(
+    brands: dict[str, Any],
+    keys: list[str],
+) -> Any:
+    for key in keys:
+        entry = brands.get(key)
+        if isinstance(entry, dict) and entry.get("mentioned"):
+            return entry
+    for key in keys:
+        entry = brands.get(key)
+        if isinstance(entry, dict):
+            return entry
+    return None
+
+
+def _apply_absa_sentiment_fields(
+    drafts: list[EntitySignalDraft],
+    brands: dict[str, Any],
+    *,
+    own_brand: str,
+    competitor_absa_keys: list[tuple[str, str]],
+) -> None:
+    by_entity_label = {draft.entity_label: draft for draft in drafts}
+    own_draft = next(draft for draft in drafts if draft.entity_kind == "own")
+    label, score, reason = absa_brand_sentiment(brands.get(own_brand))
+    own_draft.sentiment_label = label
+    own_draft.sentiment_score = score
+    own_draft.sentiment_reason = reason
+
+    for output_label, keys in _competitor_keys_by_label(competitor_absa_keys).items():
+        draft = by_entity_label.get(output_label)
+        if draft is None:
+            continue
+        label, score, reason = absa_brand_sentiment(_absa_entry_for_competitor(brands, keys))
+        draft.sentiment_label = label
+        draft.sentiment_score = score
+        draft.sentiment_reason = reason
+
+
+def apply_absa_to_drafts(
+    drafts: list[EntitySignalDraft],
     response_absa: dict[str, Any],
     *,
     own_brand: str,
-    competitor_keys: list[tuple[str, str]],
-) -> dict[str, Any]:
-    """Convert response-level ABSA output to legacy parsed sentiment fields."""
-    if response_absa.get("analysis_source") == "failed":
-        return _empty_result(sentiment_source="failed")
+    competitor_absa_keys: list[tuple[str, str]],
+    url_hosts: list[str] | None = None,
+    competitors: list[CompetitorEntry] | None = None,
+    text: str = "",
+) -> str:
+    """Merge closed-set ABSA mention flags and sentiment onto drafts; return sentiment_source."""
+    source = absa_sentiment_source(response_absa)
+    if source != "llm":
+        reset_sentiment_drafts(drafts)
+        return source
 
-    brands = response_absa.get("brands_sentiment_absa")
-    if not isinstance(brands, dict):
-        return _empty_result(sentiment_source="failed")
+    brands = response_absa["brands_sentiment_absa"]
+    _apply_absa_mentions(
+        drafts,
+        brands,
+        own_brand=own_brand,
+        competitor_absa_keys=competitor_absa_keys,
+        url_hosts=url_hosts,
+        competitors=competitors,
+        text=text,
+    )
+    _apply_absa_sentiment_fields(
+        drafts,
+        brands,
+        own_brand=own_brand,
+        competitor_absa_keys=competitor_absa_keys,
+    )
+    return "llm"
 
-    sentiment_own, sentiment_score_own, sentiment_reason_own = _absa_brand_entry(brands.get(own_brand))
 
-    sentiment_competitors: dict[str, str] = {}
-    sentiment_scores_competitors: dict[str, float] = {}
-    sentiment_reasons_competitors: dict[str, str] = {}
-    for absa_key, output_label in competitor_keys:
-        label, score, reason = _absa_brand_entry(brands.get(absa_key))
-        if score is None:
+def append_other_brand_drafts(
+    drafts: list[EntitySignalDraft],
+    response_absa: dict[str, Any],
+    *,
+    excluded_keys: set[str],
+    text: str = "",
+    url_hosts: list[str] | None = None,
+) -> None:
+    """Add entity_kind=other drafts from open-set ABSA (mentioned third-party brands)."""
+    others = response_absa.get("other_brands_sentiment_absa")
+    if not isinstance(others, dict):
+        return
+
+    existing_ids = {draft.entity_id for draft in drafts}
+    for name, entry in others.items():
+        label = str(name or "").strip()
+        if not label or normalize_brand_key(label) in excluded_keys:
             continue
-        sentiment_competitors[output_label] = label
-        sentiment_scores_competitors[output_label] = score
-        if reason:
-            sentiment_reasons_competitors[output_label] = reason
+        if not isinstance(entry, dict) or not entry.get("mentioned"):
+            continue
+        entity_id = other_entity_id(label)
+        if entity_id in existing_ids:
+            continue
+        sentiment_label, sentiment_score, sentiment_reason = absa_brand_sentiment(entry)
+        mention_count = count_term(text, label)
+        if mention_count == 0:
+            mention_count = 1
+        rank_hint = _rank_hint_from_absa(text, label, entry)
+        if rank_hint is None:
+            rank_hint = _fallback_rank_hint(text)
+        drafts.append(
+            EntitySignalDraft(
+                entity_id=entity_id,
+                entity_kind="other",
+                entity_label=label,
+                mentioned=True,
+                mention_count=mention_count,
+                rank_hint_first_index=rank_hint,
+                sentiment_label=sentiment_label,
+                sentiment_score=sentiment_score,
+                sentiment_reason=sentiment_reason,
+                has_domain_link=_other_brand_has_domain_link(label, text, url_hosts or []),
+            )
+        )
+        existing_ids.add(entity_id)
 
-    return {
-        "sentiment_own": sentiment_own,
-        "sentiment_score_own": sentiment_score_own,
-        "sentiment_reason_own": sentiment_reason_own,
-        "sentiment_competitors": sentiment_competitors,
-        "sentiment_scores_competitors": sentiment_scores_competitors,
-        "sentiment_reasons_competitors": sentiment_reasons_competitors,
-        "sentiment_source": "llm",
-    }
+
+def apply_response_absa_to_drafts(
+    drafts: list[EntitySignalDraft],
+    response_absa: dict[str, Any],
+    *,
+    own_brand: str,
+    competitor_brand_names: list[str],
+    competitor_absa_keys: list[tuple[str, str]],
+    url_hosts: list[str] | None = None,
+    competitors: list[CompetitorEntry] | None = None,
+    text: str = "",
+    excluded_keys: set[str] | None = None,
+) -> str:
+    """Apply closed-set ABSA, append open-set brands, and recompute mention ranks."""
+    source = apply_absa_to_drafts(
+        drafts,
+        response_absa,
+        own_brand=own_brand,
+        competitor_absa_keys=competitor_absa_keys,
+        url_hosts=url_hosts,
+        competitors=competitors,
+        text=text,
+    )
+    if source != "llm":
+        return source
+
+    if excluded_keys is None:
+        excluded_keys = configured_brand_keys(
+            own_brand=own_brand,
+            competitor_brand_names=competitor_brand_names,
+            competitor_absa_keys=competitor_absa_keys,
+        )
+    append_other_brand_drafts(
+        drafts,
+        response_absa,
+        excluded_keys=excluded_keys,
+        text=text,
+        url_hosts=url_hosts,
+    )
+    compute_mention_ranks(drafts)
+    return source

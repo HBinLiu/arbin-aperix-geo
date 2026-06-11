@@ -1,6 +1,19 @@
+export type AnalysisEntityRef = {
+  id: string;
+  kind: "own" | "competitor";
+  label: string;
+  display_name: string;
+  competitor_id: string | null;
+};
+
+export type AnalysisEntitiesData = {
+  entities: AnalysisEntityRef[];
+};
+
 export type OverviewMetrics = {
+  entity?: AnalysisEntityRef;
   window: { from: string; to: string };
-  filters: { platforms: string[]; topic_id: string | null };
+  filters: { platforms: string[]; topic_id: string | null; entity_id?: string | null };
   visibility_rate: number | null;
   mention_rate: number | null;
   share_voice: number | null;
@@ -103,7 +116,9 @@ export type VisibilitySeriesPoint = {
 };
 
 export type VisibilityAnalysisData = {
+  entity_id?: string;
   own_label: string;
+  focus_label?: string;
   labels: string[];
   share_voice_labels: string[];
   rank: BrandRankData;
@@ -158,7 +173,9 @@ export type CitationUrlRow = {
 };
 
 export type CitationAnalysisData = {
+  entity_id?: string;
   own_label: string;
+  focus_label?: string;
   labels: string[];
   citation_rate: number | null;
   rank: CitationRankData;
@@ -324,9 +341,10 @@ export type DiagnosisData = {
 };
 
 export type AnalysisQueryFilters = {
-  regionId: string;
-  topicId: string;
+  entityId: string;
   platformId: string;
+  topicId: string;
+  regionId: string;
 };
 
 export type AnalysisFilters = AnalysisQueryFilters & {
@@ -337,19 +355,20 @@ export type AnalysisOutletContext = {
   subjectId: string;
 };
 
-export type PromptDetailResponseRow = {
+export type LlmResponseDialogRow = {
   response_id: string;
   platform: string;
-  reply_preview: string;
+  reply_preview?: string;
+};
+
+export type PromptDetailResponseRow = LlmResponseDialogRow & {
   mentioned: boolean;
   rank: number | null;
-  region: string;
   created_at: string;
-  cited_own_domain?: boolean;
+  cited_on_source?: boolean;
 };
 
 export type PromptDetailData = {
-  region: string;
   chat_responses: PromptDetailResponseRow[];
   citation_responses: PromptDetailResponseRow[];
   query_expansions: unknown[];
@@ -367,20 +386,37 @@ export type CitationResponseAbsa = {
   analysis_timestamp?: string;
   analysis_source?: string;
   brands_sentiment_absa?: Record<string, AbsaBrandEntry>;
+  other_brands_sentiment_absa?: Record<string, AbsaBrandEntry>;
+};
+
+export type EntitySignalRecord = {
+  entity_id: string;
+  entity_kind: "own" | "competitor" | "other";
+  entity_label: string;
+  brand_id?: string | null;
+  primary_domain?: string | null;
+  match_terms?: string[];
+  mentioned?: boolean;
+  mention_count?: number;
+  mention_rank?: number | null;
+  sentiment_score?: number | null;
+  sentiment_label?: string;
+  sentiment_reason?: string | null;
+  has_domain_link?: boolean;
+  cited_on_source?: boolean;
 };
 
 export type LlmResponseParsed = {
   urls?: string[];
   url_hosts?: string[];
-  mentions_own?: boolean;
-  mentions_competitors?: Record<string, boolean>;
-  mention_counts_competitors?: Record<string, number>;
-  sentiment_score_own?: number | null;
-  sentiment_scores_competitors?: Record<string, number>;
-  rank_hints_first_index?: Record<string, number | null>;
   source_urls_from_api?: string[];
   citation_urls_own?: string[];
+  citation_sources?: unknown[];
   citation_response_absa?: CitationResponseAbsa;
+  entity_signals?: EntitySignalRecord[];
+  own_brand?: string;
+  sentiment_source?: string;
+  web_search_mode?: string;
 };
 
 export type LlmResponseDetail = {

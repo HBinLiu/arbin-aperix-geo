@@ -33,17 +33,17 @@ export type CitationOverviewData = {
 };
 
 export function buildCitationOverview(data: CitationAnalysisData | undefined): CitationOverviewData {
-  const ownLabel = data?.own_label ?? "";
+  const focusLabel = data?.focus_label ?? data?.own_label ?? "";
   return {
     ownValue: data?.citation_rate,
-    prevOwnValue: data?.previous_rank.citation_share[ownLabel],
+    prevOwnValue: data?.previous_rank.citation_share[focusLabel],
     series: data?.series ?? [],
     previousSeries: data?.previous_series ?? [],
     rankRows: data
       ? buildBrandRankRows(
           data.rank.citation_share,
           data.previous_rank.citation_share,
-          ownLabel,
+          focusLabel,
           formatRate,
           formatDelta,
         )

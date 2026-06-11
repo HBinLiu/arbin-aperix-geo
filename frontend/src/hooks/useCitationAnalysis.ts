@@ -9,11 +9,11 @@ import type { AnalysisFilters } from "@/types";
 export function useCitationAnalysis(subjectId: string, filters: AnalysisFilters) {
   const queryFilters = toAnalysisQueryFilters(filters);
   const { from, to } = dateRangeDays(Number(filters.days));
-  const { topicId, platformId } = queryFilters;
+  const { entityId, platformId, topicId } = queryFilters;
 
   const query = useQuery({
-    queryKey: queryKeys.citationAnalysis(subjectId, from, to, topicId, platformId),
-    queryFn: () => fetchCitationAnalysis(subjectId, from, to, queryFilters),
+    queryKey: queryKeys.citationAnalysis(subjectId, entityId, platformId, topicId, from, to),
+    queryFn: () => fetchCitationAnalysis(subjectId, queryFilters, from, to),
   });
 
   const data = query.data;
@@ -21,7 +21,7 @@ export function useCitationAnalysis(subjectId: string, filters: AnalysisFilters)
   return {
     isLoading: query.isLoading,
     data,
-    ownLabel: data?.own_label ?? "",
+    ownLabel: data?.focus_label ?? data?.own_label ?? "",
     topLabels: data?.labels ?? [],
     overview: buildCitationOverview(data),
   };

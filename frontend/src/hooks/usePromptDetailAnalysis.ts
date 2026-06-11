@@ -49,7 +49,7 @@ export function usePromptDetailAnalysis(
   const queryFilters = toAnalysisQueryFilters(filters);
   const { from, to } = useMemo(() => dateRangeDays(Number(filters.days)), [filters.days]);
   const prevRange = useMemo(() => previousDateRange(from, to), [from, to]);
-  const { topicId, platformId } = queryFilters;
+  const { entityId, platformId, topicId } = queryFilters;
 
   const [visibilityCurrent, citationCurrent, platformsCurrent, promptsCurrent, promptsPrevious, opportunities, responses] =
     useQueries({
@@ -57,84 +57,91 @@ export function usePromptDetailAnalysis(
       {
         queryKey: queryKeys.promptDetailVisibility(
           subjectId,
+          entityId,
+          platformId,
+          topicId,
           promptId,
           from,
           to,
-          topicId,
-          platformId,
         ),
         queryFn: () =>
-          fetchVisibilityAnalysis(subjectId, from, to, queryFilters, promptId),
+          fetchVisibilityAnalysis(subjectId, queryFilters, from, to, promptId),
       },
       {
         queryKey: queryKeys.promptDetailCitation(
           subjectId,
+          entityId,
+          platformId,
+          topicId,
           promptId,
           from,
           to,
-          topicId,
-          platformId,
         ),
         queryFn: () =>
-          fetchCitationAnalysis(subjectId, from, to, queryFilters, promptId),
+          fetchCitationAnalysis(subjectId, queryFilters, from, to, promptId),
       },
       {
         queryKey: queryKeys.promptDetailPlatforms(
           subjectId,
+          entityId,
+          platformId,
+          topicId,
           promptId,
           from,
           to,
-          topicId,
-          platformId,
         ),
         queryFn: () =>
-          fetchPlatformPerformance(subjectId, from, to, queryFilters, promptId),
+          fetchPlatformPerformance(subjectId, queryFilters, from, to, promptId),
       },
       {
         queryKey: queryKeys.promptDetailPrompts(
           subjectId,
+          entityId,
+          platformId,
+          topicId,
           promptId,
           from,
           to,
-          topicId,
-          platformId,
         ),
-        queryFn: () => fetchPromptsPerformance(subjectId, from, to, queryFilters),
+        queryFn: () => fetchPromptsPerformance(subjectId, queryFilters, from, to),
       },
       {
         queryKey: queryKeys.promptDetailPrompts(
           subjectId,
+          entityId,
+          platformId,
+          topicId,
           promptId,
           prevRange.from,
           prevRange.to,
-          topicId,
-          platformId,
         ),
         queryFn: () =>
-          fetchPromptsPerformance(subjectId, prevRange.from, prevRange.to, queryFilters),
+          fetchPromptsPerformance(subjectId, queryFilters, prevRange.from, prevRange.to),
       },
       {
         queryKey: queryKeys.promptDetailOpportunities(
           subjectId,
+          entityId,
+          platformId,
+          topicId,
           promptId,
           from,
           to,
-          topicId,
-          platformId,
         ),
         queryFn: () =>
-          fetchContentOpportunities(subjectId, from, to, queryFilters, promptId),
+          fetchContentOpportunities(subjectId, queryFilters, from, to, promptId),
       },
       {
         queryKey: queryKeys.promptDetailResponses(
           subjectId,
+          entityId,
+          platformId,
+          topicId,
           promptId,
           from,
           to,
-          topicId,
-          platformId,
         ),
-        queryFn: () => fetchPromptDetail(subjectId, from, to, queryFilters, promptId),
+        queryFn: () => fetchPromptDetail(subjectId, queryFilters, from, to, promptId),
       },
     ],
   });
@@ -150,7 +157,12 @@ export function usePromptDetailAnalysis(
 
   const visibilityData = visibilityCurrent.data;
   const citationData = citationCurrent.data;
-  const ownLabel = visibilityData?.own_label ?? citationData?.own_label ?? "";
+  const ownLabel =
+    visibilityData?.focus_label ??
+    visibilityData?.own_label ??
+    citationData?.focus_label ??
+    citationData?.own_label ??
+    "";
 
   const summary = useMemo(() => {
     const current = promptPerformanceSummary(promptsCurrent.data ?? [], promptId);

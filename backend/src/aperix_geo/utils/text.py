@@ -11,6 +11,11 @@ def normalize_whitespace(text: str) -> str:
     return " ".join((text or "").strip().split())
 
 
+def reply_text(raw_text: str) -> str:
+    """Collapse newlines for single-line reply previews in analysis views."""
+    return (raw_text or "").replace("\n", " ").strip()
+
+
 def truncate_text(text: str, max_chars: int, *, suffix: str = "\n\n…(内容已截断)") -> str:
     if len(text) <= max_chars:
         return text

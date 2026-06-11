@@ -19,7 +19,7 @@ from aperix_geo.services.sampling.workflow import (
     DEFAULT_SAMPLING_INTERVAL_HOURS,
     create_and_enqueue_sampling_job,
 )
-from aperix_geo.services.sampling.subject import resolve_subject_sampling_platforms
+from aperix_geo.services.sampling.platforms import resolve_subject_sampling_platforms
 from aperix_geo.services.setup.helpers import (
     company_from_setup_session,
     profile_summary_from_setup_session,

@@ -12,11 +12,19 @@ export function useCitationDomainAnalysis(
 ) {
   const queryFilters = toAnalysisQueryFilters(filters);
   const { from, to } = dateRangeDays(Number(filters.days));
-  const { topicId, platformId } = queryFilters;
+  const { entityId, platformId, topicId } = queryFilters;
 
   const query = useQuery({
-    queryKey: queryKeys.citationDomainAnalysis(subjectId, host, from, to, topicId, platformId),
-    queryFn: () => fetchCitationDomainAnalysis(subjectId, host, from, to, queryFilters),
+    queryKey: queryKeys.citationDomainAnalysis(
+      subjectId,
+      entityId,
+      platformId,
+      topicId,
+      host,
+      from,
+      to,
+    ),
+    queryFn: () => fetchCitationDomainAnalysis(subjectId, queryFilters, host, from, to),
     enabled: Boolean(host),
   });
 

@@ -6,7 +6,7 @@ from aperix_geo.services.competitor.cross_validate import CompetitorScore, expan
 from aperix_geo.services.competitor.search import run_search_query, search_candidate_domains
 from aperix_geo.services.competitor.profile import normalize_niche_profile
 from aperix_geo.services.competitor.types import CrossValidateResult
-from aperix_geo.services.web_search import SearchHit
+from aperix_geo.services.searxng import SearchHit
 
 
 def _sample_profile():

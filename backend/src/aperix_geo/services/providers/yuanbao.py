@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from aperix_geo.services.chat_result import SamplingChatResult
+from aperix_geo.services.providers.result import SamplingChatResult
 from aperix_geo.services.providers.errors import YuanbaoProviderError
 from aperix_geo.services.providers.openai import (
     OpenAIWebSearchSpec,

@@ -11,10 +11,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import Prompt, Subject
-from aperix_geo.services.analysis._labels import own_label, rank_labels
-from aperix_geo.services.analysis._parsed import competitors_mentioned, mentions_own
-from aperix_geo.services.analysis._query import responses_in_window
-from aperix_geo.services.analysis.metrics import compute_subject_metrics
+from aperix_geo.services.analysis.aggregate import metrics_from_signals, other_mentioned_entity_labels
+from aperix_geo.services.analysis.entity import resolve_analysis_entity
+from aperix_geo.services.analysis.signal_load import LLMResponseSignalRow, load_llm_response_signals
 
 
 def diagnosis_priority(mention_rate: float | None, average_rank: float | None) -> str:
@@ -70,6 +69,10 @@ def overall_diagnosis_status(score: float) -> str:
     return "critical"
 
 
+def _response_ids(signals: list[LLMResponseSignalRow]) -> set[UUID]:
+    return {row.response_id for row in signals}
+
+
 def build_diagnosis(
     db: Session,
     *,
@@ -78,47 +81,45 @@ def build_diagnosis(
     dt_to: datetime,
     platforms: list[str] | None = None,
     topic_id: UUID | None = None,
+    entity_id: str | None = None,
 ) -> dict[str, Any]:
     """诊断中心：整体得分、维度健康分与提示词 × 平台诊断明细。"""
-    rows = responses_in_window(
+    entity = resolve_analysis_entity(subject, entity_id)
+    all_signals = load_llm_response_signals(
         db,
-        subject_id=subject.id,
+        subject=subject,
         dt_from=dt_from,
         dt_to=dt_to,
         platforms=platforms,
         topic_id=topic_id,
     )
-    own = own_label(subject)
-    labels = rank_labels(subject)
+    entity_signals = [row for row in all_signals if row.entity_id == entity.id]
     prompts = {
         p.id: p for p in db.execute(select(Prompt).where(Prompt.subject_id == subject.id)).scalars().all()
     }
 
-    grouped: dict[tuple[UUID, str], list] = defaultdict(list)
-    prompt_rows: dict[UUID, list] = defaultdict(list)
-    for row in rows:
+    grouped: dict[tuple[UUID, str], list[LLMResponseSignalRow]] = defaultdict(list)
+    prompt_rows: dict[UUID, list[LLMResponseSignalRow]] = defaultdict(list)
+    for row in entity_signals:
         grouped[(row.prompt_id, row.platform)].append(row)
         prompt_rows[row.prompt_id].append(row)
 
     mention_items: list[dict[str, Any]] = []
-    for (prompt_id, platform), prows in grouped.items():
+    for (prompt_id, platform), subset in grouped.items():
         prompt = prompts.get(prompt_id)
         if not prompt:
             continue
-        metrics = compute_subject_metrics(prows, subject=subject)
-        total = len(prows)
-        mention_own = sum(1 for row in prows if mentions_own(row.parsed or {}))
+        metrics = metrics_from_signals(subset, subject=subject, all_signals_for_voice=all_signals)
+        total = metrics.response_count
+        mention_own = sum(1 for row in subset if row.mentioned)
         mention_rate = metrics.mention_rate
 
-        competitors: list[str] = []
-        seen: set[str] = set()
-        for row in prows:
-            if mentions_own(row.parsed or {}):
-                continue
-            for lab in competitors_mentioned(row.parsed or {}, labels=labels, own=own):
-                if lab not in seen:
-                    seen.add(lab)
-                    competitors.append(lab)
+        competitors = other_mentioned_entity_labels(
+            _response_ids(subset),
+            all_signals=all_signals,
+            exclude_entity_id=entity.id,
+            subject=subject,
+        )
 
         mention_items.append(
             {
@@ -137,13 +138,13 @@ def build_diagnosis(
         )
 
     prompt_items: list[dict[str, Any]] = []
-    for prompt_id, prows in prompt_rows.items():
+    for prompt_id, subset in prompt_rows.items():
         prompt = prompts.get(prompt_id)
         if not prompt:
             continue
-        metrics = compute_subject_metrics(prows, subject=subject)
-        total = len(prows)
-        mention_own = sum(1 for row in prows if mentions_own(row.parsed or {}))
+        metrics = metrics_from_signals(subset, subject=subject, all_signals_for_voice=all_signals)
+        total = metrics.response_count
+        mention_own = sum(1 for row in subset if row.mentioned)
         mention_rate = metrics.mention_rate
 
         prompt_items.append(
@@ -181,6 +182,8 @@ def build_diagnosis(
     overall_score = round(mention_health * 0.6 + prompt_health * 0.4, 1)
 
     return {
+        "entity_id": entity.id,
+        "entity_label": entity.label,
         "overall_score": overall_score,
         "overall_status": overall_diagnosis_status(overall_score),
         "dimensions": {

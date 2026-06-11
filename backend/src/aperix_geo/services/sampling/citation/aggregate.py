@@ -1,4 +1,8 @@
-"""Aggregate citation counts across LLM responses in a time window."""
+"""Aggregate citation counts across LLM responses in a time window.
+
+Reads ``tb_citation_domains`` and ``tb_citation_urls`` as the authoritative source.
+JSONB ``LLMResponse.parsed`` is not used for aggregation.
+"""
 
 from __future__ import annotations
 
@@ -14,7 +18,7 @@ from aperix_geo.services.sampling.citation.labels import page_mentioned_brand_na
 from aperix_geo.services.subject.labels import competitor_rank_label
 from aperix_geo.utils.domains import registrable_domain
 from aperix_geo.utils.text import mode_nonempty
-from aperix_geo.utils.url import filter_citation_urls, hostname_from_url, is_placeholder_citation_host
+from aperix_geo.utils.url import hostname_from_url
 
 
 def _competitor_domain_map(subject: Subject | None) -> dict[str, str]:
@@ -30,24 +34,6 @@ def _competitor_domain_map(subject: Subject | None) -> dict[str, str]:
         if brand:
             mapping[brand] = registrable_domain(domain) or domain
     return mapping
-
-
-def _aggregate_domains_from_parsed(rows: list[LLMResponse]) -> dict[str, int]:
-    host_counts: dict[str, int] = defaultdict(int)
-    for r in rows:
-        for h in (r.parsed or {}).get("url_hosts") or []:
-            if h and not is_placeholder_citation_host(str(h)):
-                host_counts[str(h)] += 1
-    return dict(host_counts)
-
-
-def _aggregate_urls_from_parsed(rows: list[LLMResponse]) -> dict[str, int]:
-    url_counts: dict[str, int] = defaultdict(int)
-    for r in rows:
-        for url in filter_citation_urls(list((r.parsed or {}).get("urls") or [])):
-            if url:
-                url_counts[str(url)] += 1
-    return dict(url_counts)
 
 
 def _load_prompt_topic_maps(
@@ -77,35 +63,6 @@ def _citing_prompts_for_records(
     items: list[dict[str, str]] = []
     for record in records:
         prompt_id = record.prompt_id
-        if prompt_id in seen:
-            continue
-        seen.add(prompt_id)
-        prompt = prompt_map.get(prompt_id)
-        if prompt is None:
-            continue
-        items.append(
-            {
-                "prompt_text": prompt.text,
-                "topic_name": topic_names.get(prompt.topic_id, "未知主题"),
-            }
-        )
-    return items
-
-
-def _citing_prompts_for_url(
-    url: str,
-    rows: list[LLMResponse],
-    *,
-    prompt_map: dict[UUID, Prompt],
-    topic_names: dict[UUID, str],
-) -> list[dict[str, str]]:
-    seen: set[UUID] = set()
-    items: list[dict[str, str]] = []
-    for row in rows:
-        urls = filter_citation_urls(list((row.parsed or {}).get("urls") or []))
-        if url not in urls:
-            continue
-        prompt_id = row.prompt_id
         if prompt_id in seen:
             continue
         seen.add(prompt_id)
@@ -186,7 +143,7 @@ def aggregate_citation_domains(
     db: Session,
     rows: list[LLMResponse],
 ) -> list[dict[str, Any]]:
-    """Domain-level citation counts for a response window."""
+    """Domain-level citation counts for a response window (from tb_citation_domains)."""
     if not rows:
         return []
     total = len(rows)
@@ -201,12 +158,8 @@ def aggregate_citation_domains(
         .group_by(CitationDomain.domain)
     )
     db_rows = db.execute(stmt).all()
-    if db_rows:
-        host_counts = {domain: int(count) for domain, count, _ in db_rows if domain}
-        domain_types = {domain: str(domain_type or "").strip() for domain, _, domain_type in db_rows if domain}
-    else:
-        host_counts = _aggregate_domains_from_parsed(rows)
-        domain_types = {}
+    host_counts = {domain: int(count) for domain, count, _ in db_rows if domain}
+    domain_types = {domain: str(domain_type or "").strip() for domain, _, domain_type in db_rows if domain}
     return sorted(
         [
             {
@@ -227,7 +180,7 @@ def aggregate_citation_urls(
     *,
     subject: Subject | None = None,
 ) -> list[dict[str, Any]]:
-    """URL-level citation counts and source-page metadata for a response window."""
+    """URL-level citation counts and source-page metadata (from tb_citation_urls)."""
     if not rows:
         return []
     total = len(rows)
@@ -242,46 +195,20 @@ def aggregate_citation_urls(
     for record in records:
         grouped[record.url].append(record)
 
-    prompt_ids = {record.prompt_id for record in records} | {row.prompt_id for row in rows}
+    prompt_ids = {record.prompt_id for record in records}
     prompt_map, topic_names = _load_prompt_topic_maps(db, prompt_ids)
 
-    if grouped:
-        return sorted(
-            [
-                _aggregate_url_row(
-                    url,
-                    grouped[url],
-                    total=total,
-                    competitor_domains=competitor_domains,
-                    prompt_map=prompt_map,
-                    topic_names=topic_names,
-                )
-                for url in grouped
-            ],
-            key=lambda row: -row["count"],
-        )
-
-    url_counts = _aggregate_urls_from_parsed(rows)
     return sorted(
         [
-            {
-                "url": url,
-                "host": (hostname_from_url(url) or "").strip().lower(),
-                "title": url.rsplit("/", 1)[-1] or url,
-                "url_type": None,
-                "domain_type": None,
-                "count": count,
-                "citation_rate": round(count / total, 4) if total else 0,
-                "has_brand_analysis": False,
-                "mentioned_brands": [],
-                "citing_prompts": _citing_prompts_for_url(
-                    url,
-                    rows,
-                    prompt_map=prompt_map,
-                    topic_names=topic_names,
-                ),
-            }
-            for url, count in url_counts.items()
+            _aggregate_url_row(
+                url,
+                grouped[url],
+                total=total,
+                competitor_domains=competitor_domains,
+                prompt_map=prompt_map,
+                topic_names=topic_names,
+            )
+            for url in grouped
         ],
         key=lambda row: -row["count"],
     )

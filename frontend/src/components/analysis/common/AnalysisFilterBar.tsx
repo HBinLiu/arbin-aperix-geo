@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from "react";
-import { Bot, Calendar, Hash, MapPin, type LucideIcon } from "lucide-react";
+import { Bot, Calendar, Hash, MapPin, Tag, type LucideIcon } from "lucide-react";
 
 import {
   Select,
@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/select";
 import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
-import { ANALYSIS_DATE_OPTIONS, ANALYSIS_FILTER_ALL, dateRangeDays, formatDateRangeLabel } from "@/lib/analysis";
+import { ANALYSIS_DATE_OPTIONS, ANALYSIS_ENTITY_OWN, ANALYSIS_FILTER_ALL, dateRangeDays, formatDateRangeLabel } from "@/lib/analysis";
 import { regionDisplay, regionFromMonitoringScope, SETUP_REGIONS } from "@/lib/setup";
 import type { AnalysisFilters } from "@/types";
 import { cn } from "@/lib/utils";
@@ -68,20 +68,23 @@ export type AnalysisFilterBarProps = {
   afterFilters?: ReactNode;
   /** 居右显示（如管理提示词按钮） */
   trailing?: ReactNode;
+  /** 对比页（排行榜）可隐藏实体切换 */
+  hideEntityFilter?: boolean;
   /** 平台页矩阵需展示全部平台，隐藏平台筛选 */
   hidePlatformFilter?: boolean;
 };
 
-/** 分析页筛选条：时间、地区、主题、平台。 */
+/** 分析页筛选条：分析对象、时间、地区、主题、平台。 */
 export function AnalysisFilterBar({
   value,
   onChange,
   afterFilters,
   trailing,
+  hideEntityFilter = false,
   hidePlatformFilter = false,
 }: AnalysisFilterBarProps) {
   const { subject } = useDashboardContext();
-  const { topics, platforms } = useAnalysisFilter();
+  const { entities, topics, platforms } = useAnalysisFilter();
 
   const setupRegionId = useMemo(
     () => regionFromMonitoringScope(subject.monitoring_scope),
@@ -92,8 +95,9 @@ export function AnalysisFilterBar({
     [setupRegionId],
   );
 
-  const { days, regionId, topicId, platformId } = value;
+  const { days, entityId, platformId, topicId, regionId } = value;
   const { from, to } = useMemo(() => dateRangeDays(Number(days)), [days]);
+  const selectedEntity = entities.find((entity) => entity.id === entityId);
   const selectedTopic = topics.find((t) => t.id === topicId);
   const selectedPlatform = platforms.find((p) => p.platform === platformId);
   const topicDisplay =
@@ -107,6 +111,23 @@ export function AnalysisFilterBar({
 
   return (
     <div className="flex w-full max-w-full min-w-0 flex-wrap items-center gap-2 border-b px-4 py-3">
+      {!hideEntityFilter ? (
+        <FilterSelect
+          icon={Tag}
+          value={entityId || ANALYSIS_ENTITY_OWN}
+          displayValue={selectedEntity?.display_name ?? "本品牌"}
+          placeholder="分析对象"
+          onValueChange={(id) => onChange((prev) => ({ ...prev, entityId: id }))}
+          disabled={entities.length === 0}
+        >
+          {entities.map((entity) => (
+            <SelectItem key={entity.id} value={entity.id}>
+              {entity.display_name}
+            </SelectItem>
+          ))}
+        </FilterSelect>
+      ) : null}
+
       <FilterSelect
         icon={Calendar}
         value={days}

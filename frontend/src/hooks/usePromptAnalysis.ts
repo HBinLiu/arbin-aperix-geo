@@ -14,39 +14,41 @@ export function usePromptAnalysis(subjectId: string, filters: AnalysisFilters) {
   const queryFilters = toAnalysisQueryFilters(filters);
   const { from, to } = useMemo(() => dateRangeDays(Number(filters.days)), [filters.days]);
   const prevRange = useMemo(() => previousDateRange(from, to), [from, to]);
-  const { topicId, platformId } = queryFilters;
+  const { entityId, platformId, topicId } = queryFilters;
 
   const [topicsCurrent, topicsPrevious, promptsCurrent, promptsPrevious] = useQueries({
     queries: [
       {
-        queryKey: queryKeys.analysisTopics(subjectId, from, to, topicId, platformId),
-        queryFn: () => fetchTopicsPerformance(subjectId, from, to, queryFilters),
+        queryKey: queryKeys.analysisTopics(subjectId, entityId, platformId, topicId, from, to),
+        queryFn: () => fetchTopicsPerformance(subjectId, queryFilters, from, to),
       },
       {
         queryKey: queryKeys.analysisTopics(
           subjectId,
+          entityId,
+          platformId,
+          topicId,
           prevRange.from,
           prevRange.to,
-          topicId,
-          platformId,
         ),
         queryFn: () =>
-          fetchTopicsPerformance(subjectId, prevRange.from, prevRange.to, queryFilters),
+          fetchTopicsPerformance(subjectId, queryFilters, prevRange.from, prevRange.to),
       },
       {
-        queryKey: queryKeys.analysisPrompts(subjectId, from, to, topicId, platformId),
-        queryFn: () => fetchPromptsPerformance(subjectId, from, to, queryFilters),
+        queryKey: queryKeys.analysisPrompts(subjectId, entityId, platformId, topicId, from, to),
+        queryFn: () => fetchPromptsPerformance(subjectId, queryFilters, from, to),
       },
       {
         queryKey: queryKeys.analysisPrompts(
           subjectId,
+          entityId,
+          platformId,
+          topicId,
           prevRange.from,
           prevRange.to,
-          topicId,
-          platformId,
         ),
         queryFn: () =>
-          fetchPromptsPerformance(subjectId, prevRange.from, prevRange.to, queryFilters),
+          fetchPromptsPerformance(subjectId, queryFilters, prevRange.from, prevRange.to),
       },
     ],
   });

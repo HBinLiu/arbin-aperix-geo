@@ -20,20 +20,21 @@ from aperix_geo.schemas.sampling import (
     SamplingPlatformOut,
     SampleSyncRequest,
 )
-from aperix_geo.services.pipeline import build_pipeline_status
+from aperix_geo.services.sampling.workflow import build_pipeline_status
 from aperix_geo.services.sampling.workflow import (
     SamplingJobError,
     chat_prompt_on_platform,
     enqueue_subject_sampling,
-    parse_chat_result,
-    persist_successful_response,
+    mark_response_failed,
     resolve_platforms_for_sampling,
+    run_sample,
 )
 from aperix_geo.services.sampling.llm import (
     SamplingLLMError,
     list_sampling_platforms,
     resolve_sampling_platform,
 )
+from aperix_geo.services.sampling.signals import parsed_api_dict
 
 router = APIRouter(tags=["sampling"])
 
@@ -149,30 +150,27 @@ def sample_sync(
     except SamplingLLMError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
-    try:
-        result = chat_prompt_on_platform(platform, prompt.text)
-    except SamplingLLMError as e:
-        raise HTTPException(status_code=502, detail=str(e)) from e
-
-    result_payload: dict = {
-        "platform": platform,
-        "raw_text": result.text,
-        "usage": result.usage,
-        "latency_ms": result.latency_ms,
-        "source_urls": list(result.source_urls),
-        "web_search_mode": result.web_search_mode,
-        "persisted": False,
-    }
     if not body.persist:
-        return result_payload
+        try:
+            result = chat_prompt_on_platform(platform, prompt.text)
+        except SamplingLLMError as e:
+            raise HTTPException(status_code=502, detail=str(e)) from e
+        return {
+            "platform": platform,
+            "raw_text": result.text,
+            "usage": result.usage,
+            "latency_ms": result.latency_ms,
+            "source_urls": list(result.source_urls),
+            "web_search_mode": result.web_search_mode,
+            "persisted": False,
+        }
 
-    parsed = parse_chat_result(result, subject=subject)
     job = SamplingJob(
         tenant_id=current.tenant_id,
         subject_id=subject_id,
-        status=SamplingJobStatus.succeed,
+        status=SamplingJobStatus.running,
         total_items=1,
-        completed_items=1,
+        completed_items=0,
         failed_items=0,
     )
     db.add(job)
@@ -185,11 +183,32 @@ def sample_sync(
     )
     db.add(row)
     db.flush()
-    persist_successful_response(db, row=row, result=result, parsed=parsed)
+    try:
+        result = run_sample(db, row=row, subject=subject, prompt_text=prompt.text)
+    except SamplingLLMError as e:
+        mark_response_failed(db, row=row, error_text=str(e))
+        job.failed_items = 1
+        job.status = SamplingJobStatus.failed
+        db.commit()
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+    job.completed_items = 1
+    job.status = SamplingJobStatus.succeed
     db.commit()
     db.refresh(job)
-    result_payload["persisted"] = True
-    result_payload["job_id"] = str(job.id)
-    result_payload["response_id"] = str(row.id)
-    result_payload["parsed"] = parsed
-    return result_payload
+    db.refresh(row)
+    from aperix_geo.services.brand.backfill import maybe_enqueue_brand_domain_backfill
+
+    maybe_enqueue_brand_domain_backfill(row.id)
+    return {
+        "platform": platform,
+        "raw_text": row.raw_text or "",
+        "usage": row.usage,
+        "latency_ms": row.latency_ms,
+        "source_urls": list(result.source_urls),
+        "web_search_mode": result.web_search_mode,
+        "persisted": True,
+        "job_id": str(job.id),
+        "response_id": str(row.id),
+        "parsed": parsed_api_dict(db, row=row, subject=subject),
+    }

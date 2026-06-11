@@ -65,7 +65,7 @@ export function PlatformPage() {
 
   return (
     <>
-      <AnalysisFilterBar value={filters} onChange={setFilters} />
+      <AnalysisFilterBar value={filters} onChange={setFilters} hideEntityFilter hidePlatformFilter />
       <div className="flex flex-col gap-4 px-6 py-4">
         <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
           <div className="min-w-0 flex-1">

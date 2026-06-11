@@ -12,7 +12,7 @@ import {
   DialogContent,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ReplyMarkdownContent } from "@/components/analysis/prompt/ReplyMarkdownContent";
+import { HighlightedReplyContent } from "@/components/analysis/prompt/HighlightedReplyContent";
 import {
   responseMentionedBrandTerms,
   responseMentionBrands,
@@ -21,11 +21,11 @@ import {
 import { resolvePlatformMeta } from "@/lib/analysis/shared";
 import { queryKeys } from "@/lib/queries";
 import { toast } from "@/lib/toast";
-import type { PromptDetailResponseRow, SamplingPlatform } from "@/types";
+import type { LlmResponseDialogRow, SamplingPlatform } from "@/types";
 import { cn } from "@/lib/utils";
 
 type PromptDetailResponseDialogProps = {
-  row: PromptDetailResponseRow | null;
+  row: LlmResponseDialogRow | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   promptText: string;
@@ -251,7 +251,7 @@ export function PromptDetailResponseDialog({
                   }
                 >
                   {rawText.trim() ? (
-                    <ReplyMarkdownContent text={rawText} mentionTerms={mentionTerms} />
+                    <HighlightedReplyContent text={rawText} parsed={parsed} mentionTerms={mentionTerms} />
                   ) : (
                     <p className="text-muted-foreground text-sm">暂无回复正文</p>
                   )}

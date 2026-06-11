@@ -20,12 +20,12 @@ export function usePlatformAnalysis(
 ) {
   const queryFilters = toAnalysisQueryFilters(filters);
   const { from, to } = dateRangeDays(Number(filters.days));
-  const { topicId, platformId } = queryFilters;
+  const { entityId, platformId, topicId } = queryFilters;
   const metric = platformMatrixMetric(metricId);
 
   const matrixQuery = useQuery({
-    queryKey: queryKeys.platformMatrix(subjectId, from, to, topicId, platformId),
-    queryFn: () => fetchPlatformMatrix(subjectId, from, to, queryFilters),
+    queryKey: queryKeys.platformMatrix(subjectId, entityId, platformId, topicId, from, to),
+    queryFn: () => fetchPlatformMatrix(subjectId, queryFilters, from, to),
   });
 
   const platformsMetaQuery = useQuery({

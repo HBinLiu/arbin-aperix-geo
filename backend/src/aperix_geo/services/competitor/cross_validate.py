@@ -26,7 +26,7 @@ from aperix_geo.services.providers.prompts import (
 )
 from aperix_geo.services.providers import chat_completion
 from aperix_geo.utils.json import extract_json_object
-from aperix_geo.services.web_search import SearchHit
+from aperix_geo.services.searxng import SearchHit
 
 logger = logging.getLogger(__name__)
 

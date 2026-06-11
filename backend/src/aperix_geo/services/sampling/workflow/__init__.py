@@ -1,5 +1,6 @@
 """Sampling job lifecycle: create, execute, schedule, finalize, recover."""
 
+from aperix_geo.services.sampling.workflow.status import build_pipeline_status
 from aperix_geo.services.sampling.workflow.execute import (
     chat_prompt_on_platform,
     mark_response_failed,
@@ -26,6 +27,7 @@ from aperix_geo.services.sampling.workflow.orchestrate import (
 from aperix_geo.services.sampling.workflow.recovery import (
     count_pending_responses,
     is_sampling_job_stale,
+    pending_response_id_strs,
     pending_response_ids,
     reconcile_active_sampling_job,
     reconcile_stale_sampling_jobs,
@@ -49,6 +51,7 @@ __all__ = [
     "ORCHESTRATE_SAMPLING_JOB",
     "RESUME_PENDING_SAMPLING",
     "SamplingJobError",
+    "build_pipeline_status",
     "chat_prompt_on_platform",
     "count_pending_responses",
     "create_and_enqueue_sampling_job",

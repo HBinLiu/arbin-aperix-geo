@@ -6,7 +6,7 @@ from aperix_geo.services.competitor.research import (
     format_search_hits_for_llm,
     research_payload_for_domain,
 )
-from aperix_geo.services.web_search import SearchHit
+from aperix_geo.services.searxng import SearchHit
 
 
 def test_research_payload_includes_extra_pages() -> None:

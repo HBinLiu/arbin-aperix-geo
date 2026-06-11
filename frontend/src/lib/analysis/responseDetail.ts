@@ -1,6 +1,6 @@
-import { absaScoreToPoints, formatSentimentScore } from "@/lib/analysis/format";
+import { formatSentimentScore } from "@/lib/analysis/format";
 import { hostnameFromWebsiteInput } from "@/lib/domain";
-import type { CompetitorItem, LlmResponseParsed } from "@/types";
+import type { CompetitorItem, EntitySignalRecord, LlmResponseParsed } from "@/types";
 
 export type ResponseMentionBrand = {
   label: string;
@@ -18,38 +18,33 @@ function competitorLabel(item: CompetitorItem): string {
   return item.brand.trim() || item.domain;
 }
 
-function rankHintIndex(
-  parsed: LlmResponseParsed | null | undefined,
-  label: string,
-): number | null {
-  const hints = parsed?.rank_hints_first_index;
-  if (!hints) return null;
-  if (label in hints) return hints[label] ?? null;
-  const hit = Object.entries(hints).find(([key]) => key.toLowerCase() === label.toLowerCase());
-  return hit?.[1] ?? null;
+function entitySignals(parsed: LlmResponseParsed | null | undefined): EntitySignalRecord[] {
+  return parsed?.entity_signals ?? [];
+}
+
+function mentionedEntitySignals(parsed: LlmResponseParsed | null | undefined): EntitySignalRecord[] {
+  return entitySignals(parsed).filter(
+    (signal) => signal.mentioned || (signal.mention_count ?? 0) > 0,
+  );
+}
+
+function mentionIconLabel(signal: EntitySignalRecord): string {
+  return (signal.primary_domain || signal.entity_label).trim();
 }
 
 export function responseMentionBrands(
   parsed: LlmResponseParsed | null | undefined,
 ): ResponseMentionBrand[] {
-  const brands = parsed?.citation_response_absa?.brands_sentiment_absa;
-  if (!brands) return [];
-
-  const rows: Array<ResponseMentionBrand & { sortKey: number }> = [];
-
-  for (const [name, entry] of Object.entries(brands)) {
-    const label = name.trim();
-    if (!label || !entry || entry.mentioned !== true) continue;
-
-    const score = absaScoreToPoints(entry.score ?? null);
-    rows.push({
-      label,
-      iconLabel: label,
+  const rows: Array<ResponseMentionBrand & { sortKey: number }> = mentionedEntitySignals(parsed).map(
+    (signal) => ({
+      label: signal.entity_label,
+      iconLabel: mentionIconLabel(signal),
       mentioned: true,
-      scoreLabel: score != null ? formatSentimentScore(score) : "-",
-      sortKey: rankHintIndex(parsed, label) ?? Number.MAX_SAFE_INTEGER,
-    });
-  }
+      scoreLabel:
+        signal.sentiment_score != null ? formatSentimentScore(signal.sentiment_score) : "-",
+      sortKey: signal.mention_rank ?? Number.MAX_SAFE_INTEGER,
+    }),
+  );
 
   return rows
     .sort((a, b) => a.sortKey - b.sortKey)
@@ -81,22 +76,38 @@ export type ResponseMentionTerm = {
   iconLabel: string;
 };
 
+function defaultTermsForSignal(signal: EntitySignalRecord): string[] {
+  if (signal.match_terms?.length) {
+    return signal.match_terms;
+  }
+  return [signal.entity_label, signal.primary_domain ?? ""].filter((term) => term.trim().length > 0);
+}
+
+function addMentionTerm(
+  rows: ResponseMentionTerm[],
+  seen: Set<string>,
+  term: string,
+  iconLabel: string,
+) {
+  const normalized = term.trim();
+  if (!normalized) return;
+  const key = normalized.toLowerCase();
+  if (seen.has(key)) return;
+  seen.add(key);
+  rows.push({ term: normalized, iconLabel });
+}
+
 export function responseMentionedBrandTerms(
   parsed: LlmResponseParsed | null | undefined,
 ): ResponseMentionTerm[] {
-  const brands = parsed?.citation_response_absa?.brands_sentiment_absa;
-  if (!brands) return [];
-
   const rows: ResponseMentionTerm[] = [];
   const seen = new Set<string>();
 
-  for (const [name, entry] of Object.entries(brands)) {
-    const term = name.trim();
-    if (!term || !entry || entry.mentioned !== true) continue;
-    const key = term.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    rows.push({ term, iconLabel: term });
+  for (const signal of mentionedEntitySignals(parsed)) {
+    const iconLabel = mentionIconLabel(signal);
+    for (const term of defaultTermsForSignal(signal)) {
+      addMentionTerm(rows, seen, term, iconLabel);
+    }
   }
 
   return rows.sort((a, b) => b.term.length - a.term.length);
@@ -126,8 +137,9 @@ export function responseBrandTerms(
     if (item.brand.trim()) terms.add(item.brand.trim());
     if (item.domain) terms.add(item.domain);
   }
-  for (const key of Object.keys(parsed?.mentions_competitors ?? {})) {
-    if (key.trim()) terms.add(key.trim());
+  for (const signal of entitySignals(parsed)) {
+    const label = signal.entity_label.trim();
+    if (label) terms.add(label);
   }
   return [...terms].sort((a, b) => b.length - a.length);
 }

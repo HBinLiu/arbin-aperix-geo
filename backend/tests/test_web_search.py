@@ -1,10 +1,10 @@
-"""Tests for web_search service."""
+"""Tests for SearXNG search client."""
 
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from aperix_geo.services.web_search import (
+from aperix_geo.services.searxng import (
     SearchHit,
     _is_usable_result_url,
     _search_searxng,
@@ -41,7 +41,7 @@ def test_search_searxng_parses_json() -> None:
             {"title": "百度", "url": "https://www.baidu.com/", "content": "skip"},
         ],
     }
-    with patch("aperix_geo.services.web_search.httpx.get", return_value=mock_resp) as mock_get:
+    with patch("aperix_geo.services.searxng.httpx.get", return_value=mock_resp) as mock_get:
         hits = _search_searxng("跨境支付 竞品", max_results=10, base_url="http://127.0.0.1:8061")
 
     assert len(hits) == 1
@@ -53,8 +53,8 @@ def test_search_searxng_parses_json() -> None:
     assert "engines" not in call_kwargs["params"]
 
 
-@patch("aperix_geo.services.web_search._search_searxng")
-@patch("aperix_geo.services.web_search.get_settings")
+@patch("aperix_geo.services.searxng._search_searxng")
+@patch("aperix_geo.services.searxng.get_settings")
 def test_search_text_delegates_to_searxng(mock_settings, mock_searx) -> None:
     mock_settings.return_value.searxng_base_url = "http://127.0.0.1:8061"
     mock_searx.return_value = [SearchHit(title="A", url="https://a.com", snippet="", query="q")]
@@ -63,7 +63,7 @@ def test_search_text_delegates_to_searxng(mock_settings, mock_searx) -> None:
     mock_searx.assert_called_once_with("q", max_results=50, base_url="http://127.0.0.1:8061")
 
 
-@patch("aperix_geo.services.web_search.get_settings")
+@patch("aperix_geo.services.searxng.get_settings")
 def test_search_text_empty_without_base_url(mock_settings) -> None:
     mock_settings.return_value.searxng_base_url = ""
     assert search_text("q") == []

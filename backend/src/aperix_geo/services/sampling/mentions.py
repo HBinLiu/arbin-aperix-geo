@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from aperix_geo.db.models import Competitor, Subject
-from aperix_geo.services.subject.labels import competitor_rank_label, own_label
 from aperix_geo.utils.url import host_matches_root, normalize_domain
+
+if TYPE_CHECKING:
+    from aperix_geo.services.analysis.entity import AnalysisEntity
 
 
 @dataclass(frozen=True)
@@ -43,16 +46,17 @@ def own_names(subject: Subject) -> list[str]:
     )
 
 
-def _competitor_entry(competitor: Competitor) -> CompetitorEntry | None:
+def competitor_by_id(subject: Subject) -> dict[UUID, Competitor]:
+    return {competitor.id: competitor for competitor in (subject.competitors or [])}
+
+
+def competitor_entry_from_record(entity: AnalysisEntity, competitor: Competitor) -> CompetitorEntry:
     brand = (competitor.brand or "").strip()
     domain = (competitor.domain or "").strip()
-    label = competitor_rank_label(brand=brand, domain=domain)
-    if not label:
-        return None
     alias_list = [str(x).strip() for x in (competitor.aliases or []) if str(x).strip()]
     terms = collect_match_terms(brand, domain, *alias_list)
     return CompetitorEntry(
-        label=label,
+        label=entity.label,
         brand=brand,
         terms=tuple(terms),
         domain=domain,
@@ -61,17 +65,17 @@ def _competitor_entry(competitor: Competitor) -> CompetitorEntry | None:
 
 
 def competitor_entries(subject: Subject) -> list[CompetitorEntry]:
+    from aperix_geo.services.analysis.entity import competitor_entities
+
+    by_id = competitor_by_id(subject)
     entries: list[CompetitorEntry] = []
-    seen: set[str] = set()
-    for competitor in subject.competitors or []:
-        entry = _competitor_entry(competitor)
-        if not entry:
+    for entity in competitor_entities(subject):
+        if entity.competitor_id is None:
             continue
-        key = entry.label.lower()
-        if key in seen:
+        competitor = by_id.get(entity.competitor_id)
+        if competitor is None:
             continue
-        seen.add(key)
-        entries.append(entry)
+        entries.append(competitor_entry_from_record(entity, competitor))
     return entries
 
 
@@ -90,11 +94,7 @@ def count_term(text: str, term: str) -> int:
     return count
 
 
-def _count_terms(text: str, terms: list[str] | tuple[str, ...]) -> int:
-    return sum(count_term(text, term) for term in terms if term)
-
-
-def _host_mentions_domain(domain: str, url_hosts: list[str]) -> bool:
+def host_mentions_domain(domain: str, url_hosts: list[str]) -> bool:
     if not domain or not url_hosts:
         return False
     root = normalize_domain(domain) or domain.lower()
@@ -117,49 +117,6 @@ def first_idx_any(text: str, terms: list[str] | tuple[str, ...]) -> int | None:
     indices = [_first_idx(text, term) for term in terms if term]
     valid = [idx for idx in indices if idx is not None]
     return min(valid) if valid else None
-
-
-def parse_competitor_mentions(
-    text: str,
-    url_hosts: list[str],
-    competitors: list[CompetitorEntry],
-) -> tuple[dict[str, bool], dict[str, int]]:
-    mentions: dict[str, bool] = {}
-    counts: dict[str, int] = {}
-    for entry in competitors:
-        count = _count_terms(text, entry.terms)
-        host_hit = _host_mentions_domain(entry.domain, url_hosts)
-        if count == 0 and host_hit:
-            count = 1
-        mentions[entry.label] = count > 0 or host_hit
-        counts[entry.label] = count
-    return mentions, counts
-
-
-def compute_rank_own(
-    raw_text: str,
-    *,
-    subject: Subject,
-    competitors: list[CompetitorEntry],
-) -> int | None:
-    """Rank by first occurrence index among all mentioned candidates."""
-    candidates: list[tuple[str, int]] = []
-    for name in own_names(subject):
-        idx = _first_idx(raw_text, name)
-        if idx is not None:
-            candidates.append((name, idx))
-    for entry in competitors:
-        idx = first_idx_any(raw_text, entry.terms)
-        if idx is not None:
-            candidates.append((entry.label, idx))
-    if not candidates:
-        return None
-    candidates.sort(key=lambda item: item[1])
-    own_set = {name.lower() for name in own_names(subject)}
-    for rank, (name, _) in enumerate(candidates, start=1):
-        if name.lower() in own_set:
-            return rank
-    return None
 
 
 def _absa_keys_for_entry(entry: CompetitorEntry) -> list[str]:
@@ -193,103 +150,8 @@ def absa_competitor_keys(
     return competitor_brand_names, competitor_absa_keys
 
 
-def _absa_brand_mentioned(brands: dict[str, Any], key: str) -> bool | None:
+def absa_brand_mentioned(brands: dict[str, Any], key: str) -> bool | None:
     entry = brands.get(key)
     if not isinstance(entry, dict) or "mentioned" not in entry:
         return None
     return bool(entry.get("mentioned"))
-
-
-def merge_absa_mention_flags(
-    mention_stats: dict[str, Any],
-    response_absa: dict[str, Any],
-    *,
-    own_brand: str,
-    competitor_absa_keys: list[tuple[str, str]],
-    url_hosts: list[str] | None = None,
-    competitors: list[CompetitorEntry] | None = None,
-) -> dict[str, Any]:
-    """Align mention booleans/counts with response ABSA when analysis succeeded."""
-    if response_absa.get("analysis_source") != "llm":
-        return mention_stats
-
-    brands = response_absa.get("brands_sentiment_absa")
-    if not isinstance(brands, dict):
-        return mention_stats
-
-    stats = dict(mention_stats)
-    own_flag = _absa_brand_mentioned(brands, own_brand)
-    if own_flag is True:
-        stats["mentions_own"] = True
-        if int(stats.get("mention_count_own") or 0) == 0:
-            stats["mention_count_own"] = 1
-    elif own_flag is False:
-        stats["mentions_own"] = False
-        stats["mention_count_own"] = 0
-
-    mentions_comp = dict(stats.get("mentions_competitors") or {})
-    counts_comp = dict(stats.get("mention_counts_competitors") or {})
-    entries_by_label = {entry.label: entry for entry in (competitors or [])}
-
-    keys_by_label: dict[str, list[str]] = {}
-    for absa_key, output_label in competitor_absa_keys:
-        keys_by_label.setdefault(output_label, []).append(absa_key)
-
-    for output_label, keys in keys_by_label.items():
-        flags = [_absa_brand_mentioned(brands, key) for key in keys]
-        resolved = [flag for flag in flags if flag is not None]
-        if not resolved:
-            continue
-        if any(resolved):
-            mentions_comp[output_label] = True
-            if int(counts_comp.get(output_label) or 0) == 0:
-                counts_comp[output_label] = 1
-        else:
-            entry = entries_by_label.get(output_label)
-            host_only = (
-                bool(mentions_comp.get(output_label))
-                and int(counts_comp.get(output_label) or 0) == 0
-                and entry is not None
-                and _host_mentions_domain(entry.domain, url_hosts or [])
-            )
-            if host_only:
-                continue
-            mentions_comp[output_label] = False
-            counts_comp[output_label] = 0
-
-    stats["mentions_competitors"] = mentions_comp
-    stats["mention_counts_competitors"] = counts_comp
-    return stats
-
-
-def parse_mentions_and_rank(
-    text: str,
-    *,
-    subject: Subject,
-    url_hosts: list[str],
-) -> dict:
-    """Own/competitor mentions, counts, rank hints, and competitor entries."""
-    names = own_names(subject)
-    mention_count_own = sum(count_term(text, name) for name in names if name)
-    competitors = competitor_entries(subject)
-    mentions_competitors, mention_counts_competitors = parse_competitor_mentions(
-        text,
-        url_hosts,
-        competitors,
-    )
-    subject_label = own_label(subject)
-    rank_hints: dict[str, int | None] = {subject_label: first_idx_any(text, names)}
-    for entry in competitors:
-        rank_hints[entry.label] = first_idx_any(text, entry.terms)
-
-    return {
-        "own_names": names,
-        "own_label": subject_label,
-        "competitors": competitors,
-        "mentions_own": mention_count_own > 0,
-        "mention_count_own": mention_count_own,
-        "mentions_competitors": mentions_competitors,
-        "mention_counts_competitors": mention_counts_competitors,
-        "rank_hints_first_index": rank_hints,
-        "rank_own": compute_rank_own(text, subject=subject, competitors=competitors),
-    }

@@ -67,6 +67,18 @@ def redis_set_json_exat(key: str, value: dict[str, Any], *, expires_at: int) -> 
         logger.debug("Redis SET EXAT 失败 key=%s", key, exc_info=True)
 
 
+def redis_set_json_persistent(key: str, value: dict[str, Any]) -> None:
+    """SET without TTL; omit expires_at so reads never treat the payload as expired."""
+    client = _redis_client()
+    if client is None:
+        return
+    payload = {k: v for k, v in value.items() if k != "expires_at"}
+    try:
+        client.set(key, json.dumps(payload, ensure_ascii=False))
+    except Exception:
+        logger.debug("Redis SET 失败 key=%s", key, exc_info=True)
+
+
 def redis_set_json(key: str, value: dict[str, Any], *, ttl_s: int) -> None:
     """Legacy relative TTL; prefer redis_set_json_exat with expires_at in payload."""
     if ttl_s <= 0:
