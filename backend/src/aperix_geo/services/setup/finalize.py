@@ -14,6 +14,7 @@ from aperix_geo.db.models import (
     User,
 )
 from aperix_geo.schemas.catalog import SetupFinalizeRequest
+from aperix_geo.services.competitor.profile import profile_from_dict, profile_to_dict
 from aperix_geo.services.competitor.persist import apply_competitors
 from aperix_geo.services.sampling.workflow import (
     DEFAULT_SAMPLING_INTERVAL_HOURS,
@@ -24,6 +25,8 @@ from aperix_geo.services.setup.helpers import (
     company_from_setup_session,
     profile_summary_from_setup_session,
 )
+from aperix_geo.services.setup.session import get_session
+from aperix_geo.services.prompts.taxonomy import normalize_funnel_stage, normalize_search_intent
 from aperix_geo.services.subject.domain_fields import apply_subject_domain_fields
 from aperix_geo.utils.domains import ensure_brand
 from aperix_geo.services.subject.rules import validate_brand_competitors, validate_subject_fields
@@ -48,7 +51,7 @@ def finalize_setup(
     if not topic_items:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="至少需要一个主题")
 
-    prompt_count = sum(1 for t in topic_items for p in t.prompts if p.strip())
+    prompt_count = sum(1 for t in topic_items for p in t.prompts if p.text.strip())
     if prompt_count < 1:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="至少需要一条提示词")
 
@@ -69,6 +72,19 @@ def finalize_setup(
         domain=domain if st == SubjectType.domain else None,
     )
 
+    scope = normalize_monitoring_scope(
+        body.monitoring_scope.model_dump(exclude_none=True) if body.monitoring_scope else None
+    )
+    if setup_session_id:
+        session = get_session(user_id=str(user.id), session_id=setup_session_id)
+        if session:
+            raw_profile = session.get("profile")
+            if isinstance(raw_profile, dict) and raw_profile:
+                scope = {
+                    **scope,
+                    "niche_profile": profile_to_dict(profile_from_dict(raw_profile)),
+                }
+
     subject = Subject(
         tenant_id=user.tenant_id,
         type=st,
@@ -76,9 +92,7 @@ def finalize_setup(
         brand=brand,
         website_url=website_url,
         aliases=[],
-        monitoring_scope=normalize_monitoring_scope(
-            body.monitoring_scope.model_dump(exclude_none=True) if body.monitoring_scope else None
-        ),
+        monitoring_scope=scope,
         profile_summary=profile_summary_from_setup_session(
             user_id=str(user.id),
             setup_session_id=setup_session_id,
@@ -110,12 +124,12 @@ def finalize_setup(
     seen_hashes: set[str] = set()
     prompts: list[Prompt] = []
     topic_by_name = {t.name: t for t in topics}
-    for item in topic_items:
-        topic = topic_by_name.get(item.name.strip())
+    for topic_item in topic_items:
+        topic = topic_by_name.get(topic_item.name.strip())
         if not topic:
             continue
-        for raw in item.prompts:
-            text = raw.strip()
+        for prompt_item in topic_item.prompts:
+            text = prompt_item.text.strip()
             if not text:
                 continue
             th = prompt_text_hash(text)
@@ -127,6 +141,8 @@ def finalize_setup(
                 topic_id=topic.id,
                 text=text,
                 text_hash=th,
+                funnel_stage=normalize_funnel_stage(prompt_item.funnel_stage),
+                search_intent=normalize_search_intent(prompt_item.search_intent),
                 enabled=True,
             )
             db.add(prompt)

@@ -195,34 +195,68 @@ def brand_selection_user_content(
 # ---------------------------------------------------------------------------
 
 _SETUP_WIZARD_PROMPTS_SYSTEM = """# 角色
-你是一个精通 AEO（回答引擎优化）和商业决策搜索行为学的顶尖专家。
+你是中国大陆市场的 GEO（生成式搜索优化）分析师。
 
 # 任务
-根据用户提供的【监测主题】，站在专业选型评审者的角度，裂变出共 {n} 个用于测试大模型品牌推荐心智的原生提示词（Prompts）。
+根据 user 消息 JSON 中的监测主体与每个 topic，为**每个 topic 各生成 {n} 条**适合在豆包、DeepSeek 等 AI 平台中长期追踪的中文**真实用户问题**，用于评估行业场景与转化路径下的品牌可见度。
 
-# 🛑 铁律（严禁违反）
-1. 拒绝机械拼接：严禁在提示词中复读【监测主题】的完整字眼。必须用行业通称、技术代称、痛点词或上下游关联词做自然替换。
-2. 严禁社区口语：全面禁止出现论坛、闲聊式词汇（如“想问下、听说、求推荐”）。
-3. 专家评审语态：全面采用严谨、客观、批判性的商务审视语气。必须高频使用“如何证实、是否存在风险、代际差异、技术壁垒”等深度疑问句。
+# user 消息字段
+- entity：目标品牌名
+- aliases：品牌别名（可为空）
+- industry / core_features / target_customers：行业与能力背景
+- competitors：主要竞品名称
+- topics：主题列表；每个 topic 独立生成 {n} 条
+- prompts_per_topic：等于 {n}
+- exclude_prompts：已生成问题，禁止重复（可为空）
 
-# 📊 5大意图维度
-必须将 {n} 个提示词完美均分至以下 5 个维度（每个维度恰好 {per_dimension} 条），对照示例的极致精简句式泛化：
-1. 寻源推荐（Discovery）：寻找解决方案。例：“目前市场主流方案有哪些？”
-2. 痛点门槛（Value/Pain）：考核成本与风险。例：“该方案的落地成本与长期风险如何？”
-3. 横向拉踩（Comparative）：纠结竞品与选型。例：“垂直工具相比通用大厂核心优势在哪？”
-4. 风控安全（Risk/Trust）：质疑安全与合规。例：“如何确保该第三方工具的数据绝对合规？”
-5. 进阶长尾（Advanced）：针对高并发深度场景。例：“面对高并发冲击系统底层能否稳定支撑？”
+# 内容类型比例（每个 topic 内接近下列比例）
+- 50% 行业/场景/品类问题：禁止出现 entity、aliases 及品牌专属产品词/型号；只用通用行业词、品类词
+- 25% 竞品/替代/对比问题：可使用 competitors 中的名称
+- 25% 品牌相关问题：可使用 entity/aliases；**必须**标注 intent=transactional，funnel 优先 bofu
+
+# 营销漏斗 funnel（每个 topic 内接近）
+- tofu 30%：认知/获取，如「怎么选」「有哪些方案」「入门推荐」
+- mofu 35%：考虑/培育，如「A和B哪个好」「优缺点」「适不适合」
+- bofu 35%：转化/购买，如「价格」「试用」「怎么买」「部署成本」「签约流程」
+
+# 搜索意图 intent（仅三类，禁止 navigational）
+- informational 35%：了解概念、选型知识、行业趋势
+- commercial 30%：对比、评测、替代方案、口碑
+- transactional 35%：价格、购买、试用、部署、签约、售后实施；**全部品牌相关问题均为 transactional**
+
+# 场景覆盖
+购买决策、竞品对比、替代方案、价格/成本、产品适配、风险顾虑、口碑评价；避免同质化。
+
+# 句式铁律
+1. 每条像真实用户会直接输入 AI 的短句，8–28 个中文字符；不要用户身份、背景条件或多重从句。
+2. 禁止机械复读 topic 或 entity 全文；禁止论坛口语前缀（如「想问下」「求推荐」）。
+3. 不强制句末问号；自然时可省略标点。
+4. 正面示例：「静音轮胎怎么选」「马牌和米其林哪个好」「SMB跨境支付月费多少」
 
 # JSON 返回规范（极其重要）
-1. 必须且只能输出一个严格合法的标准 JSON 对象，严禁包含任何 Markdown 标记（如 ```json）、前导解释或后置总结。
-2. 结构必须严格保持如下：
-{{"topics":[{{"topic":"输入的主题名","prompts":["问句1", "问句2", "问句3"]}}]}}"""
+1. 必须且只能输出一个严格合法的标准 JSON 对象，严禁 Markdown 或解释文字。
+2. 结构：
+{{
+  "topics": [
+    {{
+      "topic": "与输入一致的主题名",
+      "prompts": [
+        {{
+          "text": "问句",
+          "funnel": "tofu|mofu|bofu",
+          "intent": "informational|commercial|transactional"
+        }}
+      ]
+    }}
+  ]
+}}
+3. funnel / intent 必须使用上述英文小写枚举；每个 topic 的 prompts 数量恰好为 {n}。"""
 
 SETUP_WIZARD_PROMPTS_USER_PREFIX = "请生成初始监测提示词：\n"
 
 
-def setup_wizard_prompts_system(*, n: int, per_dimension: int) -> str:
-    return _SETUP_WIZARD_PROMPTS_SYSTEM.format(n=n, per_dimension=per_dimension)
+def setup_wizard_prompts_system(*, n: int) -> str:
+    return _SETUP_WIZARD_PROMPTS_SYSTEM.format(n=n)
 
 
 # ---------------------------------------------------------------------------
@@ -359,7 +393,7 @@ SEARXNG_WEB_SEARCH_SYSTEM = """你是 AI 个人助手，负责解答用户的各
 # ---------------------------------------------------------------------------
 
 CITATION_RESPONSE_ABSA_SYSTEM = """# 任务
-你是 ABSA（基于属性/实体的观点挖掘）专家。请**仅**根据【AI原始回答文本】，对本品牌与竞品进行情感倾向分析，并严格以 JSON 输出。
+你是 ABSA（基于属性/实体的观点挖掘）专家。请**仅**根据【AI原始回答文本】，对监测范围内的品牌与回答中出现的其它商业品牌做情感分析，并严格以 JSON 输出。
 
 # 评分标准 (-1.0 到 1.0)
 - 1.0 (强烈推荐)：AI将其作为首选推荐，且几乎全是赞美。
@@ -372,38 +406,56 @@ CITATION_RESPONSE_ABSA_SYSTEM = """# 任务
 # 核心约束
 1. 必须严格以 JSON 格式输出，不要包含任何前后解释文字。
 2. `mentioned`：品牌是否在【AI原始回答文本】中被提及或讨论。
-3. `score` / `framing_tags` / `evidence`：**必须且只能**来自【AI原始回答文本】，不得使用引用页正文。
-4. 未在 AI 原文出现的品牌：`mentioned=false`，`score=null`，`framing_tags=[]`，`evidence=""`。
+3. `score` / `evidence`：**必须且只能**来自【AI原始回答文本】，不得使用引用页正文。
+4. 未在 AI 原文出现的品牌：`mentioned=false`，`score=null`，`evidence=""`。
+5. 禁止编造 AI 原文未出现的品牌、观点或证据。
 
-# 目标主体定义（user 消息中给出具体值）
-- 本品牌：[本品牌名称]
-- 竞品列表：[竞品A, 竞品B, 竞品C]
+# 两个输出对象的分工（必须严格遵守，禁止混用）
+
+## brands_sentiment_absa — 闭集（固定填表）
+- **键必须且仅能**来自 user 消息中的「本品牌」与「竞品列表」；不得新增、删减或改写键名。
+- 即使某品牌在 AI 原文未出现，也必须输出该键，并设 `mentioned=false`。
+- **禁止**将本品牌或任一竞品写入 `other_brands_sentiment_absa`。
+
+## other_brands_sentiment_absa — 开集（额外发现）
+- **仅**收录 AI 原文中出现、且**不在**闭集名单内的其它**商业品牌/产品/公司**。
+- 闭集品牌无论以全称、简称、别名、域名形式出现，**一律只写入** `brands_sentiment_absa`，**不得**重复写入此处。
+- 若 AI 原文未出现任何额外商业品牌，必须输出空对象 `{}`。
+- **禁止**写入以下非监测商业主体（即使被提及）：
+  媒体/新闻站、内容平台、搜索引擎、社交平台、政府机构、标准组织、开源社区、通用技术名词、行业品类词。
+
+# 归类示例
+- 闭集：本品牌=Aperix，竞品=Beta → `brands_sentiment_absa` 的键只能是 `Aperix`、`Beta`。
+- AI 原文提到「Aperix 与 Stripe 都不错，Beta 略贵」→ `Stripe` 仅出现在 `other_brands_sentiment_absa`；`Aperix`、`Beta` 仅在 `brands_sentiment_absa`。
+- AI 原文只提到「推荐 Aperix」→ `other_brands_sentiment_absa` 为 `{}`。
 
 # 输入数据（user 消息按以下结构提供）
+- 本品牌、竞品列表（闭集完整名单）
 - [AI原始回答文本]: \"\"\"{ai_raw_response}\"\"\"
 
 # 输出 JSON 格式
 {
-  "analysis_timestamp": "当前时间戳",
   "brands_sentiment_absa": {
-    "[本品牌名称]": {
+    "[闭集-本品牌名称]": {
       "mentioned": true,
       "score": 0.8,
-      "framing_tags": ["高并发", "架构领先"],
       "evidence": "从【AI原始回答文本】中抽取的直接证据"
+    },
+    "[闭集-竞品名称]": {
+      "mentioned": false,
+      "score": null,
+      "evidence": ""
     }
   },
   "other_brands_sentiment_absa": {
-    "[其它商业品牌名]": {
+    "[开集-其它商业品牌名]": {
       "mentioned": true,
       "score": 0.5,
-      "framing_tags": [],
       "evidence": "证据"
     }
   }
 }
-- brands_sentiment_absa 必须包含输入的本品牌与全部竞品键。
-- other_brands_sentiment_absa：仅包含【AI原始回答文本】中出现的其它商业品牌/产品名；不得重复本品牌或竞品列表中的名称；不得包含媒体、平台、政府机构等非商业主体；未提及则输出 `{}`。禁止 Markdown 或其它说明。"""
+- 输出前自检：闭集键是否与 user 名单完全一致；闭集与开集是否无重复键；开集是否均为 AI 原文真实出现的额外商业品牌。禁止 Markdown 或其它说明。"""
 
 
 def citation_response_absa_user_content(
@@ -412,11 +464,17 @@ def citation_response_absa_user_content(
     own_brand: str,
     competitors: list[str],
 ) -> str:
-    comp_text = ", ".join(competitors) if competitors else "（无）"
+    comp_lines = "\n".join(f"  - {name}" for name in competitors if str(name).strip()) or "  - （无）"
+    closed_keys = [name for name in [own_brand, *competitors] if str(name).strip()]
+    closed_text = "、".join(closed_keys) if closed_keys else own_brand
     return (
-        f"# 目标主体定义\n"
+        f"# 闭集名单（brands_sentiment_absa 的键必须且仅能是下列名称，顺序不限）\n"
         f"- 本品牌：{own_brand}\n"
-        f"- 竞品列表：[{comp_text}]\n\n"
+        f"- 竞品列表：\n{comp_lines}\n"
+        f"- 闭集完整键集合：[{closed_text}]\n\n"
+        f"# 开集规则（other_brands_sentiment_absa）\n"
+        f"- 仅填 AI 原文中出现、且不在上述闭集内的其它商业品牌/产品/公司\n"
+        f"- 闭集品牌 [{closed_text}] 无论以何种写法出现，都不得写入 other_brands_sentiment_absa\n\n"
         f"# 输入数据\n"
         f'- [AI原始回答文本]: """{raw_text}"""'
     )
@@ -467,7 +525,6 @@ CITATION_PAGE_GEO_SYSTEM = """# 任务
   "pages": [
     {
       "url": "与输入一致",
-      "analysis_timestamp": "ISO8601",
       "url_classification": {"type": "填写任务一标签", "reason": "判定依据"},
       "domain_classification": {"type": "填写任务二标签", "reason": "判定依据"},
       "page_mentioned_brands": []

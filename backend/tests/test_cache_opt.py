@@ -51,7 +51,6 @@ def test_bounded_ttl_cache_evicts_oldest() -> None:
 def test_page_geo_cache_normalizes_url() -> None:
     clear_page_geo_cache()
     result = {
-        "analysis_timestamp": "2026-01-01T00:00:00+00:00",
         "domain_classification": {"type": "blog", "reason": "r"},
         "url_classification": {"type": "article", "reason": "r"},
         "page_mentioned_brands": ["Brand"],

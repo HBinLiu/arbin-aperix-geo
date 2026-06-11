@@ -1,5 +1,11 @@
 export type SubjectMode = "domain" | "brand";
 
+export type GeneratedPromptItem = {
+  text: string;
+  funnel_stage: string;
+  search_intent: string;
+};
+
 export type TopicRow = {
   id: string;
   name: string;
@@ -11,6 +17,8 @@ export type PromptRow = {
   text: string;
   topicId: string;
   selected: boolean;
+  funnelStage?: string;
+  searchIntent?: string;
 };
 
 export type DiscoveredCompetitor = {

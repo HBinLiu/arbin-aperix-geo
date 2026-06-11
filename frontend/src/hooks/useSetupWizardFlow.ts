@@ -190,6 +190,7 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
     if (!sessionId) return;
     setGeneratingPrompts(true);
     setStep(3);
+    const excludePrompts = selectedPromptRows(promptRows).map((row) => row.text);
     resetDownstream(2);
     const { competitors } = rowsToPersist(mode, competitorRows);
     const competitorLabels =
@@ -201,6 +202,7 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
         sessionId,
         topics: activeTopics,
         competitorLabels,
+        excludePrompts,
       });
       setPromptRows(rows);
     } catch {

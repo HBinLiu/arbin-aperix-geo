@@ -8,10 +8,17 @@ export function buildFinalizePayload(input: FinalizeSetupInput) {
   const brand = input.mode === "brand" ? input.brand.trim() : "";
   const sessionId = input.sessionId.trim();
 
-  const promptsByTopicId = new Map<string, string[]>();
+  const promptsByTopicId = new Map<
+    string,
+    { text: string; funnel_stage: string; search_intent: string }[]
+  >();
   for (const row of selectedPromptRows(input.promptRows)) {
     const list = promptsByTopicId.get(row.topicId) ?? [];
-    list.push(row.text.trim());
+    list.push({
+      text: row.text.trim(),
+      funnel_stage: row.funnelStage ?? "mofu",
+      search_intent: row.searchIntent ?? "commercial",
+    });
     promptsByTopicId.set(row.topicId, list);
   }
 

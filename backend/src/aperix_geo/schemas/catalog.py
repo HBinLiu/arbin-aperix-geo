@@ -117,11 +117,18 @@ class GeneratePromptsRequest(BaseModel):
     session_id: str = Field(..., min_length=8, max_length=64)
     topics: list[str] = Field(..., min_length=1)
     competitors: list[str] = Field(default_factory=list)
+    exclude_prompts: list[str] = Field(default_factory=list)
+
+
+class GeneratedPromptOut(BaseModel):
+    text: str
+    funnel_stage: str
+    search_intent: str
 
 
 class TopicPromptsOut(BaseModel):
     topic: str
-    prompts: list[str]
+    prompts: list[GeneratedPromptOut]
 
 
 class GeneratePromptsResponse(BaseModel):
@@ -133,9 +140,15 @@ class GenerateSubjectPromptsRequest(BaseModel):
     count: int = Field(..., ge=1, le=20)
 
 
+class SetupPromptItem(BaseModel):
+    text: str = Field(..., min_length=1)
+    funnel_stage: str = Field(default="mofu", max_length=8)
+    search_intent: str = Field(default="commercial", max_length=16)
+
+
 class SetupTopicItem(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
-    prompts: list[str] = Field(default_factory=list)
+    prompts: list[SetupPromptItem] = Field(default_factory=list)
 
 
 class SetupFinalizeRequest(BaseModel):
@@ -174,12 +187,16 @@ class TopicOut(BaseModel):
 class PromptCreate(BaseModel):
     topic_id: UUID
     text: str = Field(..., min_length=1)
+    funnel_stage: str = Field(default="mofu", max_length=8)
+    search_intent: str = Field(default="commercial", max_length=16)
     enabled: bool = True
 
 
 class PromptUpdate(BaseModel):
     topic_id: UUID | None = None
     text: str | None = None
+    funnel_stage: str | None = Field(default=None, max_length=8)
+    search_intent: str | None = Field(default=None, max_length=16)
     enabled: bool | None = None
 
 
@@ -188,6 +205,8 @@ class PromptOut(BaseModel):
     subject_id: UUID
     topic_id: UUID
     text: str
+    funnel_stage: str
+    search_intent: str
     enabled: bool
     created_at: datetime
 

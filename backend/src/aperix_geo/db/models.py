@@ -258,6 +258,10 @@ class Prompt(Base):
     )
     text: Mapped[str] = mapped_column(Text, nullable=False)
     text_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    funnel_stage: Mapped[str] = mapped_column(String(8), nullable=False, default="mofu", server_default="mofu")
+    search_intent: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="commercial", server_default="commercial"
+    )
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
     updated_at: Mapped[datetime] = mapped_column(

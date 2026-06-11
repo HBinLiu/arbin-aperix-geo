@@ -37,7 +37,7 @@ export function usePromptDetailMeta(subjectId: string, promptId: string) {
     isLoading: promptsQuery.isLoading || topicsQuery.isLoading,
     promptText: prompt?.text ?? "",
     topicName: topic?.name ?? "",
-    intent: null as string | null,
+    intent: prompt?.search_intent ?? null,
   };
 }
 

@@ -1,4 +1,4 @@
-import type { PromptRow, TopicRow } from "@/types";
+import type { GeneratedPromptItem, PromptRow, TopicRow } from "@/types";
 
 const PROMPTS_PER_TOPIC = 10;
 
@@ -22,8 +22,8 @@ function normalizeTopicName(name: string): string {
 
 function findTopicItem(
   topic: TopicRow,
-  items: { topic: string; prompts: string[] }[],
-): { topic: string; prompts: string[] } | undefined {
+  items: { topic: string; prompts: GeneratedPromptItem[] }[],
+): { topic: string; prompts: GeneratedPromptItem[] } | undefined {
   const key = normalizeTopicName(topic.name);
   return (
     items.find((i) => normalizeTopicName(i.topic) === key) ??
@@ -33,14 +33,24 @@ function findTopicItem(
 
 export function promptRowsFromGenerated(
   topics: TopicRow[],
-  items: { topic: string; prompts: string[] }[],
+  items: { topic: string; prompts: GeneratedPromptItem[] }[],
 ): PromptRow[] {
   const rows: PromptRow[] = [];
   for (const topic of topics) {
     const item = findTopicItem(topic, items);
-    const texts = (item?.prompts ?? []).map((s) => s.trim()).filter(Boolean).slice(0, PROMPTS_PER_TOPIC);
-    for (const text of texts) {
-      rows.push(newPromptRow({ text, topicId: topic.id, selected: true }));
+    const prompts = (item?.prompts ?? []).slice(0, PROMPTS_PER_TOPIC);
+    for (const prompt of prompts) {
+      const text = prompt.text.trim();
+      if (!text) continue;
+      rows.push(
+        newPromptRow({
+          text,
+          topicId: topic.id,
+          selected: true,
+          funnelStage: prompt.funnel_stage,
+          searchIntent: prompt.search_intent,
+        }),
+      );
     }
   }
   return rows;

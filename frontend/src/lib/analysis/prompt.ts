@@ -25,6 +25,8 @@ export type PromptPerformanceRow = {
   promptText: string;
   topicId: string | null;
   topicName: string;
+  funnelStage: string | null;
+  searchIntent: string | null;
   visibility: string;
   visibilityDelta: string | null;
   visibilityNum: number;
@@ -83,6 +85,8 @@ export function buildPromptPerformanceRows(
       promptText: row.prompt_text,
       topicId: row.topic_id,
       topicName: row.topic_name ?? "—",
+      funnelStage: row.funnel_stage,
+      searchIntent: row.search_intent,
       visibility: formatRate(row.visibility_rate),
       visibilityDelta: formatDelta(row.visibility_rate, prev?.visibility_rate),
       visibilityNum: row.visibility_rate ?? 0,

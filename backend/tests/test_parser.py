@@ -50,7 +50,6 @@ def _default_response_absa(*, own_brand: str, competitors: list[str], ai_mention
         own_brand: {
             "mentioned": own_brand in ai_mentioned,
             "score": 0.8 if own_brand in ai_mentioned else None,
-            "framing_tags": [],
             "evidence": "ai evidence" if own_brand in ai_mentioned else "",
         }
     }
@@ -58,11 +57,9 @@ def _default_response_absa(*, own_brand: str, competitors: list[str], ai_mention
         brands[name] = {
             "mentioned": name in ai_mentioned,
             "score": 0.5 if name in ai_mentioned else None,
-            "framing_tags": [],
             "evidence": "",
         }
     return {
-        "analysis_timestamp": "2026-01-01T00:00:00+00:00",
         "brands_sentiment_absa": brands,
         "other_brands_sentiment_absa": {},
         "analysis_source": "llm",
@@ -71,7 +68,6 @@ def _default_response_absa(*, own_brand: str, competitors: list[str], ai_mention
 
 def _default_page_geo(*, page_mentioned: list[str]):
     return {
-        "analysis_timestamp": "2026-01-01T00:00:00+00:00",
         "domain_classification": {"type": "企业/品牌官网", "reason": "test"},
         "url_classification": {"type": "产品详情页", "reason": "test"},
         "page_mentioned_brands": page_mentioned,
@@ -316,7 +312,7 @@ def test_parse_llm_output_runs_absa_and_citation_in_parallel() -> None:
         marks["absa_start"] = time.monotonic()
         time.sleep(0.25)
         marks["absa_end"] = time.monotonic()
-        return {"analysis_timestamp": "t", "brands_sentiment_absa": {}, "analysis_source": "llm"}
+        return {"brands_sentiment_absa": {}, "analysis_source": "llm"}
 
     def _slow_citation(**kwargs):
         marks["citation_start"] = time.monotonic()

@@ -18,7 +18,7 @@ from aperix_geo.services.sampling.response_absa import normalize_response_absa
 def test_normalize_response_absa_fills_brand_keys() -> None:
     data = {
         "brands_sentiment_absa": {
-            "Aperix": {"mentioned": True, "score": 0.5, "framing_tags": ["稳定"], "evidence": "推荐 Aperix"},
+            "Aperix": {"mentioned": True, "score": 0.5, "evidence": "推荐 Aperix"},
         },
     }
     out = normalize_response_absa(data, own_brand="Aperix", competitors=["Beta"])

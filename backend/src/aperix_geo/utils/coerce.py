@@ -46,4 +46,12 @@ def normalize_monitoring_scope(raw: dict[str, Any] | None) -> dict[str, Any]:
     if note := raw.get("note"):
         if isinstance(note, str) and note.strip():
             out["note"] = note.strip()
+    niche = raw.get("niche_profile")
+    if isinstance(niche, dict) and niche:
+        out["niche_profile"] = {
+            key: str(value).strip()
+            for key, value in niche.items()
+            if key in ("company", "industry", "core_features", "target_customers", "micro_keywords")
+            and str(value or "").strip()
+        }
     return out

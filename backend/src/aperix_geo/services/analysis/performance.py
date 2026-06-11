@@ -117,6 +117,8 @@ def build_prompts_performance(
                 "prompt_text": (prompt.text[:200] if prompt else ""),
                 "topic_id": str(prompt.topic_id) if prompt else None,
                 "topic_name": topic.name if topic else None,
+                "funnel_stage": prompt.funnel_stage if prompt else None,
+                "search_intent": prompt.search_intent if prompt else None,
                 "visibility_rate": metrics.visibility_rate,
                 "mention_rate": metrics.mention_rate,
                 "average_rank": metrics.average_rank,

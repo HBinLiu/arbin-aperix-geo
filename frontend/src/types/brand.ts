@@ -15,6 +15,8 @@ export type SubjectPrompt = {
   subject_id: string;
   topic_id: string;
   text: string;
+  funnel_stage: string;
+  search_intent: string;
   enabled: boolean;
   created_at: string;
 };

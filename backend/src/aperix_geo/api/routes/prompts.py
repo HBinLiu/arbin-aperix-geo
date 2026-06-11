@@ -14,18 +14,12 @@ from aperix_geo.schemas.catalog import (
     PromptUpdate,
 )
 from aperix_geo.services.prompts import PROMPT_MAX_PER_TOPIC, generate_setup_prompts
+from aperix_geo.services.prompts.context import prompt_context_from_subject
 from aperix_geo.services.providers import LLMProviderError
-from aperix_geo.services.subject.loader import competitor_lists
+from aperix_geo.services.prompts.taxonomy import normalize_funnel_stage, normalize_search_intent
 from aperix_geo.utils.text import prompt_text_hash
 
 router = APIRouter(tags=["prompts"])
-
-
-def _scope_region_language(subject: Subject) -> tuple[str, str]:
-    scope = subject.monitoring_scope if isinstance(subject.monitoring_scope, dict) else {}
-    region = str(scope.get("region") or "CN").strip() or "CN"
-    language = str(scope.get("language") or "zh-CN").strip() or "zh-CN"
-    return region, language
 
 
 @router.get("/subjects/{subject_id}/prompts", response_model=list[PromptOut])
@@ -58,6 +52,8 @@ def create_prompt(
         topic_id=body.topic_id,
         text=body.text.strip(),
         text_hash=th,
+        funnel_stage=normalize_funnel_stage(body.funnel_stage),
+        search_intent=normalize_search_intent(body.search_intent),
         enabled=body.enabled,
     )
     db.add(p)
@@ -86,6 +82,10 @@ def update_prompt(
     if body.text is not None:
         p.text = body.text.strip()
         p.text_hash = prompt_text_hash(p.text)
+    if body.funnel_stage is not None:
+        p.funnel_stage = normalize_funnel_stage(body.funnel_stage)
+    if body.search_intent is not None:
+        p.search_intent = normalize_search_intent(body.search_intent)
     if body.enabled is not None:
         p.enabled = body.enabled
     db.commit()
@@ -121,23 +121,23 @@ def generate_subject_prompts(
         )
 
     count = min(body.count, remaining)
-    region, language = _scope_region_language(subject)
+    ctx = prompt_context_from_subject(subject)
 
-    entity = (subject.brand or subject.domain or "").strip() or "本品牌"
-    domains, brands = competitor_lists(subject)
-    competitors = [*domains, *brands]
+    existing_prompts = list(
+        db.execute(select(Prompt.text).where(Prompt.topic_id == body.topic_id)).scalars().all()
+    )
 
     try:
         items = generate_setup_prompts(
-            entity=entity,
+            entity=str(ctx["entity"]),
             topics=[topic.name],
-            industry="",
-            core_features=subject.profile_summary or "",
-            target_customers="",
-            competitors=competitors,
-            region=region,
-            language=language,
+            industry=str(ctx["industry"]),
+            core_features=str(ctx["core_features"]),
+            target_customers=str(ctx["target_customers"]),
+            competitors=[str(c) for c in ctx["competitors"] if str(c).strip()],
+            aliases=[str(a) for a in ctx["aliases"] if str(a).strip()],
             prompts_per_topic=count,
+            exclude_prompts=existing_prompts,
         )
     except (LLMProviderError, ValueError) as exc:
         raise HTTPException(
@@ -150,7 +150,10 @@ def generate_subject_prompts(
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="No prompts generated")
 
     created: list[Prompt] = []
-    for text in generated[:count]:
+    for row in generated[:count]:
+        text = str(row.get("text") or "").strip()
+        if not text:
+            continue
         th = prompt_text_hash(text)
         dup = db.execute(
             select(Prompt).where(Prompt.subject_id == subject_id, Prompt.text_hash == th),
@@ -162,6 +165,8 @@ def generate_subject_prompts(
             topic_id=body.topic_id,
             text=text,
             text_hash=th,
+            funnel_stage=normalize_funnel_stage(str(row.get("funnel_stage") or "")),
+            search_intent=normalize_search_intent(str(row.get("search_intent") or "")),
             enabled=True,
         )
         db.add(prompt)

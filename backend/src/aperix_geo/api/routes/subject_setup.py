@@ -17,6 +17,7 @@ from aperix_geo.schemas.catalog import (
     TopicPromptsOut,
 )
 from aperix_geo.services.competitor.profile import profile_from_dict
+from aperix_geo.services.prompts.context import entity_aliases
 from aperix_geo.services.providers import LLMProviderError
 from aperix_geo.services.prompts import generate_setup_prompts
 from aperix_geo.services.setup.discover import discover_competitors_from_session, discover_profile
@@ -83,8 +84,6 @@ def generate_prompts_endpoint(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="setup session missing target")
 
     profile = profile_from_dict(session.get("profile") or {})
-    region = session.get("region", "CN")
-    language = session.get("language", "zh-CN")
 
     items = generate_setup_prompts(
         entity=entity,
@@ -93,8 +92,11 @@ def generate_prompts_endpoint(
         core_features=profile.get("core_features", ""),
         target_customers=profile.get("target_customers", ""),
         competitors=body.competitors,
-        region=region,
-        language=language,
+        aliases=entity_aliases(
+            entity=entity,
+            profile_company=str(profile.get("company") or ""),
+        ),
+        exclude_prompts=body.exclude_prompts,
     )
     return GeneratePromptsResponse(items=[TopicPromptsOut(**row) for row in items])
 

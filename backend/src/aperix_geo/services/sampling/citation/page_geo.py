@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
 from typing import Any
 
 from aperix_geo.services.providers import LLMProviderError, chat_completion
@@ -31,7 +30,6 @@ def normalize_page_geo(data: dict[str, Any]) -> dict[str, Any]:
     if isinstance(page_brands_raw, list):
         page_mentioned_brands = [str(name).strip() for name in page_brands_raw if str(name).strip()]
     return {
-        "analysis_timestamp": str(data.get("analysis_timestamp") or datetime.now(UTC).isoformat()),
         "domain_classification": {
             "type": str(domain_cls.get("type") or domain_cls.get("detected_domain_type") or "").strip(),
             "reason": str(domain_cls.get("reason") or domain_cls.get("domain_reason") or "").strip(),
@@ -47,7 +45,6 @@ def normalize_page_geo(data: dict[str, Any]) -> dict[str, Any]:
 
 def _empty_page_geo(*, reason: str) -> dict[str, Any]:
     return {
-        "analysis_timestamp": datetime.now(UTC).isoformat(),
         "domain_classification": {"type": "", "reason": reason},
         "url_classification": {"type": "", "reason": reason},
         "page_mentioned_brands": [],

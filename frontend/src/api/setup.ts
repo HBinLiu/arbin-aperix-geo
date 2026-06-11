@@ -8,6 +8,7 @@ import type { Subject } from "@/types";
 import type {
   CompetitorRow,
   FinalizeSetupInput,
+  GeneratedPromptItem,
   PromptRow,
   SubjectMode,
   TopicRow,
@@ -73,13 +74,15 @@ export async function generateSetupPrompts(input: {
   sessionId: string;
   topics: TopicRow[];
   competitorLabels: string[];
+  excludePrompts?: string[];
 }): Promise<PromptRow[]> {
-  const { data } = await api.post<{ items: { topic: string; prompts: string[] }[] }>(
+  const { data } = await api.post<{ items: { topic: string; prompts: GeneratedPromptItem[] }[] }>(
     "/subjects/generate-prompts",
     {
       session_id: input.sessionId,
       topics: input.topics.map((t) => t.name.trim()),
       competitors: input.competitorLabels,
+      exclude_prompts: (input.excludePrompts ?? []).map((text) => text.trim()).filter(Boolean),
     },
     { timeout: GENERATE_PROMPTS_TIMEOUT_MS },
   );

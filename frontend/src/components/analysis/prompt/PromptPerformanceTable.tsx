@@ -16,7 +16,8 @@ import {
   SentimentMetricCell,
   VisibilityMetricCell,
 } from "@/components/analysis/prompt/PerformanceMetricCells";
-import { PerformanceTableShell } from "@/components/analysis/prompt/PerformanceTableShell";
+import { PromptFunnelBadge } from "@/components/analysis/prompt/PromptFunnelBadge";
+import { PromptIntentBadge } from "@/components/analysis/prompt/PromptIntentBadge";
 import { PromptPerformanceSkeletonRows } from "@/components/analysis/prompt/PerformanceTableSkeleton";
 import {
   performanceTableClasses,
@@ -273,7 +274,7 @@ export function PromptPerformanceTable({
                   {row.topicName}
                 </td>
                 <td style={promptTableColumnCellStyle(promptTableColumn("funnel"))}>
-                  <EmptyMetricCell />
+                  {row.funnelStage ? <PromptFunnelBadge stage={row.funnelStage} /> : <EmptyMetricCell />}
                 </td>
                 <td style={promptTableColumnCellStyle(promptTableColumn("visibility"))}>
                   <VisibilityMetricCell value={row.visibility} delta={row.visibilityDelta} />
@@ -288,7 +289,11 @@ export function PromptPerformanceTable({
                   {row.citationRate}
                 </td>
                 <td style={promptTableColumnCellStyle(promptTableColumn("intent"))}>
-                  <EmptyMetricCell />
+                  {row.searchIntent ? (
+                    <PromptIntentBadge intent={row.searchIntent} />
+                  ) : (
+                    <EmptyMetricCell />
+                  )}
                 </td>
               </tr>
             ))

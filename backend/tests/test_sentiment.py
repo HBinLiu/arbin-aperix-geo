@@ -111,13 +111,11 @@ def test_apply_absa_to_drafts() -> None:
             "Aperix": {
                 "mentioned": True,
                 "score": 0.8,
-                "framing_tags": ["稳定"],
                 "evidence": "明确推荐 Aperix",
             },
             "Beta": {
                 "mentioned": True,
                 "score": 0.0,
-                "framing_tags": [],
                 "evidence": "客观对比 Beta",
             },
         },
@@ -149,7 +147,6 @@ def test_apply_absa_sentiment_ignores_parser_mentions() -> None:
             "阿里健康": {
                 "mentioned": True,
                 "score": 0.6,
-                "framing_tags": [],
                 "evidence": "阿里健康在医药电商领域表现突出",
             },
         },
@@ -170,7 +167,7 @@ def test_apply_absa_sentiment_not_mentioned() -> None:
     response_absa = {
         "analysis_source": "llm",
         "brands_sentiment_absa": {
-            "Aperix": {"mentioned": False, "score": 0.9, "framing_tags": [], "evidence": ""},
+            "Aperix": {"mentioned": False, "score": 0.9, "evidence": ""},
         },
     }
     apply_absa_to_drafts(

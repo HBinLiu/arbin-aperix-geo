@@ -11,3 +11,24 @@ def test_normalize_monitoring_scope() -> None:
         "language": "zh-CN",
     }
 
+
+def test_normalize_monitoring_scope_preserves_niche_profile() -> None:
+    assert normalize_monitoring_scope(
+        {
+            "region": "CN",
+            "niche_profile": {
+                "industry": " 跨境支付 ",
+                "core_features": "API",
+                "target_customers": "出海企业",
+                "ignored": "x",
+            },
+        }
+    ) == {
+        "region": "CN",
+        "niche_profile": {
+            "industry": "跨境支付",
+            "core_features": "API",
+            "target_customers": "出海企业",
+        },
+    }
+

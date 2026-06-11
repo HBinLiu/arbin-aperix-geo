@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
 from typing import Any
 
 from aperix_geo.services.brand.resolve import normalize_brand_key
@@ -26,20 +25,17 @@ logger = logging.getLogger(__name__)
 
 def _brand_entry(raw: Any) -> dict[str, Any]:
     if not isinstance(raw, dict):
-        return {"mentioned": False, "score": None, "framing_tags": [], "evidence": ""}
+        return {"mentioned": False, "score": None, "evidence": ""}
     mentioned = bool(raw.get("mentioned"))
     score = raw.get("score")
     try:
         score_val = float(score) if score is not None else None
     except (TypeError, ValueError):
         score_val = None
-    tags = raw.get("framing_tags")
-    framing_tags = [str(t).strip() for t in tags if str(t).strip()] if isinstance(tags, list) else []
     evidence = str(raw.get("evidence") or "").strip()
     return {
         "mentioned": mentioned,
         "score": score_val,
-        "framing_tags": framing_tags,
         "evidence": evidence,
     }
 
@@ -74,7 +70,6 @@ def normalize_response_absa(
             other_brands[label] = _brand_entry(entry)
 
     return {
-        "analysis_timestamp": str(data.get("analysis_timestamp") or datetime.now(UTC).isoformat()),
         "brands_sentiment_absa": brands,
         "other_brands_sentiment_absa": other_brands,
         "analysis_source": "llm",
@@ -83,7 +78,6 @@ def normalize_response_absa(
 
 def _empty_response_absa(*, reason: str) -> dict[str, Any]:
     return {
-        "analysis_timestamp": datetime.now(UTC).isoformat(),
         "brands_sentiment_absa": {},
         "other_brands_sentiment_absa": {},
         "analysis_source": "failed",

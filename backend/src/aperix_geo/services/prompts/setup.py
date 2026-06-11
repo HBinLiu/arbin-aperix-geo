@@ -11,6 +11,7 @@ from aperix_geo.services.providers.prompts import (
     setup_wizard_prompts_system,
 )
 from aperix_geo.services.providers import chat_completion
+from aperix_geo.services.prompts.taxonomy import normalize_funnel_stage, normalize_search_intent
 from aperix_geo.utils.json import extract_json_object
 
 logger = logging.getLogger(__name__)
@@ -19,15 +20,30 @@ PROMPT_MAX_PER_TOPIC = 20
 PROMPTS_PER_TOPIC = 10
 
 
-def _normalize_prompts(raw: list[Any], *, limit: int) -> list[str]:
-    out: list[str] = []
+def _normalize_generated_prompts(raw: list[Any], *, limit: int) -> list[dict[str, str]]:
+    out: list[dict[str, str]] = []
     seen: set[str] = set()
     for item in raw:
-        text = str(item).strip()
+        if isinstance(item, str):
+            text = item.strip()
+            funnel_stage = normalize_funnel_stage(None)
+            search_intent = normalize_search_intent(None)
+        elif isinstance(item, dict):
+            text = str(item.get("text") or item.get("question") or "").strip()
+            funnel_stage = normalize_funnel_stage(str(item.get("funnel") or item.get("funnel_stage") or ""))
+            search_intent = normalize_search_intent(str(item.get("intent") or item.get("search_intent") or ""))
+        else:
+            continue
         if not text or text in seen:
             continue
         seen.add(text)
-        out.append(text)
+        out.append(
+            {
+                "text": text,
+                "funnel_stage": funnel_stage,
+                "search_intent": search_intent,
+            }
+        )
         if len(out) >= limit:
             break
     return out
@@ -41,11 +57,11 @@ def generate_setup_prompts(
     core_features: str = "",
     target_customers: str = "",
     competitors: list[str] | None = None,
-    region: str = "CN",
-    language: str = "zh-CN",
+    aliases: list[str] | None = None,
     prompts_per_topic: int = PROMPTS_PER_TOPIC,
+    exclude_prompts: list[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """每个主题返回至多 prompts_per_topic 条 LLM 生成的提示词。"""
+    """每个主题返回至多 prompts_per_topic 条 LLM 生成的提示词（含 funnel / intent）。"""
     cleaned_topics = [t.strip() for t in topics if t.strip()]
     if not cleaned_topics:
         return []
@@ -54,22 +70,23 @@ def generate_setup_prompts(
 
     entity = entity.strip() or "本品牌"
     competitors = [c.strip() for c in (competitors or []) if c.strip()]
+    alias_list = [a.strip() for a in (aliases or []) if a.strip()]
+    excluded = [p.strip() for p in (exclude_prompts or []) if p.strip()][-60:]
 
     user_payload = {
         "entity": entity,
-        "region": region,
-        "language": language,
+        "aliases": alias_list,
         "industry": industry,
         "core_features": core_features,
         "target_customers": target_customers,
         "competitors": competitors[:8],
         "topics": cleaned_topics,
         "prompts_per_topic": n,
+        "exclude_prompts": excluded,
     }
 
-    per_dimension = max(1, n // 5)
     messages = [
-        {"role": "system", "content": setup_wizard_prompts_system(n=n, per_dimension=per_dimension)},
+        {"role": "system", "content": setup_wizard_prompts_system(n=n)},
         {
             "role": "user",
             "content": f"{SETUP_WIZARD_PROMPTS_USER_PREFIX}{json.dumps(user_payload, ensure_ascii=False, indent=2)}",
@@ -93,7 +110,7 @@ def generate_setup_prompts(
             None,
         )
         raw_prompts = row.get("prompts") if isinstance(row, dict) else []
-        prompts = _normalize_prompts(raw_prompts if isinstance(raw_prompts, list) else [], limit=n)
+        prompts = _normalize_generated_prompts(raw_prompts if isinstance(raw_prompts, list) else [], limit=n)
         result.append({"topic": topic, "prompts": prompts})
 
     logger.info(

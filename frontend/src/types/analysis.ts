@@ -43,6 +43,8 @@ export type PromptPerformance = {
   prompt_text: string;
   topic_id: string | null;
   topic_name: string | null;
+  funnel_stage: string | null;
+  search_intent: string | null;
   visibility_rate: number | null;
   mention_rate: number | null;
   average_rank: number | null;
@@ -378,12 +380,10 @@ export type PromptDetailData = {
 export type AbsaBrandEntry = {
   mentioned?: boolean;
   score?: number | null;
-  framing_tags?: string[];
   evidence?: string;
 };
 
 export type CitationResponseAbsa = {
-  analysis_timestamp?: string;
   analysis_source?: string;
   brands_sentiment_absa?: Record<string, AbsaBrandEntry>;
   other_brands_sentiment_absa?: Record<string, AbsaBrandEntry>;

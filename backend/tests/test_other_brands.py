@@ -39,7 +39,6 @@ def test_append_other_brand_drafts() -> None:
             "Stripe": {
                 "mentioned": True,
                 "score": 0.6,
-                "framing_tags": [],
                 "evidence": "推荐 Stripe",
             },
             "Aperix": {"mentioned": True, "score": 0.9},
