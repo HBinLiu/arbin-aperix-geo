@@ -21,6 +21,7 @@ from aperix_geo.services.analysis.aggregate import (
 )
 from aperix_geo.services.analysis.entity import resolve_analysis_entity
 from aperix_geo.services.analysis.signal_load import LLMResponseSignalRow, load_llm_response_signals
+from aperix_geo.utils.sentiment import has_sentiment_score
 
 
 def _platform_performance_from_signals(
@@ -76,12 +77,12 @@ def build_daily_sentiment_series(
 
     by_date: dict[date, list[LLMResponseSignalRow]] = defaultdict(list)
     for row in entity_signals:
-        if row.mentioned and row.sentiment_score is not None:
+        if row.mentioned and has_sentiment_score(row.sentiment_score):
             by_date[row.created_at.date()].append(row)
 
     series: list[dict[str, Any]] = []
     for day in sorted(by_date.keys()):
-        scores = [float(row.sentiment_score) for row in by_date[day] if row.sentiment_score is not None]
+        scores = [float(row.sentiment_score) for row in by_date[day] if has_sentiment_score(row.sentiment_score)]
         series.append(
             {
                 "date": day.isoformat(),

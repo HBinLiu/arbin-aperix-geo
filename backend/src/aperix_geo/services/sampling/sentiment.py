@@ -14,8 +14,8 @@ from aperix_geo.services.sampling.mentions import (
     first_idx_any,
     host_mentions_domain,
 )
+from aperix_geo.utils.sentiment import clamp_sentiment_score, sentiment_label_from_score
 from aperix_geo.services.sampling.signal_draft import EntitySignalDraft, compute_mention_ranks
-from aperix_geo.utils.sentiment import absa_score_to_label, absa_score_to_points
 
 
 def absa_sentiment_source(response_absa: dict[str, Any]) -> str:
@@ -40,8 +40,8 @@ def absa_brand_sentiment(entry: Any) -> tuple[str, float | None, str | None]:
         absa_score = None
     if absa_score is None:
         return "neutral", None, None
-    label = absa_score_to_label(absa_score)
-    points = absa_score_to_points(absa_score)
+    points = clamp_sentiment_score(absa_score)
+    label = sentiment_label_from_score(points)
     reason = str(entry.get("evidence") or "").strip() or None
     return label, points, reason
 

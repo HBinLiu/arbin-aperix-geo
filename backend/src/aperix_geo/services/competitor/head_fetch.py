@@ -1,50 +1,83 @@
-"""竞品候选站首页：统一 httpx → Crawl4AI 抓取 title / meta description。"""
+"""竞品候选站首页：统一 httpx → Crawl4AI 抓取 title / meta / 结构化 SEO。"""
 
 from __future__ import annotations
 
 import asyncio
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 from aperix_geo.services.competitor.types import SiteHead
 from aperix_geo.services.crawl import PageFetchResult, fetch_page, page_crawl_settings
-from aperix_geo.services.crawl.metadata import extract_page_metadata
-from aperix_geo.services.crawl.settings import PageCrawlSettings
+from aperix_geo.services.crawl.metadata import PageMetadata, SeoProfile, extract_metadata_from_fetch
+from aperix_geo.services.crawl.settings import PageCrawlSettings, seo_fetch_max_chars
 from aperix_geo.utils.domains import registrable_domain
+from aperix_geo.services.crawl.seo import SeoMetadata, seo_prose_text
 from aperix_geo.utils.url import homepage_urls
 
 logger = logging.getLogger(__name__)
 
-_HEAD_PARSE_CHARS = 80_000
+_SEO_EXCERPT_CHARS = 800
 
 
-def _head_fields(result: PageFetchResult) -> tuple[str, str]:
-    parsed = extract_page_metadata(
-        html=result.html,
-        markdown=result.markdown,
-        html_parse_limit=_HEAD_PARSE_CHARS,
-        include_body=False,
+def _cross_validate_seo_excerpt(parsed: PageMetadata) -> str:
+    supplement = SeoMetadata(
+        content_type=parsed.content_type,
+        brand_names=tuple(parsed.brand_names),
+        schema_types=tuple(parsed.schema_types),
     )
-    return parsed.title, parsed.description
+    return seo_prose_text(supplement, max_chars=_SEO_EXCERPT_CHARS)
 
 
-def _fetch_one_sync(domain: str, *, crawl: PageCrawlSettings) -> SiteHead:
+def _site_head_from_fetch(
+    result: PageFetchResult,
+    *,
+    domain: str,
+    html_parse_limit: int,
+    seo_profile: SeoProfile,
+) -> SiteHead:
+    parsed = extract_metadata_from_fetch(
+        result,
+        html_parse_limit=html_parse_limit,
+        include_body=False,
+        seo_profile=seo_profile,
+    )
+    return SiteHead(
+        domain=domain,
+        title=parsed.title,
+        description=parsed.description,
+        reachable=True,
+        seo=_cross_validate_seo_excerpt(parsed),
+    )
+
+
+def _fetch_one_sync(
+    domain: str,
+    *,
+    crawl: PageCrawlSettings,
+    seo_profile: SeoProfile,
+) -> SiteHead:
     urls = homepage_urls(domain)
     if not urls:
         return SiteHead(domain=domain, title="", description="", reachable=False)
 
-    max_chars = min(crawl.max_chars, _HEAD_PARSE_CHARS)
+    max_chars = seo_fetch_max_chars(crawl)
     for url in urls:
-        result = fetch_page(url, crawl=crawl, max_chars=max_chars)
+        result = fetch_page(
+            url,
+            crawl=crawl,
+            max_chars=max_chars,
+            crawl_fallback=crawl.seo_fallback,
+        )
         if not result.fetch_ok:
             continue
-        title, description = _head_fields(result)
-        return SiteHead(
+        return _site_head_from_fetch(
+            result,
             domain=domain,
-            title=title,
-            description=description,
-            reachable=True,
+            html_parse_limit=max_chars,
+            seo_profile=seo_profile,
         )
 
+    logger.info("竞品发现: head 不可达 domain=%s tried=%s", domain, ", ".join(urls))
     return SiteHead(domain=domain, title="", description="", reachable=False)
 
 
@@ -52,6 +85,7 @@ async def fetch_site_heads_async(
     domains: list[str],
     *,
     concurrency: int | None = None,
+    seo_profile: SeoProfile = SeoProfile.CROSS_VALIDATE,
 ) -> dict[str, SiteHead]:
     crawl = page_crawl_settings()
     conc = max(1, concurrency if concurrency is not None else crawl.concurrency)
@@ -64,7 +98,12 @@ async def fetch_site_heads_async(
 
     async def run_one(host: str) -> None:
         async with sem:
-            head = await asyncio.to_thread(_fetch_one_sync, host, crawl=crawl)
+            head = await asyncio.to_thread(
+                _fetch_one_sync,
+                host,
+                crawl=crawl,
+                seo_profile=seo_profile,
+            )
             out[registrable_domain(head.domain)] = head
 
     await asyncio.gather(*(run_one(h) for h in unique))
@@ -78,13 +117,27 @@ def fetch_site_heads(
     domains: list[str],
     *,
     concurrency: int | None = None,
+    seo_profile: SeoProfile = SeoProfile.CROSS_VALIDATE,
 ) -> dict[str, SiteHead]:
-    return asyncio.run(
-        fetch_site_heads_async(
-            domains,
-            concurrency=concurrency,
-        ),
-    )
+    crawl = page_crawl_settings()
+    unique = dedupe_keys(domains)
+    if not unique:
+        return {}
+
+    workers = max(1, min(len(unique), concurrency if concurrency is not None else crawl.concurrency))
+    out: dict[str, SiteHead] = {}
+
+    def run_one(host: str) -> tuple[str, SiteHead]:
+        head = _fetch_one_sync(host, crawl=crawl, seo_profile=seo_profile)
+        return registrable_domain(head.domain), head
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for domain, head in pool.map(run_one, unique):
+            out[domain] = head
+
+    ok = sum(1 for h in out.values() if h.reachable)
+    logger.info("竞品发现: 抓取站点元数据 %d 个，可打开 %d", len(out), ok)
+    return out
 
 
 def dedupe_keys(domains: list[str]) -> list[str]:

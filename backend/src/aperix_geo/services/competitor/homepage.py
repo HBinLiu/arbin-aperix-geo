@@ -7,10 +7,15 @@ from aperix_geo.services.crawl import page_crawl_settings
 from aperix_geo.utils.domains import registrable_domain
 
 
-def fetch_target_homepage(domain: str) -> HomepageContext:
+def fetch_target_homepage(domain: str, *, user_url: str = "") -> HomepageContext:
     crawl = page_crawl_settings()
-    root = registrable_domain(domain)
-    if not root:
+    raw = user_url.strip() or domain.strip()
+    root = registrable_domain(domain) or registrable_domain(raw)
+    if not root and not raw:
         return HomepageContext(url="", metadata={}, markdown="")
 
-    return fetch_site_homepage_context(root, crawl=crawl)
+    return fetch_site_homepage_context(
+        root or domain,
+        user_url=raw,
+        crawl=crawl,
+    )

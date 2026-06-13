@@ -9,16 +9,21 @@ from aperix_geo.services.competitor.research import (
 from aperix_geo.services.searxng import SearchHit
 
 
-def test_research_payload_includes_extra_pages() -> None:
+def test_research_payload_from_homepage_only() -> None:
     payload = research_payload_for_domain(
         domain="example.com",
-        site_metadata={"title": "示例", "description": "描述", "h1_h2": ""},
+        site_metadata={
+            "title": "示例",
+            "description": "描述",
+            "h1_h2": "产品 | 解决方案",
+            "seo": "keywords: GEO, SaaS",
+        },
         site_markdown="首页正文",
-        extra_pages={"about": "关于我们：专注跨境支付"},
     )
     assert payload["title"] == "示例"
-    assert "about" in payload["extra_pages"]
-    assert "跨境支付" in payload["extra_pages"]["about"]
+    assert payload["homepage_excerpt"] == "首页正文"
+    assert payload["seo"] == "keywords: GEO, SaaS"
+    assert "extra_pages" not in payload
 
 
 def test_format_search_hits_for_llm() -> None:

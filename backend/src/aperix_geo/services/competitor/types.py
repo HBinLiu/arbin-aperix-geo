@@ -36,6 +36,7 @@ class SiteHead:
     title: str
     description: str
     reachable: bool
+    seo: str = ""
 
 
 @dataclass

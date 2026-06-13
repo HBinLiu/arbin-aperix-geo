@@ -1,14 +1,12 @@
-from aperix_geo.services.favicon import (
-    _parse_link_icons,
-    _parse_meta_images,
-    _sniff_image,
-    normalize_favicon_domain,
-    resolve_favicon_coalesced,
-)
+from aperix_geo.services.favicon import normalize_favicon_domain
+from aperix_geo.services.favicon._fetch import sniff_image
+from aperix_geo.services.favicon._parse import parse_link_icons, parse_meta_images
+from aperix_geo.services.favicon._resolve import resolve_favicon_coalesced
 
 
 def test_normalize_favicon_domain() -> None:
     assert normalize_favicon_domain("huanqiulvzhou.com") == "huanqiulvzhou.com"
+    assert normalize_favicon_domain("example.com") == "example.com"
     assert normalize_favicon_domain("www.Airwallex.com") == "airwallex.com"
     assert normalize_favicon_domain("https://www.shop.foo.com/path") == "shop.foo.com"
     assert normalize_favicon_domain("m.example.com.cn") == "m.example.com.cn"
@@ -17,18 +15,36 @@ def test_normalize_favicon_domain() -> None:
     assert normalize_favicon_domain("https://m.iefans.net/android/1728638.html") == "m.iefans.net"
 
 
+def test_favicon_homepage_urls_apex_before_www(monkeypatch) -> None:
+    from aperix_geo.services.favicon._domain import favicon_homepage_urls
+
+    monkeypatch.setattr(
+        "aperix_geo.utils.url.host_resolves",
+        lambda host: host in {"example.com", "www.example.com"},
+    )
+    urls = favicon_homepage_urls("example.com")
+    assert urls[0] == "https://example.com/"
+    assert urls[1] == "https://www.example.com/"
+
+
+def test_favicon_homepage_urls_subdomain_only_self() -> None:
+    from aperix_geo.services.favicon._domain import favicon_homepage_urls
+
+    assert favicon_homepage_urls("shop.foo.com") == ["https://shop.foo.com/"]
+
+
 def test_parse_iefans_shortcut_icon() -> None:
     html = (
         '<link rel="shortcut icon" '
         'href="//staticfile.iefans.net/iefans/theme1/favicon.ico" type="image/x-icon">'
     )
-    urls = _parse_link_icons(html, "https://m.iefans.net/android/1728638.html")
+    urls = parse_link_icons(html, "https://m.iefans.net/android/1728638.html")
     assert urls == ["https://staticfile.iefans.net/iefans/theme1/favicon.ico"]
 
 
 def test_parse_icon_hrefs_rel_after_href() -> None:
     html = '<html><head><link href="/assets/icon.png" rel="icon" type="image/png"></head></html>'
-    urls = _parse_link_icons(html, "https://example.com/")
+    urls = parse_link_icons(html, "https://example.com/")
     assert urls == ["https://example.com/assets/icon.png"]
 
 
@@ -37,142 +53,133 @@ def test_parse_icon_hrefs_apple_touch_first() -> None:
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple.png">
     """
-    urls = _parse_link_icons(html, "https://shop.test/")
+    urls = parse_link_icons(html, "https://shop.test/")
     assert urls[0] == "https://shop.test/apple.png"
 
 
 def test_parse_shortcut_icon() -> None:
     html = '<link rel="shortcut icon" href="/s.ico">'
-    urls = _parse_link_icons(html, "https://a.com/")
+    urls = parse_link_icons(html, "https://a.com/")
     assert urls == ["https://a.com/s.ico"]
 
 
 def test_parse_icon_unquoted_href() -> None:
     html = "<link rel=icon href=/favicon.ico>"
-    urls = _parse_link_icons(html, "https://example.com/")
+    urls = parse_link_icons(html, "https://example.com/")
     assert urls == ["https://example.com/favicon.ico"]
 
 
 def test_parse_icon_octet_stream_type() -> None:
     html = '<link rel="icon" href="/f.ico" type="application/octet-stream">'
-    urls = _parse_link_icons(html, "https://example.com/")
+    urls = parse_link_icons(html, "https://example.com/")
     assert urls == ["https://example.com/f.ico"]
 
 
 def test_parse_icon_href_before_rel() -> None:
     html = '<link href="//cdn.example.com/icon.png" rel="icon">'
-    urls = _parse_link_icons(html, "https://www.example.com/")
+    urls = parse_link_icons(html, "https://www.example.com/")
     assert urls == ["https://cdn.example.com/icon.png"]
 
 
 def test_parse_icon_absolute_https_url() -> None:
     html = '<link rel="icon" href="https://cdn.example.com/assets/favicon.png?v=2">'
-    urls = _parse_link_icons(html, "https://www.example.com/")
+    urls = parse_link_icons(html, "https://www.example.com/")
     assert urls == ["https://cdn.example.com/assets/favicon.png?v=2"]
 
 
 def test_parse_icon_absolute_http_url() -> None:
     html = '<link rel="shortcut icon" href="http://static.example.org/f.ico">'
-    urls = _parse_link_icons(html, "https://example.com/")
+    urls = parse_link_icons(html, "https://example.com/")
     assert urls == ["http://static.example.org/f.ico"]
 
 
 def test_parse_icon_absolute_url_unquoted() -> None:
     html = "<link rel=icon href=https://cdn.example.com/icon.ico>"
-    urls = _parse_link_icons(html, "https://example.com/page")
+    urls = parse_link_icons(html, "https://example.com/page")
     assert urls == ["https://cdn.example.com/icon.ico"]
 
 
 def test_parse_meta_og_image() -> None:
     html = '<meta property="og:image" content="https://cdn.example.com/logo.png">'
-    urls = _parse_meta_images(html, "https://example.com/")
+    urls = parse_meta_images(html, "https://example.com/")
     assert urls == ["https://cdn.example.com/logo.png"]
 
 
 def test_related_hosts_from_html_static_subdomain() -> None:
-    from aperix_geo.services.favicon import _favicon_urls_for_hosts, _related_hosts_from_html
+    from aperix_geo.services.favicon._parse import favicon_urls_for_hosts, related_hosts_from_html
 
     html = """
     <link rel="stylesheet" href="https://static.11467.com/www/css/b2b.css">
     <img src="//static.11467.com/www/css/logo.gif">
     """
-    hosts = _related_hosts_from_html(html, "11467.com")
+    hosts = related_hosts_from_html(html, "11467.com")
     assert "static.11467.com" in hosts
-    assert "https://static.11467.com/favicon.ico" in _favicon_urls_for_hosts(hosts)
+    assert "https://static.11467.com/favicon.ico" in favicon_urls_for_hosts(hosts)
 
 
 def test_sniff_rejects_tiny_payload() -> None:
-    assert not _sniff_image(b"short")
-    assert _sniff_image(b"\x89PNG\r\n\x1a\n" + b"x" * 100)
+    assert not sniff_image(b"short")
+    assert sniff_image(b"\x89PNG\r\n\x1a\n" + b"x" * 100)
 
 
-def test_save_all_icons_to_disk(tmp_path, monkeypatch) -> None:
-    from aperix_geo.services import favicon as favicon_mod
+def test_persist_favicon_writes_static_file(tmp_path, monkeypatch) -> None:
+    from aperix_geo.services.favicon import _storage as storage_mod
 
     monkeypatch.setattr("aperix_geo.services.favicon._storage._storage_root", lambda: tmp_path)
 
-    body_a = b"\x89PNG\r\n\x1a\n" + b"x" * 100
-    body_b = b"\x89PNG\r\n\x1a\n" + b"y" * 100
-    favicon_mod._persist_icon(
+    body = b"\x89PNG\r\n\x1a\n" + b"x" * 100
+    storage_mod.persist_favicon(
         "example.com",
         url="https://cdn.example.com/a.png",
-        body=body_a,
+        body=body,
         media_type="image/png",
-        primary=True,
-    )
-    favicon_mod._persist_icon(
-        "example.com",
-        url="https://cdn.example.com/b.png",
-        body=body_b,
-        media_type="image/png",
-        primary=False,
     )
 
-    index = favicon_mod._load_index("example.com")
-    assert len(index["items"]) == 2
-    assert index["primary"] is not None
-    assert (tmp_path / "example.com" / index["primary"]).read_bytes() == body_a
-    assert favicon_mod._load_primary_from_disk("example.com") == (body_a, "image/png")
+    index = storage_mod.load_index("example.com")
+    assert index["static"] == "favicon.png"
+    assert index["media_type"] == "image/png"
+    assert (tmp_path / "example.com" / "favicon.png").read_bytes() == body
+    assert storage_mod.read_disk_favicon("example.com") == (body, "image/png")
 
 
 def test_icon_candidates_from_html() -> None:
-    from aperix_geo.services.favicon import _icon_candidates_from_html
+    from aperix_geo.services.favicon._parse import icon_candidates_from_html
 
     html = """
     <link rel="icon" href="/favicon.ico">
     <link rel="stylesheet" href="https://static.example.com/app.css">
     """
-    urls = _icon_candidates_from_html(html, "https://www.example.com/", "example.com")
+    urls = icon_candidates_from_html(html, "https://www.example.com/", "example.com")
     assert urls.index("https://www.example.com/favicon.ico") < urls.index(
         "https://static.example.com/favicon.ico",
     )
 
 
 def test_page_icon_candidates_before_subdomain() -> None:
-    from aperix_geo.services.favicon import (
-        _page_icon_candidates_from_html,
-        _subdomain_favicon_candidates_from_html,
+    from aperix_geo.services.favicon._parse import (
+        page_icon_candidates_from_html,
+        subdomain_favicon_candidates_from_html,
     )
 
     html = """
     <meta property="og:image" content="https://cdn.example.com/logo.png">
     <a href="https://mseller.example.com/login">seller</a>
     """
-    page = _page_icon_candidates_from_html(html, "https://www.example.com/")
-    sub = _subdomain_favicon_candidates_from_html(html, "example.com")
+    page = page_icon_candidates_from_html(html, "https://www.example.com/")
+    sub = subdomain_favicon_candidates_from_html(html, "example.com")
     assert page == ["https://cdn.example.com/logo.png"]
     assert sub[0] == "https://mseller.example.com/favicon.ico"
     assert "https://mseller.example.com/favicon.png" in sub
 
 
 def test_subdomain_candidates_skip_www_and_apex() -> None:
-    from aperix_geo.services.favicon import _subdomain_favicon_candidates_from_html
+    from aperix_geo.services.favicon._parse import subdomain_favicon_candidates_from_html
 
     html = """
     <img src="https://www.example.com/a.png">
     <img src="https://static.example.com/b.png">
     """
-    urls = _subdomain_favicon_candidates_from_html(html, "example.com")
+    urls = subdomain_favicon_candidates_from_html(html, "example.com")
     assert "https://www.example.com/favicon.ico" not in urls
     assert "https://example.com/favicon.ico" not in urls
     assert "https://static.example.com/favicon.ico" in urls
@@ -292,9 +299,9 @@ def test_discover_icon_url_batches_order(monkeypatch) -> None:
     assert batches[5] == ["https://static.example.com/favicon.ico"]
 
 
-def test_icons_from_fetch_page_uses_crawl(monkeypatch) -> None:
-    from aperix_geo.services import favicon as favicon_mod
+def test_homepage_sources_fetch_page_icons(monkeypatch) -> None:
     from aperix_geo.services.crawl.types import PageFetchResult
+    from aperix_geo.services.favicon._candidates import _HomepageHtmlSources
 
     def fake_fetch_page(url: str, *, crawl, max_chars: int) -> PageFetchResult:
         assert crawl.crawl_fallback is False
@@ -307,13 +314,14 @@ def test_icons_from_fetch_page_uses_crawl(monkeypatch) -> None:
 
     monkeypatch.setattr("aperix_geo.services.crawl.fetch_page", fake_fetch_page)
 
-    icons = favicon_mod._icons_from_fetch_page("example.com")
+    src = _HomepageHtmlSources("example.com", timeout_s=8.0)
+    icons = src.page_icons_from_fetch()
     assert any(u.endswith("/from-page.png") for u in icons)
     assert icons[0].endswith("/from-page.png")
 
 
-def test_icons_from_crawl4ai_uses_worker(monkeypatch) -> None:
-    from aperix_geo.services import favicon as favicon_mod
+def test_homepage_sources_crawl4ai_page_icons(monkeypatch) -> None:
+    from aperix_geo.services.favicon._candidates import _HomepageHtmlSources
 
     def fake_crawl4ai(url: str, *, timeout_s: float, max_chars: int, max_concurrent: int):
         return (
@@ -328,15 +336,16 @@ def test_icons_from_crawl4ai_uses_worker(monkeypatch) -> None:
         fake_crawl4ai,
     )
 
-    icons = favicon_mod._icons_from_crawl4ai("example.com", timeout_s=8.0)
+    src = _HomepageHtmlSources("example.com", timeout_s=8.0)
+    icons = src.page_icons_from_crawl4ai()
     assert icons[0] == "https://cdn.example.com/rendered.png"
 
 
-def test_icons_from_crawl4ai_skipped_when_disabled(monkeypatch) -> None:
+def test_homepage_sources_crawl4ai_skipped_when_disabled(monkeypatch) -> None:
     from dataclasses import replace
 
-    from aperix_geo.services import favicon as favicon_mod
     from aperix_geo.services.crawl.settings import page_crawl_settings
+    from aperix_geo.services.favicon._candidates import _HomepageHtmlSources
 
     called = {"n": 0}
 
@@ -353,13 +362,13 @@ def test_icons_from_crawl4ai_skipped_when_disabled(monkeypatch) -> None:
         lambda: replace(page_crawl_settings(), crawl_fallback=False),
     )
 
-    icons = favicon_mod._icons_from_crawl4ai("example.com", timeout_s=8.0)
+    src = _HomepageHtmlSources("example.com", timeout_s=8.0)
+    icons = src.page_icons_from_crawl4ai()
     assert icons == []
     assert called["n"] == 0
 
 
 def test_negative_cache_skips_network(monkeypatch) -> None:
-    from aperix_geo.services import favicon as favicon_mod
     from aperix_geo.services.favicon import _storage as storage_mod
 
     storage_mod._cache.clear()
@@ -370,15 +379,17 @@ def test_negative_cache_skips_network(monkeypatch) -> None:
         called["n"] += 1
         return None
 
-    monkeypatch.setattr(favicon_mod, "_resolve_favicon_network", fake_network)
+    monkeypatch.setattr(
+        "aperix_geo.services.favicon._resolve.resolve_favicon_network",
+        fake_network,
+    )
     storage_mod.negative_cache_set("example.com")
 
-    assert favicon_mod.resolve_favicon_coalesced("example.com") is None
+    assert resolve_favicon_coalesced("example.com") is None
     assert called["n"] == 0
 
 
 def test_negative_cache_set_on_miss(monkeypatch) -> None:
-    from aperix_geo.services import favicon as favicon_mod
     from aperix_geo.services.favicon import _storage as storage_mod
 
     storage_mod._cache.clear()
@@ -388,19 +399,18 @@ def test_negative_cache_set_on_miss(monkeypatch) -> None:
         lambda *args, **kwargs: None,
     )
 
-    assert favicon_mod.resolve_favicon_coalesced("miss.example.com") is None
+    assert resolve_favicon_coalesced("miss.example.com") is None
     assert storage_mod.negative_cache_hit("miss.example.com")
 
 
 def test_coalesced_resolve_hits_memory_cache_on_repeat(monkeypatch) -> None:
-    from aperix_geo.services import favicon as favicon_mod
     from aperix_geo.services.favicon import _storage as storage_mod
 
     storage_mod._cache.clear()
     storage_mod._negative_cache.clear()
     calls = {"n": 0}
 
-    def fake_network(host: str, *, timeout_s: float):
+    def fake_network(host: str, *, timeout_s: float, page_url: str | None = None):
         calls["n"] += 1
         return b"\x89PNG\r\n\x1a\n" + b"x" * 20, "image/png"
 
@@ -409,110 +419,50 @@ def test_coalesced_resolve_hits_memory_cache_on_repeat(monkeypatch) -> None:
         fake_network,
     )
 
-    first = favicon_mod.resolve_favicon_coalesced("cached.example.com")
-    second = favicon_mod.resolve_favicon_coalesced("cached.example.com")
+    first = resolve_favicon_coalesced("cached.example.com")
+    second = resolve_favicon_coalesced("cached.example.com")
 
     assert first is not None
     assert second == first
     assert calls["n"] == 1
 
 
-def test_primary_file_path(tmp_path, monkeypatch) -> None:
-    from aperix_geo.services import favicon as favicon_mod
+def test_static_favicon_path(tmp_path, monkeypatch) -> None:
     from aperix_geo.services.favicon import _storage as storage_mod
 
     monkeypatch.setattr("aperix_geo.services.favicon._storage._storage_root", lambda: tmp_path)
 
     body = b"\x89PNG\r\n\x1a\n" + b"x" * 20
-    favicon_mod._persist_icon(
+    storage_mod.persist_favicon(
         "disk.example.com",
         url="https://disk.example.com/favicon.png",
         body=body,
         media_type="image/png",
-        primary=True,
     )
 
-    hit = storage_mod.primary_file_path("disk.example.com")
+    hit = storage_mod.static_favicon_path("disk.example.com")
     assert hit is not None
     path, media_type = hit
     assert path.is_file()
     assert media_type == "image/png"
     assert path.read_bytes() == body
-    assert favicon_mod._load_primary_from_disk("disk.example.com") == (body, "image/png")
-    static_hit = storage_mod.static_favicon_path("disk.example.com")
-    assert static_hit is not None
-    static_path, _ = static_hit
-    assert static_path.name == "favicon.png"
-    assert static_path.read_bytes() == body
-
-
-def test_static_favicon_backfills_legacy_store(tmp_path, monkeypatch) -> None:
-    import json
-
-    from aperix_geo.services.favicon import _storage as storage_mod
-
-    monkeypatch.setattr("aperix_geo.services.favicon._storage._storage_root", lambda: tmp_path)
-
-    body = b"\x89PNG\r\n\x1a\n" + b"x" * 20
-    domain_dir = tmp_path / "legacy.example.com"
-    domain_dir.mkdir()
-    (domain_dir / "abc123.png").write_bytes(body)
-    index = {
-        "primary": "abc123.png",
-        "items": [{"file": "abc123.png", "url": "https://legacy.example.com/favicon.png", "media_type": "image/png"}],
-    }
-    (domain_dir / "index.json").write_text(json.dumps(index), encoding="utf-8")
-
-    hit = storage_mod.static_favicon_path("legacy.example.com")
-    assert hit is not None
-    path, media_type = hit
-    assert path.name == "favicon.png"
-    assert media_type == "image/png"
-    assert path.read_bytes() == body
-    assert (domain_dir / "favicon.png").is_file()
-
-
-def test_static_favicon_migrates_primary_file(tmp_path, monkeypatch) -> None:
-    import json
-
-    from aperix_geo.services.favicon import _storage as storage_mod
-
-    monkeypatch.setattr("aperix_geo.services.favicon._storage._storage_root", lambda: tmp_path)
-
-    body = b"\x89PNG\r\n\x1a\n" + b"x" * 20
-    domain_dir = tmp_path / "migrate.example.com"
-    domain_dir.mkdir()
-    (domain_dir / "primary.png").write_bytes(body)
-    index = {
-        "primary": "abc123.png",
-        "static": "primary.png",
-        "items": [{"file": "abc123.png", "url": "https://migrate.example.com/favicon.png", "media_type": "image/png"}],
-    }
-    (domain_dir / "index.json").write_text(json.dumps(index), encoding="utf-8")
-
-    hit = storage_mod.static_favicon_path("migrate.example.com")
-    assert hit is not None
-    path, media_type = hit
-    assert path.name == "favicon.png"
-    assert (domain_dir / "favicon.png").read_bytes() == body
-    assert not (domain_dir / "primary.png").exists()
+    assert storage_mod.read_disk_favicon("disk.example.com") == (body, "image/png")
 
 
 def test_favicon_api_serves_disk_file(tmp_path, monkeypatch) -> None:
     from fastapi.testclient import TestClient
 
     from aperix_geo.main import app
-    from aperix_geo.services import favicon as favicon_mod
+    from aperix_geo.services.favicon import _storage as storage_mod
 
     monkeypatch.setattr("aperix_geo.services.favicon._storage._storage_root", lambda: tmp_path)
 
     body = b"\x89PNG\r\n\x1a\n" + b"x" * 20
-    favicon_mod._persist_icon(
+    storage_mod.persist_favicon(
         "static-api.example.com",
         url="https://static-api.example.com/favicon.png",
         body=body,
         media_type="image/png",
-        primary=True,
     )
 
     client = TestClient(app)
@@ -535,12 +485,11 @@ def test_warm_favicon_hosts_skips_cached(tmp_path, monkeypatch) -> None:
     called = {"n": 0}
 
     body = b"\x89PNG\r\n\x1a\n" + b"x" * 20
-    storage_mod.persist_icon(
+    storage_mod.persist_favicon(
         "cached-warm.example.com",
         url="https://cached-warm.example.com/favicon.png",
         body=body,
         media_type="image/png",
-        primary=True,
     )
 
     def fake_coalesce(host: str, *, timeout_s: float = 5.0):

@@ -133,6 +133,35 @@ def host_resolves(host: str, *, timeout_s: float = 3.0) -> bool:
     return host_resolves_cached(host, timeout_s=timeout_s, ttl_s=ttl_s)
 
 
+def _homepage_https_urls(domain: str, *, prefer_www: bool) -> list[str]:
+    """
+    候选首页 URL（仅 HTTPS）。
+
+    prefer_www=True：www 优先（竞品 head 抓取等）。
+    prefer_www=False：裸域优先（画像回退、favicon 等）。
+    """
+    root = registrable_domain(domain)
+    if not root:
+        return []
+
+    www = f"www.{root}"
+    hosts: list[str] = []
+    if prefer_www:
+        if host_resolves(www):
+            hosts.append(www)
+        if host_resolves(root) and root not in hosts:
+            hosts.append(root)
+    else:
+        if host_resolves(root):
+            hosts.append(root)
+        if host_resolves(www) and www not in hosts:
+            hosts.append(www)
+    if not hosts:
+        hosts = [root]
+
+    return [f"https://{h}/" for h in hosts]
+
+
 def homepage_urls(domain: str) -> list[str]:
     """
     候选首页 URL（仅 HTTPS，优先 www）。
@@ -140,19 +169,53 @@ def homepage_urls(domain: str) -> list[str]:
     部分站点（如 shushangyun.com）裸域 http:// 会在 80 端口返回
     「plain HTTP request was sent to HTTPS port」，必须用 https:// 且常需 www。
     """
-    root = registrable_domain(domain)
-    if not root:
-        return []
+    return _homepage_https_urls(domain, prefer_www=True)
 
-    hosts: list[str] = []
-    if host_resolves(f"www.{root}"):
-        hosts.append(f"www.{root}")
-    if host_resolves(root) and root not in hosts:
-        hosts.append(root)
-    if not hosts:
-        hosts = [root]
 
-    return [f"https://{h}/" for h in hosts]
+def homepage_urls_apex_first(domain: str) -> list[str]:
+    """
+    候选首页 URL（仅 HTTPS，裸域优先，再试 www）。
+
+    用于 profile 抓取回退、favicon 等；Setup 首页优先走 profile_homepage_crawl_urls。
+    """
+    return _homepage_https_urls(domain, prefer_www=False)
+
+
+def normalize_user_website_input(raw: str) -> str:
+    """将用户输入转为可抓取的 http(s) URL，保留 host 与 path。"""
+    s = raw.strip()
+    if not s:
+        return ""
+    if re.match(r"^https?://", s, re.I):
+        return s
+    return f"https://{s.lstrip('/')}"
+
+
+def profile_homepage_crawl_urls(raw_input: str, *, root: str) -> list[str]:
+    """
+    Setup 画像首页抓取顺序：用户输入的完整 URL 优先，失败后再试 apex/www 候选。
+    """
+    urls: list[str] = []
+    seen: set[str] = set()
+
+    def add(u: str) -> None:
+        u = u.strip()
+        if not u or u in seen:
+            return
+        seen.add(u)
+        urls.append(u)
+
+    user = normalize_user_website_input(raw_input)
+    if user:
+        add(user)
+        parsed = urlparse(user)
+        if parsed.scheme and parsed.netloc and parsed.path in ("", "/"):
+            add(f"{parsed.scheme}://{parsed.netloc}/")
+
+    if root:
+        for u in homepage_urls_apex_first(root):
+            add(u)
+    return urls
 
 
 def root_website_url(url: str) -> str:

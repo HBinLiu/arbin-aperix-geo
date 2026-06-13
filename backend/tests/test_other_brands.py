@@ -38,10 +38,10 @@ def test_append_other_brand_drafts() -> None:
         "other_brands_sentiment_absa": {
             "Stripe": {
                 "mentioned": True,
-                "score": 0.6,
+                "score": 80,
                 "evidence": "推荐 Stripe",
             },
-            "Aperix": {"mentioned": True, "score": 0.9},
+            "Aperix": {"mentioned": True, "score": 95},
         },
     }
     excluded = configured_brand_keys(
@@ -68,7 +68,7 @@ def test_append_other_brand_drafts_sets_mention_rank_from_text() -> None:
 
     response_absa = {
         "other_brands_sentiment_absa": {
-            "Stripe": {"mentioned": True, "score": 0.5, "evidence": "推荐 Stripe"},
+            "Stripe": {"mentioned": True, "score": 75, "evidence": "推荐 Stripe"},
         }
     }
     append_other_brand_drafts(
@@ -100,7 +100,7 @@ def test_append_other_brand_drafts_sets_has_domain_link() -> None:
         "analysis_source": "llm",
         "brands_sentiment_absa": {},
         "other_brands_sentiment_absa": {
-            "Stripe": {"mentioned": True, "score": 0.5, "evidence": "推荐 Stripe"},
+            "Stripe": {"mentioned": True, "score": 75, "evidence": "推荐 Stripe"},
         },
     }
     apply_response_absa_to_drafts(

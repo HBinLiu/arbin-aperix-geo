@@ -32,7 +32,6 @@ export {
   newTopicRow,
   selectedTopicNames,
   selectedTopicRows,
-  topicNamesFromDiscover,
-  topicRowsFromDiscover,
+  topicRowsFromMonitoringTopics,
   topicRowsFromNames,
 } from "@/lib/setup/topics";

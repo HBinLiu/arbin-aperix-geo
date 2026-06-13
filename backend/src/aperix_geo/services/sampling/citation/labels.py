@@ -36,8 +36,3 @@ def brand_names_match(names: list[str], mentioned: list[str]) -> bool:
         return False
     mentioned_keys = {m.strip().lower() for m in mentioned if m.strip()}
     return any(n.strip().lower() in mentioned_keys for n in names if n.strip())
-
-
-def mentioned_brand_names(analysis: dict[str, Any] | None) -> list[str]:
-    """Deprecated alias for page_mentioned_brand_names."""
-    return page_mentioned_brand_names(analysis)

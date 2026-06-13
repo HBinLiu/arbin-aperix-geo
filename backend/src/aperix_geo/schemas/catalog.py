@@ -15,7 +15,7 @@ class SubjectTypeEnum(str, Enum):
 class MonitoringScope(BaseModel):
     region: str = Field(default="CN", max_length=32)
     language: str = Field(default="zh-CN", max_length=16)
-    note: str | None = Field(default=None, description="旧版自由文本备忘（迁移遗留）")
+    note: str | None = Field(default=None, description="监测范围备注")
 
 
 class SubjectCreate(BaseModel):
@@ -86,15 +86,12 @@ class DiscoverProfileRequest(BaseModel):
 
 class DiscoverProfileResponse(BaseModel):
     session_id: str = Field(..., description="Redis 会话 ID，后续步骤须携带")
-    micro_keywords: list[str] = Field(default_factory=list)
+    monitoring_topics: list[str] = Field(default_factory=list, description="监测主题（用于生成提示词）")
 
 
 class DiscoverCompetitorsSearchRequest(BaseModel):
     session_id: str = Field(..., min_length=8, max_length=64)
-    micro_keywords: list[str] | None = Field(
-        default=None,
-        description="用户确认后的主题/检索词；不传则使用会话内缓存",
-    )
+    monitoring_topics: list[str] = Field(..., min_length=1, description="用户确认后的监测主题")
 
 
 class DiscoveredCompetitor(BaseModel):
@@ -105,12 +102,7 @@ class DiscoveredCompetitor(BaseModel):
 
 
 class DiscoverCompetitorsResponse(BaseModel):
-    session_id: str | None = Field(default=None, description="关联的设置向导 Redis 会话")
     competitors: list[DiscoveredCompetitor] = Field(default_factory=list)
-    micro_keywords: list[str] = Field(
-        default_factory=list,
-        description="确认后的微观利基检索词",
-    )
 
 
 class GeneratePromptsRequest(BaseModel):
@@ -152,15 +144,11 @@ class SetupTopicItem(BaseModel):
 
 
 class SetupFinalizeRequest(BaseModel):
-    type: SubjectTypeEnum
-    domain: str | None = None
-    brand: str | None = None
-    monitoring_scope: MonitoringScope | None = None
-    setup_session_id: str | None = Field(
-        default=None,
+    setup_session_id: str = Field(
+        ...,
         min_length=8,
         max_length=64,
-        description="设置向导 Redis 会话 ID，用于读取 profile_summary",
+        description="设置向导 Redis 会话 ID（主体类型、监测范围、profile_summary 等从会话读取）",
     )
     competitors: list[CompetitorItem] = Field(default_factory=list)
     topics: list[SetupTopicItem] = Field(..., min_length=1)

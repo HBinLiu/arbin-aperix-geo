@@ -8,9 +8,10 @@ from aperix_geo.utils.cache.redis_kv import (
     redis_delete,
     redis_get_json,
     redis_get_json_with_remaining_ttl,
-    redis_set_json,
     redis_set_json_exat,
+    redis_set_json_persistent,
     redis_set_nx,
+    require_redis_client,
     shared_redis_client,
 )
 from aperix_geo.utils.cache.ttl import expires_at_from_ttl, is_payload_expired, remaining_ttl_s
@@ -23,10 +24,10 @@ __all__ = [
     "redis_delete",
     "redis_get_json",
     "redis_get_json_with_remaining_ttl",
-    "redis_set_json",
     "redis_set_json_exat",
     "redis_set_json_persistent",
     "redis_set_nx",
+    "require_redis_client",
     "shared_redis_client",
     "remaining_ttl_s",
     "run_single_flight",

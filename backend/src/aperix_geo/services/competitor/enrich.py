@@ -42,17 +42,20 @@ def enrich_discovered_competitors(
                 "brand_hint": seed_brand,
                 "title": (head.title if head else "")[:300],
                 "description": (head.description if head else "")[:500],
+                "seo": (head.seo if head else "")[:500],
                 "summary_hint": str(item.get("summary") or "").strip(),
             }
         )
 
-    payload = {
-        "subject_type": subject_type,
-        "profile": profile,
-        "competitors": seeds,
-        "region": region_label,
-        "language": language_label,
-    }
+    from aperix_geo.services.setup.llm.payloads import build_competitor_enrich_payload
+
+    payload = build_competitor_enrich_payload(
+        profile=profile,
+        subject_type=subject_type,
+        seeds=seeds,
+        region_label_text=region_label,
+        language_label_text=language_label,
+    )
 
     try:
         text, _, latency_ms = chat_completion(

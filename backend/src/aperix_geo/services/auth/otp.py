@@ -6,9 +6,8 @@ import logging
 import secrets
 from typing import Literal
 
-import redis
-
 from aperix_geo.config import Settings
+from aperix_geo.utils.cache.redis_kv import require_redis_client
 from aperix_geo.utils.contact import normalize_email, normalize_phone_cn
 
 logger = logging.getLogger(__name__)
@@ -24,10 +23,6 @@ def is_dev_environment(settings: Settings) -> bool:
 def sms_use_dev_stub(settings: Settings) -> bool:
     """development / dev / local：手机号不走真实短信网关。"""
     return is_dev_environment(settings)
-
-
-def _redis(settings: Settings) -> redis.Redis:
-    return redis.from_url(settings.redis_url, decode_responses=True)
 
 
 def _otp_key(purpose: Purpose, channel: Channel, target_norm: str) -> str:
@@ -63,7 +58,7 @@ def send_code(
     else:
         target = normalize_phone_cn(target_raw)
 
-    r = _redis(settings)
+    r = require_redis_client()
     cd_key = _cooldown_key(purpose, channel, target)
     if r.exists(cd_key):
         raise ValueError("发送过于频繁，请稍后再试")
@@ -107,7 +102,7 @@ def verify_code(
     else:
         target = normalize_phone_cn(target_raw)
 
-    r = _redis(settings)
+    r = require_redis_client()
     otp_key = _otp_key(purpose, channel, target)
     stored = r.get(otp_key)
     if not stored or stored.strip() != code.strip():

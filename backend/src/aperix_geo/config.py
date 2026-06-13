@@ -57,7 +57,9 @@ class Settings(BaseSettings):
     page_crawl_fetch_timeout_s: float = Field(default=8.0, ge=1.0, le=120.0)
     page_crawl_crawl_timeout_s: float = Field(default=45.0, ge=5.0, le=120.0)
     page_crawl_max_chars: int = Field(default=120_000, ge=5000, le=500_000)
+    page_crawl_seo_max_chars: int = Field(default=64_000, ge=5000, le=500_000)
     page_crawl_fallback_enabled: bool = True
+    page_crawl_seo_fallback_enabled: bool = False
     page_crawl_concurrency: int = Field(default=10, ge=1, le=100)
     page_crawl_crawl4ai_concurrency: int = Field(default=5, ge=1, le=20)
     page_crawl_cache_ttl_s: int = Field(default=3600, ge=0, le=86_400)
@@ -113,13 +115,18 @@ class Settings(BaseSettings):
 
     # --- 竞品发现（.env：COMPETITOR_* + SEARXNG_BASE_URL）---
     searxng_base_url: str = ""
-    competitor_pool_size: int = Field(default=30, ge=8, le=60)
-    competitor_search_rounds: int = Field(default=5, ge=1, le=5)
-    competitor_min_score: float = Field(default=6.0, ge=0.0, le=10.0)
-    competitor_cross_validate_batch_size: int = Field(default=15, ge=1, le=50)
+    # 交叉验算 head 走 PAGE_CRAWL_SEO_*（轻量 httpx）；池越大召回越好，与 PAGE_CRAWL_CONCURRENCY 配合
+    competitor_pool_size: int = Field(default=40, ge=8, le=60)
+    competitor_search_rounds: int = Field(default=3, ge=1, le=5)
+    competitor_cross_validate_pass_score: float = Field(default=6.0, ge=0.0, le=10.0)
+    # head 已预抓取，瓶颈在 LLM；略大批次减少往返
+    competitor_cross_validate_batch_size: int = Field(default=20, ge=1, le=50)
     competitor_search_page_size: int = Field(default=50, ge=10, le=100)
     competitor_result_min: int = Field(default=3, ge=1, le=20)
     competitor_result_max: int = Field(default=5, ge=1, le=20)
+
+    # 设置向导 Redis 会话 TTL（秒）；0=永不过期。finalize 成功仍会主动删除。
+    setup_session_ttl_s: int = Field(default=86_400, ge=0, le=604_800)
 
     # uvicorn：见 `python -m aperix_geo` / 控制台命令 `aperix-geo-api`
     api_host: str = "0.0.0.0"

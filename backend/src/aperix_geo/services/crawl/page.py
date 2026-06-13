@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import httpx
 
@@ -127,13 +127,19 @@ def fetch_page(
     *,
     crawl: PageCrawlSettings | None = None,
     max_chars: int | None = None,
+    crawl_fallback: bool | None = None,
 ) -> PageFetchResult:
     """Fetch a page via httpx; optionally fall back to Crawl4AI when content is insufficient."""
     key = url.strip()
     if not key:
         return PageFetchResult(url=key)
 
-    settings = crawl or page_crawl_settings()
+    base_settings = crawl or page_crawl_settings()
+    settings = (
+        replace(base_settings, crawl_fallback=crawl_fallback)
+        if crawl_fallback is not None
+        else base_settings
+    )
     limit = max_chars if max_chars is not None else settings.max_chars
     cache = _PageCache.for_url(key, crawl=settings, max_chars=limit)
 
@@ -155,7 +161,7 @@ def fetch_page(
                 cache.store_negative()
             return result
 
-        logger.info("页面抓取 httpx 未获有效内容，回退 Crawl4AI %s", key)
+        logger.info("页面抓取 httpx 未获有效内容，兜底 Crawl4AI %s", key)
         final_url, html, markdown, source = fetch_url_crawl4ai(
             result.final_url or key,
             timeout_s=settings.crawl_timeout_s,

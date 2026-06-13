@@ -53,7 +53,7 @@ def package_discovered_competitors(
             break
         head = heads.get(domain)
         if not head or not head.reachable:
-            logger.info("竞品发现: 站点不可打开，跳过 %s", domain)
+            logger.info("竞品发现: 站点不可打开，跳过 %s url=https://%s", domain, domain)
             continue
         out.append(
             DiscoveredCompetitor(
@@ -66,7 +66,7 @@ def package_discovered_competitors(
 
     if len(out) < min_items:
         logger.warning(
-            "竞品发现: 可打开竞品仅 %d 个（目标>=%d），可检查搜索质量/预排除规则或调低 COMPETITOR_MIN_SCORE",
+            "竞品发现: 可打开竞品仅 %d 个（目标>=%d），可检查搜索质量/预排除规则或调低 COMPETITOR_CROSS_VALIDATE_PASS_SCORE",
             len(out),
             min_items,
         )

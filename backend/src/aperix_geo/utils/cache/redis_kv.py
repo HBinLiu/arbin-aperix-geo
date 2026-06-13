@@ -79,16 +79,6 @@ def redis_set_json_persistent(key: str, value: dict[str, Any]) -> None:
         logger.debug("Redis SET 失败 key=%s", key, exc_info=True)
 
 
-def redis_set_json(key: str, value: dict[str, Any], *, ttl_s: int) -> None:
-    """Legacy relative TTL; prefer redis_set_json_exat with expires_at in payload."""
-    if ttl_s <= 0:
-        return
-    payload = dict(value)
-    if "expires_at" not in payload:
-        payload["expires_at"] = int(time.time()) + ttl_s
-    redis_set_json_exat(key, payload, expires_at=int(payload["expires_at"]))
-
-
 def redis_set_nx(key: str, *, ttl_s: int) -> bool:
     client = _redis_client()
     if client is None:
@@ -113,6 +103,14 @@ def redis_delete(key: str) -> None:
 def shared_redis_client() -> redis.Redis | None:
     """Process-wide Redis client (decode_responses=True)."""
     return _redis_client()
+
+
+def require_redis_client() -> redis.Redis:
+    """Shared Redis client; raises when Redis is unavailable."""
+    client = _redis_client()
+    if client is None:
+        raise RuntimeError("Redis 不可用")
+    return client
 
 
 def clear_redis_kv_cache() -> None:

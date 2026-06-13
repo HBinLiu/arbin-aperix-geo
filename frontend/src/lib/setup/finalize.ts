@@ -4,9 +4,6 @@ import type { FinalizeSetupInput } from "@/types";
 export function buildFinalizePayload(input: FinalizeSetupInput) {
   const { competitors } = rowsToPersist(input.mode, input.competitorRows);
   const topicsToPersist = selectedTopicRows(input.topicRows);
-  const domain = input.mode === "domain" ? input.domain.trim() : "";
-  const brand = input.mode === "brand" ? input.brand.trim() : "";
-  const sessionId = input.sessionId.trim();
 
   const promptsByTopicId = new Map<
     string,
@@ -23,14 +20,7 @@ export function buildFinalizePayload(input: FinalizeSetupInput) {
   }
 
   return {
-    type: input.mode,
-    ...(domain ? { domain } : {}),
-    ...(brand ? { brand } : {}),
-    monitoring_scope: {
-      region: input.region,
-      language: input.language,
-    },
-    ...(sessionId ? { setup_session_id: sessionId } : {}),
+    setup_session_id: input.sessionId.trim(),
     competitors,
     topics: topicsToPersist.map((t) => ({
       name: t.name.trim(),

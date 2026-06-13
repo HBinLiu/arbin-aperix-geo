@@ -1,118 +1,15 @@
-"""主体调研：站内多页摘录 + 品牌公开信息搜索。"""
+"""主体调研：品牌公开信息搜索 + 首页调研 payload 组装。"""
 
 from __future__ import annotations
 
 import logging
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
-from urllib.parse import urljoin, urlparse
 
-from aperix_geo.services.crawl import PageFetchResult, fetch_page, page_crawl_settings
-from aperix_geo.services.crawl.metadata import HEAD_PARSE_MAX_CHARS, extract_page_metadata
 from aperix_geo.services.searxng import SearchHit, search_text
-from aperix_geo.utils.domains import registrable_domain
-from aperix_geo.utils.url import homepage_urls
 
 logger = logging.getLogger(__name__)
 
-_PROFILE_EXTRA_PATHS: tuple[tuple[str, str], ...] = (
-    ("about", "/about"),
-    ("about", "/about-us"),
-    ("about", "/aboutus"),
-    ("about", "/company"),
-    ("about", "/introduction"),
-    ("products", "/products"),
-    ("products", "/solutions"),
-    ("products", "/services"),
-)
-
-_MAX_EXTRA_PAGES = 3
-_EXTRA_PAGE_EXCERPT_CHARS = 2500
-_EXTRA_PAGE_FETCH_CHARS = HEAD_PARSE_MAX_CHARS
 _REGION_SEARCH_LABELS = {"CN": "中国", "HK": "香港", "TW": "台湾"}
-
-
-def _page_base_url(homepage_url: str, domain: str) -> str:
-    if homepage_url.strip():
-        parsed = urlparse(homepage_url)
-        if parsed.scheme and parsed.netloc:
-            return f"{parsed.scheme}://{parsed.netloc}"
-    root = registrable_domain(domain)
-    candidates = homepage_urls(root) if root else []
-    if candidates:
-        parsed = urlparse(candidates[0])
-        return f"{parsed.scheme}://{parsed.netloc}"
-    return f"https://{root or domain}"
-
-
-def _excerpt_from_fetch(result: PageFetchResult) -> str | None:
-    if not result.fetch_ok:
-        return None
-
-    parsed = extract_page_metadata(
-        html=result.html,
-        markdown=result.markdown,
-        html_parse_limit=_EXTRA_PAGE_FETCH_CHARS,
-        body_limit=_EXTRA_PAGE_EXCERPT_CHARS,
-    )
-
-    parts: list[str] = []
-    if parsed.title:
-        parts.append(f"title: {parsed.title}")
-    if parsed.description:
-        parts.append(f"description: {parsed.description}")
-    if parsed.body_text:
-        parts.append(parsed.body_text)
-    text = "\n".join(parts).strip()
-    return text if len(text) >= 80 else None
-
-
-def fetch_site_extra_pages(
-    domain: str,
-    *,
-    homepage_url: str = "",
-    max_pages: int = _MAX_EXTRA_PAGES,
-) -> dict[str, str]:
-    crawl = page_crawl_settings()
-    base = _page_base_url(homepage_url, domain)
-    seen_paths: set[str] = set()
-    pending: list[tuple[str, str]] = []
-    max_chars = min(crawl.max_chars, _EXTRA_PAGE_FETCH_CHARS)
-
-    for label, path in _PROFILE_EXTRA_PATHS:
-        if len(pending) >= max_pages:
-            break
-        norm = path.rstrip("/").lower()
-        if norm in seen_paths:
-            continue
-        seen_paths.add(norm)
-        pending.append((label, path))
-
-    if not pending:
-        return {}
-
-    workers = min(len(pending), max(1, crawl.concurrency))
-
-    def _one(item: tuple[str, str]) -> tuple[str, str, str] | None:
-        label, path = item
-        url = urljoin(base.rstrip("/") + "/", path.lstrip("/"))
-        result = fetch_page(url, crawl=crawl, max_chars=max_chars)
-        excerpt = _excerpt_from_fetch(result)
-        if not excerpt:
-            return None
-        return label, path, excerpt
-
-    out: dict[str, str] = {}
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        for row in pool.map(_one, pending):
-            if row is None or len(out) >= max_pages:
-                continue
-            label, path, excerpt = row
-            key = label if label not in out else f"{label}_{path.strip('/')}"
-            out[key] = excerpt
-            logger.info("主体调研: 补充页 %s path=%s chars=%d", domain, path, len(excerpt))
-
-    return out
 
 
 def fetch_brand_research_hits(brand: str, *, region: str, max_results: int = 8) -> list[SearchHit]:
@@ -143,18 +40,17 @@ def research_payload_for_domain(
     domain: str,
     site_metadata: dict[str, str],
     site_markdown: str,
-    extra_pages: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "title": (site_metadata.get("title") or "").strip(),
         "description": (site_metadata.get("description") or "").strip(),
         "h1_h2": (site_metadata.get("h1_h2") or "").strip(),
     }
+    seo = str(site_metadata.get("seo") or "").strip()
+    if seo:
+        payload["seo"] = seo[:3000]
     if site_markdown.strip():
         payload["homepage_excerpt"] = site_markdown.strip()[:6000]
-    if extra_pages:
-        payload["extra_pages"] = {k: v[:3000] for k, v in extra_pages.items()}
     if not any(str(v).strip() for v in payload.values() if isinstance(v, str)):
-        if not extra_pages:
-            payload["domain_hint"] = domain
+        payload["domain_hint"] = domain
     return payload

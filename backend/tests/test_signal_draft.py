@@ -10,7 +10,7 @@ from aperix_geo.services.sampling.parse import parse_llm_output
 from aperix_geo.services.sampling.parsed import ParsedSamplingResult
 from aperix_geo.services.sampling.signals import build_llm_response_signal_rows
 from aperix_geo.services.sampling.signal_draft import drafts_from_records, drafts_to_records
-from tests.parsed_fixtures import competitor_signal, entity_signal, parsed_payload
+from tests.parsed_fixtures import brands_by_entity_id_for_drafts, competitor_signal, entity_signal, parsed_payload
 
 
 def _subject() -> Subject:
@@ -92,5 +92,6 @@ def test_build_rows_from_parsed_entity_signals() -> None:
         platform="doubao",
         created_at=datetime.now(UTC),
         entity_signals=parsed.entity_signals,
+        brands_by_entity_id=brands_by_entity_id_for_drafts(parsed.entity_signals),  # type: ignore[arg-type]
     )
     assert len(rows) == 2

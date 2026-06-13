@@ -2,15 +2,9 @@
 
 from __future__ import annotations
 
-from aperix_geo.services.analysis._labels import own_label as _own_label
-from aperix_geo.services.analysis._labels import rank_labels as _rank_labels
-from aperix_geo.services.analysis._query import responses_in_window as _responses_in_window
 from aperix_geo.services.analysis._series import (
     VISIBILITY_CHART_LABEL_LIMIT,
     TOPIC_VISIBILITY_RANK_LIMIT,
-    align_previous_daily_to_current as _align_previous_daily_to_current,
-    align_previous_single_series as _align_previous_single_series,
-    top_visibility_labels as _top_visibility_labels,
 )
 from aperix_geo.services.analysis.citation import (
     build_citation_analysis,
@@ -25,7 +19,6 @@ from aperix_geo.services.analysis.metrics_api import build_analysis_entities, bu
 from aperix_geo.services.analysis.opportunity import (
     build_backlink_opportunities,
     build_content_opportunities,
-    enterprise_domain_roots as _enterprise_domain_roots,
 )
 from aperix_geo.services.analysis.overview import build_overview
 from aperix_geo.services.analysis.performance import (
@@ -71,12 +64,4 @@ __all__ = [
     "resolve_analysis_entity",
     "build_analysis_entities",
     "build_unified_metrics",
-    # Legacy private aliases for tests
-    "_responses_in_window",
-    "_own_label",
-    "_rank_labels",
-    "_top_visibility_labels",
-    "_align_previous_daily_to_current",
-    "_align_previous_single_series",
-    "_enterprise_domain_roots",
 ]

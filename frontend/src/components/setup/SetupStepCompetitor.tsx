@@ -61,20 +61,20 @@ function CompetitorDomainTable({
   return (
     <div className={competitorTableGrid}>
       <div className={competitorHeaderGridClass}>
-        <span className="text-foreground min-h-9 self-center text-sm font-semibold">
+        <span className="text-foreground flex h-9 items-center text-sm font-semibold">
           站点名称（{rows.length}/{MAX_SETUP_COMPETITORS}）
         </span>
-      <span className="text-foreground min-h-9 self-center text-sm font-semibold">主域名</span>
-      <div className={cn(competitorRowActionsClass, "col-start-3")}>
-        <div className={competitorActionCellClass}>
-          <Checkbox
-            checked={allSelected}
-            onCheckedChange={(v) => onToggleAll(v === true)}
-            aria-label="全选竞争对手"
-            className={competitorCheckboxClass}
-          />
-        </div>
-        <span aria-hidden className={cn(competitorActionCellClass, "pointer-events-none")} />
+        <span className="text-foreground flex h-9 items-center text-sm font-semibold">主域名</span>
+        <div className={cn(competitorRowActionsClass, "col-start-3")}>
+          <div className={competitorActionCellClass}>
+            <Checkbox
+              checked={allSelected}
+              onCheckedChange={(v) => onToggleAll(v === true)}
+              aria-label="全选竞争对手"
+              className={competitorCheckboxClass}
+            />
+          </div>
+          <span aria-hidden className={cn(competitorActionCellClass, "pointer-events-none")} />
         </div>
       </div>
 

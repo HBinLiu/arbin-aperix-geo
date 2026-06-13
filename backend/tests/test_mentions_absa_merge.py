@@ -73,8 +73,8 @@ def test_merge_absa_overrides_rule_when_absa_says_mentioned() -> None:
     response_absa = {
         "analysis_source": "llm",
         "brands_sentiment_absa": {
-            "Aperix": {"mentioned": True, "score": 0.8},
-            "Beta": {"mentioned": True, "score": 0.5},
+            "Aperix": {"mentioned": True, "score": 90},
+            "Beta": {"mentioned": True, "score": 75},
         },
     }
     apply_absa_to_drafts(
@@ -183,7 +183,7 @@ def test_absa_only_mention_gets_mention_rank() -> None:
         "brands_sentiment_absa": {
             "Aperix": {
                 "mentioned": True,
-                "score": 0.8,
+                "score": 90,
                 "evidence": "更推荐 Aperix",
             },
             "Beta": {"mentioned": False},
@@ -215,7 +215,7 @@ def test_absa_denial_clears_mention_rank() -> None:
     response_absa = {
         "analysis_source": "llm",
         "brands_sentiment_absa": {
-            "Aperix": {"mentioned": True, "score": 0.5},
+            "Aperix": {"mentioned": True, "score": 75},
             "Beta": {"mentioned": False},
         },
     }

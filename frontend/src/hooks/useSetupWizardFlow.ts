@@ -7,6 +7,7 @@ import {
   generateSetupPrompts,
 } from "@/api/setup";
 import { hostnameFromWebsiteInput } from "@/lib/domain";
+import { normalizeFaviconDomain } from "@/lib/favicon";
 import { setPendingJobId } from "@/lib/sampling";
 import {
   clearSetupCache,
@@ -36,9 +37,9 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
   const [region, setRegion] = React.useState(initial.region);
   const [language, setLanguage] = React.useState(initial.language);
   const [sessionId, setSessionId] = React.useState(initial.sessionId);
+  const [topicRows, setTopicRows] = React.useState<TopicRow[]>(initial.topicRows);
   const [competitorRows, setCompetitorRows] = React.useState<CompetitorRow[]>(initial.competitorRows);
-  const [topicRows, setTopicRows] = React.useState<TopicRow[]>(initial.topicRows ?? []);
-  const [promptRows, setPromptRows] = React.useState<PromptRow[]>(initial.promptRows ?? []);
+  const [promptRows, setPromptRows] = React.useState<PromptRow[]>(initial.promptRows);
   const [submitting, setSubmitting] = React.useState(false);
   const [analyzingProfile, setAnalyzingProfile] = React.useState(false);
   const [discoveringCompetitors, setDiscoveringCompetitors] = React.useState(false);
@@ -49,7 +50,11 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
   const busy = analyzingProfile || discoveringCompetitors || generatingPrompts;
 
   const hostPreview = hostnameFromWebsiteInput(websiteUrl);
-  const faviconHost = hostPreview && hostPreview.includes(".") ? hostPreview : null;
+  const faviconHost = React.useMemo(() => {
+    if (mode !== "domain") return null;
+    const host = normalizeFaviconDomain(hostPreview || websiteUrl);
+    return host.includes(".") ? host : null;
+  }, [mode, hostPreview, websiteUrl]);
   const activeTopics = React.useMemo(() => selectedTopicRows(topicRows), [topicRows]);
 
   React.useEffect(() => {
@@ -65,7 +70,18 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
       promptRows,
       step,
     });
-  }, [sessionId, mode, websiteUrl, brandName, region, language, topicRows, competitorRows, promptRows, step]);
+  }, [
+    sessionId,
+    mode,
+    websiteUrl,
+    brandName,
+    region,
+    language,
+    topicRows,
+    competitorRows,
+    promptRows,
+    step,
+  ]);
 
   const resetDownstream = (fromStep: number) => {
     if (fromStep <= 0) {
@@ -143,7 +159,7 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
     try {
       const result = await discoverProfile({
         mode,
-        domain: mode === "domain" ? (hostPreview ?? "") : "",
+        domain: mode === "domain" ? websiteUrl.trim() : "",
         brand: mode === "brand" ? brandName.trim() : "",
         region,
         language,
@@ -164,14 +180,10 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
     resetDownstream(1);
     try {
       const result = await discoverCompetitors({
-        mode,
         sessionId,
-        microKeywords: selectedTopicNames(topicRows),
+        monitoringTopics: selectedTopicNames(topicRows),
       });
       setCompetitorRows(result.competitorRows);
-      if (result.topicRows) {
-        setTopicRows(result.topicRows);
-      }
       if (result.competitorRows.length === 0) {
         toast.info(
           mode === "domain"
@@ -218,10 +230,6 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
       const { subject, samplingJobId } = await finalizeSetup({
         mode,
         sessionId,
-        domain: mode === "domain" ? (hostPreview ?? "") : "",
-        brand: mode === "brand" ? brandName.trim() : "",
-        region,
-        language,
         topicRows,
         competitorRows,
         promptRows,

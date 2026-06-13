@@ -117,7 +117,7 @@ def analyze_citation_page_geo(
 
 
 def _page_geo_entry(page: CitationPageMeta) -> dict[str, object]:
-    status_text = str(page.http_status) if page.http_status is not None else "（未知）"
+    status_text = str(page.http_status) if (page.http_status or 0) > 0 else "（未知）"
     return {
         "url": page.url,
         "domain": page.domain,

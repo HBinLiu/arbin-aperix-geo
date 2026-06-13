@@ -49,14 +49,14 @@ def _default_response_absa(*, own_brand: str, competitors: list[str], ai_mention
     brands = {
         own_brand: {
             "mentioned": own_brand in ai_mentioned,
-            "score": 0.8 if own_brand in ai_mentioned else None,
+            "score": 90 if own_brand in ai_mentioned else None,
             "evidence": "ai evidence" if own_brand in ai_mentioned else "",
         }
     }
     for name in competitors:
         brands[name] = {
             "mentioned": name in ai_mentioned,
-            "score": 0.5 if name in ai_mentioned else None,
+            "score": 75 if name in ai_mentioned else None,
             "evidence": "",
         }
     return {

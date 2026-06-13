@@ -1,13 +1,19 @@
-"""Tests for brand-mode competitor name selection."""
+"""Tests for snippet-based competitor brand extraction."""
 
 from __future__ import annotations
 
 import json
 from unittest.mock import patch
 
-from aperix_geo.services.competitor.selection import select_brand_names
+from aperix_geo.services.competitor.selection import (
+    normalize_snippet_competitor_brands,
+    select_brand_names,
+)
 from aperix_geo.services.competitor.types import NicheProfile, SearchPool
-from aperix_geo.services.providers.prompts import brand_selection_user_content
+from aperix_geo.services.providers.prompts import (
+    COMPETITOR_SNIPPET_BRAND_EXTRACTION_SYSTEM,
+    competitor_snippet_brand_extraction_user_content,
+)
 from aperix_geo.services.searxng import SearchHit
 
 
@@ -21,8 +27,8 @@ def _sample_profile() -> NicheProfile:
     }
 
 
-def test_brand_selection_user_content_includes_niche_profile() -> None:
-    text = brand_selection_user_content(
+def test_snippet_brand_extraction_user_content_includes_closed_set() -> None:
+    text = competitor_snippet_brand_extraction_user_content(
         brand="Aperix",
         profile=_sample_profile(),
         region_label="中国大陆",
@@ -30,11 +36,24 @@ def test_brand_selection_user_content_includes_niche_profile() -> None:
         search_block="1. 示例摘要",
         max_brands=5,
     )
+    assert "闭集" in text
+    assert "目标主体 A：Aperix" in text
     assert "微观利基画像" in text
-    assert "企业级 API 网关" in text
-    assert "高并发路由" in text
-    assert "API gateway" in text
-    assert "最多 5 个" in text
+    assert "brand_names" in text
+
+
+def test_snippet_brand_extraction_system_is_separate_from_absa() -> None:
+    assert "brand_names" in COMPETITOR_SNIPPET_BRAND_EXTRACTION_SYSTEM
+    assert "other_brands_sentiment_absa" not in COMPETITOR_SNIPPET_BRAND_EXTRACTION_SYSTEM
+    assert "brands_sentiment_absa" not in COMPETITOR_SNIPPET_BRAND_EXTRACTION_SYSTEM
+
+
+def test_normalize_snippet_competitor_brands_filters_closed_set_and_domains() -> None:
+    data = {
+        "brand_names": ["Aperix", "Beta", "beta.com", "Gamma", ""],
+    }
+    out = normalize_snippet_competitor_brands(data, target_brand="Aperix", max_brands=5)
+    assert out == ["Beta", "Gamma"]
 
 
 @patch("aperix_geo.services.competitor.selection.chat_completion")
@@ -51,17 +70,17 @@ def test_select_brand_names_skips_llm_when_no_hits(mock_chat) -> None:
 
 
 @patch("aperix_geo.services.competitor.selection.chat_completion")
-def test_select_brand_names_parses_and_filters_domains(mock_chat) -> None:
+def test_select_brand_names_parses_brand_names_array(mock_chat) -> None:
     mock_chat.return_value = (
-        json.dumps({"domains": ["beta.com"], "brand_names": ["Beta", "beta.com", "Gamma"]}),
+        json.dumps({"brand_names": ["Beta", "Gamma"]}),
         {},
         100,
     )
     pool = SearchPool(
-        domains=["beta.com"],
+        domains=["digitaling.com"],
         hits=[
             SearchHit(
-                url="https://example.com/a",
+                url="https://digitaling.com/a",
                 title="Beta vs Aperix",
                 snippet="Beta 是企业级 API 网关竞品",
                 query="API gateway 竞品",
@@ -76,7 +95,8 @@ def test_select_brand_names_parses_and_filters_domains(mock_chat) -> None:
         language="zh-CN",
     )
     assert result == ["Beta", "Gamma"]
-    mock_chat.assert_called_once()
+    system_msg = mock_chat.call_args[0][0][0]["content"]
     user_msg = mock_chat.call_args[0][0][1]["content"]
-    assert "搜索结果摘要" in user_msg
+    assert "brand_names" in system_msg
+    assert "闭集" in user_msg
     assert "Beta vs Aperix" in user_msg

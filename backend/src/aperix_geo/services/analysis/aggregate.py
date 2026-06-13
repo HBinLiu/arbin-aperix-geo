@@ -13,6 +13,7 @@ from aperix_geo.db.models import Subject, SubjectType
 from aperix_geo.services.analysis.entity import AnalysisEntity, list_analysis_entities
 from aperix_geo.services.analysis.metrics import MetricsBundle
 from aperix_geo.services.analysis.signal_load import LLMResponseSignalRow
+from aperix_geo.utils.sentiment import has_mention_rank, has_sentiment_score
 
 GroupBy = Literal["none", "entity", "prompt", "topic", "platform", "date"]
 
@@ -60,11 +61,11 @@ def metrics_from_signals(
 
     mention_rows = sum(1 for row in entity_signals if row.mentioned)
     mention_count_total = sum(row.mention_count for row in entity_signals)
-    ranks = [float(row.mention_rank) for row in entity_signals if row.mention_rank is not None]
+    ranks = [float(row.mention_rank) for row in entity_signals if has_mention_rank(row.mention_rank)]
     own_domain_link_rows = sum(1 for row in entity_signals if row.has_domain_link)
     cited_on_source_rows = sum(1 for row in entity_signals if row.cited_on_source)
     sentiment_scores = [
-        row.sentiment_score for row in entity_signals if row.mentioned and row.sentiment_score is not None
+        row.sentiment_score for row in entity_signals if row.mentioned and has_sentiment_score(row.sentiment_score)
     ]
     sentiment_count: dict[str, int] = {"positive": 0, "neutral": 0, "negative": 0}
     for row in entity_signals:
@@ -203,7 +204,7 @@ def sort_metric_rows(
 
 
 def rank_dict_from_entity_rows(rows: list[dict[str, Any]], *, own_label: str) -> dict[str, Any]:
-    """Build legacy rank API shape from group_by=entity rows."""
+    """Build rank API payload from group_by=entity rows."""
     visibility_counts: dict[str, int] = {}
     voice_counts: dict[str, int] = {}
     visibility_share: dict[str, float] = {}
@@ -324,7 +325,7 @@ def daily_average_rank_series_from_signals(
 
     series: list[dict[str, Any]] = []
     for day in sorted(by_date.keys()):
-        ranks = [float(row.mention_rank) for row in by_date[day] if row.mention_rank is not None]
+        ranks = [float(row.mention_rank) for row in by_date[day] if has_mention_rank(row.mention_rank)]
         series.append(
             {
                 "date": day.isoformat(),

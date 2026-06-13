@@ -1,14 +1,17 @@
 import { hostnameFromWebsiteInput, registrableDomain } from "@/lib/domain";
 
 /**
- * 与后端 registrable_domain 一致：支持 URL、www、子域名、已是主域名的输入。
- * 竞品行里常见已是主域名（如 airwallex.com）；向导里可能是 www 或完整 URL。
+ * 与后端 normalize_favicon_domain 一致：支持 URL、裸域 example.com、www、子域名。
+ * 裸主域归一为 eTLD+1（如 wise.com）；多级子域保留完整主机名。
  */
 export function normalizeFaviconDomain(raw: string): string {
   const s = raw.trim();
   if (!s) return "";
 
   let host = hostnameFromWebsiteInput(s);
+  if (!host && /^[^\s/]+$/i.test(s)) {
+    host = s.replace(/^https?:\/\//i, "").split("/")[0]?.split(":")[0]?.trim().toLowerCase() ?? "";
+  }
   if (host.startsWith("www.")) {
     host = host.slice(4);
   }

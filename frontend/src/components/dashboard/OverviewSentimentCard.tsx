@@ -57,9 +57,8 @@ export function OverviewSentimentCard({
   className,
 }: OverviewSentimentCardProps) {
   const label = sentimentLabelFromScore(score);
-  const points = score != null ? (score <= 1 ? score * 100 : score) : null;
-  const scoreText = points != null ? points.toFixed(1) : "-";
-  const progress = points != null ? Math.min(100, Math.max(0, points)) : 0;
+  const scoreText = score != null ? score.toFixed(1) : "-";
+  const progress = score != null ? Math.min(100, Math.max(0, score)) : 0;
 
   return (
     <div

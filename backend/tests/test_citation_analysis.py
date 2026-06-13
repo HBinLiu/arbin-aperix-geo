@@ -18,7 +18,7 @@ from aperix_geo.services.sampling.response_absa import normalize_response_absa
 def test_normalize_response_absa_fills_brand_keys() -> None:
     data = {
         "brands_sentiment_absa": {
-            "Aperix": {"mentioned": True, "score": 0.5, "evidence": "推荐 Aperix"},
+            "Aperix": {"mentioned": True, "score": 75, "evidence": "推荐 Aperix"},
         },
     }
     out = normalize_response_absa(data, own_brand="Aperix", competitors=["Beta"])
@@ -29,12 +29,12 @@ def test_normalize_response_absa_fills_brand_keys() -> None:
 def test_normalize_response_absa_filters_configured_from_other() -> None:
     data = {
         "brands_sentiment_absa": {
-            "Aperix": {"mentioned": True, "score": 0.5},
+            "Aperix": {"mentioned": True, "score": 75},
             "Beta": {"mentioned": False},
         },
         "other_brands_sentiment_absa": {
-            "Stripe": {"mentioned": True, "score": 0.6},
-            "Aperix": {"mentioned": True, "score": 0.9},
+            "Stripe": {"mentioned": True, "score": 80},
+            "Aperix": {"mentioned": True, "score": 95},
         },
     }
     out = normalize_response_absa(data, own_brand="Aperix", competitors=["Beta"])
@@ -46,10 +46,10 @@ def test_normalize_response_absa_filters_own_alias_from_other() -> None:
     from aperix_geo.services.brand.keys import configured_brand_keys
 
     data = {
-        "brands_sentiment_absa": {"Aperix": {"mentioned": True, "score": 0.5}},
+        "brands_sentiment_absa": {"Aperix": {"mentioned": True, "score": 75}},
         "other_brands_sentiment_absa": {
-            "艾佩克斯": {"mentioned": True, "score": 0.9},
-            "Stripe": {"mentioned": True, "score": 0.6},
+            "艾佩克斯": {"mentioned": True, "score": 95},
+            "Stripe": {"mentioned": True, "score": 80},
         },
     }
     excluded = configured_brand_keys(

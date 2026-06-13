@@ -23,8 +23,8 @@ class LLMResponseSignalRow:
     entity_kind: str
     mentioned: bool
     mention_count: int
-    mention_rank: int | None
-    sentiment_score: float | None
+    mention_rank: int
+    sentiment_score: float
     sentiment_label: str
     has_domain_link: bool
     cited_on_source: bool

@@ -119,7 +119,7 @@ export function SetupStepContent({ view, actions }: SetupStepContentProps) {
               id="wiz-url"
               value={websiteUrl}
               onChange={(e) => onWebsiteUrlChange(e.target.value)}
-              placeholder="https://example.com"
+              placeholder="请确保网站能正常访问"
               autoComplete="url"
               leading={
                 faviconHost ? (

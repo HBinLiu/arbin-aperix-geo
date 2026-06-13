@@ -13,6 +13,7 @@ from aperix_geo.utils.text import reply_text
 from aperix_geo.services.analysis._query import responses_in_window
 from aperix_geo.services.analysis.entity import resolve_analysis_entity
 from aperix_geo.services.analysis.signal_load import LLMResponseSignalRow, load_llm_response_signals
+from aperix_geo.utils.sentiment import has_mention_rank
 
 
 def build_prompt_detail_responses(
@@ -57,7 +58,7 @@ def build_prompt_detail_responses(
         mentioned = signal.mentioned if signal is not None else False
         rank = (
             round(float(signal.mention_rank), 1)
-            if signal is not None and signal.mention_rank is not None
+            if signal is not None and has_mention_rank(signal.mention_rank)
             else None
         )
         cited = signal.cited_on_source if signal is not None else False

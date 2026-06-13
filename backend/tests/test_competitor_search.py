@@ -16,6 +16,7 @@ def _sample_profile():
             "industry": "跨境支付",
             "core_features": ["跨境收款", "多币种账户"],
             "target_customers": "跨境电商卖家",
+            "micro_keywords": ["跨境收款", "多币种账户"],
         },
         entity="airwallex.com",
     )
@@ -38,8 +39,51 @@ def test_search_candidate_domains(_mock_dns, mock_settings, mock_search) -> None
     assert "wise.com" in pool.domains
     assert "paypal.com" in pool.domains
     assert "36kr.com" not in pool.domains
-    assert mock_search.call_count == 1
+    assert mock_search.call_count == 3
     assert "wise.com" in pool.hit_by_domain
+
+
+@patch("aperix_geo.services.competitor.search.RESULT_MIN", 2)
+@patch("aperix_geo.services.competitor.search.search_text")
+@patch("aperix_geo.services.competitor.search.get_settings")
+@patch("aperix_geo.services.competitor.search.host_resolves", return_value=True)
+def test_pool_from_web_research_rows_seeds_candidate_pool(_mock_dns, mock_settings, mock_search) -> None:
+    from aperix_geo.services.competitor.search import pool_from_web_research_rows, search_candidate_domains
+
+    mock_settings.return_value.searxng_base_url = "http://127.0.0.1:8061"
+    mock_settings.return_value.competitor_pool_size = 50
+    mock_settings.return_value.competitor_search_rounds = 3
+
+    seed = pool_from_web_research_rows(
+        [
+            {"title": "Wise", "url": "https://wise.com", "snippet": "pay"},
+            {"title": "PayPal", "url": "https://paypal.com", "snippet": "pay"},
+        ],
+        exclude_domain=None,
+    )
+    assert len(seed.domains) >= 2
+    pool = search_candidate_domains(_sample_profile(), exclude_domain="airwallex.com", initial_pool=seed)
+    assert len(pool.domains) >= 2
+    mock_search.assert_not_called()
+
+
+@patch("aperix_geo.services.competitor.search.search_text")
+@patch("aperix_geo.services.competitor.search.get_settings")
+@patch("aperix_geo.services.competitor.search.host_resolves", return_value=True)
+def test_search_candidate_domains_stops_when_pool_is_full(_mock_dns, mock_settings, mock_search) -> None:
+    mock_settings.return_value.searxng_base_url = "http://127.0.0.1:8061"
+    mock_settings.return_value.competitor_pool_size = 50
+    mock_settings.return_value.competitor_search_rounds = 5
+    mock_settings.return_value.competitor_result_min = 2
+    hits = [
+        SearchHit(title="Wise 官网", url="https://wise.com/business", snippet="pay", query="q"),
+        SearchHit(title="PayPal 官方", url="https://www.paypal.com/", snippet="pay", query="q"),
+        SearchHit(title="Stripe", url="https://stripe.com/", snippet="pay", query="q"),
+    ]
+    mock_search.return_value = hits
+    pool = search_candidate_domains(_sample_profile(), exclude_domain="airwallex.com")
+    assert len(pool.domains) >= 2
+    assert mock_search.call_count == 1
 
 
 @patch("aperix_geo.services.competitor.search.search_text")

@@ -12,8 +12,13 @@ from aperix_geo.services.sampling.sentiment import (
     apply_absa_to_drafts,
     reset_sentiment_drafts,
 )
+from aperix_geo.utils.sentiment import (
+    api_mention_rank,
+    api_sentiment_score,
+    clamp_sentiment_score,
+    sentiment_label_from_score,
+)
 from aperix_geo.services.sampling.signal_draft import EntitySignalDraft, init_entity_signal_drafts
-from aperix_geo.utils.sentiment import absa_score_to_label, absa_score_to_points, sentiment_points
 
 
 def _subject(*, with_competitor: bool = True) -> Subject:
@@ -37,14 +42,17 @@ def _subject(*, with_competitor: bool = True) -> Subject:
     return subject
 
 
-def test_absa_score_mapping() -> None:
-    assert absa_score_to_points(1.0) == 100.0
-    assert absa_score_to_points(0.0) == 50.0
-    assert absa_score_to_points(-1.0) == 0.0
-    assert absa_score_to_points(0.8) == 90.0
-    assert absa_score_to_label(0.8) == "positive"
-    assert absa_score_to_label(0.0) == "neutral"
-    assert absa_score_to_label(-0.5) == "negative"
+def test_sentiment_score_helpers() -> None:
+    assert clamp_sentiment_score(90.0) == 90.0
+    assert clamp_sentiment_score(105.0) == 100.0
+    assert clamp_sentiment_score(-5.0) == 0.0
+    assert sentiment_label_from_score(90.0) == "positive"
+    assert sentiment_label_from_score(50.0) == "neutral"
+    assert sentiment_label_from_score(45.0) == "neutral"
+    assert sentiment_label_from_score(55.0) == "neutral"
+    assert sentiment_label_from_score(55.1) == "positive"
+    assert sentiment_label_from_score(44.9) == "negative"
+    assert sentiment_label_from_score(25.0) == "negative"
 
 
 def test_competitor_sentiment_cleared_when_not_mentioned() -> None:
@@ -60,8 +68,8 @@ def test_competitor_sentiment_cleared_when_not_mentioned() -> None:
     response_absa = {
         "analysis_source": "llm",
         "brands_sentiment_absa": {
-            "Aperix": {"mentioned": True, "score": 0.5},
-            "Beta": {"mentioned": False, "score": 0.9, "evidence": "ignored"},
+            "Aperix": {"mentioned": True, "score": 75},
+            "Beta": {"mentioned": False, "score": 95, "evidence": "ignored"},
         },
     }
     apply_absa_to_drafts(
@@ -84,9 +92,9 @@ def test_competitor_sentiment_prefers_mentioned_alias_key() -> None:
     response_absa = {
         "analysis_source": "llm",
         "brands_sentiment_absa": {
-            "Aperix": {"mentioned": True, "score": 0.5},
-            "Beta": {"mentioned": False, "score": 0.9, "evidence": "ignored"},
-            "beta.com": {"mentioned": True, "score": 0.2, "evidence": "domain mention"},
+            "Aperix": {"mentioned": True, "score": 75},
+            "Beta": {"mentioned": False, "score": 95, "evidence": "ignored"},
+            "beta.com": {"mentioned": True, "score": 60, "evidence": "domain mention"},
         },
     }
     apply_absa_to_drafts(
@@ -110,12 +118,12 @@ def test_apply_absa_to_drafts() -> None:
         "brands_sentiment_absa": {
             "Aperix": {
                 "mentioned": True,
-                "score": 0.8,
+                "score": 90,
                 "evidence": "明确推荐 Aperix",
             },
             "Beta": {
                 "mentioned": True,
-                "score": 0.0,
+                "score": 50,
                 "evidence": "客观对比 Beta",
             },
         },
@@ -146,7 +154,7 @@ def test_apply_absa_sentiment_ignores_parser_mentions() -> None:
         "brands_sentiment_absa": {
             "阿里健康": {
                 "mentioned": True,
-                "score": 0.6,
+                "score": 80,
                 "evidence": "阿里健康在医药电商领域表现突出",
             },
         },
@@ -167,7 +175,7 @@ def test_apply_absa_sentiment_not_mentioned() -> None:
     response_absa = {
         "analysis_source": "llm",
         "brands_sentiment_absa": {
-            "Aperix": {"mentioned": False, "score": 0.9, "evidence": ""},
+            "Aperix": {"mentioned": False, "score": 95, "evidence": ""},
         },
     }
     apply_absa_to_drafts(
@@ -216,11 +224,10 @@ def test_absa_sentiment_source() -> None:
     assert absa_sentiment_source({"analysis_source": "llm", "brands_sentiment_absa": {}}) == "llm"
 
 
-def test_sentiment_points_from_fraction() -> None:
-    assert sentiment_points(0.85) == 85.0
-    assert sentiment_points(1.0) == 100.0
-
-
-def test_sentiment_points_from_hundred_scale() -> None:
-    assert sentiment_points(72.5) == 72.5
-    assert sentiment_points(100) == 100.0
+def test_api_sentinel_export() -> None:
+    assert api_mention_rank(0) is None
+    assert api_mention_rank(2) == 2
+    assert api_mention_rank(None) is None
+    assert api_sentiment_score(-1.0) is None
+    assert api_sentiment_score(72.0) == 72.0
+    assert api_sentiment_score(None) is None

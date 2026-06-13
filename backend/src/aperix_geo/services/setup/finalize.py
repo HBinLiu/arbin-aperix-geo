@@ -22,10 +22,10 @@ from aperix_geo.services.sampling.workflow import (
 )
 from aperix_geo.services.sampling.platforms import resolve_subject_sampling_platforms
 from aperix_geo.services.setup.helpers import (
-    company_from_setup_session,
-    profile_summary_from_setup_session,
+    company_from_session,
+    profile_summary_from_session,
 )
-from aperix_geo.services.setup.session import get_session
+from aperix_geo.services.setup.cache import delete_session, get_session
 from aperix_geo.services.prompts.taxonomy import normalize_funnel_stage, normalize_search_intent
 from aperix_geo.services.subject.domain_fields import apply_subject_domain_fields
 from aperix_geo.utils.domains import ensure_brand
@@ -40,11 +40,19 @@ def finalize_setup(
     user: User,
     body: SetupFinalizeRequest,
 ) -> tuple[Subject, SamplingJob]:
-    st = SubjectType(body.type.value)
-    domain_val = body.domain.strip() if body.domain else ""
+    setup_session_id = body.setup_session_id.strip()
+    setup_session = get_session(user_id=str(user.id), session_id=setup_session_id)
+    if setup_session is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="setup session not found")
+
+    st = SubjectType(setup_session["subject_type"])
+    if st == SubjectType.domain:
+        raw_domain = str(setup_session.get("website_url") or setup_session.get("domain") or "").strip()
+    else:
+        raw_domain = ""
     domain, website_url = apply_subject_domain_fields(
         subject_type=st,
-        raw_domain=domain_val,
+        raw_domain=raw_domain,
     )
 
     topic_items = [t for t in body.topics if t.name.strip()]
@@ -62,28 +70,25 @@ def finalize_setup(
     ):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="按品牌监测时至少需要一个竞品品牌")
 
-    setup_session_id = body.setup_session_id.strip() if body.setup_session_id else None
-    profile_company = company_from_setup_session(
-        user_id=str(user.id),
-        setup_session_id=setup_session_id,
-    )
+    profile_company = company_from_session(setup_session)
+    brand_from_session = str(setup_session.get("brand") or "").strip()
     brand = ensure_brand(
-        profile_company or (body.brand.strip() if body.brand else ""),
+        profile_company or brand_from_session,
         domain=domain if st == SubjectType.domain else None,
     )
 
     scope = normalize_monitoring_scope(
-        body.monitoring_scope.model_dump(exclude_none=True) if body.monitoring_scope else None
+        {
+            "region": setup_session.get("region", "CN"),
+            "language": setup_session.get("language", "zh-CN"),
+        }
     )
-    if setup_session_id:
-        session = get_session(user_id=str(user.id), session_id=setup_session_id)
-        if session:
-            raw_profile = session.get("profile")
-            if isinstance(raw_profile, dict) and raw_profile:
-                scope = {
-                    **scope,
-                    "niche_profile": profile_to_dict(profile_from_dict(raw_profile)),
-                }
+    raw_profile = setup_session.get("profile")
+    if isinstance(raw_profile, dict) and raw_profile:
+        scope = {
+            **scope,
+            "niche_profile": profile_to_dict(profile_from_dict(raw_profile)),
+        }
 
     subject = Subject(
         tenant_id=user.tenant_id,
@@ -93,10 +98,7 @@ def finalize_setup(
         website_url=website_url,
         aliases=[],
         monitoring_scope=scope,
-        profile_summary=profile_summary_from_setup_session(
-            user_id=str(user.id),
-            setup_session_id=setup_session_id,
-        ),
+        profile_summary=profile_summary_from_session(setup_session),
         sampling_interval=DEFAULT_SAMPLING_INTERVAL_HOURS,
     )
     validate_subject_fields(subject)
@@ -162,4 +164,5 @@ def finalize_setup(
         update_schedule_anchor=True,
     )
     db.refresh(subject)
+    delete_session(user_id=str(user.id), session_id=setup_session_id)
     return subject, job

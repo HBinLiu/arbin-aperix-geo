@@ -2,9 +2,25 @@
 
 from __future__ import annotations
 
+import uuid
+from dataclasses import dataclass
 from typing import Any
 
 COMPETITOR_ENTITY_ID = "comp-beta"
+
+
+@dataclass
+class _FakeBrand:
+    id: uuid.UUID
+    domain: str = ""
+
+
+def brands_by_entity_id_for_drafts(drafts) -> dict[str, _FakeBrand]:
+    brands: dict[str, _FakeBrand] = {}
+    for draft in drafts:
+        if draft.entity_id not in brands:
+            brands[draft.entity_id] = _FakeBrand(id=uuid.uuid4(), domain=draft.entity_label)
+    return brands
 
 
 def entity_signal(**kwargs: Any) -> dict[str, Any]:
@@ -61,6 +77,7 @@ def signal_rows_from_payload(
             platform=response.platform,
             created_at=response.created_at,
             entity_signals=drafts,
+            brands_by_entity_id=brands_by_entity_id_for_drafts(drafts),  # type: ignore[arg-type]
         ):
             out.append(LLMResponseSignalRow.from_model(signal))
     return out

@@ -11,7 +11,7 @@ from aperix_geo.services.crawl._httpx import get_icon_httpx_client
 from aperix_geo.services.favicon._candidates import discover_icon_url_batches
 from aperix_geo.services.favicon._domain import favicon_homepage_urls
 from aperix_geo.services.favicon._parse import dedupe_urls
-from aperix_geo.services.favicon._storage import persist_icon
+from aperix_geo.services.favicon._storage import persist_favicon
 from aperix_geo.utils.http import HTML_PAGE_FETCH_HEADERS
 
 _MAX_ICON_BYTES = 512_000
@@ -187,16 +187,14 @@ def fetch_first_icon(
     *,
     timeout_s: float,
 ) -> tuple[bytes, str] | None:
-    best: tuple[bytes, str] | None = None
     for url in dedupe_urls(candidates):
         got = fetch_icon_bytes(client, url, timeout_s=timeout_s)
         if not got:
             continue
         body, media = got
-        persist_icon(host, url=url, body=body, media_type=media, primary=best is None)
-        if best is None:
-            best = (body, media)
-    return best
+        persist_favicon(host, url=url, body=body, media_type=media)
+        return body, media
+    return None
 
 
 def resolve_favicon_network(

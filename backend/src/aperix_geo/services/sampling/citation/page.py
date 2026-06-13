@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from uuid import UUID
 
 from aperix_geo.services.crawl import fetch_page, page_crawl_settings
-from aperix_geo.services.crawl.metadata import extract_page_metadata
+from aperix_geo.services.crawl.metadata import SeoProfile, extract_page_metadata
 from aperix_geo.services.crawl.settings import PageCrawlSettings
 from aperix_geo.utils.domains import registrable_domain
 from aperix_geo.utils.text import truncate_text
@@ -115,13 +115,20 @@ def fetch_citation_page_meta(
         markdown=fetched.markdown,
         html_parse_limit=html_limit,
         body_limit=html_limit,
+        seo_profile=SeoProfile.CITATION,
     )
     meta.title = parsed.title
     meta.description = parsed.description
     meta.headings = list(parsed.headings)
     meta.has_table = parsed.has_table
     meta.has_code_block = parsed.has_code_block
-    meta.text_snippet = truncate_text(parsed.body_text, snippet_chars) if parsed.body_text else ""
+    snippet_parts: list[str] = []
+    seo = parsed.seo_prose(max_chars=min(1500, snippet_chars))
+    if seo:
+        snippet_parts.append(seo)
+    if parsed.body_text:
+        snippet_parts.append(parsed.body_text)
+    meta.text_snippet = truncate_text("\n\n".join(snippet_parts), snippet_chars) if snippet_parts else ""
     meta.fetch_ok = parsed.has_content()
 
     if sampling_job_id is not None:

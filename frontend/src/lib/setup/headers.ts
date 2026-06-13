@@ -4,14 +4,14 @@ export function setupStepHeader(
 ): { title: string; subtitle: string } | null {
   if (step === 1 && flags.analyzingProfile) {
     return {
-      title: "正在生成主题",
-      subtitle: "我们正在分析您的品牌定位，并生成主题关键词。",
+      title: "正在生成画像",
+      subtitle: "我们正在分析品牌定位，并生成检索词与监测主题。",
     };
   }
   if (step === 2 && flags.discoveringCompetitors) {
     return {
       title: "搜索竞争对手",
-      subtitle: "基于您确认的主题关键词，正在检索并交叉验算竞品。",
+      subtitle: "基于您确认的检索词，正在检索并交叉验算竞品。",
     };
   }
   if (step === 3 && flags.generatingPrompts) {
@@ -22,8 +22,8 @@ export function setupStepHeader(
   }
   if (step === 1) {
     return {
-      title: "审查已生成的主题",
-      subtitle: "我们已根据您的品牌定位生成主题。请选择您要用于搜索竞品和生成提示词的主题。",
+      title: "审查检索词与监测主题",
+      subtitle: "检索词用于搜索竞品；监测主题用于生成 AI 提示词。请核对品牌画像并勾选要保留的项。",
     };
   }
   if (step === 2) {

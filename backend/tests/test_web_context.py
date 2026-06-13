@@ -1,6 +1,6 @@
 """Unit tests for web_context URL helpers."""
 
-from aperix_geo.services.competitor.web_context import _result_markdown
+from aperix_geo.services.crawl._crawl4ai import result_markdown
 from aperix_geo.utils.domains import strip_hostname
 from aperix_geo.utils.text import headings_from_markdown, truncate_text
 from aperix_geo.utils.url import (
@@ -34,7 +34,7 @@ def test_result_markdown_from_object() -> None:
     class _R:
         markdown = _Md()
 
-    assert "Payments" in _result_markdown(_R())
+    assert "Payments" in result_markdown(_R())
 
 
 def test_truncate_markdown() -> None:
@@ -51,7 +51,24 @@ def test_host_resolves_invalid() -> None:
     assert not host_resolves("this-domain-definitely-does-not-exist-aperix.test")
 
 
-def test_homepage_urls_prefers_www() -> None:
+def test_homepage_urls_prefers_www(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "aperix_geo.utils.url.host_resolves",
+        lambda host: host in {"shushangyun.com", "www.shushangyun.com"},
+    )
     urls = homepage_urls("shushangyun.com")
     assert urls[0] == "https://www.shushangyun.com/"
+    assert urls[1] == "https://shushangyun.com/"
     assert all(u.startswith("https://") for u in urls)
+
+
+def test_homepage_urls_apex_first(monkeypatch) -> None:
+    from aperix_geo.utils.url import homepage_urls_apex_first
+
+    monkeypatch.setattr(
+        "aperix_geo.utils.url.host_resolves",
+        lambda host: host in {"example.com", "www.example.com"},
+    )
+    urls = homepage_urls_apex_first("example.com")
+    assert urls[0] == "https://example.com/"
+    assert urls[1] == "https://www.example.com/"

@@ -33,18 +33,11 @@ def _meta_content(soup: BeautifulSoup, *keys: str) -> str:
 
 
 def parse_head_from_html(html: str) -> tuple[str, str]:
-    if not (html or "").strip():
-        return "", ""
+    """Return best-effort title and description (SEO/GEO meta priority chain)."""
+    from aperix_geo.services.crawl.seo import parse_seo_from_html
 
-    soup = BeautifulSoup(html, "html.parser", parse_only=_HEAD_STRAINER)
-    title = ""
-    if soup.title:
-        title = _normalize_text(soup.title.get_text(), limit=500)
-    if not title:
-        title = _normalize_text(_meta_content(soup, *_TITLE_FALLBACK_KEYS), limit=500)
-
-    description = _normalize_text(_meta_content(soup, *_DESC_META_KEYS), limit=2000)
-    return title, description
+    seo = parse_seo_from_html(html)
+    return seo.title, seo.description
 
 
 def html_to_text(html: str, *, limit: int | None = None) -> str:

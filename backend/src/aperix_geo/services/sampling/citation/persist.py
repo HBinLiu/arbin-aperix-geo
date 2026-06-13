@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import CitationDomain, CitationUrl
 from aperix_geo.services.sampling.parsed import ParsedSamplingResult
+from aperix_geo.utils.coerce import safe_int
 from aperix_geo.utils.text import mode_nonempty
 from aperix_geo.utils.url import filter_citation_urls, hostname_from_url, is_placeholder_citation_host
 
@@ -56,14 +57,14 @@ def citations_from_parsed(parsed: dict[str, Any] | ParsedSamplingResult) -> list
                 "page_title": page_title[:500],
                 "domain_type": domain_type[:128],
                 "url_type": url_type[:128],
-                "http_status": src.get("http_status"),
+                "http_status": safe_int(src, "http_status", 0),
                 "description": str(src.get("description") or "")[:8000],
                 "headings": _headings_text(src.get("headings"))[:4000],
-                "has_table": src.get("has_table"),
-                "has_code_block": src.get("has_code_block"),
+                "has_table": bool(src.get("has_table")),
+                "has_code_block": bool(src.get("has_code_block")),
                 "text_snippet": str(src.get("text_snippet") or "")[:20000],
                 "llm_analysis": llm_analysis,
-                "fetch_ok": src.get("fetch_ok"),
+                "fetch_ok": bool(src.get("fetch_ok")),
                 "from_api": key in api_urls,
             }
         )

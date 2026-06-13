@@ -109,38 +109,58 @@ Beat 按 `SAMPLING_SCHEDULER_TICK_SECONDS`（默认 15 分钟）扫描到期主�
 
 | 模块 | 用途 |
 |------|------|
+| `crawl/seo.py` | HTML head / JSON-LD / Microdata 解析与 `SeoProfile` 场景裁剪 |
+| `crawl/metadata.py` | 抓取结果 → `PageMetadata`（SEO + 可选正文） |
 | `sampling/citation/page.py` | 引用页 `text_snippet`、品牌提及检测 |
 | `competitor/web_context.py` | 竞品首页 LLM 画像 |
-| `competitor/head_fetch.py` | 竞品候选站 title（`include_body=False`） |
-| `competitor/research.py` | 主体调研补充页摘录 |
+| `competitor/head_fetch.py` | 竞品候选站 title + 结构化 SEO（`SeoProfile.CROSS_VALIDATE`，`include_body=False`） |
+| `competitor/research.py` | 主体调研 payload（含首页 SEO） |
+| `crawl/enrich.py` | 资讯 URL SEO enrichment（`SeoProfile.ARTICLE_DISCOVERY`） |
 
-常量：`HEAD_PARSE_MAX_CHARS=120_000`，`MIN_BODY_CHARS=40`（与 `PageFetchResult.fetch_ok` 阈值一致）。
+常量：`HEAD_PARSE_MAX_CHARS=120_000`（全量 SEO 解析上限），`PAGE_CRAWL_SEO_MAX_CHARS` 默认 `64_000`（SEO-only 抓取上限），`MIN_BODY_CHARS=40`（与 `PageFetchResult.fetch_ok` 阈值一致）。SEO-only 场景默认不启用 Crawl4AI 兜底（`PAGE_CRAWL_SEO_FALLBACK_ENABLED=false`）。
 
 竞品发现流程（`discover-competitors`，代码在 `services/competitor/`）：
 
 **Onboarding 分步 API（推荐）**
 
-1. `POST /subjects/discover-profile` — 监测站首页 → 微观利基画像，返回 `session_id` + `micro_keywords`（Redis 缓存 1h）
-2. 用户审查/编辑主题（keywords）
-3. `POST /subjects/discover-competitors` — body: `{ session_id, micro_keywords?, profile? }`，基于确认后的画像搜索竞品
+1. `POST /subjects/discover-profile` — 爬站 + **两次 LLM**（1a 微观利基画像，1b 监测主题），返回 `session_id`、`monitoring_topics`（相同 target/region 命中 **画像 Redis 缓存**可跳过 crawl+LLM；会话默认 24h TTL；Step2 后清除 raw crawl；finalize 后删除）
+2. 用户审查/编辑 **监测主题**（monitoring_topics）
+3. `POST /subjects/discover-competitors` — body: `{ session_id, monitoring_topics }`；SearXNG 搜竞品 + LLM 2a/2b 验算/筛选 + 2c enrich + 2d 生成 `profile_summary`（写入 session，Setup UI 不展示）；响应仅 `{ competitors }`
+4. `POST /subjects/generate-prompts` — 按监测主题生成初始问句（相同输入命中 session 缓存，跳过重跑 LLM）
+5. `POST /subjects/setup-finalize` — body: `{ setup_session_id, competitors, topics }`；主体类型、监测范围、`profile_summary` 等从 session 读取并落库
+
+**域名模式 Step1 LLM 分工**
+
+| 调用 | Prompt | 产出 |
+|------|--------|------|
+| 1a | `SUBJECT_PROFILE_SYSTEM` | `company`、`industry`、`core_features`、`target_customers`、`micro_keywords` |
+| 1b | `SUBJECT_MONITORING_TOPICS_SYSTEM` | `monitoring_topics`（AI 问句分桶） |
+| 2 · 摘要开集 | `COMPETITOR_SNIPPET_BRAND_EXTRACTION_SYSTEM` | 从搜索摘要抽取直接竞品品牌（`brand_names` 数组） |
+| 2a（域名） | `COMPETITOR_CROSS_VALIDATE_SYSTEM` | 候选竞品交叉验算打分 |
+| 2b（品牌） | `COMPETITOR_SNIPPET_BRAND_EXTRACTION_SYSTEM` | 竞品品牌名短名单（同摘要开集抽取） |
+| 2c | `COMPETITOR_DISCOVER_ENRICH_SYSTEM` | 竞品 `brand` + `summary` |
+| 2d | `SUBJECT_PROFILE_SUMMARY_SYSTEM` | `profile_summary`（完整 Markdown） |
+| 3 | `SETUP_WIZARD_PROMPTS_SYSTEM` | 各 topic 监测问句 |
+
+编排与 user payload：`services/setup/llm/`（`payloads.py`、`stages.py`）；Redis 缓存：`services/setup/cache/`（`session.py`、`profile.py`、`competitors.py`、`prompts.py`）；system 模板：`services/providers/prompts.py`。
 
 **域名模式完整链路**
 
 1. **首页抓取**：默认 httpx 轻量取 title/description；失败时回退 Crawl4AI
-2. **微观利基画像**：LLM → `industry`、`core_features`、`target_customers`、`micro_keywords`
-3. **SearXNG**：多轮 query（`SEARXNG_BASE_URL` 必填）；预排除媒体/聚合站
-4. **交叉验算**：轻量抓取竞品候选站元数据 + LLM 对标打分（0–10），高分不足时按分数顺延
-5. **终选**：按分数取 Top，或 LLM 从高分候选中挑最多 5 个主域名
+2. **微观利基画像**：LLM（1a）→ 结构化字段；监测主题（1b）分步生成；**摘要**在竞品搜索（Step2）后一次性生成
+3. **SearXNG**：首轮 query（`SEARXNG_BASE_URL` 必填）；预排除媒体/聚合站；若交叉验算未达标，**先从已有资讯/榜单摘要（+ 可选页面 SEO）抽取竞品品牌并解析官网**，成功则跳过后续 SearXNG；仍不足再进入后续轮次
+4. **交叉验算**：SEO-only head（`PAGE_CRAWL_SEO_*`，默认无 Crawl4AI 兜底）+ LLM 对标打分（0–10），高分不足时按分数顺延
+5. **终选**：按交叉验算分数取 Top（最多 5 个主域名）
 6. **输出**：可打开校验 + 中文站点名 → `{ domains, competitors: [{domain, site_name}] }`
 
-环境变量见 `backend/.env.example`：**大模型**按厂商分块；**竞品发现**为 `COMPETITOR_*` 与 `SEARXNG_BASE_URL`（抓取超时、结果数量等见 `services/competitor/defaults.py` 映射）。须配 `SEARXNG_BASE_URL`。安装 Crawl4AI 浏览器（只需一次）：
+环境变量见 `backend/.env.example`：**大模型**按厂商分块；**竞品发现**为 `COMPETITOR_*` 与 `SEARXNG_BASE_URL`（默认值与 `PAGE_CRAWL_SEO_*` 联动，映射见 `services/competitor/defaults.py`）。须配 `SEARXNG_BASE_URL`。安装 Crawl4AI 浏览器（只需一次，用于正文类抓取兜底）：
 
 ```bash
 crawl4ai-setup
 # 或：playwright install chromium
 ```
 
-可调 `WEB_CRAWL_*` 环境变量，见 `.env.example`。
+可调 `PAGE_CRAWL_*` 环境变量，见 `.env.example`。
 
 ## 阿里云短信（可选）
 

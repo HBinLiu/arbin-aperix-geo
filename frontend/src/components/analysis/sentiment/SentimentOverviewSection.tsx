@@ -63,8 +63,7 @@ type DistributionCardProps = {
 };
 
 function SentimentDistributionCard({ score, scoreLabel, series, loading }: DistributionCardProps) {
-  const points = score != null ? (score <= 1 ? score * 100 : score) : null;
-  const scoreText = points != null ? points.toFixed(1) : null;
+  const scoreText = score != null ? score.toFixed(1) : null;
 
   return (
     <div className="flex min-w-[min(100%,480px)] flex-[3] flex-col p-5" style={{ minHeight: SENTIMENT_SECTION_HEIGHT }}>

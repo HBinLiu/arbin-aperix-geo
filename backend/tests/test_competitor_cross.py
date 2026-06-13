@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from aperix_geo.services.competitor.cross_validate import (
     CompetitorScore,
+    _candidate_payload,
     run_cross_validate,
 )
 from aperix_geo.services.competitor.types import SearchPool, SiteHead
@@ -37,7 +38,7 @@ def test_cross_validate_empty_pool(mock_settings) -> None:
 @patch("aperix_geo.services.competitor.cross_validate.get_settings")
 def test_cross_validate_batches(mock_settings, mock_fetch, mock_score) -> None:
     mock_settings.return_value.competitor_pool_size = 50
-    mock_settings.return_value.competitor_min_score = 6.0
+    mock_settings.return_value.competitor_cross_validate_pass_score = 6.0
 
     mock_fetch.return_value = {
         "wise.com": SiteHead("wise.com", "Wise", "跨境", True),
@@ -66,7 +67,7 @@ def test_cross_validate_batches(mock_settings, mock_fetch, mock_score) -> None:
 @patch("aperix_geo.services.competitor.cross_validate.get_settings")
 def test_unreachable_hosts_skip_llm(mock_settings, mock_fetch, mock_score) -> None:
     mock_settings.return_value.competitor_pool_size = 50
-    mock_settings.return_value.competitor_min_score = 6.0
+    mock_settings.return_value.competitor_cross_validate_pass_score = 6.0
     mock_fetch.return_value = {
         "good.com": SiteHead("good.com", "Good", "ok", True),
         "bad.com": SiteHead("bad.com", "", "", False),
@@ -93,3 +94,16 @@ def test_unreachable_hosts_skip_llm(mock_settings, mock_fetch, mock_score) -> No
     bad = next(s for s in result.scores if s.domain == "bad.com")
     assert bad.score == 0.0
     assert "不可打开" in bad.reason
+
+
+def test_candidate_payload_includes_seo_excerpt() -> None:
+    head = SiteHead(
+        "profound.ai",
+        "Profound",
+        "GEO platform",
+        True,
+        seo="type: website\nbrands: Profound\nschema: SoftwareApplication",
+    )
+    payload = _candidate_payload(head, None)
+    assert payload["title"] == "Profound"
+    assert "schema: SoftwareApplication" in payload["seo"]

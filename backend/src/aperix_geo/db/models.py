@@ -53,7 +53,7 @@ class Tenant(Base):
     __tablename__ = "tb_tenants"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
@@ -73,7 +73,7 @@ class Brand(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("tb_tenants.id", ondelete="CASCADE"), nullable=False
     )
-    brand: Mapped[str] = mapped_column(String(255), nullable=False)
+    brand: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     domain: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     website_url: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     aliases: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default=sa_text("'[]'::jsonb"))
@@ -116,7 +116,7 @@ class User(Base):
     phone: Mapped[str] = mapped_column(String(20), nullable=False, default="", server_default="")
     email: Mapped[str] = mapped_column(String(320), nullable=False, default="", server_default="")
     password: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
@@ -149,7 +149,12 @@ class Subject(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("tb_tenants.id", ondelete="CASCADE"), nullable=False
     )
-    type: Mapped[SubjectType] = mapped_column(SAEnum(SubjectType, name="subject_type"), nullable=False)
+    type: Mapped[SubjectType] = mapped_column(
+        SAEnum(SubjectType, name="subject_type"),
+        nullable=False,
+        default=SubjectType.domain,
+        server_default=sa_text("'domain'::subject_type"),
+    )
     domain: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     brand: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     aliases: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default=sa_text("'[]'::jsonb"))
@@ -234,7 +239,7 @@ class Topic(Base):
     subject_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("tb_subjects.id", ondelete="CASCADE"), nullable=False
     )
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
@@ -256,13 +261,13 @@ class Prompt(Base):
     topic_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("tb_topics.id", ondelete="CASCADE"), nullable=False
     )
-    text: Mapped[str] = mapped_column(Text, nullable=False)
-    text_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    text_hash: Mapped[str] = mapped_column(String(64), nullable=False, default="", server_default="")
     funnel_stage: Mapped[str] = mapped_column(String(8), nullable=False, default="mofu", server_default="mofu")
     search_intent: Mapped[str] = mapped_column(
         String(16), nullable=False, default="commercial", server_default="commercial"
     )
-    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
@@ -337,7 +342,7 @@ class LLMResponse(Base):
     prompt_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("tb_prompts.id", ondelete="CASCADE"), nullable=False
     )
-    platform: Mapped[str] = mapped_column(String(128), nullable=False)
+    platform: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
     status: Mapped[LLMResponseStatus] = mapped_column(
         SAEnum(LLMResponseStatus, name="llm_response_status"),
         nullable=False,
@@ -393,26 +398,29 @@ class LLMResponseSignal(Base):
         Uuid(as_uuid=True), ForeignKey("tb_prompts.id", ondelete="CASCADE"), nullable=False
     )
     platform: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
-    entity_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    entity_kind: Mapped[str] = mapped_column(String(16), nullable=False)
-    brand_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("tb_brands.id", ondelete="SET NULL"), nullable=True
+    entity_id: Mapped[str] = mapped_column(String(64), nullable=False, default="", server_default="")
+    entity_kind: Mapped[str] = mapped_column(String(16), nullable=False, default="", server_default="")
+    brand_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_brands.id", ondelete="RESTRICT"), nullable=False
     )
     entity_label: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     primary_domain: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     mentioned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     mention_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
-    mention_rank: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    sentiment_score: Mapped[float | None] = mapped_column(nullable=True)
+    mention_rank: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    sentiment_score: Mapped[float] = mapped_column(Float, nullable=False, default=-1.0, server_default="-1")
     sentiment_label: Mapped[str] = mapped_column(String(16), nullable=False, default="neutral", server_default="neutral")
     has_domain_link: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     cited_on_source: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
+    )
 
     llm_response: Mapped[LLMResponse] = relationship(back_populates="llm_response_signals")
     subject: Mapped["Subject"] = relationship()
     prompt: Mapped["Prompt"] = relationship()
-    brand: Mapped["Brand | None"] = relationship(back_populates="llm_response_signals")
+    brand: Mapped["Brand"] = relationship(back_populates="llm_response_signals")
 
     __table_args__ = (
         UniqueConstraint("response_id", "entity_id", name="uq_llm_response_signal"),
@@ -472,16 +480,16 @@ class CitationUrl(Base):
     url: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     page_title: Mapped[str] = mapped_column(String(500), nullable=False, default="", server_default="")
     domain_type: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
-    http_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    http_status: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     description: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     headings: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
-    has_table: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    has_code_block: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    has_table: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    has_code_block: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     text_snippet: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     llm_analysis: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default=sa_text("'{}'::jsonb")
     )
-    fetch_ok: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    fetch_ok: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     from_api: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     url_type: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)

@@ -6,7 +6,7 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-revision: str = "001_initial"
+revision: str = "001_initial_schema"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -69,7 +69,7 @@ def upgrade() -> None:
         "tb_brands",
         sa.Column("id", sa.Uuid(as_uuid=True), primary_key=True),
         sa.Column("tenant_id", sa.Uuid(as_uuid=True), sa.ForeignKey("tb_tenants.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("brand", sa.String(255), nullable=False),
+        sa.Column("brand", sa.String(255), nullable=False, server_default=""),
         sa.Column("domain", sa.String(255), nullable=False, server_default=""),
         sa.Column("aliases", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'[]'::jsonb")),
         sa.Column("website_url", sa.String(255), nullable=False, server_default=""),
@@ -283,14 +283,14 @@ def upgrade() -> None:
         sa.Column("url", sa.Text(), nullable=False, server_default=""),
         sa.Column("page_title", sa.String(500), nullable=False, server_default=""),
         sa.Column("domain_type", sa.String(128), nullable=False, server_default=""),
-        sa.Column("http_status", sa.Integer(), nullable=True),
+        sa.Column("http_status", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("description", sa.Text(), nullable=False, server_default=""),
         sa.Column("headings", sa.Text(), nullable=False, server_default=""),
-        sa.Column("has_table", sa.Boolean(), nullable=True),
-        sa.Column("has_code_block", sa.Boolean(), nullable=True),
+        sa.Column("has_table", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("has_code_block", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("text_snippet", sa.Text(), nullable=False, server_default=""),
         sa.Column("llm_analysis", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'{}'::jsonb")),
-        sa.Column("fetch_ok", sa.Boolean(), nullable=True),
+        sa.Column("fetch_ok", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("from_api", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("url_type", sa.String(128), nullable=False, server_default=""),
         sa.Column("created_at", _TS, nullable=False, server_default=_NOW),
@@ -321,20 +321,20 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("platform", sa.String(128), nullable=False, server_default=""),
-        sa.Column("entity_id", sa.String(64), nullable=False),
-        sa.Column("entity_kind", sa.String(16), nullable=False),
+        sa.Column("entity_id", sa.String(64), nullable=False, server_default=""),
+        sa.Column("entity_kind", sa.String(16), nullable=False, server_default=""),
         sa.Column(
             "brand_id",
             sa.Uuid(as_uuid=True),
-            sa.ForeignKey("tb_brands.id", ondelete="SET NULL"),
-            nullable=True,
+            sa.ForeignKey("tb_brands.id", ondelete="RESTRICT"),
+            nullable=False,
         ),
         sa.Column("entity_label", sa.String(255), nullable=False, server_default=""),
         sa.Column("primary_domain", sa.String(255), nullable=False, server_default=""),
         sa.Column("mentioned", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("mention_count", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("mention_rank", sa.Integer(), nullable=True),
-        sa.Column("sentiment_score", sa.Float(), nullable=True),
+        sa.Column("mention_rank", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("sentiment_score", sa.Float(), nullable=False, server_default="-1"),
         sa.Column("sentiment_label", sa.String(16), nullable=False, server_default="neutral"),
         sa.Column("has_domain_link", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("cited_on_source", sa.Boolean(), nullable=False, server_default="false"),

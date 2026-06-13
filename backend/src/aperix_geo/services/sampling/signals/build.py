@@ -7,6 +7,7 @@ from uuid import UUID
 
 from aperix_geo.db.models import Brand, EntityKind, LLMResponseSignal
 from aperix_geo.services.brand.resolve import primary_domain_for_brand
+from aperix_geo.utils.sentiment import persist_mention_rank, persist_sentiment_score
 from aperix_geo.services.sampling.signal_draft import EntitySignalDraft
 
 
@@ -22,8 +23,8 @@ def draft_to_model_fields(draft: EntitySignalDraft) -> dict[str, object]:
     return {
         "mentioned": draft.mentioned,
         "mention_count": draft.mention_count,
-        "mention_rank": draft.mention_rank,
-        "sentiment_score": draft.sentiment_score,
+        "mention_rank": persist_mention_rank(draft.mention_rank),
+        "sentiment_score": persist_sentiment_score(draft.sentiment_score),
         "sentiment_label": draft.sentiment_label or "neutral",
         "has_domain_link": draft.has_domain_link,
         "cited_on_source": draft.cited_on_source,
@@ -44,7 +45,9 @@ def build_llm_response_signal_rows(
     rows: list[LLMResponseSignal] = []
     for draft in entity_signals:
         brand = brands_by_entity_id.get(draft.entity_id)
-        primary_domain = primary_domain_for_brand(brand) if brand is not None else ""
+        if brand is None:
+            raise ValueError(f"missing brand sync for entity_id={draft.entity_id!r}")
+        primary_domain = primary_domain_for_brand(brand)
         rows.append(
             LLMResponseSignal(
                 response_id=response_id,
@@ -53,7 +56,7 @@ def build_llm_response_signal_rows(
                 platform=platform,
                 entity_id=draft.entity_id,
                 entity_kind=_entity_kind_value(draft.entity_kind),
-                brand_id=brand.id if brand is not None else None,
+                brand_id=brand.id,
                 entity_label=draft.entity_label,
                 primary_domain=primary_domain,
                 created_at=created_at,

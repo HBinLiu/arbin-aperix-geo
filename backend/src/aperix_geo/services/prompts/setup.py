@@ -24,16 +24,11 @@ def _normalize_generated_prompts(raw: list[Any], *, limit: int) -> list[dict[str
     out: list[dict[str, str]] = []
     seen: set[str] = set()
     for item in raw:
-        if isinstance(item, str):
-            text = item.strip()
-            funnel_stage = normalize_funnel_stage(None)
-            search_intent = normalize_search_intent(None)
-        elif isinstance(item, dict):
-            text = str(item.get("text") or item.get("question") or "").strip()
-            funnel_stage = normalize_funnel_stage(str(item.get("funnel") or item.get("funnel_stage") or ""))
-            search_intent = normalize_search_intent(str(item.get("intent") or item.get("search_intent") or ""))
-        else:
+        if not isinstance(item, dict):
             continue
+        text = str(item.get("text") or item.get("question") or "").strip()
+        funnel_stage = normalize_funnel_stage(str(item.get("funnel") or item.get("funnel_stage") or ""))
+        search_intent = normalize_search_intent(str(item.get("intent") or item.get("search_intent") or ""))
         if not text or text in seen:
             continue
         seen.add(text)

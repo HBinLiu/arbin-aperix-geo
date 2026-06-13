@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from aperix_geo.db.models import Competitor, LLMResponse, LLMResponseStatus, Subject, SubjectType
 from aperix_geo.services.analysis.aggregate import aggregate_metrics, metrics_from_signals
 from aperix_geo.services.analysis.entity import OWN_ENTITY_ID
+from aperix_geo.utils.sentiment import NO_SENTIMENT_SCORE, persist_mention_rank
 from aperix_geo.services.analysis.signal_load import LLMResponseSignalRow
 from aperix_geo.services.sampling.signal_draft import EntitySignalDraft
 from tests.parsed_fixtures import competitor_signal, entity_signal, parsed_payload, signal_rows_from_payload
@@ -136,6 +137,7 @@ def test_build_backlink_opportunities():
 
     from aperix_geo.db.models import Competitor
     from aperix_geo.services import analysis as analysis_mod
+    from aperix_geo.services.analysis import _query as analysis_query
     from aperix_geo.services.analysis import build_backlink_opportunities
     from aperix_geo.services.analysis.signal_load import load_llm_response_signals
 
@@ -177,9 +179,9 @@ def test_build_backlink_opportunities():
     dt_from = dt_to - timedelta(days=7)
     signals = _signals_for_rows(rows, subject, payloads)
     own_signals = [row for row in signals if row.entity_id == OWN_ENTITY_ID]
-    original_responses = analysis_mod._responses_in_window.override
+    original_responses = analysis_query.responses_in_window.override
     original_signals = load_llm_response_signals.override
-    analysis_mod._responses_in_window.override = lambda *args, **kwargs: rows
+    analysis_query.responses_in_window.override = lambda *args, **kwargs: rows
     load_llm_response_signals.override = lambda *args, **kwargs: (
         own_signals if kwargs.get("entity_id") == OWN_ENTITY_ID else signals
     )
@@ -188,7 +190,7 @@ def test_build_backlink_opportunities():
             FakeDb(), subject=subject, dt_from=dt_from, dt_to=dt_to
         )
     finally:
-        analysis_mod._responses_in_window.override = original_responses
+        analysis_query.responses_in_window.override = original_responses
         load_llm_response_signals.override = original_signals
 
     assert len(out["items"]) == 1
@@ -272,11 +274,11 @@ def test_build_diagnosis():
 
 
 def test_top_visibility_labels_keeps_own_brand():
-    from aperix_geo.services.analysis import _top_visibility_labels
+    from aperix_geo.services.analysis._series import top_visibility_labels
 
     share = {f"Brand{i}": i / 100 for i in range(10)}
     share["Own"] = 0.01
-    labels = _top_visibility_labels(share, "Own", limit=5)
+    labels = top_visibility_labels(share, "Own", limit=5)
     assert "Own" in labels
     assert len(labels) == 5
 
@@ -284,7 +286,7 @@ def test_top_visibility_labels_keeps_own_brand():
 def test_align_previous_daily_by_period_offset():
     from datetime import date
 
-    from aperix_geo.services.analysis import _align_previous_daily_to_current
+    from aperix_geo.services.analysis._series import align_previous_daily_to_current
 
     current = [
         {"date": "2026-05-02", "values": {"Own": 0.1}},
@@ -293,7 +295,7 @@ def test_align_previous_daily_by_period_offset():
     previous = [
         {"date": "2026-04-02", "values": {"Own": 0.3}},
     ]
-    aligned = _align_previous_daily_to_current(
+    aligned = align_previous_daily_to_current(
         current,
         previous,
         ["Own"],
@@ -473,8 +475,8 @@ def test_aggregate_metrics_entity_group():
                 entity_kind=sig.entity_kind,
                 mentioned=sig.mentioned,
                 mention_count=sig.mention_count,
-                mention_rank=sig.mention_rank,
-                sentiment_score=None,
+                mention_rank=persist_mention_rank(sig.mention_rank),
+                sentiment_score=NO_SENTIMENT_SCORE,
                 sentiment_label="neutral",
                 has_domain_link=False,
                 cited_on_source=False,

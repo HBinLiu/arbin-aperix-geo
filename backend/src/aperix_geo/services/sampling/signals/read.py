@@ -10,6 +10,7 @@ from aperix_geo.services.analysis.entity import list_analysis_entities
 from aperix_geo.services.sampling.parsed import ParsedSamplingResult
 from aperix_geo.services.sampling.signal_draft import drafts_to_records
 from aperix_geo.services.sampling.signals.match import match_terms_for_entity_signal
+from aperix_geo.utils.sentiment import api_mention_rank, api_sentiment_score
 
 
 def _signal_record(
@@ -25,7 +26,7 @@ def _signal_record(
         "entity_id": entity_id,
         "entity_kind": entity_kind,
         "entity_label": entity_label,
-        "primary_domain": primary_domain or None,
+        "primary_domain": primary_domain,
         "match_terms": match_terms_for_entity_signal(
             subject,
             entity_id=entity_id,
@@ -59,12 +60,12 @@ def entity_signal_records_for_response(
                 entity_id=row.entity_id,
                 entity_kind=row.entity_kind,
                 entity_label=entity_label,
-                primary_domain=row.primary_domain or "",
-                brand_id=str(row.brand_id) if row.brand_id is not None else None,
+                primary_domain=row.primary_domain,
+                brand_id=str(row.brand_id),
                 mentioned=row.mentioned,
                 mention_count=row.mention_count,
-                mention_rank=row.mention_rank,
-                sentiment_score=row.sentiment_score,
+                mention_rank=api_mention_rank(row.mention_rank),
+                sentiment_score=api_sentiment_score(row.sentiment_score),
                 sentiment_label=row.sentiment_label,
                 has_domain_link=row.has_domain_link,
                 cited_on_source=row.cited_on_source,
@@ -97,8 +98,8 @@ def parsed_api_dict(
                     brand_id=draft_record.get("brand_id"),
                     mentioned=draft_record.get("mentioned"),
                     mention_count=draft_record.get("mention_count"),
-                    mention_rank=draft_record.get("mention_rank"),
-                    sentiment_score=draft_record.get("sentiment_score"),
+                    mention_rank=api_mention_rank(draft_record.get("mention_rank")),
+                    sentiment_score=api_sentiment_score(draft_record.get("sentiment_score")),
                     sentiment_label=draft_record.get("sentiment_label"),
                     has_domain_link=draft_record.get("has_domain_link"),
                     cited_on_source=draft_record.get("cited_on_source"),

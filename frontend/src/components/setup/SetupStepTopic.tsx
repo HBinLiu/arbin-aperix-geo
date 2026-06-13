@@ -22,9 +22,20 @@ const topicActionCellClass =
 type SetupStepTopicProps = {
   rows: TopicRow[];
   onChange: (rows: TopicRow[]) => void;
+  title?: string;
+  description?: string;
+  placeholder?: string;
+  addLabel?: string;
 };
 
-export function SetupStepTopic({ rows, onChange }: SetupStepTopicProps) {
+export function SetupStepTopic({
+  rows,
+  onChange,
+  title = "主题",
+  description,
+  placeholder = "主题名称",
+  addLabel = "添加主题",
+}: SetupStepTopicProps) {
   const [draftTopic, setDraftTopic] = React.useState("");
   const selectedCount = rows.filter((r) => r.selected).length;
   const allSelected = rows.length > 0 && rows.every((r) => r.selected);
@@ -55,9 +66,10 @@ export function SetupStepTopic({ rows, onChange }: SetupStepTopicProps) {
 
   return (
     <div className="flex w-full max-w-3xl flex-col gap-4">
+      {description ? <p className="text-muted-foreground text-xs">{description}</p> : null}
       <div className={topicTableGrid}>
-        <span className="text-foreground min-h-9 self-center px-0.5 text-sm font-semibold">
-          主题（{rows.length}/{MAX_TOPICS}）
+        <span className="text-foreground flex h-9 items-center px-0.5 text-sm font-semibold">
+          {title}（{rows.length}/{MAX_TOPICS}）
         </span>
         <div className={cn(topicActionCellClass, "col-start-2")}>
           <Checkbox
@@ -75,8 +87,8 @@ export function SetupStepTopic({ rows, onChange }: SetupStepTopicProps) {
               controlSize="sm"
               value={row.name}
               onChange={(e) => updateRow(row.id, { name: e.target.value })}
-              placeholder="主题名称"
-              aria-label={`主题 ${row.name || "未命名"}`}
+              placeholder={placeholder}
+              aria-label={`${title} ${row.name || "未命名"}`}
             />
             <div className={cn(topicActionCellClass, "col-start-2")}>
               <Checkbox
@@ -106,7 +118,7 @@ export function SetupStepTopic({ rows, onChange }: SetupStepTopicProps) {
             <SetupTextInput
               value={draftTopic}
               onChange={(e) => setDraftTopic(e.target.value)}
-              placeholder="输入要添加的主题"
+              placeholder={placeholder}
               containerClassName="min-w-0 flex-1 basis-0"
               className="w-full"
               onKeyDown={(e) => {
@@ -123,7 +135,7 @@ export function SetupStepTopic({ rows, onChange }: SetupStepTopicProps) {
               onClick={addFromDraft}
             >
               <Plus className="size-4 shrink-0" />
-              添加主题
+              {addLabel}
             </Button>
           </div>
         ) : null}
@@ -131,7 +143,7 @@ export function SetupStepTopic({ rows, onChange }: SetupStepTopicProps) {
 
       <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
         <span>已选择 {selectedCount} 项</span>
-        <span>最多可添加 {MAX_TOPICS} 个主题。</span>
+        <span>最多可添加 {MAX_TOPICS} 个{title}。</span>
       </div>
     </div>
   );

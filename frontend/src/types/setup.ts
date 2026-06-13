@@ -52,10 +52,6 @@ export type SetupCache = {
 export type FinalizeSetupInput = {
   mode: SubjectMode;
   sessionId: string;
-  domain: string;
-  brand: string;
-  region: string;
-  language: string;
   topicRows: TopicRow[];
   competitorRows: CompetitorRow[];
   promptRows: PromptRow[];

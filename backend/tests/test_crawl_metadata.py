@@ -1,10 +1,12 @@
 """Tests for unified page metadata extraction."""
 
 from aperix_geo.services.crawl.metadata import (
+    extract_metadata_from_fetch,
     extract_page_metadata,
     homepage_metadata_dict,
     markdown_has_table,
 )
+from aperix_geo.services.crawl.types import PageFetchResult
 
 
 def test_head_from_html_only() -> None:
@@ -74,4 +76,20 @@ def test_markdown_has_table() -> None:
 
 def test_has_content() -> None:
     assert extract_page_metadata(html="<title>T</title>").has_content() is True
+    html = """
+    <head><meta name="keywords" content="GEO, SaaS" /></head>
+    """
+    assert extract_page_metadata(html=html).has_content() is True
     assert extract_page_metadata().has_content() is False
+
+
+def test_extract_metadata_from_fetch_reuses_seo_cache() -> None:
+    from aperix_geo.services.crawl.seo import clear_seo_parse_cache
+
+    clear_seo_parse_cache()
+    html = "<head><title>Fetch Title</title><meta name='description' content='desc' /></head>"
+    result = PageFetchResult(url="https://x.com", html=html, source="httpx")
+    assert result.fetch_ok is True
+    parsed = extract_metadata_from_fetch(result, html_parse_limit=64_000, include_body=False)
+    assert parsed.title == "Fetch Title"
+    assert parsed.description == "desc"

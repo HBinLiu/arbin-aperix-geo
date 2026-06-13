@@ -11,8 +11,9 @@ from aperix_geo.services.competitor.defaults import (
     CROSS_VALIDATE_BATCH_SIZE,
     RESULT_MAX,
 )
-from aperix_geo.utils.domains import registrable_domain
+from aperix_geo.services.competitor.diagnostics import log_cross_validate_score
 from aperix_geo.services.competitor.head_fetch import fetch_site_heads
+from aperix_geo.utils.domains import registrable_domain
 from aperix_geo.services.competitor.types import (
     CompetitorScore,
     CrossValidateResult,
@@ -30,6 +31,9 @@ from aperix_geo.services.searxng import SearchHit
 
 logger = logging.getLogger(__name__)
 
+# 停搜质量线 = PASS_SCORE + 该偏移（避免 3 个刚及格分就结束 SearXNG）
+QUALITY_STOP_AVG_OFFSET = 0.5
+
 
 def _target_payload(profile: NicheProfile, *, target_domain: str) -> dict[str, str]:
     return {
@@ -45,11 +49,14 @@ def _target_payload(profile: NicheProfile, *, target_domain: str) -> dict[str, s
 def _candidate_payload(head: SiteHead, hit: SearchHit | None) -> dict[str, str]:
     title = head.title or (hit.title[:200] if hit else "")
     description = head.description or (hit.snippet[:400] if hit else "")
-    return {
+    payload = {
         "domain": head.domain,
         "title": title or "（无）",
         "description": description or "（无）",
     }
+    if head.seo.strip():
+        payload["seo"] = head.seo[:800]
+    return payload
 
 
 def _parse_scores(data: dict[str, Any]) -> list[CompetitorScore]:
@@ -158,7 +165,7 @@ def _score_new_hosts(
 ) -> list[CompetitorScore]:
     settings = get_settings()
     target = _target_payload(profile, target_domain=target_domain)
-    min_score = settings.competitor_min_score
+    min_score = settings.competitor_cross_validate_pass_score
     stop_at = RESULT_MAX
     all_scores: list[CompetitorScore] = []
     ordered_heads = [heads[d] for d in new_hosts if d in heads]
@@ -232,8 +239,16 @@ def run_cross_validate(
     )
     scores = _merge_score_lists(prior_scores, new_scores)
 
-    for s in scores[:15]:
-        logger.info("竞品发现: 交叉验算 %s score=%.1f %s", s.domain, s.score, s.reason[:80])
+    heads_map = heads
+    for s in scores:
+        head = heads_map.get(s.domain)
+        log_cross_validate_score(
+            domain=s.domain,
+            score=s.score,
+            reason=s.reason,
+            hit=pool.hit_by_domain.get(s.domain),
+            reachable=head.reachable if head else None,
+        )
 
     return CrossValidateResult(scores=scores, heads=heads)
 
@@ -272,3 +287,26 @@ def build_pack_order(
         max_keep=max_keep,
         heads=validation.heads,
     )
+
+
+def competitor_quality_met(
+    validation: CrossValidateResult,
+    *,
+    pass_score: float,
+    min_count: int,
+) -> bool:
+    """可打开及格竞品数量与 top-N 均分（pass_score + QUALITY_STOP_AVG_OFFSET）同时达标时可停搜。"""
+    min_top_avg = pass_score + QUALITY_STOP_AVG_OFFSET
+    heads = validation.heads
+    passing = [s for s in validation.scores if s.score >= pass_score]
+    passing.sort(key=lambda s: _score_sort_key(s, heads))
+    reachable = [
+        s
+        for s in passing
+        if (head := heads.get(s.domain)) is not None and head.reachable
+    ]
+    if len(reachable) < min_count:
+        return False
+    top = reachable[:min_count]
+    avg = sum(s.score for s in top) / len(top)
+    return avg >= min_top_avg

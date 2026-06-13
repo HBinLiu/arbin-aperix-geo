@@ -17,7 +17,7 @@ import {
   buildFinalizePayload,
   promptRowsFromGenerated,
   rowsFromDiscover,
-  topicRowsFromDiscover,
+  topicRowsFromMonitoringTopics,
 } from "@/lib/setup";
 
 export type DiscoverProfileResult = {
@@ -34,7 +34,10 @@ export async function discoverProfile(input: {
 }): Promise<DiscoverProfileResult> {
   const domain = input.domain.trim();
   const brand = input.brand.trim();
-  const { data } = await api.post<{ session_id: string; micro_keywords: string[] }>(
+  const { data } = await api.post<{
+    session_id: string;
+    monitoring_topics: string[];
+  }>(
     "/subjects/discover-profile",
     {
       type: input.mode,
@@ -47,26 +50,26 @@ export async function discoverProfile(input: {
   );
   return {
     sessionId: data.session_id,
-    topicRows: topicRowsFromDiscover(data.micro_keywords),
+    topicRows: topicRowsFromMonitoringTopics(data.monitoring_topics),
   };
 }
 
 export async function discoverCompetitors(input: {
-  mode: SubjectMode;
   sessionId: string;
-  microKeywords: string[];
-}): Promise<{ competitorRows: CompetitorRow[]; topicRows?: TopicRow[] }> {
+  monitoringTopics: string[];
+}): Promise<{ competitorRows: CompetitorRow[] }> {
   const { data } = await api.post<{
     competitors: { domain: string; website_url?: string; brand: string; summary: string }[];
-    micro_keywords?: string[];
   }>(
     "/subjects/discover-competitors",
-    { session_id: input.sessionId, micro_keywords: input.microKeywords },
+    {
+      session_id: input.sessionId,
+      monitoring_topics: input.monitoringTopics,
+    },
     { timeout: DISCOVER_COMPETITORS_TIMEOUT_MS },
   );
   return {
     competitorRows: rowsFromDiscover(data.competitors ?? []),
-    topicRows: data.micro_keywords?.length ? topicRowsFromDiscover(data.micro_keywords) : undefined,
   };
 }
 
@@ -80,22 +83,23 @@ export async function generateSetupPrompts(input: {
     "/subjects/generate-prompts",
     {
       session_id: input.sessionId,
-      topics: input.topics.map((t) => t.name.trim()),
+      topics: input.topics.map((t) => t.name.trim()).filter(Boolean),
       competitors: input.competitorLabels,
-      exclude_prompts: (input.excludePrompts ?? []).map((text) => text.trim()).filter(Boolean),
+      exclude_prompts: input.excludePrompts ?? [],
     },
     { timeout: GENERATE_PROMPTS_TIMEOUT_MS },
   );
-  return promptRowsFromGenerated(input.topics, data.items);
+  return promptRowsFromGenerated(input.topics, data.items ?? []);
 }
 
 export async function finalizeSetup(input: FinalizeSetupInput): Promise<{
   subject: Subject;
   samplingJobId: string;
 }> {
+  const payload = buildFinalizePayload(input);
   const { data } = await api.post<{ subject: Subject; sampling_job_id: string }>(
     "/subjects/setup-finalize",
-    buildFinalizePayload(input),
+    payload,
   );
   return { subject: data.subject, samplingJobId: data.sampling_job_id };
 }

@@ -16,13 +16,10 @@ from aperix_geo.schemas.catalog import (
     SetupFinalizeResponse,
     TopicPromptsOut,
 )
-from aperix_geo.services.competitor.profile import profile_from_dict
-from aperix_geo.services.prompts.context import entity_aliases
 from aperix_geo.services.providers import LLMProviderError
-from aperix_geo.services.prompts import generate_setup_prompts
 from aperix_geo.services.setup.discover import discover_competitors_from_session, discover_profile
 from aperix_geo.services.setup.finalize import finalize_setup
-from aperix_geo.services.setup.session import get_session
+from aperix_geo.services.setup.cache import generate_setup_prompts_for_session
 
 router = APIRouter()
 
@@ -58,7 +55,7 @@ def discover_competitors_endpoint(
         result = discover_competitors_from_session(
             user_id=current.id,
             session_id=body.session_id.strip(),
-            micro_keywords=body.micro_keywords,
+            monitoring_topics=body.monitoring_topics,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
@@ -75,29 +72,21 @@ def generate_prompts_endpoint(
     body: GeneratePromptsRequest,
     current: CurrentUser,
 ) -> GeneratePromptsResponse:
-    session = get_session(user_id=str(current.id), session_id=body.session_id.strip())
-    if session is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="setup session not found or expired")
-
-    entity = str(session.get("target") or "").strip()
-    if not entity:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="setup session missing target")
-
-    profile = profile_from_dict(session.get("profile") or {})
-
-    items = generate_setup_prompts(
-        entity=entity,
-        topics=body.topics,
-        industry=profile.get("industry", ""),
-        core_features=profile.get("core_features", ""),
-        target_customers=profile.get("target_customers", ""),
-        competitors=body.competitors,
-        aliases=entity_aliases(
-            entity=entity,
-            profile_company=str(profile.get("company") or ""),
-        ),
-        exclude_prompts=body.exclude_prompts,
-    )
+    try:
+        items = generate_setup_prompts_for_session(
+            user_id=str(current.id),
+            session_id=body.session_id.strip(),
+            topics=body.topics,
+            competitors=body.competitors,
+            exclude_prompts=body.exclude_prompts,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    except (LLMProviderError, json.JSONDecodeError, TypeError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"提示词生成失败：{e}",
+        ) from e
     return GeneratePromptsResponse(items=[TopicPromptsOut(**row) for row in items])
 
 

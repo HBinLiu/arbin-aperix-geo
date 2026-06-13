@@ -6,11 +6,10 @@ import hashlib
 
 from aperix_geo.services.favicon._fetch import resolve_favicon_network
 from aperix_geo.services.favicon._storage import (
-    cache_get,
     cache_set,
-    load_primary_from_disk,
     negative_cache_hit,
     negative_cache_set,
+    read_cached_favicon,
 )
 from aperix_geo.utils.cache import run_single_flight
 
@@ -30,13 +29,7 @@ _COALESCE_WAIT_S = 90.0
 def _read_cached(host: str, *, page_url: str | None = None) -> tuple[bytes, str] | _FaviconMiss | None:
     if not page_url and negative_cache_hit(host):
         return MISS
-    if row := cache_get(host):
-        return row
-    if stored := load_primary_from_disk(host):
-        body, media = stored
-        cache_set(host, body, media)
-        return stored
-    return None
+    return read_cached_favicon(host)
 
 
 def resolve_favicon_coalesced(

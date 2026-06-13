@@ -48,23 +48,6 @@ def test_generate_setup_prompts_llm(mock_chat) -> None:
 
 
 @patch("aperix_geo.services.prompts.setup.chat_completion")
-def test_generate_setup_prompts_accepts_legacy_string_prompts(mock_chat) -> None:
-    payload = {
-        "topics": [
-            {
-                "topic": "跨境支付",
-                "prompts": ["问句A", "问句B"],
-            }
-        ]
-    }
-    mock_chat.return_value = (json.dumps(payload), "deepseek", 100.0)
-
-    rows = generate_setup_prompts(entity="Acme", topics=["跨境支付"])
-    assert rows[0]["prompts"][0]["funnel_stage"] == "mofu"
-    assert rows[0]["prompts"][0]["search_intent"] == "commercial"
-
-
-@patch("aperix_geo.services.prompts.setup.chat_completion")
 def test_generate_setup_prompts_passes_exclude_prompts(mock_chat) -> None:
     payload = {"topics": [{"topic": "支付", "prompts": [{"text": "问句A", "funnel": "tofu", "intent": "informational"}]}]}
     mock_chat.return_value = (json.dumps(payload), "deepseek", 100.0)

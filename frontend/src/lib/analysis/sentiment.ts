@@ -27,9 +27,8 @@ export const SENTIMENT_LABELS: Record<SentimentTab, string> = {
 
 export function sentimentLabelFromScore(value: number | null | undefined): string {
   if (value == null) return "-";
-  const points = value <= 1 ? value * 100 : value;
-  if (points >= 55) return "正面";
-  if (points < 45) return "负面";
+  if (value > 55) return "正面";
+  if (value < 45) return "负面";
   return "中立";
 }
 

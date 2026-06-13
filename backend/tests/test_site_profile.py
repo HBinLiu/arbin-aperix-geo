@@ -142,7 +142,7 @@ def test_fallback_profile_summary_sections() -> None:
     assert "## 竞品" in summary
     assert "## 理想客户画像" in summary
     assert "## 地域与合规" in summary
-    assert "典型场景" in summary
+    assert "待补充" in summary
     assert "中国大陆" in summary
 
 
@@ -194,16 +194,8 @@ def test_replace_summary_section() -> None:
     assert "旧定位" not in updated
 
 
-def test_company_from_setup_session() -> None:
-    from unittest.mock import patch
+def test_company_from_session() -> None:
+    from aperix_geo.services.setup.helpers import company_from_session
 
-    from aperix_geo.services.setup.helpers import company_from_setup_session
-
-    with patch(
-        "aperix_geo.services.setup.helpers.get_session",
-        return_value={"profile": {"company": "深睿医疗"}},
-    ):
-        assert company_from_setup_session(user_id="u1", setup_session_id="abc") == "深睿医疗"
-
-    with patch("aperix_geo.services.setup.helpers.get_session", return_value=None):
-        assert company_from_setup_session(user_id="u1", setup_session_id="abc") is None
+    assert company_from_session({"profile": {"company": "深睿医疗"}}) == "深睿医疗"
+    assert company_from_session(None) is None

@@ -1,4 +1,4 @@
-"""微观利基画像：结构化字段、检索 query、主体画像统一入口。"""
+"""微观利基画像：结构化字段与竞品检索 query 规划。"""
 
 from __future__ import annotations
 
@@ -6,22 +6,19 @@ import logging
 import re
 from typing import Any
 
-from aperix_geo.services.competitor.homepage import fetch_target_homepage
-from aperix_geo.services.competitor.summary import (
-    fallback_profile_summary,
-    generate_profile_summary_via_llm,
-)
-from aperix_geo.services.competitor.research import (
-    fetch_brand_research_hits,
-    fetch_site_extra_pages,
-    format_search_hits_for_llm,
-    research_payload_for_domain,
-)
 from aperix_geo.services.competitor.types import NicheProfile
 
 logger = logging.getLogger(__name__)
 
 MAX_MICRO_KEYWORDS = 5
+MAX_MONITORING_TOPICS = 5
+_DEFAULT_MONITORING_TOPICS = (
+    "品类认知与选型",
+    "核心能力与方案匹配",
+    "竞品对比与替代",
+    "价格与采购决策",
+    "口碑与风险顾虑",
+)
 
 REGION_LABELS = {"CN": "中国大陆", "HK": "中国香港", "TW": "中国台湾"}
 LANGUAGE_LABELS = {
@@ -67,7 +64,7 @@ def normalize_niche_profile(data: dict[str, Any], *, entity: str) -> NicheProfil
         micro = _split_tags(str(raw_micro or ""))[:MAX_MICRO_KEYWORDS]
 
     return NicheProfile(
-        company=str(data.get("company") or data.get("company_name") or entity).strip()[:200],
+        company=str(data.get("company") or entity).strip()[:200],
         industry=industry,
         core_features="、".join(features),
         target_customers=customer_text,
@@ -77,6 +74,63 @@ def normalize_niche_profile(data: dict[str, Any], *, entity: str) -> NicheProfil
 
 def micro_keywords_list(profile: NicheProfile) -> list[str]:
     return _split_tags(profile.get("micro_keywords", ""))
+
+
+def _truncate_label(text: str, *, max_len: int = 24) -> str:
+    s = text.strip()
+    if len(s) <= max_len:
+        return s
+    return s[: max_len - 1].rstrip() + "…"
+
+
+def fallback_monitoring_topics(profile: NicheProfile) -> list[str]:
+    """LLM 未返回 monitoring_topics 时，按赛道信息生成通用监测专题（非竞品检索词）。"""
+    industry = (profile.get("industry") or "").strip()
+    if not industry or industry == "未知行业":
+        return list(_DEFAULT_MONITORING_TOPICS)
+
+    features = _split_tags(profile.get("core_features", ""))
+    customers = (profile.get("target_customers") or "").strip()
+
+    candidates: list[str] = [
+        f"{_truncate_label(industry, max_len=18)}选型与认知",
+        f"{_truncate_label(features[0])}与方案能力" if features else f"{_truncate_label(industry, max_len=16)}核心能力",
+        f"{_truncate_label(industry, max_len=16)}竞品对比",
+        f"{_truncate_label(customers)}适用性" if customers else "价格与采购决策",
+        "口碑评价与风险顾虑",
+    ]
+
+    micro = {k.lower() for k in micro_keywords_list(profile)}
+    seen: set[str] = set()
+    out: list[str] = []
+    for topic in candidates:
+        key = topic.lower()
+        if key in seen or key in micro:
+            continue
+        seen.add(key)
+        out.append(topic)
+        if len(out) >= MAX_MONITORING_TOPICS:
+            break
+    return out or list(_DEFAULT_MONITORING_TOPICS)
+
+
+def _filter_topics_against_micro(topics: list[str], profile: NicheProfile) -> list[str]:
+    micro_norm = {m.lower() for m in micro_keywords_list(profile)}
+    if not micro_norm:
+        return topics
+    return [t for t in topics if t.strip() and t.strip().lower() not in micro_norm]
+
+
+def monitoring_topics_from_llm(data: dict[str, Any], profile: NicheProfile) -> list[str]:
+    raw = data.get("monitoring_topics")
+    if isinstance(raw, list):
+        topics = [str(x).strip() for x in raw if str(x).strip()][:MAX_MONITORING_TOPICS]
+    else:
+        topics = _split_tags(str(raw or ""))[:MAX_MONITORING_TOPICS]
+    topics = _filter_topics_against_micro(topics, profile)
+    if topics:
+        return topics
+    return fallback_monitoring_topics(profile)
 
 
 def profile_to_dict(profile: NicheProfile) -> dict[str, str]:
@@ -91,7 +145,7 @@ def profile_to_dict(profile: NicheProfile) -> dict[str, str]:
 
 def profile_from_dict(data: dict[str, Any]) -> NicheProfile:
     return NicheProfile(
-        company=str(data.get("company") or data.get("company_name") or "").strip()[:200],
+        company=str(data.get("company") or "").strip()[:200],
         industry=str(data.get("industry") or "未知行业").strip()[:200],
         core_features=str(data.get("core_features") or "").strip()[:500],
         target_customers=str(data.get("target_customers") or "").strip()[:400],
@@ -132,110 +186,33 @@ def build_search_query(profile: NicheProfile) -> str | None:
     return " ".join(parts).strip() or None
 
 
-def plan_micro_keyword_queries(keywords: list[str], *, max_rounds: int) -> list[str]:
-    kws: list[str] = []
+def _dedupe_queries(queries: list[str]) -> list[str]:
     seen: set[str] = set()
-    for raw in keywords:
-        kw = raw.strip()
-        if not kw or kw in seen:
+    out: list[str] = []
+    for raw in queries:
+        q = raw.strip()
+        if not q or q in seen:
             continue
-        seen.add(kw)
-        kws.append(kw)
-    if not kws:
-        return []
-
-    rounds = max(1, max_rounds)
-    n = len(kws)
-    if n <= rounds:
-        return kws
-
-    queries: list[str] = []
-    idx = 0
-    for i in range(rounds):
-        remaining_groups = rounds - i
-        remaining_kws = n - idx
-        size = (remaining_kws + remaining_groups - 1) // remaining_groups
-        group = kws[idx : idx + size]
-        idx += size
-        queries.append(" ".join(group))
-    return queries
+        seen.add(q)
+        out.append(q)
+    return out
 
 
-def build_search_queries(profile: NicheProfile, *, max_queries: int) -> list[str]:
-    micro = _split_tags(profile.get("micro_keywords", ""))
-    if not micro:
+def build_competitor_search_queries(profile: NicheProfile, *, max_queries: int) -> list[str]:
+    """在固定轮次预算内分配 SearXNG query：micro_keywords 优先，再行业/公司锚点。"""
+    cap = max(1, max_queries)
+    queries: list[str] = list(micro_keywords_list(profile))
+
+    industry = profile.get("industry", "")
+    company = profile.get("company", "")
+    if industry and industry != "未知行业":
+        queries.append(f"{industry} 品牌 对比")
+    if company:
+        queries.append(f"{company} 类似产品")
+
+    if not queries:
         fallback = build_search_query(profile)
-        return [fallback] if fallback else []
-    return plan_micro_keyword_queries(micro, max_rounds=max_queries)
+        if fallback:
+            queries.append(fallback)
 
-
-def _llm_user_payload(
-    *,
-    subject_type: str,
-    target: str,
-    region: str,
-    language: str,
-) -> dict[str, Any]:
-    reg = region_label(region)
-    lang = language_label(language)
-    if subject_type == "domain":
-        homepage = fetch_target_homepage(target)
-        extra_pages = fetch_site_extra_pages(target, homepage_url=homepage.url)
-        return {
-            "mode": "domain",
-            "target": target,
-            "region": reg,
-            "language": lang,
-            "site_data": research_payload_for_domain(
-                domain=target,
-                site_metadata=homepage.metadata,
-                site_markdown=homepage.markdown,
-                extra_pages=extra_pages,
-            ),
-        }
-    hits = fetch_brand_research_hits(target, region=region)
-    return {
-        "mode": "brand",
-        "target": target.strip(),
-        "region": reg,
-        "language": lang,
-        "web_research": format_search_hits_for_llm(hits),
-    }
-
-
-def build_subject_profile(
-    *,
-    subject_type: str,
-    target: str,
-    region: str,
-    language: str,
-) -> tuple[NicheProfile, str]:
-    """设置向导 Step1：微观利基画像 + Markdown 摘要（domain / brand 统一入口）。"""
-    target = target.strip()
-    user_payload = _llm_user_payload(
-        subject_type=subject_type,
-        target=target,
-        region=region,
-        language=language,
-    )
-    temperature = 0.1 if subject_type == "domain" else 0.2
-    data, summary = generate_profile_summary_via_llm(
-        entity_key=target,
-        user_payload=user_payload,
-        temperature=temperature,
-    )
-    profile = normalize_niche_profile(data, entity=target)
-    if not summary:
-        summary = fallback_profile_summary(
-            profile,
-            entity=target,
-            region_label=region_label(region),
-        )
-    logger.info(
-        "微观利基画像: type=%s target=%r industry=%r keywords=%r",
-        subject_type,
-        target,
-        profile["industry"],
-        profile["micro_keywords"],
-    )
-    return profile, summary
+    return _dedupe_queries(queries)[:cap]

@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import CitationDomain, LLMResponse, Prompt, Subject, Topic
-from aperix_geo.services.analysis._labels import own_label, rank_labels
+from aperix_geo.services.subject.labels import own_label, rank_labels
 from aperix_geo.services.analysis._query import responses_in_window
 from aperix_geo.services.analysis._series import (
     align_previous_daily_to_current,

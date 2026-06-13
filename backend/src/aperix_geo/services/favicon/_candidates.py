@@ -50,10 +50,6 @@ def cdn_prefix_standard_path_urls(domain: str) -> list[str]:
     return dedupe_urls(urls)
 
 
-def standard_path_urls(domain: str) -> list[str]:
-    return dedupe_urls(main_standard_path_urls(domain) + cdn_prefix_standard_path_urls(domain))
-
-
 class _HomepageHtmlSources:
     """Fetch homepage HTML once per source and derive page vs subdomain icon lists."""
 
@@ -133,42 +129,13 @@ class _HomepageHtmlSources:
         return self._first_subdomain_icons(self._load_crawl_pages())
 
 
-def icons_page_from_fetch_page(domain: str) -> list[str]:
-    return _HomepageHtmlSources(domain, timeout_s=_HEADLESS_MIN_TIMEOUT_S).page_icons_from_fetch()
-
-
-def icons_subdomain_from_fetch_page(domain: str) -> list[str]:
-    return _HomepageHtmlSources(domain, timeout_s=_HEADLESS_MIN_TIMEOUT_S).subdomain_icons_from_fetch()
-
-
-def icons_page_from_crawl4ai(domain: str, *, timeout_s: float) -> list[str]:
-    return _HomepageHtmlSources(domain, timeout_s=timeout_s).page_icons_from_crawl4ai()
-
-
-def icons_subdomain_from_crawl4ai(domain: str, *, timeout_s: float) -> list[str]:
-    return _HomepageHtmlSources(domain, timeout_s=timeout_s).subdomain_icons_from_crawl4ai()
-
-
-def icons_from_fetch_page(domain: str) -> list[str]:
-    """Page link/meta icons first, then subdomain favicon probes (single fetch each)."""
-    src = _HomepageHtmlSources(domain, timeout_s=_HEADLESS_MIN_TIMEOUT_S)
-    return dedupe_urls(src.page_icons_from_fetch() + src.subdomain_icons_from_fetch())
-
-
-def icons_from_crawl4ai(domain: str, *, timeout_s: float) -> list[str]:
-    src = _HomepageHtmlSources(domain, timeout_s=timeout_s)
-    return dedupe_urls(src.page_icons_from_crawl4ai() + src.subdomain_icons_from_crawl4ai())
-
-
 def icons_from_page_url(page_url: str, *, timeout_s: float) -> list[str]:
     """Parse icon URLs from a specific page (e.g. citation URL)."""
-    from dataclasses import replace
-
-    from aperix_geo.services.crawl import fetch_page, page_crawl_settings
-
     page_url = page_url.strip()
     if not page_url:
         return []
+
+    from aperix_geo.services.crawl import fetch_page, page_crawl_settings
 
     crawl = replace(page_crawl_settings(), crawl_fallback=False)
     result = fetch_page(page_url, crawl=crawl, max_chars=_MAX_PAGE_HTML_CHARS)

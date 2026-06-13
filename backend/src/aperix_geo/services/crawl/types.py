@@ -5,9 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from aperix_geo.utils.html import html_to_text, parse_head_from_html
+from aperix_geo.utils.html import html_to_text
+from aperix_geo.services.crawl.seo import parse_seo_from_html, seo_has_signal
 
 FetchSource = Literal["httpx", "crawl4ai", "none"]
+_FETCH_OK_PARSE_LIMIT = 120_000
 
 
 @dataclass(frozen=True)
@@ -23,8 +25,12 @@ class PageFetchResult:
     def fetch_ok(self) -> bool:
         if self.source == "none":
             return False
-        title, description = parse_head_from_html(self.html[:120_000]) if self.html else ("", "")
-        if title or description:
+        seo = (
+            parse_seo_from_html(self.html[:_FETCH_OK_PARSE_LIMIT], include_microdata=False)
+            if self.html
+            else None
+        )
+        if seo and seo_has_signal(seo):
             return True
         if self.markdown.strip():
             return len(self.markdown.strip()) >= 40
