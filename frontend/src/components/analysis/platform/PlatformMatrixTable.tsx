@@ -1,12 +1,17 @@
-import { BrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
+import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+
+import { buildBrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
 import {
   platformMatrixSkeletonGridColumns,
+  platformMatrixTableClasses,
   platformMatrixTableMinWidth,
   PLATFORM_MATRIX_PLATFORM_COLUMN_MIN,
   PLATFORM_MATRIX_ROW_COLUMN_MIN,
 } from "@/components/analysis/platform/platformMatrixTableLayout";
+import { BrandRankLabel } from "@/components/brand/BrandRankLabel";
 import { PlatformLogo } from "@/components/brand/PlatformLogo";
-import { Badge } from "@/components/ui/badge";
+import { DeltaBadgeSlot } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PlatformMatrixMetricDefinition } from "@/lib/analysis/platform";
 import type { PlatformMatrixRow } from "@/lib/analysis/platform";
@@ -19,9 +24,47 @@ type PlatformMatrixTableProps = {
   rows: PlatformMatrixRow[];
   platforms: string[];
   platformsMeta: SamplingPlatform[];
-  onSelectPlatform: (platformId: string) => void;
   loading?: boolean;
 };
+
+type PlatformColumnSort = {
+  platformId: string;
+  dir: "asc" | "desc";
+};
+
+type SortMode = PlatformColumnSort["dir"] | "default";
+
+function compareMatrixValues(
+  a: number | null | undefined,
+  b: number | null | undefined,
+  dir: PlatformColumnSort["dir"],
+): number {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  const diff = a - b;
+  return dir === "asc" ? diff : -diff;
+}
+
+function cyclePlatformSort(current: PlatformColumnSort | null, platformId: string): PlatformColumnSort | null {
+  if (!current || current.platformId !== platformId) {
+    return { platformId, dir: "desc" };
+  }
+  if (current.dir === "desc") {
+    return { platformId, dir: "asc" };
+  }
+  return null;
+}
+
+function sortRowsByPlatform(
+  rows: PlatformMatrixRow[],
+  sort: PlatformColumnSort | null,
+): PlatformMatrixRow[] {
+  if (!sort) return rows;
+  return [...rows].sort((a, b) =>
+    compareMatrixValues(a.values[sort.platformId], b.values[sort.platformId], sort.dir),
+  );
+}
 
 function PlatformMatrixSkeleton({
   rowDimension,
@@ -36,7 +79,7 @@ function PlatformMatrixSkeleton({
   return (
     <div className="space-y-0" aria-hidden>
       <div
-        className="border-border grid items-center border-b py-3"
+        className={platformMatrixTableClasses.skeletonHeader}
         style={{ gridTemplateColumns: gridColumns }}
       >
         <div className="px-5">
@@ -51,7 +94,7 @@ function PlatformMatrixSkeleton({
       {Array.from({ length: 4 }).map((_, index) => (
         <div
           key={index}
-          className="border-border grid items-center border-t py-3"
+          className={platformMatrixTableClasses.skeletonRow}
           style={{ gridTemplateColumns: gridColumns }}
         >
           <div className="px-5">
@@ -69,17 +112,66 @@ function PlatformMatrixSkeleton({
   );
 }
 
+type PlatformColumnHeaderProps = {
+  platformId: string;
+  label: string;
+  sortMode: SortMode;
+  onClick: () => void;
+};
+
+function PlatformColumnHeader({ platformId, label, sortMode, onClick }: PlatformColumnHeaderProps) {
+  const sortIcon =
+    sortMode === "asc" ? (
+      <ChevronUp className="text-primary size-3 shrink-0" aria-hidden />
+    ) : sortMode === "desc" ? (
+      <ChevronDown className="text-primary size-3 shrink-0" aria-hidden />
+    ) : (
+      <ChevronsUpDown className="text-muted-foreground size-3 shrink-0" aria-hidden />
+    );
+
+  return (
+    <button
+      type="button"
+      className="inline-flex w-full items-center justify-start mt-1 rounded-md transition-colors"
+      aria-label={`按 ${label} 排序`}
+      aria-sort={sortMode === "default" ? "none" : sortMode === "asc" ? "ascending" : "descending"}
+      onClick={onClick}
+    >
+      <PlatformLogo provider={platformId} label={label} className="size-5 shrink-0" />
+      <span className="inline-flex items-center gap-1 mt-1 ml-1.5">
+        <span className="text-muted-foreground max-w-[7rem] truncate text-xs leading-none">{label}</span>
+        {sortIcon}
+      </span>
+    </button>
+  );
+}
+
 export function PlatformMatrixTable({
   rowDimension,
   metric,
   rows,
   platforms,
   platformsMeta,
-  onSelectPlatform,
   loading = false,
 }: PlatformMatrixTableProps) {
   const rowHeader = rowDimension === "competitor" ? "竞争对手" : "主题";
   const scrollMinWidth = platformMatrixTableMinWidth(platforms.length);
+  const [columnSort, setColumnSort] = useState<PlatformColumnSort | null>(null);
+
+  useEffect(() => {
+    setColumnSort(null);
+  }, [metric.id, rowDimension]);
+
+  const sortedRows = useMemo(() => sortRowsByPlatform(rows, columnSort), [rows, columnSort]);
+
+  function handlePlatformHeaderClick(platformId: string) {
+    setColumnSort((current) => cyclePlatformSort(current, platformId));
+  }
+
+  function sortModeForPlatform(platformId: string): SortMode {
+    if (!columnSort || columnSort.platformId !== platformId) return "default";
+    return columnSort.dir;
+  }
 
   return (
     <section className="border-border overflow-hidden rounded-lg border bg-white" aria-busy={loading}>
@@ -95,24 +187,18 @@ export function PlatformMatrixTable({
             ))}
           </colgroup>
           <thead className="text-muted-foreground bg-muted/80 text-left">
-            <tr className="[&>th]:align-middle [&>th]:whitespace-nowrap [&>th]:px-4 [&>th]:py-3 [&>th]:font-medium">
+            <tr className="[&>th]:align-middle [&>th]:whitespace-nowrap [&>th]:px-4 [&>th]:py-2 [&>th]:font-medium">
               <th className="pl-5">{rowHeader}</th>
               {platforms.map((platform) => {
                 const meta = resolvePlatformMeta(platform, platformsMeta);
                 return (
-                  <th key={platform} className="text-left align-middle">
-                    <button
-                      type="button"
-                      className="text-foreground flex w-full items-center justify-start gap-1.5 rounded-md transition-colors"
-                      onClick={() => onSelectPlatform(platform)}
-                    >
-                      <PlatformLogo
-                        provider={meta.platform}
-                        label={meta.label}
-                        className="block size-5 shrink-0"
-                      />
-                      <span className="text-xs leading-5 h-4">{meta.label}</span>
-                    </button>
+                  <th key={platform} className="align-middle">
+                    <PlatformColumnHeader
+                      platformId={meta.platform}
+                      label={meta.label}
+                      sortMode={sortModeForPlatform(platform)}
+                      onClick={() => handlePlatformHeaderClick(platform)}
+                    />
                   </th>
                 );
               })}
@@ -125,7 +211,7 @@ export function PlatformMatrixTable({
                   <PlatformMatrixSkeleton rowDimension={rowDimension} platformCount={platforms.length} />
                 </td>
               </tr>
-            ) : rows.length === 0 || platforms.length === 0 ? (
+            ) : sortedRows.length === 0 || platforms.length === 0 ? (
               <tr>
                 <td
                   colSpan={Math.max(platforms.length, 1) + 1}
@@ -135,31 +221,35 @@ export function PlatformMatrixTable({
                 </td>
               </tr>
             ) : (
-              rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className="border-border border-t [&>td]:align-middle [&>td]:whitespace-nowrap [&>td]:px-4 [&>td]:py-2.5"
-                >
-                  <td className="pl-5">
+              sortedRows.map((row) => (
+                <tr key={row.id} className={platformMatrixTableClasses.row}>
+                  <td className="min-w-0 overflow-hidden pl-5 whitespace-normal">
                     {rowDimension === "competitor" ? (
-                      <div className="flex items-center gap-2">
-                        <BrandRankIcon label={row.label} size="sm" />
-                        <span className="font-medium">{row.label}</span>
-                        {row.isOwn ? (
-                          <Badge variant="orange" className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium">
-                            拥有
-                          </Badge>
-                        ) : null}
-                      </div>
+                      <BrandRankLabel
+                        label={row.label}
+                        icon={buildBrandRankIcon(row.domain ?? "")}
+                        size="sm"
+                        isOwn={row.isOwn}
+                        isFocus={row.isFocus}
+                      />
                     ) : (
                       <span className="font-medium">{row.label}</span>
                     )}
                   </td>
                   {platforms.map((platform) => {
                     const value = row.values[platform];
+                    const previousValue = row.previousValues[platform];
+                    const delta = metric.formatDelta(value, previousValue);
                     return (
                       <td key={platform} className="text-foreground text-left font-medium tabular-nums">
-                        {value == null ? "-" : metric.formatValue(value)}
+                        {value == null ? (
+                          "-"
+                        ) : (
+                          <div className="inline-flex items-center gap-1.5">
+                            <span>{metric.formatValue(value)}</span>
+                            <DeltaBadgeSlot delta={delta} />
+                          </div>
+                        )}
                       </td>
                     );
                   })}

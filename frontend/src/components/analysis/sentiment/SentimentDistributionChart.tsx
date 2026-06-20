@@ -1,78 +1,120 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import {
   Bar,
   BarChart,
   CartesianGrid,
-  Legend,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import type { TooltipProps } from "recharts";
 
+import { ChartMetricTooltipPanel } from "@/components/analysis/common/ChartChrome";
+import { PlatformLogo } from "@/components/brand/PlatformLogo";
 import { formatChartDayLabel, formatChartTooltipDate } from "@/lib/analysis/chart";
-import { formatRate } from "@/lib/analysis/format";
-import type { SentimentDistributionPoint } from "@/types";
+import { formatSentimentScore } from "@/lib/analysis/format";
+import { SENTIMENT_BAR_COLORS } from "@/lib/analysis/sentiment";
+import { resolvePlatformMeta } from "@/lib/analysis/shared";
+import type { SamplingPlatform, SentimentDistributionPoint, SentimentTab } from "@/types";
 import { cn } from "@/lib/utils";
 
-const POSITIVE_COLOR = "#22c55e";
-const NEUTRAL_COLOR = "#f97316";
-const NEGATIVE_COLOR = "#ef4444";
+const Y_TICKS = [0, 25, 50, 75, 100] as const;
 const AXIS_TICK = { fill: "#9ca3af", fontSize: 13 };
 const GRID_STROKE = "#e4e4e4";
+const HOVER_CURSOR_FILL = "rgba(0,0,0,0.04)";
 
 type SentimentDistributionChartProps = {
   series?: SentimentDistributionPoint[];
+  platformsMeta?: SamplingPlatform[];
   className?: string;
-  height?: number;
 };
 
 type ChartRow = SentimentDistributionPoint & {
   dateLabel: string;
+  score: number;
 };
 
-function ChartLegendContent() {
-  const items = [
-    { label: "正面", color: POSITIVE_COLOR },
-    { label: "中立", color: NEUTRAL_COLOR },
-    { label: "负面", color: NEGATIVE_COLOR },
-  ];
+function barColor(label: SentimentTab | string | undefined): string {
+  if (label === "positive" || label === "negative" || label === "neutral") {
+    return SENTIMENT_BAR_COLORS[label];
+  }
+  return SENTIMENT_BAR_COLORS.neutral;
+}
 
-  return (
-    <div className="flex w-full min-w-0 flex-wrap items-center justify-center gap-x-4 gap-y-1.5 pt-1 text-xs leading-none">
-      {items.map((item) => (
-        <span key={item.label} className="inline-flex items-center gap-1.5">
-          <span
-            className="inline-block size-2 shrink-0 rounded-[2px]"
-            style={{ backgroundColor: item.color }}
-            aria-hidden
-          />
-          <span className="text-foreground whitespace-nowrap font-medium">{item.label}</span>
-        </span>
-      ))}
-    </div>
-  );
+function sortedPlatformTooltipRows(
+  platformScores: Record<string, number>,
+  platformsMeta: SamplingPlatform[],
+): Array<{ platformId: string; score: number }> {
+  const platformIds =
+    platformsMeta.length > 0
+      ? platformsMeta.map((platform) => platform.platform)
+      : Object.keys(platformScores);
+
+  return platformIds
+    .map((platformId) => ({
+      platformId,
+      score: platformScores[platformId] ?? 0,
+    }))
+    .sort((a, b) => b.score - a.score);
 }
 
 export function SentimentDistributionChart({
   series = [],
+  platformsMeta = [],
   className,
-  height = 270,
 }: SentimentDistributionChartProps) {
   const data = useMemo<ChartRow[]>(
     () =>
       series.map((point) => ({
         ...point,
         dateLabel: formatChartDayLabel(point.date),
+        score: point.sentiment_score ?? 0,
       })),
     [series],
+  );
+
+  const tooltipContent = useCallback(
+    ({ active, payload }: TooltipProps<number, string>) => {
+      if (!active || !payload?.length) return null;
+
+      const row = payload[0]?.payload as ChartRow | undefined;
+      if (!row) return null;
+
+      const platformScores = row.platform_scores ?? {};
+      const platformRows = sortedPlatformTooltipRows(platformScores, platformsMeta);
+
+      return (
+        <ChartMetricTooltipPanel
+          header={row.date ? formatChartTooltipDate(row.date) : undefined}
+          rows={platformRows.map(({ platformId, score }) => {
+            const meta = resolvePlatformMeta(platformId, platformsMeta);
+            return {
+              label: meta.label,
+              value: formatSentimentScore(score),
+              icon: (
+                <PlatformLogo
+                  provider={platformId}
+                  label={meta.label}
+                  className="size-4 rounded-sm"
+                />
+              ),
+            };
+          })}
+        />
+      );
+    },
+    [platformsMeta],
   );
 
   if (data.length === 0) {
     return (
       <div
-        className={cn("text-muted-foreground flex items-center justify-center text-sm", className)}
-        style={{ height }}
+        className={cn(
+          "text-muted-foreground flex min-h-[120px] flex-1 items-center justify-center text-sm",
+          className,
+        )}
       >
         暂无数据
       </div>
@@ -80,48 +122,37 @@ export function SentimentDistributionChart({
   }
 
   return (
-    <div className={cn("min-h-0 w-full", className)} style={{ height }}>
+    <div className={cn("min-h-[120px] min-w-0 w-full flex-1", className)}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
           <CartesianGrid vertical={false} stroke={GRID_STROKE} strokeDasharray="4 4" />
           <XAxis
             dataKey="dateLabel"
-            axisLine={false}
-            tickLine={false}
             tick={AXIS_TICK}
+            tickLine={false}
+            axisLine={{ stroke: GRID_STROKE }}
             interval="preserveStartEnd"
-            dy={8}
+            dy={4}
           />
           <YAxis
             axisLine={false}
             tickLine={false}
             tick={AXIS_TICK}
-            width={44}
-            domain={[0, 1]}
-            ticks={[0, 0.25, 0.5, 0.75, 1]}
-            tickFormatter={(value) => formatRate(Number(value))}
+            width={36}
+            domain={[0, 100]}
+            ticks={[...Y_TICKS]}
+            tickFormatter={(value) => String(value)}
           />
           <Tooltip
-            cursor={{ fill: "rgba(0,0,0,0.04)" }}
-            labelFormatter={(_, payload) => {
-              const row = payload?.[0]?.payload as ChartRow | undefined;
-              return row?.date ? formatChartTooltipDate(row.date) : "";
-            }}
-            formatter={(value: number, name: string) => [
-              formatRate(value),
-              name === "positive" ? "正面" : name === "neutral" ? "中立" : "负面",
-            ]}
-            contentStyle={{
-              fontSize: 13,
-              borderRadius: 8,
-              border: "1px solid #e5e7eb",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-            }}
+            cursor={{ fill: HOVER_CURSOR_FILL }}
+            content={tooltipContent}
+            wrapperStyle={{ outline: "none", zIndex: 10 }}
           />
-          <Legend verticalAlign="bottom" align="center" content={<ChartLegendContent />} />
-          <Bar dataKey="positive" stackId="sentiment" fill={POSITIVE_COLOR} maxBarSize={40} />
-          <Bar dataKey="neutral" stackId="sentiment" fill={NEUTRAL_COLOR} maxBarSize={40} />
-          <Bar dataKey="negative" stackId="sentiment" fill={NEGATIVE_COLOR} maxBarSize={40} />
+          <Bar dataKey="score" radius={[4, 4, 0, 0]} maxBarSize={40}>
+            {data.map((row) => (
+              <Cell key={row.date} fill={barColor(row.sentiment_label)} />
+            ))}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>

@@ -1,1 +1,5 @@
-"""新增品牌/域名设置向导（与前端 setup 流程对应）。"""
+"""Setup 服务层入口。"""
+
+from aperix_geo.services.setup.discover import discover_setup
+
+__all__ = ["discover_setup"]

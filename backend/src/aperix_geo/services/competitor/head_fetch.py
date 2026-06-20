@@ -12,7 +12,7 @@ from aperix_geo.services.crawl.metadata import PageMetadata, SeoProfile, extract
 from aperix_geo.services.crawl.settings import PageCrawlSettings, seo_fetch_max_chars
 from aperix_geo.utils.domains import registrable_domain
 from aperix_geo.services.crawl.seo import SeoMetadata, seo_prose_text
-from aperix_geo.utils.url import homepage_urls
+from aperix_geo.utils.url import candidate_website_urls
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ def _site_head_from_fetch(
     domain: str,
     html_parse_limit: int,
     seo_profile: SeoProfile,
+    resolved_url: str,
 ) -> SiteHead:
     parsed = extract_metadata_from_fetch(
         result,
@@ -47,6 +48,8 @@ def _site_head_from_fetch(
         description=parsed.description,
         reachable=True,
         seo=_cross_validate_seo_excerpt(parsed),
+        resolved_url=resolved_url,
+        brand_names=tuple(parsed.brand_names),
     )
 
 
@@ -55,8 +58,9 @@ def _fetch_one_sync(
     *,
     crawl: PageCrawlSettings,
     seo_profile: SeoProfile,
+    preferred_url: str = "",
 ) -> SiteHead:
-    urls = homepage_urls(domain)
+    urls = candidate_website_urls(domain, preferred_url=preferred_url)
     if not urls:
         return SiteHead(domain=domain, title="", description="", reachable=False)
 
@@ -66,18 +70,20 @@ def _fetch_one_sync(
             url,
             crawl=crawl,
             max_chars=max_chars,
-            crawl_fallback=crawl.seo_fallback,
+            crawl_fallback=crawl.crawl_fallback,
         )
         if not result.fetch_ok:
             continue
+        resolved = (result.final_url or url).strip()
         return _site_head_from_fetch(
             result,
             domain=domain,
             html_parse_limit=max_chars,
             seo_profile=seo_profile,
+            resolved_url=resolved,
         )
 
-    logger.info("竞品发现: head 不可达 domain=%s tried=%s", domain, ", ".join(urls))
+    logger.info("竞品发现: head 不可达 domain=%s", domain)
     return SiteHead(domain=domain, title="", description="", reachable=False)
 
 
@@ -86,6 +92,7 @@ async def fetch_site_heads_async(
     *,
     concurrency: int | None = None,
     seo_profile: SeoProfile = SeoProfile.CROSS_VALIDATE,
+    preferred_urls: dict[str, str] | None = None,
 ) -> dict[str, SiteHead]:
     crawl = page_crawl_settings()
     conc = max(1, concurrency if concurrency is not None else crawl.concurrency)
@@ -93,6 +100,7 @@ async def fetch_site_heads_async(
     if not unique:
         return {}
 
+    preferred_urls = preferred_urls or {}
     sem = asyncio.Semaphore(conc)
     out: dict[str, SiteHead] = {}
 
@@ -103,13 +111,12 @@ async def fetch_site_heads_async(
                 host,
                 crawl=crawl,
                 seo_profile=seo_profile,
+                preferred_url=preferred_urls.get(host, ""),
             )
             out[registrable_domain(head.domain)] = head
 
     await asyncio.gather(*(run_one(h) for h in unique))
 
-    ok = sum(1 for h in out.values() if h.reachable)
-    logger.info("竞品发现: 抓取站点元数据 %d 个，可打开 %d", len(out), ok)
     return out
 
 
@@ -118,25 +125,30 @@ def fetch_site_heads(
     *,
     concurrency: int | None = None,
     seo_profile: SeoProfile = SeoProfile.CROSS_VALIDATE,
+    preferred_urls: dict[str, str] | None = None,
 ) -> dict[str, SiteHead]:
     crawl = page_crawl_settings()
     unique = dedupe_keys(domains)
     if not unique:
         return {}
 
+    preferred_urls = preferred_urls or {}
     workers = max(1, min(len(unique), concurrency if concurrency is not None else crawl.concurrency))
     out: dict[str, SiteHead] = {}
 
     def run_one(host: str) -> tuple[str, SiteHead]:
-        head = _fetch_one_sync(host, crawl=crawl, seo_profile=seo_profile)
+        head = _fetch_one_sync(
+            host,
+            crawl=crawl,
+            seo_profile=seo_profile,
+            preferred_url=preferred_urls.get(host, ""),
+        )
         return registrable_domain(head.domain), head
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         for domain, head in pool.map(run_one, unique):
             out[domain] = head
 
-    ok = sum(1 for h in out.values() if h.reachable)
-    logger.info("竞品发现: 抓取站点元数据 %d 个，可打开 %d", len(out), ok)
     return out
 
 

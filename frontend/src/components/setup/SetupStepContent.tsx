@@ -1,6 +1,7 @@
 import { Building2, Globe, Languages, MapPin } from "lucide-react";
 
 import { FaviconImage } from "@/components/common/FaviconImage";
+import { resolveFaviconInput } from "@/lib/favicon";
 import {
   SetupFieldGroup,
   SetupFieldLabel,
@@ -23,7 +24,6 @@ type SetupStepContentView = {
   brandName: string;
   region: string;
   language: string;
-  faviconHost: string | null;
   topicRows: TopicRow[];
   competitorRows: CompetitorRow[];
   promptRows: PromptRow[];
@@ -59,7 +59,6 @@ export function SetupStepContent({ view, actions }: SetupStepContentProps) {
     brandName,
     region,
     language,
-    faviconHost,
     topicRows,
     competitorRows,
     promptRows,
@@ -122,8 +121,8 @@ export function SetupStepContent({ view, actions }: SetupStepContentProps) {
               placeholder="请确保网站能正常访问"
               autoComplete="url"
               leading={
-                faviconHost ? (
-                  <FaviconImage domain={faviconHost} size={20} className="size-5" />
+                mode === "domain" && resolveFaviconInput(websiteUrl) ? (
+                  <FaviconImage url={websiteUrl} size={20} className="size-5" />
                 ) : (
                   <Globe className="text-muted-foreground size-5" aria-hidden />
                 )
@@ -163,7 +162,15 @@ export function SetupStepContent({ view, actions }: SetupStepContentProps) {
   }
 
   if (step === 1) {
-    return analyzingProfile ? (
+    return analyzingProfile || discoveringCompetitors ? (
+      <SetupLoader />
+    ) : (
+      <SetupStepCompetitor mode={mode} rows={competitorRows} onChange={onCompetitorRowsChange} />
+    );
+  }
+
+  if (step === 2) {
+    return generatingPrompts ? (
       <SetupLoader />
     ) : (
       <SetupStepTopic
@@ -176,17 +183,7 @@ export function SetupStepContent({ view, actions }: SetupStepContentProps) {
     );
   }
 
-  if (step === 2) {
-    return discoveringCompetitors ? (
-      <SetupLoader />
-    ) : (
-      <SetupStepCompetitor mode={mode} rows={competitorRows} onChange={onCompetitorRowsChange} />
-    );
-  }
-
-  return generatingPrompts ? (
-    <SetupLoader />
-  ) : (
+  return (
     <SetupStepPrompt rows={promptRows} topics={activeTopics} onChange={onPromptRowsChange} />
   );
 }

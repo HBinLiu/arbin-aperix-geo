@@ -1,19 +1,15 @@
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 
 import { AnalysisFilterBar } from "@/components/analysis/common/AnalysisFilterBar";
 import { TopicVisibilityRankTable } from "@/components/analysis/visibility/TopicVisibilityRankTable";
 import { VisibilityMetricSection } from "@/components/analysis/visibility/VisibilityMetricSection";
+import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
 import { useAnalysisOutletContext } from "@/hooks/useAnalysisContext";
-import { useDashboardContext } from "@/hooks/useDashboardContext";
+import { useAnalysisFiltersState } from "@/hooks/useAnalysisFiltersState";
 import { useVisibilityAnalysis } from "@/hooks/useVisibilityAnalysis";
-import {
-  ANALYSIS_DIMENSIONS,
-  ANALYSIS_FILTER_ALL,
-  DEFAULT_ANALYSIS_FILTERS,
-} from "@/lib/analysis";
+import { ANALYSIS_DIMENSIONS, entityChartLabels } from "@/lib/analysis";
 import { VISIBILITY_METRICS, VISIBILITY_SECTION_HEIGHT } from "@/lib/analysis/visibility";
 import type { VisibilityMetricId } from "@/lib/analysis/visibility";
-import type { AnalysisFilters } from "@/types";
 
 const VISIBILITY_META = ANALYSIS_DIMENSIONS.find((d) => d.id === "visibility")!;
 
@@ -29,23 +25,12 @@ export { VISIBILITY_SECTION_HEIGHT };
 /** 分析 · 可见度 */
 export function VisibilityPage() {
   const { subjectId } = useAnalysisOutletContext();
-  const { subject } = useDashboardContext();
+  const { filters, setFilters } = useAnalysisFiltersState();
+  const { entities } = useAnalysisFilter();
+  const entityLabels = useMemo(() => entityChartLabels(entities), [entities]);
 
-  const [filters, setFilters] = useState<AnalysisFilters>(DEFAULT_ANALYSIS_FILTERS);
-
-  useEffect(() => {
-    setFilters((prev) => ({
-      ...prev,
-      regionId: ANALYSIS_FILTER_ALL,
-      topicId: ANALYSIS_FILTER_ALL,
-      platformId: ANALYSIS_FILTER_ALL,
-    }));
-  }, [subject.id]);
-
-  const { isLoading, ownLabel, topLabels, metrics, topicVisibilityRanks } = useVisibilityAnalysis(
-    subjectId,
-    filters,
-  );
+  const { isLoading, ownLabel, focusLabel, metrics, topicVisibilityRanks } =
+    useVisibilityAnalysis(subjectId, filters, entities);
 
   return (
     <>
@@ -76,8 +61,8 @@ export function VisibilityPage() {
                     key={definition.id}
                     definition={definition}
                     metric={metrics[definition.id]}
-                    topLabels={topLabels}
-                    ownLabel={ownLabel}
+                    topLabels={entityLabels}
+                    ownLabel={focusLabel}
                     scopeKey={`${subjectId}:${definition.id}`}
                     loading={isLoading}
                   />

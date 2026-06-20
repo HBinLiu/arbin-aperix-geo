@@ -1,33 +1,25 @@
 import { useMemo } from "react";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
-import {
-  fetchCitationAnalysis,
-  fetchContentOpportunities,
-  fetchPlatformPerformance,
-  fetchPromptDetail,
-  fetchPromptsPerformance,
-  fetchVisibilityAnalysis,
-} from "@/api/analysis";
+import { fetchPromptDetail } from "@/api/analysis";
 import { fetchSubjectPrompts, fetchSubjectTopics } from "@/api/brand";
-import { dateRangeDays, previousDateRange, toAnalysisQueryFilters } from "@/lib/analysis";
+import { platformFilterKey, topicFilterKey, toAnalysisQueryFilters } from "@/lib/analysis";
 import {
-  aggregatePromptOpportunity,
-  extractOwnShareSeries,
-  promptPerformanceSummary,
+  promptDetailMetric,
   type PromptDetailMetricId,
 } from "@/lib/analysis/promptDetail";
-import { queryKeys } from "@/lib/queries";
-import type { AnalysisFilters } from "@/types";
+import { queryKeys, sessionCatalogQueryOptions } from "@/lib/queries";
+import type { AnalysisFilters, PlatformPerformance, PromptDetailData } from "@/types";
 
 export function usePromptDetailMeta(subjectId: string, promptId: string) {
   const promptsQuery = useQuery({
-    queryKey: queryKeys.brandPrompts(subjectId),
+    queryKey: queryKeys.subjectPrompts(subjectId),
     queryFn: () => fetchSubjectPrompts(subjectId),
   });
   const topicsQuery = useQuery({
     queryKey: queryKeys.subjectTopics(subjectId),
     queryFn: () => fetchSubjectTopics(subjectId),
+    ...sessionCatalogQueryOptions,
   });
 
   const prompt = promptsQuery.data?.find((item) => item.id === promptId);
@@ -41,160 +33,73 @@ export function usePromptDetailMeta(subjectId: string, promptId: string) {
   };
 }
 
+function toPlatformPerformance(rows: PromptDetailData["platforms"]): PlatformPerformance[] {
+  return rows.map((row) => ({
+    platform: row.platform,
+    visibility_rate: row.visibility_rate,
+    mention_rate: null,
+    share_voice: null,
+    average_rank: row.average_rank,
+    citation_rate: row.citation_rate,
+    sentiment_score: null,
+    sentiment_label: null,
+  }));
+}
+
 export function usePromptDetailAnalysis(
   subjectId: string,
   promptId: string,
   filters: AnalysisFilters,
 ) {
-  const queryFilters = toAnalysisQueryFilters(filters);
-  const { from, to } = useMemo(() => dateRangeDays(Number(filters.days)), [filters.days]);
-  const prevRange = useMemo(() => previousDateRange(from, to), [from, to]);
-  const { entityId, platformId, topicId } = queryFilters;
+  const queryFilters = useMemo(
+    () => ({ ...toAnalysisQueryFilters(filters), topicIds: [] as string[] }),
+    [filters],
+  );
+  const { from, to, entityId, platformIds, topicIds } = queryFilters;
+  const topicKey = topicFilterKey(topicIds);
+  const platformKey = platformFilterKey(platformIds);
 
-  const [visibilityCurrent, citationCurrent, platformsCurrent, promptsCurrent, promptsPrevious, opportunities, responses] =
-    useQueries({
-    queries: [
-      {
-        queryKey: queryKeys.promptDetailVisibility(
-          subjectId,
-          entityId,
-          platformId,
-          topicId,
-          promptId,
-          from,
-          to,
-        ),
-        queryFn: () =>
-          fetchVisibilityAnalysis(subjectId, queryFilters, from, to, promptId),
-      },
-      {
-        queryKey: queryKeys.promptDetailCitation(
-          subjectId,
-          entityId,
-          platformId,
-          topicId,
-          promptId,
-          from,
-          to,
-        ),
-        queryFn: () =>
-          fetchCitationAnalysis(subjectId, queryFilters, from, to, promptId),
-      },
-      {
-        queryKey: queryKeys.promptDetailPlatforms(
-          subjectId,
-          entityId,
-          platformId,
-          topicId,
-          promptId,
-          from,
-          to,
-        ),
-        queryFn: () =>
-          fetchPlatformPerformance(subjectId, queryFilters, from, to, promptId),
-      },
-      {
-        queryKey: queryKeys.promptDetailPrompts(
-          subjectId,
-          entityId,
-          platformId,
-          topicId,
-          promptId,
-          from,
-          to,
-        ),
-        queryFn: () => fetchPromptsPerformance(subjectId, queryFilters, from, to),
-      },
-      {
-        queryKey: queryKeys.promptDetailPrompts(
-          subjectId,
-          entityId,
-          platformId,
-          topicId,
-          promptId,
-          prevRange.from,
-          prevRange.to,
-        ),
-        queryFn: () =>
-          fetchPromptsPerformance(subjectId, queryFilters, prevRange.from, prevRange.to),
-      },
-      {
-        queryKey: queryKeys.promptDetailOpportunities(
-          subjectId,
-          entityId,
-          platformId,
-          topicId,
-          promptId,
-          from,
-          to,
-        ),
-        queryFn: () =>
-          fetchContentOpportunities(subjectId, queryFilters, from, to, promptId),
-      },
-      {
-        queryKey: queryKeys.promptDetailResponses(
-          subjectId,
-          entityId,
-          platformId,
-          topicId,
-          promptId,
-          from,
-          to,
-        ),
-        queryFn: () => fetchPromptDetail(subjectId, queryFilters, from, to, promptId),
-      },
-    ],
+  const detailQuery = useQuery({
+    queryKey: queryKeys.promptDetail(
+      subjectId,
+      entityId,
+      platformKey,
+      topicKey,
+      promptId,
+      from,
+      to,
+    ),
+    queryFn: () => fetchPromptDetail(subjectId, queryFilters, promptId),
+    enabled: Boolean(promptId),
   });
 
-  const isLoading =
-    visibilityCurrent.isLoading ||
-    citationCurrent.isLoading ||
-    platformsCurrent.isLoading ||
-    promptsCurrent.isLoading ||
-    promptsPrevious.isLoading ||
-    opportunities.isLoading ||
-    responses.isLoading;
+  const data = detailQuery.data;
 
-  const visibilityData = visibilityCurrent.data;
-  const citationData = citationCurrent.data;
-  const ownLabel =
-    visibilityData?.focus_label ??
-    visibilityData?.own_label ??
-    citationData?.focus_label ??
-    citationData?.own_label ??
-    "";
-
-  const summary = useMemo(() => {
-    const current = promptPerformanceSummary(promptsCurrent.data ?? [], promptId);
-    const previous = promptPerformanceSummary(promptsPrevious.data ?? [], promptId);
-    return { current, previous };
-  }, [promptId, promptsCurrent.data, promptsPrevious.data]);
-
-  const opportunity = useMemo(
-    () => aggregatePromptOpportunity(opportunities.data?.items ?? []),
-    [opportunities.data?.items],
-  );
+  const cardValues = useMemo(() => {
+    if (!data) return {};
+    return {
+      visibility: promptDetailMetric("visibility").formatValue(data.visibility_rate),
+      averageRank: promptDetailMetric("averageRank").formatValue(data.average_rank),
+      citation: promptDetailMetric("citation").formatValue(data.citation_rate),
+    };
+  }, [data]);
 
   const lineSeriesByMetric = useMemo(
-    (): Record<PromptDetailMetricId, ReturnType<typeof extractOwnShareSeries>> => ({
-      visibility: extractOwnShareSeries(visibilityData?.series ?? [], ownLabel),
-      averageRank: (visibilityData?.average_rank_series ?? []).map((point) => ({
-        date: point.date,
-        value: point.value,
-      })),
-      citation: extractOwnShareSeries(citationData?.series ?? [], ownLabel),
+    (): Record<PromptDetailMetricId, { date: string; value: number | null }[]> => ({
+      visibility: data?.visibility_series ?? [],
+      averageRank: data?.average_rank_series ?? [],
+      citation: data?.citation_series ?? [],
     }),
-    [visibilityData, citationData, ownLabel],
+    [data],
   );
 
   return {
-    isLoading,
-    ownLabel,
-    summary,
-    platforms: platformsCurrent.data ?? [],
+    isLoading: detailQuery.isLoading,
+    cardValues,
+    platforms: toPlatformPerformance(data?.platforms ?? []),
     lineSeriesByMetric,
-    opportunity,
-    responses: responses.data ?? null,
-    responsesLoading: responses.isLoading,
+    opportunity: data?.opportunity ?? null,
+    responses: data ?? null,
+    promptText: data?.prompt_text ?? "",
   };
 }

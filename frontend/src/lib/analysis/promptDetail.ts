@@ -6,6 +6,7 @@ import type {
   PlatformPerformance,
   PromptDetailResponseRow,
   PromptPerformance,
+  AnalysisResponseRow,
   VisibilitySeriesPoint,
 } from "@/types";
 
@@ -25,7 +26,7 @@ export const PROMPT_DETAIL_METRICS: PromptDetailMetricDefinition[] = [
     id: "visibility",
     label: "可见度",
     description: "在此提示词下，提及您品牌的 AI 回复总数百分比。数值越高表示在所选平台中的曝光度和竞争可见度越高。",
-    chartDescription: "品牌在此提示词的 AI 生成答案中出现的频率",
+    chartDescription: "品牌在此提示词 AI 回答中出现的频率",
     formatValue: formatRate,
     yAxisMode: "rate",
   },
@@ -40,8 +41,8 @@ export const PROMPT_DETAIL_METRICS: PromptDetailMetricDefinition[] = [
   {
     id: "citation",
     label: "引用率",
-    description: "在此提示词下，提及品牌且引用自有域名链接的回复占比。反映内容可信度和将 AI 浏览量转化为网站流量的能力。比率越高表示被引用的内容越广泛。",
-    chartDescription: "品牌在此提示词下您的域名引用百分比",
+    description: "在此提示词下，提及品牌且引用品牌域名链接的回复占比。反映内容可信度和将 AI 浏览量转化为网站流量的能力。比率越高表示被引用的内容越广泛。",
+    chartDescription: "品牌在此提示词下品牌域名被引用百分比",
     formatValue: formatRate,
     yAxisMode: "rate",
   },
@@ -49,11 +50,7 @@ export const PROMPT_DETAIL_METRICS: PromptDetailMetricDefinition[] = [
 
 export type PromptOpportunitySummary = {
   brandGapRate: number;
-  brandOwnCount: number;
-  brandTotalCount: number;
   sourceGapRate: number;
-  sourceOwnCount: number;
-  sourceTotalCount: number;
   priority: OpportunityPriority;
 };
 
@@ -61,6 +58,12 @@ const PRIORITY_LABELS: Record<OpportunityPriority, string> = {
   high: "高优先级",
   medium: "中优先级",
   low: "低优先级",
+};
+
+const PRIORITY_ORDER: Record<OpportunityPriority, number> = {
+  high: 0,
+  medium: 1,
+  low: 2,
 };
 
 export function promptOpportunityPriorityLabel(priority: OpportunityPriority): string {
@@ -109,11 +112,11 @@ export function platformMetricValue(
   }
 }
 
-function opportunityPriority(brandGap: number, sourceGap: number): OpportunityPriority {
-  const peak = Math.max(brandGap, sourceGap);
-  if (peak >= 0.8) return "high";
-  if (peak >= 0.5) return "medium";
-  return "low";
+function highestOpportunityPriority(
+  a: OpportunityPriority,
+  b: OpportunityPriority,
+): OpportunityPriority {
+  return PRIORITY_ORDER[a] <= PRIORITY_ORDER[b] ? a : b;
 }
 
 export function aggregatePromptOpportunity(
@@ -121,24 +124,22 @@ export function aggregatePromptOpportunity(
 ): PromptOpportunitySummary | null {
   if (items.length === 0) return null;
 
-  const brandOwnCount = items.reduce((sum, item) => sum + item.brand_own_count, 0);
-  const brandTotalCount = items.reduce((sum, item) => sum + item.brand_total_count, 0);
-  const sourceOwnCount = items.reduce((sum, item) => sum + item.source_own_count, 0);
-  const sourceTotalCount = items.reduce((sum, item) => sum + item.source_total_count, 0);
+  const brandGapRate = Math.max(0, ...items.map((item) => item.brand_gap_rate));
+  const sourceGapRate = Math.max(0, ...items.map((item) => item.source_gap_rate));
 
-  const brandGapRate =
-    brandTotalCount > 0 ? Math.max(0, 1 - brandOwnCount / brandTotalCount) : 0;
-  const sourceGapRate =
-    sourceTotalCount > 0 ? Math.max(0, 1 - sourceOwnCount / sourceTotalCount) : 0;
+  const brandGapPriority = items.reduce(
+    (best, item) => highestOpportunityPriority(best, item.brand_gap_priority),
+    "low" as OpportunityPriority,
+  );
+  const sourceGapPriority = items.reduce(
+    (best, item) => highestOpportunityPriority(best, item.source_gap_priority),
+    "low" as OpportunityPriority,
+  );
 
   return {
     brandGapRate,
-    brandOwnCount,
-    brandTotalCount,
     sourceGapRate,
-    sourceOwnCount,
-    sourceTotalCount,
-    priority: opportunityPriority(brandGapRate, sourceGapRate),
+    priority: highestOpportunityPriority(brandGapPriority, sourceGapPriority),
   };
 }
 
@@ -164,13 +165,26 @@ export const PROMPT_DETAIL_RESPONSE_TABS: {
 
 export function promptDetailResponsesForTab(
   data: {
-    chat_responses: PromptDetailResponseRow[];
     citation_responses: PromptDetailResponseRow[];
   } | null | undefined,
   tab: PromptDetailResponseTab,
+  chatResponses: PromptDetailResponseRow[] = [],
 ): PromptDetailResponseRow[] {
+  if (tab === "chat") return chatResponses;
   if (!data) return [];
-  if (tab === "chat") return data.chat_responses;
   if (tab === "citation") return data.citation_responses;
   return [];
+}
+
+export function promptDetailResponseFromAnalysis(row: AnalysisResponseRow): PromptDetailResponseRow {
+  return {
+    response_id: row.response_id,
+    platform: row.platform_id,
+    reply_preview: row.reply_preview,
+    mentioned_brands: row.mentioned_brands ?? [],
+    mentioned: row.mentioned ?? false,
+    rank: row.rank ?? null,
+    created_at: row.created_at,
+    cited_on_source: row.cited_on_source,
+  };
 }

@@ -8,31 +8,37 @@ from aperix_geo.services.analysis._series import (
 )
 from aperix_geo.services.analysis.citation import (
     build_citation_analysis,
-    build_citation_brand_rank,
     build_citation_domain_analysis,
-    build_citations,
+    build_citation_domain_prompts_page,
+    build_citation_domain_urls_page,
+    build_citation_domains_page,
+    build_citation_urls_page,
 )
+from aperix_geo.services.analysis.dashboard import build_dashboard_overview
 from aperix_geo.services.analysis.diagnosis import build_diagnosis
 from aperix_geo.services.analysis.entity import list_analysis_entities, resolve_analysis_entity
-from aperix_geo.services.analysis.metrics import MetricsBundle
-from aperix_geo.services.analysis.metrics_api import build_analysis_entities, build_unified_metrics
+from aperix_geo.services.analysis.metrics import MetricsBundle, build_analysis_entities
 from aperix_geo.services.analysis.opportunity import (
     build_backlink_opportunities,
+    build_backlink_opportunity_detail,
+    build_backlink_opportunity_prompts_page,
+    build_backlink_opportunity_urls_page,
     build_content_opportunities,
+    build_content_opportunity_detail,
 )
 from aperix_geo.services.analysis.overview import build_overview
 from aperix_geo.services.analysis.performance import (
     build_platform_performance,
     build_prompts_performance,
+    build_prompts_performance_page,
     build_topics_performance,
+    platform_performance_rows,
 )
-from aperix_geo.services.analysis.prompt_detail import build_prompt_detail_responses
-from aperix_geo.services.analysis.platform import build_platform_matrix_analysis
+from aperix_geo.services.analysis.prompt_detail import build_prompt_detail
+from aperix_geo.services.analysis.platform import build_platform_analysis
 from aperix_geo.services.analysis.rank import build_rank
-from aperix_geo.services.analysis.sentiment import (
-    build_daily_sentiment_series,
-    build_sentiment_analysis,
-)
+from aperix_geo.services.analysis.responses import build_analysis_responses
+from aperix_geo.services.analysis.sentiment import build_sentiment_analysis
 from aperix_geo.services.analysis.visibility import (
     build_topic_visibility_ranks,
     build_visibility_analysis,
@@ -43,25 +49,34 @@ __all__ = [
     "VISIBILITY_CHART_LABEL_LIMIT",
     "TOPIC_VISIBILITY_RANK_LIMIT",
     "build_overview",
+    "build_dashboard_overview",
     "build_rank",
     "build_topics_performance",
     "build_prompts_performance",
-    "build_prompt_detail_responses",
-    "build_citations",
+    "build_prompts_performance_page",
+    "build_prompt_detail",
+
     "build_topic_visibility_ranks",
     "build_visibility_analysis",
     "build_platform_performance",
-    "build_platform_matrix_analysis",
+    "build_platform_analysis",
+    "platform_performance_rows",
     "build_citation_analysis",
-    "build_citation_brand_rank",
     "build_citation_domain_analysis",
-    "build_daily_sentiment_series",
+    "build_citation_domain_prompts_page",
+    "build_citation_domain_urls_page",
+    "build_citation_domains_page",
+    "build_citation_urls_page",
     "build_sentiment_analysis",
+    "build_analysis_responses",
     "build_content_opportunities",
+    "build_content_opportunity_detail",
     "build_backlink_opportunities",
+    "build_backlink_opportunity_detail",
+    "build_backlink_opportunity_prompts_page",
+    "build_backlink_opportunity_urls_page",
     "build_diagnosis",
     "list_analysis_entities",
     "resolve_analysis_entity",
     "build_analysis_entities",
-    "build_unified_metrics",
 ]

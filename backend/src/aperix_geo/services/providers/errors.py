@@ -42,8 +42,21 @@ def raise_provider_error(
     status_code: int | None = None,
     retryable: bool | None = None,
     cause: BaseException | None = None,
+    provider_id: str | None = None,
+    provider_role: str | None = None,
 ) -> None:
     """Raise a ProviderError with optional HTTP status and retry hint."""
+    from aperix_geo.services.alerts.billing import is_billing_provider_error
+    from aperix_geo.services.alerts.dispatch import maybe_report_provider_billing_alert
+
+    if is_billing_provider_error(message, status_code):
+        retryable = False
+        maybe_report_provider_billing_alert(
+            message,
+            status_code=status_code,
+            provider_id=provider_id,
+            provider_role=provider_role,
+        )
     if retryable is None and status_code is not None:
         retryable = is_transient_http_status(status_code)
     raise cls(message, status_code=status_code, retryable=retryable) from cause

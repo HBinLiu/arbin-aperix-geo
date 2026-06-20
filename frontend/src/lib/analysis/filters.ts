@@ -1,46 +1,92 @@
+import { dateRangeDays } from "@/lib/analysis/date";
 import type { AnalysisFilters, AnalysisQueryFilters } from "@/types";
 
 export const ANALYSIS_FILTER_ALL = "all" as const;
 export const ANALYSIS_ENTITY_OWN = "own" as const;
 
-export const ANALYSIS_DATE_OPTIONS = [
-  { value: "7", label: "最近 7 天" },
-  { value: "30", label: "最近 30 天" },
+export const ANALYSIS_DATE_PRESETS = [
+  { days: 7, label: "最近 7 天" },
+  { days: 14, label: "最近 14 天" },
+  { days: 30, label: "最近 30 天" },
 ] as const;
 
+/** @deprecated 使用 ANALYSIS_DATE_PRESETS */
+export const ANALYSIS_DATE_OPTIONS = ANALYSIS_DATE_PRESETS.map((preset) => ({
+  value: String(preset.days),
+  label: preset.label,
+}));
+
 export const DEFAULT_ANALYSIS_FILTERS: AnalysisFilters = {
-  days: "30",
+  ...dateRangeDays(30),
   entityId: ANALYSIS_ENTITY_OWN,
-  platformId: ANALYSIS_FILTER_ALL,
-  topicId: ANALYSIS_FILTER_ALL,
-  regionId: ANALYSIS_FILTER_ALL,
+  platformIds: [],
+  topicIds: [],
 };
 
-export function toAnalysisQueryFilters(filters: AnalysisFilters): AnalysisQueryFilters {
-  const { entityId, platformId, topicId, regionId } = filters;
-  return { entityId, platformId, topicId, regionId };
+/** 空数组表示全部平台；排序仅用于 query key，不影响展示顺序。 */
+export function platformFilterKey(platformIds: string[] | undefined): string {
+  const ids = platformIds ?? [];
+  if (ids.length === 0) return ANALYSIS_FILTER_ALL;
+  return [...ids].sort().join(",");
 }
 
-export function analysisFilterKey(filters: AnalysisQueryFilters): [string, string, string, string] {
-  return [filters.entityId, filters.platformId, filters.topicId, filters.regionId];
+/** 矩阵列顺序：有筛选时按用户选择顺序；否则用主体已配置平台顺序。 */
+export function matrixPlatformIds(
+  platformIds: string[],
+  configuredPlatformIds: string[],
+): string[] {
+  if (platformIds.length > 0) return platformIds;
+  return configuredPlatformIds;
+}
+
+/** 空数组表示全部主题；否则为排序后的 id 列表拼接（用于 query key） */
+export function topicFilterKey(topicIds: string[] | undefined): string {
+  const ids = topicIds ?? [];
+  if (ids.length === 0) return ANALYSIS_FILTER_ALL;
+  return [...ids].sort().join(",");
+}
+
+export function toAnalysisQueryFilters(filters: AnalysisFilters): AnalysisQueryFilters {
+  const { entityId, platformIds, topicIds, from, to } = filters;
+  return {
+    entityId,
+    platformIds: platformIds ?? [],
+    topicIds: topicIds ?? [],
+    from,
+    to,
+  };
+}
+
+export function withAnalysisDateRange(
+  filters: AnalysisQueryFilters,
+  from: string,
+  to: string,
+): AnalysisQueryFilters {
+  return { ...filters, from, to };
+}
+
+export function analysisFilterKey(filters: AnalysisQueryFilters): [string, string, string] {
+  return [
+    filters.entityId,
+    platformFilterKey(filters.platformIds),
+    topicFilterKey(filters.topicIds),
+  ];
 }
 
 export function buildAnalysisParams(
-  from: string,
-  to: string,
-  filters?: AnalysisQueryFilters,
+  filters: AnalysisQueryFilters,
   promptId?: string | null,
   host?: string | null,
 ): Record<string, string | string[]> {
   const params: Record<string, string | string[]> = {};
-  if (filters?.entityId && filters.entityId !== ANALYSIS_ENTITY_OWN) {
+  if (filters.entityId !== ANALYSIS_ENTITY_OWN) {
     params.entity_id = filters.entityId;
   }
-  if (filters?.platformId && filters.platformId !== ANALYSIS_FILTER_ALL) {
-    params.platform = filters.platformId;
+  if ((filters.platformIds ?? []).length > 0) {
+    params.platform = filters.platformIds;
   }
-  if (filters?.topicId && filters.topicId !== ANALYSIS_FILTER_ALL) {
-    params.topic_id = filters.topicId;
+  if ((filters.topicIds ?? []).length > 0) {
+    params.topic_id = filters.topicIds;
   }
   if (promptId) {
     params.prompt_id = promptId;
@@ -48,8 +94,8 @@ export function buildAnalysisParams(
   if (host) {
     params.host = host;
   }
-  params.from = from;
-  params.to = to;
+  params.start_date = filters.from;
+  params.end_date = filters.to;
   return params;
 }
 

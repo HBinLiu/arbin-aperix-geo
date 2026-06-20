@@ -15,7 +15,7 @@ from aperix_geo.services.sampling.mentions import (
     host_mentions_domain,
     own_names,
 )
-from aperix_geo.utils.sentiment import clamp_sentiment_score, has_sentiment_score
+from aperix_geo.utils.sentiment import clamp_sentiment_score
 
 
 @dataclass
@@ -28,7 +28,6 @@ class EntitySignalDraft:
     mention_rank: int | None = None
     rank_hint_first_index: int | None = None
     sentiment_score: float | None = None
-    sentiment_label: str = "neutral"
     sentiment_reason: str | None = None
     has_domain_link: bool = False
     cited_on_source: bool = False
@@ -141,7 +140,7 @@ def _optional_sentiment_score(raw: Any) -> float | None:
         value = float(raw)
     except (TypeError, ValueError):
         return None
-    if not has_sentiment_score(value):
+    if value <= 0:
         return None
     return clamp_sentiment_score(value)
 
@@ -155,8 +154,7 @@ def draft_from_record(data: dict[str, Any]) -> EntitySignalDraft:
         mention_count=int(data.get("mention_count") or 0),
         mention_rank=data.get("mention_rank"),
         sentiment_score=_optional_sentiment_score(data.get("sentiment_score")),
-        sentiment_label=str(data.get("sentiment_label") or "neutral"),
-        sentiment_reason=data.get("sentiment_reason"),
+        sentiment_reason=data.get("sentiment_reason") or None,
         has_domain_link=bool(data.get("has_domain_link")),
         cited_on_source=bool(data.get("cited_on_source")),
     )

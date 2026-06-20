@@ -28,28 +28,15 @@ def entity_aliases(
     return out
 
 
-def niche_fields_from_scope(scope: dict[str, object] | None) -> tuple[str, str, str]:
-    raw = scope if isinstance(scope, dict) else {}
-    niche = raw.get("niche_profile")
-    profile = niche if isinstance(niche, dict) else {}
-    return (
-        str(profile.get("industry") or "").strip(),
-        str(profile.get("core_features") or "").strip(),
-        str(profile.get("target_customers") or "").strip(),
-    )
-
-
 def prompt_context_from_subject(subject: Subject) -> dict[str, object]:
-    industry, core_features, target_customers = niche_fields_from_scope(subject.monitoring_scope)
-    if not core_features and subject.profile_summary:
-        core_features = subject.profile_summary.strip()[:2000]
+    features = subject.profile_summary.strip()[:2000] if subject.profile_summary else ""
     entity = (subject.brand or subject.domain or "").strip() or "本品牌"
     domains, brands = competitor_lists(subject)
     return {
         "entity": entity,
         "aliases": entity_aliases(entity=entity, configured=list(subject.aliases or [])),
-        "industry": industry,
-        "core_features": core_features,
-        "target_customers": target_customers,
+        "industry": "",
+        "features": features,
+        "customers": "",
         "competitors": [*domains, *brands],
     }

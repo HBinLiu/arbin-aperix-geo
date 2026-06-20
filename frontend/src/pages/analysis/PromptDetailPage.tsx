@@ -1,25 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useParams } from "react-router-dom";
 
 import { AnalysisFilterBar } from "@/components/analysis/common/AnalysisFilterBar";
 import { SimpleLineChart } from "@/components/analysis/common/SimpleLineChart";
 import {
   PromptDetailMetricCards,
-  promptDetailMetricCardValues,
 } from "@/components/analysis/prompt/PromptDetailMetricCards";
 import { PromptDetailOpportunity } from "@/components/analysis/prompt/PromptDetailOpportunity";
 import { PromptDetailResponsesSection } from "@/components/analysis/prompt/PromptDetailResponsesSection";
 import { PromptPlatformBarChart } from "@/components/analysis/prompt/PromptPlatformBarChart";
 import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
 import { useAnalysisOutletContext } from "@/hooks/useAnalysisContext";
-import { usePromptDetailAnalysis, usePromptDetailMeta } from "@/hooks/usePromptDetailAnalysis";
-import { useDashboardContext } from "@/hooks/useDashboardContext";
-import { ANALYSIS_FILTER_ALL, DEFAULT_ANALYSIS_FILTERS } from "@/lib/analysis";
+import { useAnalysisFiltersState } from "@/hooks/useAnalysisFiltersState";
+import { usePromptDetailAnalysis } from "@/hooks/usePromptDetailAnalysis";
 import {
   promptDetailMetric,
   type PromptDetailMetricId,
 } from "@/lib/analysis/promptDetail";
-import type { AnalysisFilters } from "@/types";
 
 const CHART_HEIGHT = 270;
 
@@ -37,35 +34,25 @@ export function PromptDetailPage() {
   const { promptId: promptIdParam } = useParams<{ promptId: string }>();
   const promptId = decodeRoutePromptId(promptIdParam);
   const { subjectId } = useAnalysisOutletContext();
-  const { subject } = useDashboardContext();
   const { platforms: platformsMeta } = useAnalysisFilter();
-
-  const [filters, setFilters] = useState<AnalysisFilters>(DEFAULT_ANALYSIS_FILTERS);
+  const { filters, setFilters } = useAnalysisFiltersState();
   const [activeMetricId, setActiveMetricId] = useState<PromptDetailMetricId>("visibility");
 
-  useEffect(() => {
-    setFilters((prev) => ({
-      ...prev,
-      regionId: ANALYSIS_FILTER_ALL,
-      topicId: ANALYSIS_FILTER_ALL,
-      platformId: ANALYSIS_FILTER_ALL,
-    }));
-  }, [subject.id]);
-
-  const { isLoading, summary, platforms, lineSeriesByMetric, opportunity, ownLabel, responses, responsesLoading } =
-    usePromptDetailAnalysis(subjectId, promptId, filters);
-  const { promptText } = usePromptDetailMeta(subjectId, promptId);
+  const {
+    isLoading,
+    cardValues,
+    platforms,
+    lineSeriesByMetric,
+    opportunity,
+    responses,
+  } = usePromptDetailAnalysis(subjectId, promptId, filters);
 
   const activeMetric = promptDetailMetric(activeMetricId);
-  const cardValues = useMemo(
-    () => promptDetailMetricCardValues(summary.current),
-    [summary.current],
-  );
   const lineSeries = lineSeriesByMetric[activeMetricId];
 
   return (
     <>
-      <AnalysisFilterBar value={filters} onChange={setFilters} />
+      <AnalysisFilterBar value={filters} onChange={setFilters} hideTopicFilter />
 
       <div className="flex flex-col gap-4 px-6 py-4">
         <PromptDetailMetricCards
@@ -76,8 +63,8 @@ export function PromptDetailPage() {
         />
 
         <section className="border-border overflow-hidden rounded-lg border bg-white">
-          <div className="border-border border-b px-5 py-4">
-            <p className="text-muted-foreground text-sm leading-relaxed">
+          <div className="border-border bg-muted border-b px-5 py-3">
+            <p className="text-muted-foreground text-sm font-medium leading-relaxed">
               {activeMetric.chartDescription}
             </p>
           </div>
@@ -86,7 +73,7 @@ export function PromptDetailPage() {
               <h4 className="mb-4 text-sm font-semibold">{activeMetric.label}</h4>
               <SimpleLineChart
                 singleSeries={lineSeries}
-                labels={ownLabel ? [ownLabel] : []}
+                labels={responses?.entity_label ? [responses.entity_label] : []}
                 showPreviousSeries={false}
                 valueFormatter={(value) => activeMetric.formatValue(value)}
                 yAxisMode={activeMetric.yAxisMode}
@@ -108,10 +95,12 @@ export function PromptDetailPage() {
         <PromptDetailOpportunity opportunity={opportunity} loading={isLoading} />
 
         <PromptDetailResponsesSection
+          subjectId={subjectId}
+          promptId={promptId}
+          filters={filters}
           data={responses}
           platformsMeta={platformsMeta}
-          promptText={promptText}
-          loading={responsesLoading}
+          detailLoading={isLoading}
         />
       </div>
     </>

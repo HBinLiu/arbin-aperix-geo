@@ -3,49 +3,73 @@ import { Link } from "react-router-dom";
 import { Search, Settings2 } from "lucide-react";
 
 import { AnalysisFilterBar } from "@/components/analysis/common/AnalysisFilterBar";
+import {
+  DEFAULT_TABLE_PAGE_SIZE,
+} from "@/components/analysis/common/TablePagination";
 import { PromptPerformanceTable } from "@/components/analysis/prompt/PromptPerformanceTable";
 import { TopicPerformanceTable } from "@/components/analysis/prompt/TopicPerformanceTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAnalysisOutletContext } from "@/hooks/useAnalysisContext";
-import { filterPromptRowsBySearch, filterPromptRowsByTopic, usePromptAnalysis } from "@/hooks/usePromptAnalysis";
+import { useAnalysisFiltersState } from "@/hooks/useAnalysisFiltersState";
+import { usePromptAnalysis } from "@/hooks/usePromptAnalysis";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
-import { ANALYSIS_FILTER_ALL, DEFAULT_ANALYSIS_FILTERS } from "@/lib/analysis";
 import { dashboardNavToPath } from "@/lib/dashboard";
-import type { AnalysisFilters } from "@/types";
+import { promptSortToApiField } from "@/lib/analysis/prompt";
 
 const PAGE_TITLE = "提示词表现";
 const PAGE_DESCRIPTION =
   "在提示词层面分析产品可见度与表现，帮助理解 AI 搜索场景下的用户需求与转化潜力。";
 
+type PromptTableSortKey = "visibility" | "sentiment" | "averageRank" | "citationRate";
+type PromptTableSortDir = "asc" | "desc";
+type PromptTableSortState = { key: PromptTableSortKey; dir: PromptTableSortDir } | null;
+
 /** 分析 · 提示词表现 */
 export function PromptPage() {
   const { subjectId } = useAnalysisOutletContext();
   const { subject } = useDashboardContext();
-  const [filters, setFilters] = useState<AnalysisFilters>(DEFAULT_ANALYSIS_FILTERS);
+  const { filters, setFilters } = useAnalysisFiltersState();
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
+  const [sort, setSort] = useState<PromptTableSortState>(null);
 
   useEffect(() => {
-    setFilters((prev) => ({
-      ...prev,
-      regionId: ANALYSIS_FILTER_ALL,
-      topicId: ANALYSIS_FILTER_ALL,
-      platformId: ANALYSIS_FILTER_ALL,
-    }));
     setSearch("");
+    setDebouncedSearch("");
     setSelectedTopicId(null);
+    setPage(1);
+    setSort(null);
   }, [subject.id]);
 
-  const { isLoading, topicRows, promptRows } = usePromptAnalysis(subjectId, filters);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search), 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
-  const filteredPromptRows = useMemo(
-    () =>
-      filterPromptRowsBySearch(
-        filterPromptRowsByTopic(promptRows, selectedTopicId),
-        search,
-      ),
-    [promptRows, selectedTopicId, search],
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, selectedTopicId, filters, sort, pageSize]);
+
+  const listRequest = useMemo(
+    () => ({
+      page,
+      pageSize,
+      search: debouncedSearch,
+      topicId: selectedTopicId,
+      sortBy: promptSortToApiField(sort?.key),
+      order: sort?.dir ?? "desc",
+    }),
+    [page, pageSize, debouncedSearch, selectedTopicId, sort],
+  );
+
+  const { isLoading, topicRows, promptRows, promptTotal } = usePromptAnalysis(
+    subjectId,
+    filters,
+    listRequest,
   );
 
   return (
@@ -56,7 +80,7 @@ export function PromptPage() {
         afterFilters={
           <div className="relative">
             <Search
-              className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2"
+              className="text-muted-foreground pointer-events-none absolute top-1/2 left-4 size-3.5 -translate-y-1/2"
               aria-hidden
             />
             <Input
@@ -71,7 +95,7 @@ export function PromptPage() {
           </div>
         }
         trailing={
-          <Button variant="default" size="sm" className="h-9 rounded-lg px-3 text-xs" asChild>
+          <Button variant="brandout" size="sm" className="h-9 rounded-lg px-3 font-medium text-sm" asChild>
             <Link to={dashboardNavToPath("prompt")}>
               <Settings2 className="size-3.5" aria-hidden />
               管理提示词
@@ -94,7 +118,17 @@ export function PromptPage() {
           onTopicSelect={setSelectedTopicId}
           loading={isLoading}
         />
-        <PromptPerformanceTable rows={filteredPromptRows} loading={isLoading} />
+        <PromptPerformanceTable
+          rows={promptRows}
+          loading={isLoading}
+          total={promptTotal}
+          page={page}
+          pageSize={pageSize}
+          sort={sort}
+          onSortChange={setSort}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
       </div>
     </div>
   );

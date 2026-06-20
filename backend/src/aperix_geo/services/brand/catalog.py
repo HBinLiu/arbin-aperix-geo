@@ -1,4 +1,4 @@
-"""In-memory tenant brand index for alias-aware lookup and batch sync."""
+"""In-memory subject brand index for alias-aware lookup and batch sync."""
 
 from __future__ import annotations
 
@@ -25,15 +25,15 @@ def _normalize_domain(raw: str) -> str:
 
 @dataclass
 class BrandCatalog:
-    """Tenant-scoped brand rows indexed by normalized name/alias and domain."""
+    """Subject-scoped brand rows indexed by normalized name/alias and domain."""
 
     by_key: dict[str, Brand] = field(default_factory=dict)
     by_domain: dict[str, Brand] = field(default_factory=dict)
 
     @classmethod
-    def load(cls, db: Session, *, tenant_id: UUID) -> BrandCatalog:
+    def load(cls, db: Session, *, subject_id: UUID) -> BrandCatalog:
         catalog = cls()
-        rows = db.execute(select(Brand).where(Brand.tenant_id == tenant_id)).scalars().all()
+        rows = db.execute(select(Brand).where(Brand.subject_id == subject_id)).scalars().all()
         for row in rows:
             catalog.register(row)
         return catalog
@@ -68,8 +68,8 @@ class BrandSyncContext:
     domain_memo: dict[str, str] = field(default_factory=dict)
 
     @classmethod
-    def load(cls, db: Session, *, tenant_id: UUID) -> BrandSyncContext:
-        return cls(catalog=BrandCatalog.load(db, tenant_id=tenant_id))
+    def load(cls, db: Session, *, subject_id: UUID) -> BrandSyncContext:
+        return cls(catalog=BrandCatalog.load(db, subject_id=subject_id))
 
     def memoized_domain(self, brand: str) -> str | None:
         return self.domain_memo.get(_normalize_brand_key(brand))

@@ -1,14 +1,13 @@
 import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { buildBrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
+import { BrandRankLabel } from "@/components/brand/BrandRankLabel";
 import {
   EmptyMetricCell,
   SentimentMetricCell,
 } from "@/components/analysis/prompt/PerformanceMetricCells";
 import { PerformanceTableShell } from "@/components/analysis/prompt/PerformanceTableShell";
 import { performanceTableClasses } from "@/components/analysis/prompt/performanceTableLayout";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   RANK_BOARD_BRAND_COL_WIDTH,
@@ -29,7 +28,7 @@ type SortState = {
   dir: HeaderMode;
 };
 
-const DEFAULT_SORT: SortState = { column: "visibility", dir: "desc" };
+const INITIAL_SORT: SortState = { column: "visibility", dir: "desc" };
 
 function cycleSort(state: SortState, column: RankBoardSortColumn): SortState {
   if (state.column !== column) {
@@ -37,7 +36,7 @@ function cycleSort(state: SortState, column: RankBoardSortColumn): SortState {
     return { column, dir: col.higherIsBetter ? "desc" : "asc" };
   }
   if (state.dir === "desc") return { column, dir: "asc" };
-  if (state.dir === "asc") return DEFAULT_SORT;
+  if (state.dir === "asc") return { column, dir: "default" };
   return { column, dir: "desc" };
 }
 
@@ -112,16 +111,14 @@ type RankBoardTableProps = {
 
 /** 排行榜 · 品牌全指标对比表 */
 export function RankBoardTable({ rows, loading = false, className }: RankBoardTableProps) {
-  const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
+  const [sort, setSort] = useState<SortState>(INITIAL_SORT);
 
   const sortedRows = useMemo(() => {
-    if (sort.dir === "default") {
-      return sortRankBoardRows(rows, "visibility", "desc");
-    }
+    if (sort.dir === "default") return rows;
     return sortRankBoardRows(rows, sort.column, sort.dir);
   }, [rows, sort]);
 
-  const activeColumn = sort.dir === "default" ? "visibility" : sort.column;
+  const activeColumn = sort.dir === "default" ? null : sort.column;
 
   return (
     <PerformanceTableShell
@@ -169,19 +166,8 @@ export function RankBoardTable({ rows, loading = false, className }: RankBoardTa
             sortedRows.map((row, index) => (
               <tr key={row.id} className={performanceTableClasses.row}>
                 <td className="text-foreground pl-5 tabular-nums">#{index + 1}</td>
-                <td>
-                  <div className="flex items-center gap-2 whitespace-nowrap">
-                    {buildBrandRankIcon(row.label)}
-                    <span className="font-medium">{row.label}</span>
-                    {row.isOwn ? (
-                      <Badge
-                        variant="orange"
-                        className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium"
-                      >
-                        拥有
-                      </Badge>
-                    ) : null}
-                  </div>
+                <td className="min-w-0 overflow-hidden px-4 whitespace-normal">
+                  <BrandRankLabel label={row.label} icon={row.icon} isOwn={row.isOwn} />
                 </td>
                 <td className={metricCellClass(activeColumn === "visibility")}>{row.visibility}</td>
                 <td className={metricCellClass(activeColumn === "shareVoice")}>
@@ -193,7 +179,7 @@ export function RankBoardTable({ rows, loading = false, className }: RankBoardTa
                 </td>
                 <td className={metricCellClass(activeColumn === "citation")}>{row.citationRate}</td>
                 <td className={metricCellClass(activeColumn === "sentiment")}>
-                  <SentimentMetricCell value={row.sentiment} delta={null} />
+                  <SentimentMetricCell value={row.sentiment} label={row.sentimentLabel} />
                 </td>
               </tr>
             ))

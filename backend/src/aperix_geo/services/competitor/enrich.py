@@ -1,110 +1,278 @@
-"""竞品发现阶段：LLM 生成 brand（公司/品牌名）与 summary（竞品介绍）。"""
+"""竞品 brand / aliases / summary 补全（discover 交叉验算 + Setup 用户确认）。"""
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 
-from aperix_geo.services.competitor.types import DiscoveredCompetitor, NicheProfile, SiteHead
-from aperix_geo.services.providers.prompts import COMPETITOR_DISCOVER_ENRICH_SYSTEM
-from aperix_geo.services.providers import chat_completion
-from aperix_geo.utils.domains import ensure_brand
-from aperix_geo.utils.json import extract_json_object
+from aperix_geo.services.competitor.head_fetch import fetch_site_heads
+from aperix_geo.services.competitor.types import DiscoveredCompetitor, SiteHead
+from aperix_geo.services.subject.domain_fields import prepare_domain_and_website_url
+from aperix_geo.utils.domains import ensure_brand, registrable_domain
+from aperix_geo.utils.url import normalize_user_website_input
 
 logger = logging.getLogger(__name__)
+
+_SUMMARY_MAX_LEN = 500
+
+
+def normalize_competitor_aliases(raw: Any, *, brand: str) -> list[str]:
+    if not isinstance(raw, list):
+        return []
+    brand_key = brand.casefold()
+    out: list[str] = []
+    seen: set[str] = {brand_key}
+    for item in raw:
+        alias = str(item or "").strip()[:120]
+        if not alias:
+            continue
+        key = alias.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(alias)
+    return out
+
+
+def merge_competitor_aliases(
+    *,
+    brand: str,
+    existing: list[str] | None = None,
+    seed_aliases: list[str] | None = None,
+    brand_names: tuple[str, ...] = (),
+) -> list[str]:
+    """合并用户/豆包/SEO 别名，去重且不含 canonical brand。"""
+    out = normalize_competitor_aliases(existing or [], brand=brand)
+    seen = {alias.casefold() for alias in out}
+    seen.add(brand.casefold())
+    for source in list(seed_aliases or []) + list(brand_names):
+        alias = str(source or "").strip()[:120]
+        if not alias:
+            continue
+        key = alias.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(alias)
+    return out
+
+
+def _discovered_item(
+    item: DiscoveredCompetitor,
+    *,
+    domain: str,
+    brand: str,
+    summary: str,
+    aliases: list[str] | None = None,
+) -> DiscoveredCompetitor:
+    out: DiscoveredCompetitor = {
+        "domain": domain,
+        "website_url": str(item.get("website_url") or "").strip(),
+        "brand": brand[:255],
+        "summary": summary[:_SUMMARY_MAX_LEN],
+    }
+    if aliases:
+        out["aliases"] = aliases
+    return out
+
+
+def resolve_competitor_brand(item: DiscoveredCompetitor) -> str:
+    """保留豆包 brand，仅做 ensure_brand 规范化；head title 不参与 brand。"""
+    domain = str(item.get("domain") or "").strip()
+    seed = str(item.get("brand") or "").strip()
+    return ensure_brand(seed, domain=domain)
+
+
+def resolve_summary_from_site_metadata(metadata: dict[str, Any] | None) -> str:
+    """站点 meta：优先 description，否则 title（与竞品 head 规则一致）。"""
+    if not metadata:
+        return ""
+    description = str(metadata.get("description") or "").strip()
+    if description:
+        return description[:_SUMMARY_MAX_LEN]
+    title = str(metadata.get("title") or "").strip()
+    if title:
+        return title[:_SUMMARY_MAX_LEN]
+    return ""
+
+
+def resolve_competitor_summary(head: SiteHead | None) -> str:
+    """交叉验算抓取的 head：优先 meta description，否则用 title。"""
+    if head is None or not head.reachable:
+        return ""
+    return resolve_summary_from_site_metadata(
+        {"description": head.description, "title": head.title},
+    )
 
 
 def enrich_discovered_competitors(
     competitors: list[DiscoveredCompetitor],
     *,
-    profile: NicheProfile,
-    subject_type: str,
     heads: dict[str, SiteHead] | None = None,
-    region_label: str = "",
-    language_label: str = "",
 ) -> list[DiscoveredCompetitor]:
-    """为已发现的竞品补充 brand 与 summary；LLM 失败时保留/回退 title 推导的 brand。"""
+    """discover 阶段：为豆包竞品补充 brand / summary / aliases（summary 总是来自 head）。"""
     if not competitors:
         return []
 
     heads = heads or {}
-    seeds: list[dict[str, Any]] = []
+    out: list[DiscoveredCompetitor] = []
     for item in competitors:
         domain = str(item.get("domain") or "").strip()
-        head = heads.get(domain)
-        seed_brand = str(item.get("brand") or "").strip()
-        if not seed_brand and domain:
-            seed_brand = ensure_brand(None, domain=domain)
-        seeds.append(
-            {
-                "domain": domain,
-                "brand_hint": seed_brand,
-                "title": (head.title if head else "")[:300],
-                "description": (head.description if head else "")[:500],
-                "seo": (head.seo if head else "")[:500],
-                "summary_hint": str(item.get("summary") or "").strip(),
-            }
+        head = heads.get(registrable_domain(domain)) if domain else None
+        brand = resolve_competitor_brand(item)
+        summary = resolve_competitor_summary(head)
+        aliases = merge_competitor_aliases(
+            brand=brand,
+            existing=item.get("aliases"),
+            brand_names=head.brand_names if head else (),
         )
+        out.append(
+            _discovered_item(
+                item,
+                domain=domain,
+                brand=brand,
+                summary=summary,
+                aliases=aliases or None,
+            )
+        )
+    logger.info("竞品 enrich: %d 条", len(out))
+    return out
 
-    from aperix_geo.services.setup.llm.payloads import build_competitor_enrich_payload
 
-    payload = build_competitor_enrich_payload(
-        profile=profile,
-        subject_type=subject_type,
-        seeds=seeds,
-        region_label_text=region_label,
-        language_label_text=language_label,
+def _index_session_competitors_by_domain(session: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
+    if not session:
+        return out
+    cached = session.get("competitors")
+    if not isinstance(cached, list):
+        return out
+    for row in cached:
+        if not isinstance(row, dict):
+            continue
+        domain = registrable_domain(str(row.get("domain") or ""))
+        if domain and domain not in out:
+            out[domain] = row
+    return out
+
+
+def _confirmed_seed_item(
+    item: dict[str, Any],
+    *,
+    cache_seed: dict[str, Any] | None,
+) -> dict[str, Any]:
+    cache_seed = cache_seed or {}
+    domain = str(item.get("domain") or cache_seed.get("domain") or "").strip()
+    website_url = str(item.get("website_url") or cache_seed.get("website_url") or "").strip()
+    brand = str(item.get("brand") or cache_seed.get("brand") or "").strip()
+    seed: dict[str, Any] = {
+        "domain": domain,
+        "website_url": website_url,
+        "brand": brand,
+    }
+    cache_aliases = cache_seed.get("aliases")
+    if isinstance(cache_aliases, list) and cache_aliases:
+        seed["aliases"] = list(cache_aliases)
+    item_aliases = item.get("aliases")
+    if isinstance(item_aliases, list) and item_aliases:
+        seed["aliases"] = list(item_aliases)
+    return seed
+
+
+def enrich_confirmed_competitor_dict(
+    item: dict[str, Any],
+    *,
+    head: SiteHead | None = None,
+    cache_seed: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Setup 单条确认竞品：brand 规范化；summary 空才用 head；aliases 合并缓存与 SEO。"""
+    domain_raw = str(item.get("domain") or "").strip()
+    if not domain_raw:
+        brand = ensure_brand(str(item.get("brand") or ""))
+        aliases = normalize_competitor_aliases(item.get("aliases"), brand=brand)
+        out: dict[str, Any] = {
+            "domain": "",
+            "website_url": "",
+            "brand": brand,
+            "summary": str(item.get("summary") or "").strip(),
+        }
+        if aliases:
+            out["aliases"] = aliases
+        return out
+
+    seed = _confirmed_seed_item(item, cache_seed=cache_seed)
+    user_website_url = normalize_user_website_input(str(seed.get("website_url") or ""))
+    domain, website_url = prepare_domain_and_website_url(
+        domain_raw,
+        user_website_url,
+        probe=not bool(user_website_url),
+    )
+    if not user_website_url and head is not None and head.resolved_url:
+        website_url = head.resolved_url.strip()
+    seed["domain"] = domain
+    seed["website_url"] = website_url
+
+    brand = resolve_competitor_brand(seed)  # type: ignore[arg-type]
+
+    summary = str(item.get("summary") or "").strip()
+    if not summary:
+        summary = resolve_competitor_summary(head)
+
+    cache_aliases = cache_seed.get("aliases") if cache_seed else None
+    aliases = merge_competitor_aliases(
+        brand=brand,
+        existing=item.get("aliases") if isinstance(item.get("aliases"), list) else None,
+        seed_aliases=cache_aliases if isinstance(cache_aliases, list) else None,
+        brand_names=head.brand_names if head else (),
     )
 
-    try:
-        text, _, latency_ms = chat_completion(
-            [
-                {"role": "system", "content": COMPETITOR_DISCOVER_ENRICH_SYSTEM},
-                {"role": "user", "content": json.dumps(payload, ensure_ascii=False, indent=2)},
-            ],
-            temperature=0.2,
-            json_mode=True,
-        )
-        raw_items = extract_json_object(text).get("competitors")
-        if not isinstance(raw_items, list):
-            raise ValueError("invalid competitors array")
-        by_key: dict[str, dict[str, str]] = {}
-        for row in raw_items:
-            if not isinstance(row, dict):
-                continue
-            domain = str(row.get("domain") or "").strip()
-            brand = str(row.get("brand") or "").strip()[:255]
-            summary = str(row.get("summary") or "").strip()
-            key = domain or brand.casefold()
-            if key and brand:
-                by_key[key] = {"brand": brand, "summary": summary}
+    out = {
+        "domain": domain,
+        "website_url": website_url,
+        "brand": brand,
+        "summary": summary,
+    }
+    if aliases:
+        out["aliases"] = aliases
+    return out
 
-        out: list[DiscoveredCompetitor] = []
-        for seed, item in zip(seeds, competitors, strict=True):
-            domain = str(item.get("domain") or "").strip()
-            key = domain or str(seed.get("brand_hint") or "").casefold()
-            enriched = by_key.get(key) or by_key.get(domain) or {}
-            brand = ensure_brand(enriched.get("brand") or seed.get("brand_hint"), domain=domain)
-            summary = enriched.get("summary") or str(item.get("summary") or "").strip()
-            out.append(
-                DiscoveredCompetitor(
-                    domain=domain,
-                    website_url=str(item.get("website_url") or "").strip(),
-                    brand=brand[:255],
-                    summary=summary,
-                )
-            )
-        logger.info("竞品 enrich: %d 条 (%dms)", len(out), latency_ms)
-        return out
-    except Exception:
-        logger.warning("竞品 enrich 失败，使用主域名回退 brand", exc_info=True)
-        return [
-            DiscoveredCompetitor(
-                domain=str(item.get("domain") or "").strip(),
-                website_url=str(item.get("website_url") or "").strip(),
-                brand=ensure_brand(item.get("brand") or seed.get("brand_hint"), domain=str(item.get("domain") or ""))[:255],
-                summary=str(item.get("summary") or "").strip(),
-            )
-            for item, seed in zip(competitors, seeds, strict=True)
-        ]
+
+def enrich_confirmed_competitors(
+    competitors: list[dict[str, Any]],
+    *,
+    session: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Setup 批量确认竞品补全（有 domain 时抓取 head）。"""
+    if not competitors:
+        return []
+
+    cache_by_domain = _index_session_competitors_by_domain(session)
+    domain_hosts: list[str] = []
+    preferred_urls: dict[str, str] = {}
+    for item in competitors:
+        domain = registrable_domain(str(item.get("domain") or ""))
+        if not domain:
+            continue
+        domain_hosts.append(domain)
+        url = str(item.get("website_url") or "").strip()
+        if url:
+            preferred_urls[domain] = url
+        elif cache := cache_by_domain.get(domain):
+            cached_url = str(cache.get("website_url") or "").strip()
+            if cached_url:
+                preferred_urls[domain] = cached_url
+
+    heads = fetch_site_heads(domain_hosts, preferred_urls=preferred_urls) if domain_hosts else {}
+
+    out: list[dict[str, Any]] = []
+    for item in competitors:
+        domain = registrable_domain(str(item.get("domain") or ""))
+        head = heads.get(domain) if domain else None
+        enriched = enrich_confirmed_competitor_dict(
+            item,
+            head=head,
+            cache_seed=cache_by_domain.get(domain) if domain else None,
+        )
+        out.append(enriched)
+
+    logger.info("设置向导·竞品 enrich 完成 条数=%d", len(out))
+    return out

@@ -1,4 +1,5 @@
 import type { RankRow } from "@/components/analysis/common/AnalysisRankTable";
+import type { MultiSeriesPoint } from "@/lib/analysis/chart";
 import {
   formatDelta,
   formatRankMetric,
@@ -9,13 +10,30 @@ import {
 } from "@/lib/analysis/format";
 import { resolvePlatformMeta } from "@/lib/analysis/shared";
 import type {
-  PlatformMatrixData,
+  AnalysisEntityRef,
+  PlatformAnalysisData,
+  PlatformMatrixCell,
+  PlatformMatrixCells,
   PlatformMatrixMetricId,
   PlatformMatrixRowDimension,
-  PlatformMatrixSeriesPoint,
+  PlatformChartWindow,
   PlatformPerformance,
+  PlatformSeriesMetric,
   SamplingPlatform,
+  SubjectTopic,
 } from "@/types";
+
+/** 兼容旧版 API 返回的扁平 cell 数组 */
+export function normalizePlatformMatrixCells(
+  cells: PlatformMatrixCells | PlatformMatrixCell[] | null | undefined,
+): PlatformMatrixCells {
+  if (cells == null) return { current: [], previous: [] };
+  if (Array.isArray(cells)) return { current: cells, previous: [] };
+  return {
+    current: cells.current ?? [],
+    previous: cells.previous ?? [],
+  };
+}
 
 export const PLATFORM_PAGE_TITLE = "平台可见度矩阵";
 export const PLATFORM_PAGE_DESCRIPTION =
@@ -29,6 +47,7 @@ export const PLATFORM_MATRIX_ROW_OPTIONS: { id: PlatformMatrixRowDimension; labe
 export type PlatformMatrixMetricDefinition = {
   id: PlatformMatrixMetricId;
   label: string;
+  description: string;
   rankHeader: string;
   yAxisMode: "rate" | "score";
   formatValue: (value: number | null | undefined) => string;
@@ -37,71 +56,84 @@ export type PlatformMatrixMetricDefinition = {
     previous: number | null | undefined,
   ) => string | null;
   pickPerformance: (row: PlatformPerformance) => number | null | undefined;
-  seriesKey: keyof PlatformMatrixData["platform_series"][string];
+  seriesMetric: PlatformSeriesMetric;
 };
+
+export function platformMatrixMetricDescription(label: string): string {
+  return `当前品牌在每个 AI 平台的${label}趋势`;
+}
 
 export const PLATFORM_MATRIX_METRICS: PlatformMatrixMetricDefinition[] = [
   {
     id: "visibility",
     label: "可见度",
+    description: platformMatrixMetricDescription("可见度"),
     rankHeader: "可见度",
     yAxisMode: "rate",
     formatValue: formatRate,
     formatDelta: formatDelta,
     pickPerformance: (row) => row.visibility_rate,
-    seriesKey: "visibility",
+    seriesMetric: "visibility",
   },
   {
     id: "citation",
     label: "引用率",
+    description: platformMatrixMetricDescription("引用率"),
     rankHeader: "引用率",
     yAxisMode: "rate",
     formatValue: formatRate,
     formatDelta: formatDelta,
     pickPerformance: (row) => row.citation_rate,
-    seriesKey: "citation",
+    seriesMetric: "citation",
   },
   {
     id: "shareVoice",
     label: "声量份额",
+    description: platformMatrixMetricDescription("声量份额"),
     rankHeader: "声量份额",
     yAxisMode: "rate",
     formatValue: formatRate,
     formatDelta: formatDelta,
     pickPerformance: (row) => row.share_voice,
-    seriesKey: "share_voice",
+    seriesMetric: "share_voice",
   },
   {
     id: "averageRank",
     label: "平均排名",
+    description: platformMatrixMetricDescription("平均排名"),
     rankHeader: "平均排名",
     yAxisMode: "score",
     formatValue: formatRankMetric,
     formatDelta: formatScoreDelta,
     pickPerformance: (row) => row.average_rank,
-    seriesKey: "average_rank",
+    seriesMetric: "average_rank",
   },
   {
     id: "sentiment",
     label: "情感倾向",
+    description: platformMatrixMetricDescription("情感倾向"),
     rankHeader: "情感倾向",
     yAxisMode: "score",
     formatValue: formatSentimentScore,
     formatDelta: formatSentimentDelta,
     pickPerformance: (row) => row.sentiment_score,
-    seriesKey: "sentiment",
+    seriesMetric: "sentiment",
   },
 ];
 
-const METRIC_VALUE_KEY: Record<
-  PlatformMatrixMetricId,
-  keyof PlatformMatrixData["competitor_values"]
-> = {
-  visibility: "visibility",
+type PlatformMatrixMetricField =
+  | "visibility_rate"
+  | "share_voice"
+  | "citation_rate"
+  | "average_rank"
+  | "sentiment_score";
+
+const METRIC_CELL_FIELD: Record<PlatformMatrixMetricId, PlatformMatrixMetricField> = {
+  visibility: "visibility_rate",
   shareVoice: "share_voice",
-  citation: "citation",
+  citation: "citation_rate",
   averageRank: "average_rank",
-  sentiment: "sentiment",
+  sentiment: "sentiment_score",
 };
 
 export function platformMatrixMetric(id: PlatformMatrixMetricId): PlatformMatrixMetricDefinition {
@@ -111,20 +143,22 @@ export function platformMatrixMetric(id: PlatformMatrixMetricId): PlatformMatrix
 export function buildPlatformRankRows(
   current: PlatformPerformance[],
   previous: PlatformPerformance[],
+  platformIds: string[],
   platformsMeta: SamplingPlatform[],
   definition: PlatformMatrixMetricDefinition,
 ): RankRow[] {
+  const currentByPlatform = Object.fromEntries(current.map((row) => [row.platform, row]));
   const prevByPlatform = Object.fromEntries(previous.map((row) => [row.platform, row]));
 
-  return [...current]
-    .sort((a, b) => (definition.pickPerformance(b) ?? -1) - (definition.pickPerformance(a) ?? -1))
-    .map((row) => {
-      const meta = resolvePlatformMeta(row.platform, platformsMeta);
-      const valueNum = definition.pickPerformance(row);
-      const prevRow = prevByPlatform[row.platform];
+  return platformIds
+    .map((platformId) => {
+      const meta = resolvePlatformMeta(platformId, platformsMeta);
+      const row = currentByPlatform[platformId];
+      const prevRow = prevByPlatform[platformId];
+      const valueNum = row ? definition.pickPerformance(row) : undefined;
       const prevValueNum = prevRow ? definition.pickPerformance(prevRow) : undefined;
       return {
-        id: row.platform,
+        id: platformId,
         label: meta.label,
         value: definition.formatValue(valueNum),
         valueNum: valueNum ?? undefined,
@@ -132,81 +166,123 @@ export function buildPlatformRankRows(
         deltaSortNum:
           valueNum != null && prevValueNum != null ? valueNum - prevValueNum : null,
       };
-    });
+    })
+    .sort((a, b) => (b.valueNum ?? -1) - (a.valueNum ?? -1));
 }
 
 export type PlatformMatrixRow = {
   id: string;
   label: string;
+  /** 竞争对手 favicon 域名键（entity.label） */
+  domain?: string;
   isOwn?: boolean;
+  /** FilterBar 当前分析对象（竞品视角） */
+  isFocus?: boolean;
   values: Record<string, number | null | undefined>;
+  previousValues: Record<string, number | null | undefined>;
 };
 
+function matrixCells(
+  data: PlatformAnalysisData,
+  period: "current" | "previous",
+): PlatformMatrixCell[] {
+  return normalizePlatformMatrixCells(data.matrix_cells)[period];
+}
+
+function valuesByRow(
+  cells: PlatformMatrixCell[],
+  rowId: string,
+  field: PlatformMatrixMetricField,
+): Record<string, number | null | undefined> {
+  return Object.fromEntries(
+    cells.filter((cell) => cell.row_id === rowId).map((cell) => [cell.platform_id, cell[field]]),
+  );
+}
+
 export function buildPlatformMatrixRows(
-  data: PlatformMatrixData,
+  data: PlatformAnalysisData,
   rowDimension: PlatformMatrixRowDimension,
   metricId: PlatformMatrixMetricId,
+  entities: AnalysisEntityRef[] = [],
+  topics: SubjectTopic[] = [],
 ): PlatformMatrixRow[] {
-  const metricKey = METRIC_VALUE_KEY[metricId];
-  const valueMap =
-    rowDimension === "competitor" ? data.competitor_values[metricKey] : data.topic_values[metricKey];
+  const field = METRIC_CELL_FIELD[metricId];
+  const currentCells = matrixCells(data, "current");
+  const previousCells = matrixCells(data, "previous");
   const rows =
     rowDimension === "competitor"
-      ? data.competitor_rows.map((row) => ({
-          id: row.id,
-          label: row.label,
-          isOwn: row.is_own,
-          values: valueMap[row.label] ?? {},
+      ? entities.map((entity) => ({
+          id: entity.id,
+          label: entity.display_name,
+          domain: entity.label,
+          isOwn: entity.kind === "own",
+          isFocus: entity.id === data.entity_id,
         }))
-      : data.topic_rows.map((row) => ({
-          id: row.id,
-          label: row.label,
-          values: valueMap[row.id] ?? {},
-        }));
+      : [...topics]
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((topic) => ({
+            id: topic.id,
+            label: topic.name,
+          }));
 
-  return rows;
+  return rows.map((row) => ({
+    ...row,
+    values: valuesByRow(currentCells, row.id, field),
+    previousValues: valuesByRow(previousCells, row.id, field),
+  }));
 }
 
-export function selectedPlatformSeries(
-  data: PlatformMatrixData | undefined,
-  platformId: string | null,
-  metric: PlatformMatrixMetricDefinition,
-): PlatformMatrixSeriesPoint[] {
-  if (!data || !platformId) return [];
-  return data.platform_series[platformId]?.[metric.seriesKey] ?? [];
-}
+export function buildPlatformChartSeries(
+  chart: PlatformChartWindow | undefined,
+  platformIds: string[],
+  platformsMeta: SamplingPlatform[],
+): { multiSeries: MultiSeriesPoint[]; chartLabels: string[] } {
+  if (!chart || platformIds.length === 0) {
+    return { multiSeries: [], chartLabels: [] };
+  }
 
-export function selectedPlatformMetricValue(
-  data: PlatformMatrixData | undefined,
-  platformId: string | null,
-  metric: PlatformMatrixMetricDefinition,
-): number | null | undefined {
-  if (!data || !platformId) return null;
-  const row = data.platform_performance.find((item) => item.platform === platformId);
-  return row ? metric.pickPerformance(row) : null;
+  const chartLabels = platformIds.map((id) => resolvePlatformMeta(id, platformsMeta).label);
+  const labelByPlatformId = Object.fromEntries(platformIds.map((id, index) => [id, chartLabels[index]]));
+
+  const multiSeries: MultiSeriesPoint[] = chart.current.map((point) => ({
+    date: point.date,
+    values: Object.fromEntries(
+      platformIds
+        .filter((id) => point.values[id] != null)
+        .map((id) => [labelByPlatformId[id], point.values[id]]),
+    ),
+  }));
+
+  return { multiSeries, chartLabels };
 }
 
 export type PlatformMetricBundle = {
-  value: number | null | undefined;
-  series: PlatformMatrixSeriesPoint[];
+  multiSeries: MultiSeriesPoint[];
+  chartLabels: string[];
   rankRows: RankRow[];
 };
 
-/** 平台页各指标的趋势、当前值与排名（一次 API 数据构建全部指标） */
+/** 平台页各指标的趋势与排名（一次 API 数据构建全部指标） */
 export function buildPlatformMetricBundles(
-  data: PlatformMatrixData | undefined,
-  selectedPlatformId: string | null,
+  data: PlatformAnalysisData | undefined,
+  platformIds: string[],
   platformsMeta: SamplingPlatform[],
 ): Record<PlatformMatrixMetricId, PlatformMetricBundle> {
   const bundles = {} as Record<PlatformMatrixMetricId, PlatformMetricBundle>;
   for (const definition of PLATFORM_MATRIX_METRICS) {
+    const { multiSeries, chartLabels } = buildPlatformChartSeries(
+      data?.charts?.[definition.seriesMetric],
+      platformIds,
+      platformsMeta,
+    );
     bundles[definition.id] = {
-      value: selectedPlatformMetricValue(data, selectedPlatformId, definition),
-      series: selectedPlatformSeries(data, selectedPlatformId, definition),
+      multiSeries,
+      chartLabels,
       rankRows: data
         ? buildPlatformRankRows(
-            data.platform_performance,
-            data.previous_platform_performance,
+            data.performance.current,
+            data.performance.previous,
+            platformIds,
             platformsMeta,
             definition,
           )

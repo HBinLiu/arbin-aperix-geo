@@ -59,16 +59,12 @@ def test_page_geo_cache_normalizes_url() -> None:
     set_page_geo_cached(
         url="https://example.com/p/?utm_source=x",
         text_snippet="snippet",
-        own_brand="Brand",
-        competitors=[],
         result=result,
         ttl_s=3600,
     )
     hit = get_page_geo_cached(
         url="https://Example.com/p",
         text_snippet="snippet",
-        own_brand="Brand",
-        competitors=[],
         ttl_s=3600,
     )
     assert hit is not None

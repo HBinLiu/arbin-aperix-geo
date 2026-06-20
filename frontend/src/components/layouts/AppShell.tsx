@@ -27,7 +27,7 @@ export function AppShell({ children, headerStart }: AppShellProps) {
 
   return (
     <div className="bg-app-sidebar text-foreground flex h-svh flex-col overflow-hidden">
-      <header className="relative z-50 flex h-14 w-full shrink-0 items-center justify-between pr-2.5">
+      <header className="relative z-50 flex h-12 w-full shrink-0 items-center justify-between pr-2.5">
         {headerStart ?? (
           <div className="flex items-center pl-2.5">
             <Link to="/" className="flex items-center gap-2 rounded-md px-2 py-1 outline-hidden hover:bg-accent/60">

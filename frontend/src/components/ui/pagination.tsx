@@ -4,7 +4,15 @@ import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 
-function Pagination({ className, ...props }: React.ComponentProps<"nav">) {
+function Pagination({
+  className,
+  totalPages,
+  ...props
+}: React.ComponentProps<"nav"> & { totalPages?: number }) {
+  if (totalPages !== undefined && totalPages <= 1) {
+    return null;
+  }
+
   return (
     <nav
       role="navigation"

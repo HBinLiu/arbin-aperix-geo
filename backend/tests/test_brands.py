@@ -38,7 +38,7 @@ def test_build_signal_rows_include_brand_fields() -> None:
         mentioned=True,
         mention_count=1,
         sentiment_score=80.0,
-        sentiment_label="positive",
+        sentiment_reason="推荐",
     )
     rows = build_llm_response_signal_rows(
         response_id=uuid.uuid4(),

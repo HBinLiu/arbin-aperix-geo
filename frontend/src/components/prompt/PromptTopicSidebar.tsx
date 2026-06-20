@@ -37,17 +37,17 @@ export function PromptTopicSidebar({
       <div className="border-border border-b p-3">
         <div className="relative">
           <Search
-            className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2"
+            className="text-muted-foreground pointer-events-none absolute top-1/2 left-4 size-3.5 -translate-y-1/2"
             aria-hidden
           />
           <Input
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="搜索话题..."
+            placeholder="搜索主题..."
             controlSize="sm"
             className="border-border h-9 rounded-lg bg-white pr-3 pl-9 text-xs shadow-none"
-            aria-label="搜索话题"
+            aria-label="搜索主题"
           />
         </div>
       </div>
@@ -73,7 +73,7 @@ export function PromptTopicSidebar({
       <div className="border-border border-t p-3">
         <Button
           type="button"
-          variant="primaryOutline"
+          variant="brandout"
           className="h-8 w-full justify-center gap-1.5 rounded-lg"
           onClick={onAddTopic}
         >

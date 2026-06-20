@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { fetchPipelineStatus, fetchSamplingJob } from "@/api/sampling";
-import { queryKeys } from "@/lib/queries";
+import { clearQueries, queryKeys } from "@/lib/queries";
 import {
   clearPendingJobId,
   getPendingJobId,
@@ -93,8 +93,8 @@ export function useSubjectPipeline(subjectId: string) {
     if (!status || !isJobTerminal(status)) return;
 
     clearPendingJobId(subjectId);
-    void queryClient.invalidateQueries({ queryKey: queryKeys.pipelineStatus(subjectId) });
-    void queryClient.invalidateQueries({
+    clearQueries(queryClient, { queryKey: queryKeys.pipelineStatus(subjectId) });
+    clearQueries(queryClient, {
       predicate: (q) =>
         Array.isArray(q.queryKey) &&
         q.queryKey.length >= 2 &&

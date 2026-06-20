@@ -3,6 +3,8 @@ import { DiagnosisContent } from "@/pages/dashboard/DiagnosisPage";
 import { PromptContent } from "@/pages/dashboard/PromptPage";
 import { BrandPage } from "@/pages/dashboard/BrandPage";
 import { OpportunityContent } from "@/pages/dashboard/OpportunityPage";
+import { ContentDetailPage } from "@/pages/opportunity/ContentDetailPage";
+import { BacklinkDetailPage } from "@/pages/opportunity/BacklinkDetailPage";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
 import { RankContent } from "@/pages/dashboard/RankPage";
 import { OverviewContent } from "@/pages/dashboard/OverviewPage";
@@ -60,6 +62,16 @@ export function AnalysisCitationDomainRoute() {
 export function RankRoute() {
   const { subject } = useDashboardContext();
   return <RankContent subjectId={subject.id} />;
+}
+
+export function OpportunityContentDetailRoute() {
+  const { subject } = useDashboardContext();
+  return <ContentDetailPage subjectId={subject.id} />;
+}
+
+export function OpportunityBacklinkDetailRoute() {
+  const { subject } = useDashboardContext();
+  return <BacklinkDetailPage subjectId={subject.id} />;
 }
 
 export function OpportunityRoute() {

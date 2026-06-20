@@ -13,7 +13,9 @@ from aperix_geo.db.models import LLMResponse, LLMResponseStatus, SamplingJob, Sa
 
 def finalize_sampling_job_db(db: Session, job_id: UUID) -> SamplingJob | None:
     """Set job counters and terminal status from response rows. Returns the job."""
-    job = db.get(SamplingJob, job_id)
+    job = db.execute(
+        select(SamplingJob).where(SamplingJob.id == job_id).with_for_update()
+    ).scalar_one_or_none()
     if not job:
         return None
     rows = db.execute(select(LLMResponse).where(LLMResponse.sampling_job_id == job_id)).scalars().all()

@@ -1,13 +1,12 @@
 import { useMemo } from "react";
 
-import { AnalysisRankTable, type RankRow } from "@/components/analysis/common/AnalysisRankTable";
+import { AnalysisRankTable, AVERAGE_RANK_TABLE_SORT, type RankRow } from "@/components/analysis/common/AnalysisRankTable";
 import { buildBrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
 import { MetricTrendCard } from "@/components/analysis/common/MetricTrendCard";
 import { AverageRankBarChart } from "@/components/analysis/visibility/AverageRankBarChart";
 import { ShareVoiceDonutChart } from "@/components/analysis/visibility/ShareVoiceDonutChart";
 import { useVisibilityChartUI } from "@/hooks/useVisibilityChartUI";
 import {
-  VISIBILITY_CHART_HEIGHT,
   VISIBILITY_RANK_TABLE_HEIGHT,
   VISIBILITY_SECTION_HEIGHT,
   type VisibilityMetricBundle,
@@ -17,7 +16,7 @@ import {
 const sectionMinHeight = { minHeight: VISIBILITY_SECTION_HEIGHT };
 
 function withRankIcons(rows: RankRow[]) {
-  return rows.map((row) => ({ ...row, icon: buildBrandRankIcon(row.label) }));
+  return rows.map((row) => ({ ...row, icon: buildBrandRankIcon(row.domain ?? "") }));
 }
 
 type VisibilityMetricSectionProps = {
@@ -43,12 +42,12 @@ export function VisibilityMetricSection({
   const rankRows = useMemo(() => withRankIcons(metric.rankRows), [metric.rankRows]);
 
   const chart = useMemo(() => {
+    const chartClassName = "min-h-[120px] w-full flex-1";
     if (definition.chartType === "donut") {
       return (
         <ShareVoiceDonutChart
           slices={metric.pieSlices ?? []}
-          height={VISIBILITY_CHART_HEIGHT}
-          className="w-full"
+          className={chartClassName}
         />
       );
     }
@@ -56,8 +55,7 @@ export function VisibilityMetricSection({
       return (
         <AverageRankBarChart
           series={metric.rankSeries}
-          height={VISIBILITY_CHART_HEIGHT}
-          className="mt-4 w-full"
+          className={chartClassName}
         />
       );
     }
@@ -72,14 +70,13 @@ export function VisibilityMetricSection({
     >
       <div className="@container flex flex-wrap items-stretch">
         <div
-          className="flex min-w-[min(100%,480px)] flex-[3] flex-col p-5"
+          className="flex min-h-0 min-w-[min(100%,480px)] flex-[3] flex-col p-5"
           style={sectionMinHeight}
         >
           <MetricTrendCard
             embedded
             loading={loading}
-            chartHeight={VISIBILITY_CHART_HEIGHT}
-            className="flex flex-col"
+            className="flex min-h-0 flex-1 flex-col"
             title={definition.label}
             description={definition.description}
             value={
@@ -116,6 +113,8 @@ export function VisibilityMetricSection({
             valueHeader={definition.rankValueHeader}
             rows={rankRows}
             emptyMessage="暂无数据"
+            initialSort={definition.id === "averageRank" ? AVERAGE_RANK_TABLE_SORT : undefined}
+            valueSortDefault={definition.id === "averageRank" ? "asc" : undefined}
           />
         </div>
       </div>

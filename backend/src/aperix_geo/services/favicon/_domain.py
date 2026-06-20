@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from aperix_geo.utils.domains import registrable_domain, strip_hostname
+import re
+from urllib.parse import urlparse
+
+from aperix_geo.utils.domains import is_valid_hostname, registrable_domain, strip_hostname
 from aperix_geo.utils.url import homepage_urls_apex_first
 
 
@@ -21,6 +24,40 @@ def normalize_favicon_domain(raw: str) -> str:
     if root and host != root and host.endswith(f".{root}"):
         return host
     return root or host
+
+
+def resolve_favicon_request_url(raw: str) -> tuple[str, str] | None:
+    """将 API ``url`` 参数解析为 (domain, page_url)。
+
+    - ``page_url``：按该 URL 抓取 favicon（link/meta、子路径页等）。
+    - ``domain``：内存 / 磁盘 / negative cache 的键（``{storage}/{domain}/``），不是 URL path。
+    """
+    s = raw.strip()
+    if not s:
+        return None
+    if re.match(r"^https?://", s, re.I):
+        page_url = s
+    elif "/" in s:
+        page_url = f"https://{s.lstrip('/')}"
+    else:
+        page_url = f"https://{s.lstrip('/')}/"
+
+    domain = normalize_favicon_domain(page_url)
+    if not domain or not is_valid_hostname(domain):
+        return None
+    return domain, page_url
+
+
+def is_favicon_homepage_url(page_url: str, domain: str) -> bool:
+    """是否为站点首页 URL（用于 negative cache 与仅域名请求等价）。"""
+    parsed = urlparse(page_url.strip())
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return False
+    if parsed.path not in ("", "/"):
+        return False
+    if parsed.query or parsed.fragment:
+        return False
+    return normalize_favicon_domain(parsed.netloc) == domain
 
 
 def favicon_homepage_urls(host: str) -> list[str]:

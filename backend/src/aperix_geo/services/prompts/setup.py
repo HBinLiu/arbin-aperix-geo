@@ -16,11 +16,21 @@ from aperix_geo.utils.json import extract_json_object
 
 logger = logging.getLogger(__name__)
 
+PROMPT_PER_TOPIC = 10
 PROMPT_MAX_PER_TOPIC = 20
-PROMPTS_PER_TOPIC = 10
 
 
-def _normalize_generated_prompts(raw: list[Any], *, limit: int) -> list[dict[str, str]]:
+def _exclude_set(exclude_prompts: list[str] | None) -> set[str]:
+    return {p.strip() for p in (exclude_prompts or []) if p.strip()}
+
+
+def _normalize_generated_prompts(
+    raw: list[Any],
+    *,
+    limit: int,
+    excluded: set[str] | None = None,
+) -> list[dict[str, str]]:
+    blocked = excluded or set()
     out: list[dict[str, str]] = []
     seen: set[str] = set()
     for item in raw:
@@ -29,7 +39,7 @@ def _normalize_generated_prompts(raw: list[Any], *, limit: int) -> list[dict[str
         text = str(item.get("text") or item.get("question") or "").strip()
         funnel_stage = normalize_funnel_stage(str(item.get("funnel") or item.get("funnel_stage") or ""))
         search_intent = normalize_search_intent(str(item.get("intent") or item.get("search_intent") or ""))
-        if not text or text in seen:
+        if not text or text in seen or text in blocked:
             continue
         seen.add(text)
         out.append(
@@ -44,42 +54,34 @@ def _normalize_generated_prompts(raw: list[Any], *, limit: int) -> list[dict[str
     return out
 
 
-def generate_setup_prompts(
+def _build_user_payload(
     *,
     entity: str,
     topics: list[str],
-    industry: str = "",
-    core_features: str = "",
-    target_customers: str = "",
-    competitors: list[str] | None = None,
-    aliases: list[str] | None = None,
-    prompts_per_topic: int = PROMPTS_PER_TOPIC,
-    exclude_prompts: list[str] | None = None,
-) -> list[dict[str, Any]]:
-    """每个主题返回至多 prompts_per_topic 条 LLM 生成的提示词（含 funnel / intent）。"""
-    cleaned_topics = [t.strip() for t in topics if t.strip()]
-    if not cleaned_topics:
-        return []
-
+    industry: str,
+    features: str,
+    customers: str,
+    competitors: list[str],
+    aliases: list[str],
+    prompts_per_topic: int,
+    exclude_prompts: list[str],
+) -> dict[str, Any]:
     n = max(1, min(int(prompts_per_topic), PROMPT_MAX_PER_TOPIC))
-
-    entity = entity.strip() or "本品牌"
-    competitors = [c.strip() for c in (competitors or []) if c.strip()]
-    alias_list = [a.strip() for a in (aliases or []) if a.strip()]
-    excluded = [p.strip() for p in (exclude_prompts or []) if p.strip()][-60:]
-
-    user_payload = {
-        "entity": entity,
-        "aliases": alias_list,
+    return {
+        "entity": entity.strip() or "本品牌",
+        "aliases": [a.strip() for a in aliases if a.strip()],
         "industry": industry,
-        "core_features": core_features,
-        "target_customers": target_customers,
-        "competitors": competitors[:8],
-        "topics": cleaned_topics,
+        "features": features,
+        "customers": customers,
+        "competitors": [c.strip() for c in competitors if c.strip()],
+        "topics": [t.strip() for t in topics if t.strip()],
         "prompts_per_topic": n,
-        "exclude_prompts": excluded,
+        "exclude_prompts": [p.strip() for p in exclude_prompts if p.strip()],
     }
 
+
+def _invoke_setup_prompts_llm(user_payload: dict[str, Any]) -> list[dict[str, Any]]:
+    n = int(user_payload.get("prompts_per_topic") or PROMPT_PER_TOPIC)
     messages = [
         {"role": "system", "content": setup_wizard_prompts_system(n=n)},
         {
@@ -92,26 +94,141 @@ def generate_setup_prompts(
     rows = data.get("topics")
     if not isinstance(rows, list):
         raise ValueError("missing topics array")
+    logger.debug(
+        "设置向导提示词 LLM: topics=%d %.0fms",
+        len(rows),
+        latency_ms,
+    )
+    return [row for row in rows if isinstance(row, dict)]
 
-    by_name = {
-        str(row.get("topic") or "").strip(): row
-        for row in rows
-        if isinstance(row, dict) and str(row.get("topic") or "").strip()
-    }
+
+def _rows_by_topic_name(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    by_name: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        name = str(row.get("topic") or "").strip()
+        if not name:
+            continue
+        key = name.casefold()
+        if key not in by_name:
+            by_name[key] = row
+    return by_name
+
+
+def _prompts_from_row(
+    row: dict[str, Any] | None,
+    *,
+    limit: int,
+    excluded: set[str],
+) -> list[dict[str, str]]:
+    if not row:
+        return []
+    raw_prompts = row.get("prompts")
+    if not isinstance(raw_prompts, list):
+        return []
+    return _normalize_generated_prompts(raw_prompts, limit=limit, excluded=excluded)
+
+
+def _merge_prompt_lists(
+    existing: list[dict[str, str]],
+    extra: list[dict[str, str]],
+    *,
+    limit: int,
+) -> list[dict[str, str]]:
+    seen = {p["text"] for p in existing}
+    out = list(existing)
+    for item in extra:
+        text = item["text"]
+        if text in seen:
+            continue
+        seen.add(text)
+        out.append(item)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def generate_setup_prompts(
+    *,
+    entity: str,
+    topics: list[str],
+    industry: str = "",
+    features: str = "",
+    customers: str = "",
+    competitors: list[str] | None = None,
+    aliases: list[str] | None = None,
+    prompts_per_topic: int = PROMPT_PER_TOPIC,
+    exclude_prompts: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """每个主题返回至多 prompts_per_topic 条 LLM 生成的提示词（含 funnel / intent）。"""
+    cleaned_topics = [t.strip() for t in topics if t.strip()]
+    if not cleaned_topics:
+        return []
+
+    excluded = _exclude_set(exclude_prompts)
+    excluded_list = [p.strip() for p in (exclude_prompts or []) if p.strip()]
+    n = max(1, min(int(prompts_per_topic), PROMPT_MAX_PER_TOPIC))
+    competitor_list = [c.strip() for c in (competitors or []) if c.strip()]
+
+    user_payload = _build_user_payload(
+        entity=entity,
+        topics=cleaned_topics,
+        industry=industry,
+        features=features,
+        customers=customers,
+        competitors=competitor_list,
+        aliases=list(aliases or []),
+        prompts_per_topic=n,
+        exclude_prompts=excluded_list,
+    )
+
+    by_name = _rows_by_topic_name(_invoke_setup_prompts_llm(user_payload))
     result: list[dict[str, Any]] = []
+    retry_topics: list[str] = []
+
     for topic in cleaned_topics:
-        row = by_name.get(topic) or next(
-            (by_name[k] for k in by_name if k in topic or topic in k),
-            None,
-        )
-        raw_prompts = row.get("prompts") if isinstance(row, dict) else []
-        prompts = _normalize_generated_prompts(raw_prompts if isinstance(raw_prompts, list) else [], limit=n)
+        prompts = _prompts_from_row(by_name.get(topic.casefold()), limit=n, excluded=excluded)
+        if not prompts:
+            retry_topics.append(topic)
         result.append({"topic": topic, "prompts": prompts})
 
+    for topic in retry_topics:
+        current = next(item for item in result if item["topic"] == topic)
+        retry_exclude = excluded_list + [p["text"] for p in current["prompts"]]
+        retry_payload = _build_user_payload(
+            entity=entity,
+            topics=[topic],
+            industry=industry,
+            features=features,
+            customers=customers,
+            competitors=competitor_list,
+            aliases=list(aliases or []),
+            prompts_per_topic=n,
+            exclude_prompts=retry_exclude,
+        )
+        retry_row = _rows_by_topic_name(_invoke_setup_prompts_llm(retry_payload)).get(topic.casefold())
+        extra = _prompts_from_row(retry_row, limit=n, excluded=excluded)
+        for item in result:
+            if item["topic"] != topic:
+                continue
+            item["prompts"] = _merge_prompt_lists(item["prompts"], extra, limit=n)
+            break
+
+    short = [str(item["topic"]) for item in result if 0 < len(item["prompts"]) < n]
+    if short:
+        logger.warning(
+            "设置向导提示词: 以下主题问句不足 %d 条: %s",
+            n,
+            "、".join(short),
+        )
+
+    empty = [str(item["topic"]) for item in result if not item["prompts"]]
+    if empty:
+        raise ValueError(f"以下监测主题未生成有效问句：{'、'.join(empty)}")
+
     logger.info(
-        "设置向导提示词: entity=%r topics=%d %.0fms",
-        entity,
+        "设置向导提示词: entity=%r topics=%d prompts=%d",
+        user_payload["entity"],
         len(result),
-        latency_ms,
+        sum(len(item["prompts"]) for item in result),
     )
     return result

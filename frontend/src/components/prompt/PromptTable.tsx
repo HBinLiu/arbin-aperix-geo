@@ -24,6 +24,7 @@ import {
   type PromptTableRow,
 } from "@/lib/prompt";
 import type { SubjectPrompt, SubjectTopic } from "@/types";
+import { cn } from "@/lib/utils";
 
 type PromptTableProps = {
   rows: SubjectPrompt[];
@@ -141,7 +142,7 @@ export function PromptTable({
             </tr>
           ) : (
             pageTableRows.map((row) => (
-              <tr key={row.id} className={performanceTableClasses.row}>
+              <tr key={row.id} className={cn(performanceTableClasses.row, "text-foreground")}>
                 <td className="pl-4">
                   <Checkbox
                     checked={selectedIds.has(row.id)}
@@ -149,9 +150,9 @@ export function PromptTable({
                     aria-label={`选择 ${row.text}`}
                   />
                 </td>
-                <td className="text-muted-foreground tabular-nums">{row.index}</td>
+                <td className="tabular-nums">{row.index}</td>
                 <td
-                  className="overflow-hidden pl-2"
+                  className="text-foreground overflow-hidden pl-2 [&_span]:text-foreground"
                   style={promptTextCellStyle(PROMPT_TABLE_COLUMNS[2].minWidth)}
                 >
                   <PromptTextCell text={row.text} />
@@ -159,9 +160,7 @@ export function PromptTable({
                 <td>
                   <span className="line-clamp-2 text-sm">{row.topicName}</span>
                 </td>
-                <td className="text-muted-foreground text-xs tabular-nums whitespace-nowrap">
-                  {row.createdAtLabel}
-                </td>
+                <td className="text-sm tabular-nums whitespace-nowrap">{row.createdAtLabel}</td>
                 <td className="text-center">
                   <div className="inline-flex items-center justify-center gap-1">
                     <ActionTooltip label="编辑">

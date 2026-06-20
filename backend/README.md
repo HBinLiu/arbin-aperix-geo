@@ -123,37 +123,33 @@ Beat 按 `SAMPLING_SCHEDULER_TICK_SECONDS`（默认 15 分钟）扫描到期主�
 
 **Onboarding 分步 API（推荐）**
 
-1. `POST /subjects/discover-profile` — 爬站 + **两次 LLM**（1a 微观利基画像，1b 监测主题），返回 `session_id`、`monitoring_topics`（相同 target/region 命中 **画像 Redis 缓存**可跳过 crawl+LLM；会话默认 24h TTL；Step2 后清除 raw crawl；finalize 后删除）
-2. 用户审查/编辑 **监测主题**（monitoring_topics）
-3. `POST /subjects/discover-competitors` — body: `{ session_id, monitoring_topics }`；SearXNG 搜竞品 + LLM 2a/2b 验算/筛选 + 2c enrich + 2d 生成 `profile_summary`（写入 session，Setup UI 不展示）；响应仅 `{ competitors }`
-4. `POST /subjects/generate-prompts` — 按监测主题生成初始问句（相同输入命中 session 缓存，跳过重跑 LLM）
-5. `POST /subjects/setup-finalize` — body: `{ setup_session_id, competitors, topics }`；主体类型、监测范围、`profile_summary` 等从 session 读取并落库
+向导 **UI 顺序**：网站/品牌设置 → **选择竞品** → **审查主题** → 确认提示词 → 落库。
 
-**域名模式 Step1 LLM 分工**
+| UI | API | 说明 |
+|----|-----|------|
+| 设置 → 选竞品 | `POST /subjects/setup/discover` | 微观画像 + 竞品发现；body 可带 `session_id` |
+| 选竞品 → 审主题 | `POST /subjects/setup/topics` | body: `{ session_id, competitors }`；生成 **profile_summary** + 监测主题 |
+| 审主题 → 提示词 | `POST /subjects/setup/prompts` | body: `{ session_id, topics, ... }` |
+| 完成 | `POST /subjects/setup/finalize` | body: `{ session_id, competitors, topics }` |
 
-| 调用 | Prompt | 产出 |
-|------|--------|------|
-| 1a | `SUBJECT_PROFILE_SYSTEM` | `company`、`industry`、`core_features`、`target_customers`、`micro_keywords` |
-| 1b | `SUBJECT_MONITORING_TOPICS_SYSTEM` | `monitoring_topics`（AI 问句分桶） |
-| 2 · 摘要开集 | `COMPETITOR_SNIPPET_BRAND_EXTRACTION_SYSTEM` | 从搜索摘要抽取直接竞品品牌（`brand_names` 数组） |
-| 2a（域名） | `COMPETITOR_CROSS_VALIDATE_SYSTEM` | 候选竞品交叉验算打分 |
-| 2b（品牌） | `COMPETITOR_SNIPPET_BRAND_EXTRACTION_SYSTEM` | 竞品品牌名短名单（同摘要开集抽取） |
-| 2c | `COMPETITOR_DISCOVER_ENRICH_SYSTEM` | 竞品 `brand` + `summary` |
-| 2d | `SUBJECT_PROFILE_SUMMARY_SYSTEM` | `profile_summary`（完整 Markdown） |
+会话默认 24h TTL；竞品搜索后清除 raw crawl；finalize 后删除 session。
+
+**竞品发现 LLM 分工（豆包主路径）**
+
+| 调用 | Prompt / API | 产出 |
+|------|--------------|------|
+| 2a | 豆包 Responses API（联网） | 竞品 JSON 列表 |
+| 2b | `COMPETITOR_CROSS_VALIDATE_SYSTEM` | 候选站 head 抓取 + 交叉验算打分 |
+| 2c | `SUBJECT_PROFILE_SUMMARY_SYSTEM` | `profile_summary`（完整 Markdown） |
 | 3 | `SETUP_WIZARD_PROMPTS_SYSTEM` | 各 topic 监测问句 |
 
-编排与 user payload：`services/setup/llm/`（`payloads.py`、`stages.py`）；Redis 缓存：`services/setup/cache/`（`session.py`、`profile.py`、`competitors.py`、`prompts.py`）；system 模板：`services/providers/prompts.py`。
+**域名/品牌模式完整链路**
 
-**域名模式完整链路**
+1. **discover**：域名/品牌爬站 + 微观画像 LLM → 豆包竞品 + 交叉验算（**不含** profile_summary）
+2. **topics**：用户确认竞品 → profile_summary LLM + 监测主题 LLM
+3. **终选竞品**：及格分 Top N（`COMPETITOR_RESULT_MAX`）
 
-1. **首页抓取**：默认 httpx 轻量取 title/description；失败时回退 Crawl4AI
-2. **微观利基画像**：LLM（1a）→ 结构化字段；监测主题（1b）分步生成；**摘要**在竞品搜索（Step2）后一次性生成
-3. **SearXNG**：首轮 query（`SEARXNG_BASE_URL` 必填）；预排除媒体/聚合站；若交叉验算未达标，**先从已有资讯/榜单摘要（+ 可选页面 SEO）抽取竞品品牌并解析官网**，成功则跳过后续 SearXNG；仍不足再进入后续轮次
-4. **交叉验算**：SEO-only head（`PAGE_CRAWL_SEO_*`，默认无 Crawl4AI 兜底）+ LLM 对标打分（0–10），高分不足时按分数顺延
-5. **终选**：按交叉验算分数取 Top（最多 5 个主域名）
-6. **输出**：可打开校验 + 中文站点名 → `{ domains, competitors: [{domain, site_name}] }`
-
-环境变量见 `backend/.env.example`：**大模型**按厂商分块；**竞品发现**为 `COMPETITOR_*` 与 `SEARXNG_BASE_URL`（默认值与 `PAGE_CRAWL_SEO_*` 联动，映射见 `services/competitor/defaults.py`）。须配 `SEARXNG_BASE_URL`。安装 Crawl4AI 浏览器（只需一次，用于正文类抓取兜底）：
+环境变量见 `backend/.env.example`：`COMPETITOR_*`、`DOUBAO_*`；`SEARXNG_BASE_URL` 仅用于采样联网与品牌 Step1 调研。安装 Crawl4AI 浏览器（正文类抓取兜底）：
 
 ```bash
 crawl4ai-setup

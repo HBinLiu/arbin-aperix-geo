@@ -152,6 +152,7 @@ def persist_favicon(
     body: bytes,
     media_type: str,
 ) -> None:
+    """Write ``{storage_root}/{domain}/favicon.{ext}``; ``url`` is only the source icon URL."""
     store = _domain_store_dir(domain)
     store.mkdir(parents=True, exist_ok=True)
     static_name = _static_filename(media_type, url)

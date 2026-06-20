@@ -2,6 +2,15 @@ import type { SetupCache } from "@/types";
 
 const STORAGE_KEY = "subject_setup";
 
+function normalizeCompetitorRows(rows: SetupCache["competitorRows"] | undefined): SetupCache["competitorRows"] {
+  return (rows ?? []).map((row) => ({
+    ...row,
+    websiteUrl: row.websiteUrl ?? "",
+    aliases: row.aliases ?? [],
+    summary: row.summary ?? "",
+  }));
+}
+
 export function loadSetupCache(): SetupCache | null {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
@@ -19,6 +28,7 @@ export function loadSetupCache(): SetupCache | null {
     if (!data.promptRows) {
       data.promptRows = [];
     }
+    data.competitorRows = normalizeCompetitorRows(data.competitorRows);
     return data;
   } catch {
     return null;

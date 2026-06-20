@@ -19,9 +19,11 @@ def previous_date_range(dt_from: datetime, dt_to: datetime) -> tuple[datetime, d
 def top_visibility_labels(
     visibility_share: dict[str, float],
     own: str,
-    limit: int = VISIBILITY_CHART_LABEL_LIMIT,
+    limit: int | None = VISIBILITY_CHART_LABEL_LIMIT,
 ) -> list[str]:
     ranked = sorted(visibility_share.keys(), key=lambda k: visibility_share.get(k, 0), reverse=True)
+    if limit is None:
+        return ranked
     top = ranked[:limit]
     if own and own not in top and own in visibility_share:
         top = ranked[: limit - 1] + [own]

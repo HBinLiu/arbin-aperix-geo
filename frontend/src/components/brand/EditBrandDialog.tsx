@@ -12,9 +12,8 @@ import {
 import { Input, inputControlClass } from "@/components/ui/input";
 import { formatApiError } from "@/api/client";
 import { patchSubject } from "@/api/subject";
-import { queryKeys } from "@/lib/queries";
-import { hostnameFromWebsiteInput, registrableDomain } from "@/lib/domain";
-import { subjectEditAliases, subjectPrimaryName, subjectWebsiteUrl } from "@/lib/subject";
+import { clearAnalysisCatalog, clearQueries, queryKeys } from "@/lib/queries";
+import { subjectEditAliases, subjectWebsiteUrl } from "@/lib/subject";
 import { toast } from "@/lib/toast";
 import type { Subject } from "@/types";
 import { cn } from "@/lib/utils";
@@ -101,59 +100,35 @@ function AliasTagsInput({
 export function EditBrandDialog({ subject, open, onOpenChange }: EditBrandDialogProps) {
   const queryClient = useQueryClient();
   const websiteUrl = subjectWebsiteUrl(subject);
-  const isDomain = subject.type === "domain";
 
-  const [name, setName] = React.useState("");
+  const [brand, setBrand] = React.useState("");
   const [aliases, setAliases] = React.useState<string[]>([]);
   const [summary, setSummary] = React.useState("");
   const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
     if (!open) return;
-    setName(subjectPrimaryName(subject));
+    setBrand(subject.brand?.trim() ?? "");
     setAliases(subjectEditAliases(subject));
     setSummary(subject.profile_summary.trim());
   }, [open, subject]);
 
   const onSave = async () => {
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      toast.error("请填写名称。");
-      return;
-    }
-
-    if (isDomain) {
-      const host = hostnameFromWebsiteInput(trimmedName);
-      if (!host || host.length < 3) {
-        toast.error("请填写有效的域名。");
-        return;
-      }
-      const domain = registrableDomain(host);
-      setSaving(true);
-      try {
-        await patchSubject(subject.id, {
-          domain,
-          aliases,
-          profile_summary: summary.trim(),
-        });
-        await queryClient.invalidateQueries({ queryKey: queryKeys.subjects });
-        onOpenChange(false);
-      } catch (e: unknown) {
-        toast.error(formatApiError(e, "保存失败，请重试。"));
-      } finally {
-        setSaving(false);
-      }
+    const trimmedBrand = brand.trim();
+    if (!trimmedBrand) {
+      toast.error("请填写品牌名称。");
       return;
     }
 
     setSaving(true);
     try {
       await patchSubject(subject.id, {
-        brand: trimmedName,
+        brand: trimmedBrand,
         aliases,
         profile_summary: summary.trim(),
       });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.subjects });
+      await clearQueries(queryClient, { queryKey: queryKeys.subjects });
+      clearAnalysisCatalog(queryClient, subject.id);
       onOpenChange(false);
     } catch (e: unknown) {
       toast.error(formatApiError(e, "保存失败，请重试。"));
@@ -182,11 +157,11 @@ export function EditBrandDialog({ subject, open, onOpenChange }: EditBrandDialog
           </div>
 
           <div className="space-y-1.5">
-            <FieldLabel required>名称</FieldLabel>
+            <FieldLabel required>品牌</FieldLabel>
             <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={isDomain ? "example.com" : "品牌名称"}
+              value={brand}
+              onChange={(e) => setBrand(e.target.value)}
+              placeholder="品牌名称"
               disabled={saving}
             />
           </div>

@@ -6,8 +6,9 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from aperix_geo.api.deps import CurrentUser, DbSession, get_subject_for_user
-from aperix_geo.db.models import Subject, Topic
+from aperix_geo.db.models import Prompt, Topic
 from aperix_geo.schemas.catalog import TopicCreate, TopicOut
+from aperix_geo.services.catalog import clear_subject_topics_cache, list_subject_topics
 
 router = APIRouter(tags=["topics"])
 
@@ -17,9 +18,9 @@ def list_topics(
     subject_id: UUID,
     db: DbSession,
     current: CurrentUser,
-) -> list[Topic]:
+) -> list[TopicOut]:
     get_subject_for_user(db, current, subject_id)
-    return list(db.execute(select(Topic).where(Topic.subject_id == subject_id)).scalars().all())
+    return list_subject_topics(db, subject_id=subject_id)
 
 
 @router.post("/subjects/{subject_id}/topics", response_model=TopicOut, status_code=status.HTTP_201_CREATED)
@@ -34,6 +35,7 @@ def create_topic(
     db.add(t)
     db.commit()
     db.refresh(t)
+    clear_subject_topics_cache(subject_id)
     return t
 
 
@@ -52,6 +54,7 @@ def update_topic(
     t.name = body.name.strip()
     db.commit()
     db.refresh(t)
+    clear_subject_topics_cache(subject_id)
     return t
 
 
@@ -66,5 +69,9 @@ def delete_topic(
     t = db.get(Topic, topic_id)
     if not t or t.subject_id != subject_id:
         raise HTTPException(status_code=404, detail="Topic not found")
+    prompts = db.execute(select(Prompt).where(Prompt.topic_id == topic_id)).scalars().all()
+    for prompt in prompts:
+        db.delete(prompt)
     db.delete(t)
     db.commit()
+    clear_subject_topics_cache(subject_id)

@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from sqlalchemy.orm import Session
+
+from aperix_geo.db.models import Subject
 from aperix_geo.services.brand.domain import extract_domain_from_text_for_brand, other_entity_id
 from aperix_geo.services.brand.keys import configured_brand_keys
 from aperix_geo.services.brand.resolve import normalize_brand_key
@@ -14,7 +17,7 @@ from aperix_geo.services.sampling.mentions import (
     first_idx_any,
     host_mentions_domain,
 )
-from aperix_geo.utils.sentiment import clamp_sentiment_score, sentiment_label_from_score
+from aperix_geo.utils.sentiment import clamp_sentiment_score
 from aperix_geo.services.sampling.signal_draft import EntitySignalDraft, compute_mention_ranks
 
 
@@ -30,27 +33,31 @@ def absa_sentiment_source(response_absa: dict[str, Any]) -> str:
     return "failed"
 
 
-def absa_brand_sentiment(entry: Any) -> tuple[str, float | None, str | None]:
+def absa_brand_sentiment(entry: Any) -> tuple[float | None, str | None]:
     if not isinstance(entry, dict) or entry.get("mentioned") is False:
-        return "neutral", None, None
+        return None, None
     score_raw = entry.get("score")
     try:
         absa_score = float(score_raw) if score_raw is not None else None
     except (TypeError, ValueError):
         absa_score = None
     if absa_score is None:
-        return "neutral", None, None
+        return None, None
     points = clamp_sentiment_score(absa_score)
-    label = sentiment_label_from_score(points)
     reason = str(entry.get("evidence") or "").strip() or None
-    return label, points, reason
+    return points, reason
 
 
 def reset_sentiment_drafts(drafts: list[EntitySignalDraft]) -> None:
     for draft in drafts:
-        draft.sentiment_label = "neutral"
         draft.sentiment_score = None
         draft.sentiment_reason = None
+
+
+def degrade_absa_failure(drafts: list[EntitySignalDraft]) -> None:
+    """ABSA unavailable: keep text-based mentions; clear LLM sentiment only."""
+    reset_sentiment_drafts(drafts)
+    compute_mention_ranks(drafts)
 
 
 def _rank_hint_from_absa(text: str, brand_key: str, entry: Any) -> int | None:
@@ -178,8 +185,7 @@ def _apply_absa_sentiment_fields(
 ) -> None:
     by_entity_label = {draft.entity_label: draft for draft in drafts}
     own_draft = next(draft for draft in drafts if draft.entity_kind == "own")
-    label, score, reason = absa_brand_sentiment(brands.get(own_brand))
-    own_draft.sentiment_label = label
+    score, reason = absa_brand_sentiment(brands.get(own_brand))
     own_draft.sentiment_score = score
     own_draft.sentiment_reason = reason
 
@@ -187,8 +193,7 @@ def _apply_absa_sentiment_fields(
         draft = by_entity_label.get(output_label)
         if draft is None:
             continue
-        label, score, reason = absa_brand_sentiment(_absa_entry_for_competitor(brands, keys))
-        draft.sentiment_label = label
+        score, reason = absa_brand_sentiment(_absa_entry_for_competitor(brands, keys))
         draft.sentiment_score = score
         draft.sentiment_reason = reason
 
@@ -206,7 +211,7 @@ def apply_absa_to_drafts(
     """Merge closed-set ABSA mention flags and sentiment onto drafts; return sentiment_source."""
     source = absa_sentiment_source(response_absa)
     if source != "llm":
-        reset_sentiment_drafts(drafts)
+        degrade_absa_failure(drafts)
         return source
 
     brands = response_absa["brands_sentiment_absa"]
@@ -251,7 +256,7 @@ def append_other_brand_drafts(
         entity_id = other_entity_id(label)
         if entity_id in existing_ids:
             continue
-        sentiment_label, sentiment_score, sentiment_reason = absa_brand_sentiment(entry)
+        score, sentiment_reason = absa_brand_sentiment(entry)
         mention_count = count_term(text, label)
         if mention_count == 0:
             mention_count = 1
@@ -266,8 +271,7 @@ def append_other_brand_drafts(
                 mentioned=True,
                 mention_count=mention_count,
                 rank_hint_first_index=rank_hint,
-                sentiment_label=sentiment_label,
-                sentiment_score=sentiment_score,
+                sentiment_score=score,
                 sentiment_reason=sentiment_reason,
                 has_domain_link=_other_brand_has_domain_link(label, text, url_hosts or []),
             )
@@ -279,6 +283,8 @@ def apply_response_absa_to_drafts(
     drafts: list[EntitySignalDraft],
     response_absa: dict[str, Any],
     *,
+    subject: Subject | None = None,
+    db: Session | None = None,
     own_brand: str,
     competitor_brand_names: list[str],
     competitor_absa_keys: list[tuple[str, str]],
@@ -286,8 +292,8 @@ def apply_response_absa_to_drafts(
     competitors: list[CompetitorEntry] | None = None,
     text: str = "",
     excluded_keys: set[str] | None = None,
-) -> str:
-    """Apply closed-set ABSA, append open-set brands, and recompute mention ranks."""
+) -> tuple[str, dict[str, Any]]:
+    """Apply closed-set ABSA, append validated open-set brands, and recompute mention ranks."""
     source = apply_absa_to_drafts(
         drafts,
         response_absa,
@@ -298,7 +304,7 @@ def apply_response_absa_to_drafts(
         text=text,
     )
     if source != "llm":
-        return source
+        return source, response_absa
 
     if excluded_keys is None:
         excluded_keys = configured_brand_keys(
@@ -306,6 +312,7 @@ def apply_response_absa_to_drafts(
             competitor_brand_names=competitor_brand_names,
             competitor_absa_keys=competitor_absa_keys,
         )
+
     append_other_brand_drafts(
         drafts,
         response_absa,
@@ -314,4 +321,4 @@ def apply_response_absa_to_drafts(
         url_hosts=url_hosts,
     )
     compute_mention_ranks(drafts)
-    return source
+    return source, response_absa

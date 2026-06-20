@@ -3,29 +3,23 @@ import {
   ChevronsUpDown,
   ChevronUp,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
 
 import {
-  DEFAULT_TABLE_PAGE_SIZE,
-  paginateRows,
   TABLE_PAGE_SIZE_OPTIONS,
   TablePagination,
 } from "@/components/analysis/common/TablePagination";
-import {
-  ColumnHelp,
-  PromptTextCell,
-} from "@/components/analysis/prompt/PerformanceMetricCells";
 import { PerformanceTableShell } from "@/components/analysis/prompt/PerformanceTableShell";
 import { performanceTableClasses } from "@/components/analysis/prompt/performanceTableLayout";
-import { PlatformLogo } from "@/components/brand/PlatformLogo";
+import { PlatformLogoGroup } from "@/components/brand/PlatformLogo";
 import { FaviconImage } from "@/components/common/FaviconImage";
+import { faviconUrlFromHost } from "@/lib/favicon";
+import { DotBadge, TextBadge, type SemanticBadgeVariant } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   BACKLINK_OPPORTUNITY_COLUMNS,
   BACKLINK_OPPORTUNITY_MIN_WIDTH,
   backlinkOpportunityColumnColStyle,
   backlinkOpportunityDomainCellStyle,
-  sortBacklinkOpportunityRows,
   type BacklinkOpportunityRow,
   type BacklinkOpportunitySortColumn,
 } from "@/lib/opportunity/backlink";
@@ -35,26 +29,28 @@ import { cn } from "@/lib/utils";
 type SortDir = "asc" | "desc";
 type HeaderMode = "default" | SortDir;
 
-type SortState = {
+export type BacklinkOpportunitySortState = {
   column: BacklinkOpportunitySortColumn;
   dir: HeaderMode;
 };
 
-const DEFAULT_SORT: SortState = { column: "priority", dir: "asc" };
+export const DEFAULT_BACKLINK_OPPORTUNITY_SORT: BacklinkOpportunitySortState = {
+  column: "priority",
+  dir: "default",
+};
 
-const PRIORITY_DOT: Record<OpportunityPriority, string> = {
-  high: "bg-red-500",
-  medium: "bg-amber-500",
-  low: "bg-muted-foreground/40",
+type SortState = BacklinkOpportunitySortState;
+
+const PRIORITY_VARIANT: Record<OpportunityPriority, SemanticBadgeVariant> = {
+  high: "error",
+  medium: "warning",
+  low: "success",
 };
 
 function cycleSort(state: SortState, column: BacklinkOpportunitySortColumn): SortState {
-  if (state.column !== column) {
-    return { column, dir: column === "priority" ? "asc" : "desc" };
-  }
-  if (state.dir === "desc") return { column, dir: "asc" };
-  if (state.dir === "asc") return DEFAULT_SORT;
-  return { column, dir: "desc" };
+  if (state.column !== column || state.dir === "default") return { column, dir: "asc" };
+  if (state.dir === "asc") return { column, dir: "desc" };
+  return { column, dir: "default" };
 }
 
 type SortableHeaderProps = {
@@ -94,39 +90,11 @@ function SortableHeader({ column, label, sort, onSort }: SortableHeaderProps) {
   );
 }
 
-function HeaderWithHelp({
-  label,
-  description,
-  sortable,
-  column,
-  sort,
-  onSort,
-}: {
-  label: string;
-  description: string;
-  sortable?: boolean;
-  column?: BacklinkOpportunitySortColumn;
-  sort?: SortState;
-  onSort?: (column: BacklinkOpportunitySortColumn) => void;
-}) {
-  return (
-    <div className="inline-flex items-center gap-1">
-      {sortable && column && sort && onSort ? (
-        <SortableHeader column={column} label={label} sort={sort} onSort={onSort} />
-      ) : (
-        <span>{label}</span>
-      )}
-      <ColumnHelp label={label} description={description} />
-    </div>
-  );
-}
-
 function PriorityCell({ priority, label }: { priority: OpportunityPriority; label: string }) {
   return (
-    <div className="inline-flex items-center gap-1.5">
-      <span className={cn("inline-block size-2 shrink-0 rounded-full", PRIORITY_DOT[priority])} aria-hidden />
-      <span className="font-medium">{label}</span>
-    </div>
+    <DotBadge variant={PRIORITY_VARIANT[priority]} className="px-2 py-0.5 text-xs">
+      {label}
+    </DotBadge>
   );
 }
 
@@ -153,6 +121,9 @@ function BacklinkSkeletonRows({ count = 8 }: { count?: number }) {
           <td>
             <Skeleton className="h-4 w-8" />
           </td>
+          <td>
+            <Skeleton className="h-4 w-8" />
+          </td>
         </tr>
       ))}
     </>
@@ -164,6 +135,14 @@ type OpportunityBacklinkTableProps = {
   platformsMeta: SamplingPlatform[];
   loading?: boolean;
   className?: string;
+  total: number;
+  page: number;
+  pageSize: number;
+  sort: BacklinkOpportunitySortState;
+  onSortChange: (sort: BacklinkOpportunitySortState) => void;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
+  onRowClick?: (row: BacklinkOpportunityRow) => void;
 };
 
 /** 反向链接机会表：高权重引用域名与平台分布 */
@@ -172,42 +151,22 @@ export function OpportunityBacklinkTable({
   platformsMeta,
   loading = false,
   className,
+  total,
+  page,
+  pageSize,
+  sort,
+  onSortChange,
+  onPageChange,
+  onPageSizeChange,
+  onRowClick,
 }: OpportunityBacklinkTableProps) {
-  const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
-
-  const platformLabelById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const platform of platformsMeta) {
-      map.set(platform.platform, platform.label);
-    }
-    return map;
-  }, [platformsMeta]);
-
-  const sortedRows = useMemo(() => {
-    if (sort.dir === "default") {
-      return sortBacklinkOpportunityRows(rows, "priority", "asc");
-    }
-    return sortBacklinkOpportunityRows(rows, sort.column, sort.dir);
-  }, [rows, sort]);
-
-  const pageRows = useMemo(
-    () => paginateRows(sortedRows, page, pageSize),
-    [sortedRows, page, pageSize],
-  );
-
-  useEffect(() => {
-    setPage(1);
-  }, [rows]);
-
   const handlePageSizeChange = (nextPageSize: number) => {
-    setPageSize(nextPageSize);
-    setPage(1);
+    onPageSizeChange(nextPageSize);
+    onPageChange(1);
   };
 
   const handleSort = (column: BacklinkOpportunitySortColumn) => {
-    setSort((prev) => cycleSort(prev, column));
+    onSortChange(cycleSort(sort, column));
   };
 
   return (
@@ -216,13 +175,13 @@ export function OpportunityBacklinkTable({
       loading={loading}
       scrollMinWidth={BACKLINK_OPPORTUNITY_MIN_WIDTH}
       footer={
-        !loading && sortedRows.length > 0 ? (
+        !loading && total > 0 ? (
           <TablePagination
-            total={sortedRows.length}
+            total={total}
             page={page}
             pageSize={pageSize}
             pageSizeOptions={TABLE_PAGE_SIZE_OPTIONS}
-            onPageChange={setPage}
+            onPageChange={onPageChange}
             onPageSizeChange={handlePageSizeChange}
           />
         ) : null
@@ -247,34 +206,28 @@ export function OpportunityBacklinkTable({
                 onSort={handleSort}
               />
             </th>
+            <th>域名类型</th>
+            <th>AI 平台</th>
             <th>
-              <HeaderWithHelp
-                label="域名类型"
-                description="根据已知品牌与竞品域名库判断该引用域名的类型。"
-              />
-            </th>
-            <th>
-              <HeaderWithHelp
-                label="AI 平台"
-                description="该域名在 AI 回答中被引用的平台。"
-              />
-            </th>
-            <th>
-              <HeaderWithHelp
-                label="提示词数量"
-                description="引用该域名且未覆盖自有域名的提示词数量。"
-                sortable
-                column="promptCount"
+              <SortableHeader
+                column="citationCount"
+                label="引用次数"
                 sort={sort}
                 onSort={handleSort}
               />
             </th>
             <th>
-              <HeaderWithHelp
-                label="聊天次数"
-                description="引用该域名且未覆盖自有域名的 AI 回复次数。"
-                sortable
+              <SortableHeader
+                column="promptCount"
+                label="提示词数量"
+                sort={sort}
+                onSort={handleSort}
+              />
+            </th>
+            <th>
+              <SortableHeader
                 column="chatCount"
+                label="聊天次数"
                 sort={sort}
                 onSort={handleSort}
               />
@@ -284,35 +237,58 @@ export function OpportunityBacklinkTable({
         <tbody>
           {loading ? (
             <BacklinkSkeletonRows />
-          ) : sortedRows.length === 0 ? (
+          ) : total === 0 ? (
             <tr>
-              <td colSpan={6} className="text-muted-foreground px-5 py-10 text-center text-sm">
+              <td colSpan={7} className="text-muted-foreground px-5 py-10 text-center text-sm">
                 暂无反向链接机会
               </td>
             </tr>
           ) : (
-            pageRows.map((row) => {
-              const platformLabel = platformLabelById.get(row.platform) ?? row.platform;
-              return (
-                <tr key={row.id} className={performanceTableClasses.row}>
-                  <td className="overflow-hidden pl-5" style={backlinkOpportunityDomainCellStyle()}>
-                    <div className="flex min-w-0 items-center gap-2">
-                      <FaviconImage domain={row.host} size={20} className="size-5 shrink-0 rounded-sm" />
-                      <PromptTextCell text={row.host} />
-                    </div>
-                  </td>
-                  <td>
-                    <PriorityCell priority={row.priority} label={row.priorityLabel} />
-                  </td>
-                  <td>{row.domainType}</td>
-                  <td>
-                    <PlatformLogo provider={row.platform} label={platformLabel} className="size-7" />
-                  </td>
-                  <td className="font-medium tabular-nums">{row.promptCount}</td>
-                  <td className="font-medium tabular-nums">{row.chatCount}</td>
-                </tr>
-              );
-            })
+            rows.map((row) => (
+              <tr
+                key={row.id}
+                className={cn(performanceTableClasses.row, onRowClick && "cursor-pointer")}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                onKeyDown={
+                  onRowClick
+                    ? (event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          onRowClick(row);
+                        }
+                      }
+                    : undefined
+                }
+                tabIndex={onRowClick ? 0 : undefined}
+              >
+                <td className="overflow-hidden pl-5" style={backlinkOpportunityDomainCellStyle()}>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <FaviconImage url={faviconUrlFromHost(row.host)} size={20} className="size-5 shrink-0 rounded-sm" />
+                    <span className="block min-w-0 truncate font-medium hover:text-primary hover:underline">
+                      {row.host}
+                    </span>
+                  </div>
+                </td>
+                <td>
+                  <PriorityCell priority={row.priority} label={row.priorityLabel} />
+                </td>
+                <td>
+                  <TextBadge variant="gray" className="bg-background px-2 py-1 font-semibold text-foreground">
+                    {row.domainType}
+                  </TextBadge>
+                </td>
+                <td>
+                  <PlatformLogoGroup
+                    providers={row.platforms}
+                    platforms={platformsMeta}
+                    logoClassName="size-5"
+                  />
+                </td>
+                <td className="font-medium tabular-nums">{row.citationCount}</td>
+                <td className="font-medium tabular-nums">{row.promptCount}</td>
+                <td className="font-medium tabular-nums">{row.chatCount}</td>
+              </tr>
+            ))
           )}
         </tbody>
       </table>

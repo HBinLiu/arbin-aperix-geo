@@ -30,14 +30,22 @@ def _raise_completion_error(
     status_code: int | None = None,
     retryable: bool | None = None,
     cause: BaseException | None = None,
+    provider_label: str | None = None,
 ) -> None:
     if isinstance(error_cls, type) and issubclass(error_cls, ProviderError):
+        from aperix_geo.services.alerts.billing import infer_provider_role, provider_id_from_message
+
+        provider_id = provider_id_from_message(message)
+        if provider_id == "unknown" and provider_label:
+            provider_id = provider_id_from_message(f"{provider_label} HTTP")
         raise_provider_error(
             error_cls,
             message,
             status_code=status_code,
             retryable=retryable,
             cause=cause,
+            provider_id=None if provider_id == "unknown" else provider_id,
+            provider_role=infer_provider_role(provider_id) if provider_id != "unknown" else None,
         )
     raise error_cls(message) from cause
 
@@ -99,6 +107,7 @@ def openai_chat_completion(
             f"{provider_label} timeout: {e}",
             retryable=True,
             cause=e,
+            provider_label=provider_label,
         )
     except APIError as e:
         detail = (getattr(e, "message", None) or str(e))[:800]
@@ -109,10 +118,21 @@ def openai_chat_completion(
                 f"{provider_label} HTTP {status}: {detail}",
                 status_code=status,
                 cause=e,
+                provider_label=provider_label,
             )
-        _raise_completion_error(error_cls, f"{provider_label} API error: {detail}", cause=e)
+        _raise_completion_error(
+            error_cls,
+            f"{provider_label} API error: {detail}",
+            cause=e,
+            provider_label=provider_label,
+        )
     except Exception as e:
-        _raise_completion_error(error_cls, f"{provider_label} error: {e}", cause=e)
+        _raise_completion_error(
+            error_cls,
+            f"{provider_label} error: {e}",
+            cause=e,
+            provider_label=provider_label,
+        )
 
     latency_ms = int((time.perf_counter() - t0) * 1000)
 
@@ -120,6 +140,13 @@ def openai_chat_completion(
         text = response.choices[0].message.content or ""
     except (AttributeError, IndexError, TypeError) as e:
         raise error_cls(f"Unexpected {provider_label} response shape: {response!r}") from e
+
+    from aperix_geo.services.alerts.billing import provider_id_from_message
+    from aperix_geo.services.alerts.dispatch import maybe_report_provider_success
+
+    provider_id = provider_id_from_message(f"{provider_label} HTTP")
+    if provider_id != "unknown":
+        maybe_report_provider_success(provider_id)
 
     return text, _usage_dict(response.usage), latency_ms
 
@@ -213,6 +240,7 @@ def openai_web_search_chat(
             f"{spec.provider_label} timeout: {exc}",
             retryable=True,
             cause=exc,
+            provider_label=spec.provider_label,
         )
     except APIError as exc:
         detail = (getattr(exc, "message", None) or str(exc))[:800]
@@ -223,17 +251,20 @@ def openai_web_search_chat(
                 f"{spec.provider_label} HTTP {status}: {detail}",
                 status_code=status,
                 cause=exc,
+                provider_label=spec.provider_label,
             )
         _raise_completion_error(
             spec.error_cls,
             f"{spec.provider_label} API error: {detail}",
             cause=exc,
+            provider_label=spec.provider_label,
         )
     except Exception as exc:
         _raise_completion_error(
             spec.error_cls,
             f"{spec.provider_label} error: {exc}",
             cause=exc,
+            provider_label=spec.provider_label,
         )
     latency_ms = int((time.perf_counter() - t0) * 1000)
 
@@ -263,6 +294,13 @@ def openai_web_search_chat(
         len(source_urls),
         mode,
     )
+    from aperix_geo.services.alerts.billing import provider_id_from_message
+    from aperix_geo.services.alerts.dispatch import maybe_report_provider_success
+
+    provider_id = provider_id_from_message(f"{spec.provider_label} HTTP")
+    if provider_id != "unknown":
+        maybe_report_provider_success(provider_id)
+
     return SamplingChatResult(
         text=text,
         usage=usage,

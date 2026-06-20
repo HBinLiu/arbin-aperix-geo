@@ -3,15 +3,20 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query, status
 
 from aperix_geo.api.deps import CurrentUser, DbSession, get_subject_for_user
 from aperix_geo.api.schemas.analysis_query import (
-    AnalysisMetricsParams,
-    AnalysisPromptSortParams,
+    AnalysisPromptsParams,
     AnalysisRankWindowParams,
     AnalysisWindowParams,
-    CitationDomainParams,
+    CitationDomainAnalysisParams,
+    CitationDomainPromptsParams,
+    CitationDomainUrlsParams,
+    CitationDomainsParams,
+    CitationUrlsParams,
+    PlatformAnalysisParams,
+    AnalysisResponsesParams,
 )
 from aperix_geo.services import analysis as analysis_svc
 from aperix_geo.utils.datetime import parse_iso_datetime
@@ -19,162 +24,44 @@ from aperix_geo.utils.datetime import parse_iso_datetime
 router = APIRouter(tags=["analysis"])
 
 
-@router.get("/subjects/{subject_id}/analysis/entities")
-def analysis_entities(
-    subject_id: UUID,
-    db: DbSession,
-    current: CurrentUser,
-) -> dict:
-    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
-    return analysis_svc.build_analysis_entities(s)
-
-
-@router.get("/subjects/{subject_id}/analysis/metrics")
-def analysis_metrics(
-    subject_id: UUID,
-    params: Annotated[AnalysisMetricsParams, Query()],
-    db: DbSession,
-    current: CurrentUser,
-) -> dict:
-    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
-    f = parse_iso_datetime(params.from_)
-    t = parse_iso_datetime(params.to)
-    return analysis_svc.build_unified_metrics(
-        db,
-        subject=s,
-        entity_id=params.entity_id,
-        platforms=params.platform,
-        topic_id=params.topic_id,
-        prompt_id=params.prompt_id,
-        dt_from=f,
-        dt_to=t,
-        group_by=params.group_by,
-        sort_by=params.sort_by,
-        order=params.order,
-    )
-
-
-@router.get("/subjects/{subject_id}/overview")
+#概述页接口
+@router.post("/subjects/{subject_id}/overview")
 def overview(
     subject_id: UUID,
-    params: Annotated[AnalysisWindowParams, Query()],
+    params: AnalysisWindowParams,
     db: DbSession,
     current: CurrentUser,
 ) -> dict:
     s = get_subject_for_user(db, current, subject_id, with_competitors=True)
-    f = parse_iso_datetime(params.from_)
-    t = parse_iso_datetime(params.to)
-    return analysis_svc.build_overview(
+    f = parse_iso_datetime(params.start_date)
+    t = parse_iso_datetime(params.end_date)
+    return analysis_svc.build_dashboard_overview(
         db,
         subject=s,
         entity_id=params.entity_id,
-        platforms=params.platform,
+        platform=params.platform,
         topic_id=params.topic_id,
         dt_from=f,
         dt_to=t,
     )
 
 
-@router.get("/subjects/{subject_id}/topics-performance")
-def topics_performance(
-    subject_id: UUID,
-    params: Annotated[AnalysisWindowParams, Query()],
-    db: DbSession,
-    current: CurrentUser,
-) -> list[dict]:
-    get_subject_for_user(db, current, subject_id, with_competitors=True)
-    f = parse_iso_datetime(params.from_)
-    t = parse_iso_datetime(params.to)
-    return analysis_svc.build_topics_performance(
-        db,
-        subject_id=subject_id,
-        entity_id=params.entity_id,
-        platforms=params.platform,
-        topic_id=params.topic_id,
-        dt_from=f,
-        dt_to=t,
-    )
-
-
-@router.get("/subjects/{subject_id}/rank")
-def rank(
-    subject_id: UUID,
-    params: Annotated[AnalysisRankWindowParams, Query()],
-    db: DbSession,
-    current: CurrentUser,
-) -> dict:
-    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
-    f = parse_iso_datetime(params.from_)
-    t = parse_iso_datetime(params.to)
-    return analysis_svc.build_rank(
-        db,
-        subject=s,
-        platforms=params.platform,
-        topic_id=params.topic_id,
-        dt_from=f,
-        dt_to=t,
-    )
-
-
-@router.get("/subjects/{subject_id}/prompts-performance")
-def prompts_performance(
-    subject_id: UUID,
-    params: Annotated[AnalysisPromptSortParams, Query()],
-    db: DbSession,
-    current: CurrentUser,
-) -> list[dict]:
-    get_subject_for_user(db, current, subject_id, with_competitors=True)
-    f = parse_iso_datetime(params.from_)
-    t = parse_iso_datetime(params.to)
-    return analysis_svc.build_prompts_performance(
-        db,
-        subject_id=subject_id,
-        entity_id=params.entity_id,
-        platforms=params.platform,
-        topic_id=params.topic_id,
-        dt_from=f,
-        dt_to=t,
-        sort_by=params.sort_by,
-        order=params.order,
-    )
-
-
-@router.get("/subjects/{subject_id}/citations")
-def citations(
-    subject_id: UUID,
-    params: Annotated[AnalysisWindowParams, Query()],
-    db: DbSession,
-    current: CurrentUser,
-) -> dict:
-    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
-    f = parse_iso_datetime(params.from_)
-    t = parse_iso_datetime(params.to)
-    return analysis_svc.build_citations(
-        db,
-        subject=s,
-        entity_id=params.entity_id,
-        platforms=params.platform,
-        topic_id=params.topic_id,
-        dt_from=f,
-        dt_to=t,
-    )
-
-
-@router.get("/subjects/{subject_id}/visibility-analysis")
+#分析页-可见度接口
+@router.post("/subjects/{subject_id}/analysis/visibility")
 def visibility_analysis(
     subject_id: UUID,
-    params: Annotated[AnalysisWindowParams, Query()],
+    params: AnalysisWindowParams,
     db: DbSession,
     current: CurrentUser,
 ) -> dict:
     s = get_subject_for_user(db, current, subject_id, with_competitors=True)
-    f = parse_iso_datetime(params.from_)
-    t = parse_iso_datetime(params.to)
+    f = parse_iso_datetime(params.start_date)
+    t = parse_iso_datetime(params.end_date)
     return analysis_svc.build_visibility_analysis(
         db,
         subject=s,
         entity_id=params.entity_id,
-        platforms=params.platform,
+        platform=params.platform,
         topic_id=params.topic_id,
         prompt_id=params.prompt_id,
         dt_from=f,
@@ -182,21 +69,73 @@ def visibility_analysis(
     )
 
 
-@router.get("/subjects/{subject_id}/platforms-performance")
-def platforms_performance(
+#分析页-主题表现接口
+@router.post("/subjects/{subject_id}/analysis/topics")
+def topics_performance(
     subject_id: UUID,
-    params: Annotated[AnalysisWindowParams, Query()],
+    params: AnalysisWindowParams,
     db: DbSession,
     current: CurrentUser,
 ) -> list[dict]:
     get_subject_for_user(db, current, subject_id, with_competitors=True)
-    f = parse_iso_datetime(params.from_)
-    t = parse_iso_datetime(params.to)
-    return analysis_svc.build_platform_performance(
+    f = parse_iso_datetime(params.start_date)
+    t = parse_iso_datetime(params.end_date)
+    return analysis_svc.build_topics_performance(
         db,
         subject_id=subject_id,
         entity_id=params.entity_id,
-        platforms=params.platform,
+        platform=params.platform,
+        topic_id=params.topic_id,
+        dt_from=f,
+        dt_to=t,
+    )
+
+
+#分析页-提示词表现接口
+@router.post("/subjects/{subject_id}/analysis/prompts")
+def prompts_performance(
+    subject_id: UUID,
+    params: AnalysisPromptsParams,
+    db: DbSession,
+    current: CurrentUser,
+) -> dict:
+    get_subject_for_user(db, current, subject_id, with_competitors=True)
+    f = parse_iso_datetime(params.start_date)
+    t = parse_iso_datetime(params.end_date)
+    return analysis_svc.build_prompts_performance_page(
+        db,
+        subject_id=subject_id,
+        entity_id=params.entity_id,
+        platform=params.platform,
+        topic_id=params.topic_id,
+        search=params.search,
+        dt_from=f,
+        dt_to=t,
+        sort_by=params.sort_by,
+        order=params.order,
+        page=params.page,
+        page_size=params.page_size,
+    )
+
+
+#分析页-提示词详情接口
+@router.post("/subjects/{subject_id}/analysis/prompt/detail")
+def prompt_detail(
+    subject_id: UUID,
+    params: AnalysisWindowParams,
+    db: DbSession,
+    current: CurrentUser,
+) -> dict:
+    if params.prompt_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="prompt_id is required")
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
+    f = parse_iso_datetime(params.start_date)
+    t = parse_iso_datetime(params.end_date)
+    return analysis_svc.build_prompt_detail(
+        db,
+        subject=s,
+        entity_id=params.entity_id,
+        platform=params.platform,
         topic_id=params.topic_id,
         prompt_id=params.prompt_id,
         dt_from=f,
@@ -204,107 +143,45 @@ def platforms_performance(
     )
 
 
-@router.get("/subjects/{subject_id}/platform-matrix")
-def platform_matrix(
+#分析页-AI平台接口
+@router.post("/subjects/{subject_id}/analysis/platform")
+def platform_analysis(
     subject_id: UUID,
-    params: Annotated[AnalysisWindowParams, Query()],
+    params: PlatformAnalysisParams,
     db: DbSession,
     current: CurrentUser,
 ) -> dict:
     s = get_subject_for_user(db, current, subject_id, with_competitors=True)
-    f = parse_iso_datetime(params.from_)
-    t = parse_iso_datetime(params.to)
-    return analysis_svc.build_platform_matrix_analysis(
+    f = parse_iso_datetime(params.start_date)
+    t = parse_iso_datetime(params.end_date)
+    return analysis_svc.build_platform_analysis(
         db,
         subject=s,
         entity_id=params.entity_id,
-        platforms=params.platform,
+        platform=params.platform,
         topic_id=params.topic_id,
+        matrix_row=params.matrix_row,
         dt_from=f,
         dt_to=t,
     )
 
 
-@router.get("/subjects/{subject_id}/citation-analysis")
-def citation_analysis(
-    subject_id: UUID,
-    params: Annotated[AnalysisWindowParams, Query()],
-    db: DbSession,
-    current: CurrentUser,
-) -> dict:
-    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
-    f = parse_iso_datetime(params.from_)
-    t = parse_iso_datetime(params.to)
-    return analysis_svc.build_citation_analysis(
-        db,
-        subject=s,
-        entity_id=params.entity_id,
-        platforms=params.platform,
-        topic_id=params.topic_id,
-        prompt_id=params.prompt_id,
-        dt_from=f,
-        dt_to=t,
-    )
-
-
-@router.get("/subjects/{subject_id}/citation-domain-analysis")
-def citation_domain_analysis(
-    subject_id: UUID,
-    params: Annotated[CitationDomainParams, Query()],
-    db: DbSession,
-    current: CurrentUser,
-) -> dict:
-    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
-    f = parse_iso_datetime(params.from_)
-    t = parse_iso_datetime(params.to)
-    return analysis_svc.build_citation_domain_analysis(
-        db,
-        subject=s,
-        host=params.host,
-        platforms=params.platform,
-        topic_id=params.topic_id,
-        prompt_id=params.prompt_id,
-        dt_from=f,
-        dt_to=t,
-    )
-
-
-@router.get("/subjects/{subject_id}/citation-rank")
-def citation_rank(
-    subject_id: UUID,
-    params: Annotated[AnalysisWindowParams, Query()],
-    db: DbSession,
-    current: CurrentUser,
-) -> dict:
-    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
-    f = parse_iso_datetime(params.from_)
-    t = parse_iso_datetime(params.to)
-    return analysis_svc.build_citation_brand_rank(
-        db,
-        subject=s,
-        entity_id=params.entity_id,
-        platforms=params.platform,
-        topic_id=params.topic_id,
-        dt_from=f,
-        dt_to=t,
-    )
-
-
-@router.get("/subjects/{subject_id}/sentiment-analysis")
+#分析页-情感倾向接口
+@router.post("/subjects/{subject_id}/analysis/sentiment")
 def sentiment_analysis(
     subject_id: UUID,
-    params: Annotated[AnalysisWindowParams, Query()],
+    params: AnalysisWindowParams,
     db: DbSession,
     current: CurrentUser,
 ) -> dict:
     s = get_subject_for_user(db, current, subject_id, with_competitors=True)
-    f = parse_iso_datetime(params.from_)
-    t = parse_iso_datetime(params.to)
+    f = parse_iso_datetime(params.start_date)
+    t = parse_iso_datetime(params.end_date)
     return analysis_svc.build_sentiment_analysis(
         db,
         subject=s,
         entity_id=params.entity_id,
-        platforms=params.platform,
+        platform=params.platform,
         topic_id=params.topic_id,
         prompt_id=params.prompt_id,
         dt_from=f,
@@ -312,42 +189,50 @@ def sentiment_analysis(
     )
 
 
-@router.get("/subjects/{subject_id}/daily-sentiment")
-def daily_sentiment(
+#分析页-回复明细接口
+@router.post("/subjects/{subject_id}/analysis/responses")
+def analysis_responses(
     subject_id: UUID,
-    params: Annotated[AnalysisWindowParams, Query()],
+    params: AnalysisResponsesParams,
     db: DbSession,
     current: CurrentUser,
 ) -> dict:
     s = get_subject_for_user(db, current, subject_id, with_competitors=True)
-    f = parse_iso_datetime(params.from_)
-    t = parse_iso_datetime(params.to)
-    return analysis_svc.build_daily_sentiment_series(
+    f = parse_iso_datetime(params.start_date)
+    t = parse_iso_datetime(params.end_date)
+    return analysis_svc.build_analysis_responses(
         db,
         subject=s,
         entity_id=params.entity_id,
-        platforms=params.platform,
+        platform=params.platform,
         topic_id=params.topic_id,
+        prompt_id=params.prompt_id,
+        sentiment_label=params.sentiment_label,
         dt_from=f,
         dt_to=t,
+        page=params.page,
+        page_size=params.page_size,
+        sort_by=params.sort_by,
+        order=params.order,
     )
 
 
-@router.get("/subjects/{subject_id}/content-opportunities")
-def content_opportunities(
+#分析页-引用率接口
+@router.post("/subjects/{subject_id}/analysis/citation")
+def citation_analysis_overview(
     subject_id: UUID,
-    params: Annotated[AnalysisWindowParams, Query()],
+    params: AnalysisWindowParams,
     db: DbSession,
     current: CurrentUser,
 ) -> dict:
     s = get_subject_for_user(db, current, subject_id, with_competitors=True)
-    f = parse_iso_datetime(params.from_)
-    t = parse_iso_datetime(params.to)
-    return analysis_svc.build_content_opportunities(
+    f = parse_iso_datetime(params.start_date)
+    t = parse_iso_datetime(params.end_date)
+    return analysis_svc.build_citation_analysis(
         db,
         subject=s,
         entity_id=params.entity_id,
-        platforms=params.platform,
+        platform=params.platform,
         topic_id=params.topic_id,
         prompt_id=params.prompt_id,
         dt_from=f,
@@ -355,21 +240,76 @@ def content_opportunities(
     )
 
 
-@router.get("/subjects/{subject_id}/prompt-detail")
-def prompt_detail(
+#分析页-引用域名接口
+@router.post("/subjects/{subject_id}/analysis/citation/domains")
+def citation_domains(
     subject_id: UUID,
-    params: Annotated[AnalysisWindowParams, Query()],
+    params: CitationDomainsParams,
     db: DbSession,
     current: CurrentUser,
 ) -> dict:
     s = get_subject_for_user(db, current, subject_id, with_competitors=True)
-    f = parse_iso_datetime(params.from_)
-    t = parse_iso_datetime(params.to)
-    return analysis_svc.build_prompt_detail_responses(
+    f = parse_iso_datetime(params.start_date)
+    t = parse_iso_datetime(params.end_date)
+    return analysis_svc.build_citation_domains_page(
         db,
         subject=s,
-        entity_id=params.entity_id,
-        platforms=params.platform,
+        platform=params.platform,
+        topic_id=params.topic_id,
+        prompt_id=params.prompt_id,
+        search=params.search,
+        dt_from=f,
+        dt_to=t,
+        page=params.page,
+        page_size=params.page_size,
+        sort_by=params.sort_by,
+        order=params.order,
+    )
+
+
+#分析页-引用URL接口
+@router.post("/subjects/{subject_id}/analysis/citation/urls")
+def citation_urls(
+    subject_id: UUID,
+    params: CitationUrlsParams,
+    db: DbSession,
+    current: CurrentUser,
+) -> dict:
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
+    f = parse_iso_datetime(params.start_date)
+    t = parse_iso_datetime(params.end_date)
+    return analysis_svc.build_citation_urls_page(
+        db,
+        subject=s,
+        platform=params.platform,
+        topic_id=params.topic_id,
+        prompt_id=params.prompt_id,
+        search=params.search,
+        dt_from=f,
+        dt_to=t,
+        page=params.page,
+        page_size=params.page_size,
+        sort_by=params.sort_by,
+        order=params.order,
+    )
+
+
+#分析页-引用域名接口
+@router.post("/subjects/{subject_id}/analysis/citation/domain")
+def citation_domain_analysis(
+    subject_id: UUID,
+    params: CitationDomainAnalysisParams,
+    db: DbSession,
+    current: CurrentUser,
+) -> dict:
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
+    f = parse_iso_datetime(params.start_date)
+    t = parse_iso_datetime(params.end_date)
+    return analysis_svc.build_citation_domain_analysis(
+        db,
+        subject=s,
+        host=params.host,
+        platform=params.platform,
         topic_id=params.topic_id,
         prompt_id=params.prompt_id,
         dt_from=f,
@@ -377,26 +317,82 @@ def prompt_detail(
     )
 
 
-@router.get("/subjects/{subject_id}/backlink-opportunities")
-def backlink_opportunities(
+#分析页-引用域名URL接口
+@router.post("/subjects/{subject_id}/analysis/citation/domain/urls")
+def citation_domain_urls(
     subject_id: UUID,
-    params: Annotated[AnalysisRankWindowParams, Query()],
+    params: CitationDomainUrlsParams,
     db: DbSession,
     current: CurrentUser,
 ) -> dict:
     s = get_subject_for_user(db, current, subject_id, with_competitors=True)
-    f = parse_iso_datetime(params.from_)
-    t = parse_iso_datetime(params.to)
-    return analysis_svc.build_backlink_opportunities(
+    f = parse_iso_datetime(params.start_date)
+    t = parse_iso_datetime(params.end_date)
+    return analysis_svc.build_citation_domain_urls_page(
         db,
         subject=s,
-        platforms=params.platform,
+        host=params.host,
+        platform=params.platform,
+        topic_id=params.topic_id,
+        prompt_id=params.prompt_id,
+        dt_from=f,
+        dt_to=t,
+        page=params.page,
+        page_size=params.page_size,
+        sort_by=params.sort_by,
+        order=params.order,
+    )
+
+
+#分析页-引用域名提示词接口
+@router.post("/subjects/{subject_id}/analysis/citation/domain/prompts")
+def citation_domain_prompts(
+    subject_id: UUID,
+    params: CitationDomainPromptsParams,
+    db: DbSession,
+    current: CurrentUser,
+) -> dict:
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
+    f = parse_iso_datetime(params.start_date)
+    t = parse_iso_datetime(params.end_date)
+    return analysis_svc.build_citation_domain_prompts_page(
+        db,
+        subject=s,
+        host=params.host,
+        platform=params.platform,
+        topic_id=params.topic_id,
+        prompt_id=params.prompt_id,
+        dt_from=f,
+        dt_to=t,
+        page=params.page,
+        page_size=params.page_size,
+        sort_by=params.sort_by,
+        order=params.order,
+    )
+
+
+#排行榜页面接口
+@router.post("/subjects/{subject_id}/rank")
+def rank(
+    subject_id: UUID,
+    params: AnalysisRankWindowParams,
+    db: DbSession,
+    current: CurrentUser,
+) -> dict:
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
+    f = parse_iso_datetime(params.start_date)
+    t = parse_iso_datetime(params.end_date)
+    return analysis_svc.build_rank(
+        db,
+        subject=s,
+        platform=params.platform,
         topic_id=params.topic_id,
         dt_from=f,
         dt_to=t,
     )
 
 
+#诊断中心页面接口
 @router.get("/subjects/{subject_id}/diagnosis")
 def diagnosis(
     subject_id: UUID,
@@ -405,13 +401,13 @@ def diagnosis(
     current: CurrentUser,
 ) -> dict:
     s = get_subject_for_user(db, current, subject_id, with_competitors=True)
-    f = parse_iso_datetime(params.from_)
-    t = parse_iso_datetime(params.to)
+    f = parse_iso_datetime(params.start_date)
+    t = parse_iso_datetime(params.end_date)
     return analysis_svc.build_diagnosis(
         db,
         subject=s,
         entity_id=params.entity_id,
-        platforms=params.platform,
+        platform=params.platform,
         topic_id=params.topic_id,
         dt_from=f,
         dt_to=t,

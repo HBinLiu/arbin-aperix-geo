@@ -1,4 +1,6 @@
+import { rankTableColWidths, RANK_TABLE_MIN_WIDTH } from "@/components/analysis/common/analysisRankTableLayout";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 type LineChartSkeletonProps = {
   chartHeight?: number;
@@ -6,20 +8,22 @@ type LineChartSkeletonProps = {
 };
 
 /** 折线图绘图区骨架 */
-export function LineChartSkeleton({ chartHeight = 270, className }: LineChartSkeletonProps) {
+export function LineChartSkeleton({ chartHeight, className }: LineChartSkeletonProps) {
+  const fixedHeight = chartHeight != null;
   return (
-    <div className={className} style={{ minHeight: chartHeight }} aria-hidden>
-      <div className="flex h-full flex-col gap-3">
+    <div
+      className={cn(!fixedHeight && "min-h-[120px] flex-1", className)}
+      style={fixedHeight ? { minHeight: chartHeight } : undefined}
+      aria-hidden
+    >
+      <div className="flex h-full min-h-[120px] flex-col gap-3">
         <div className="flex min-h-0 flex-1 gap-2">
           <div className="flex shrink-0 flex-col justify-between py-1">
             {Array.from({ length: 5 }).map((_, i) => (
               <Skeleton key={i} className="h-3 w-9" />
             ))}
           </div>
-          <Skeleton
-            className="flex-1 rounded-lg"
-            style={{ height: chartHeight - 50 }}
-          />
+          <Skeleton className="min-h-[120px] flex-1 rounded-lg" />
         </div>
         <div className="flex justify-between pl-11 pr-1">
           {Array.from({ length: 5 }).map((_, i) => (
@@ -41,36 +45,79 @@ export function LineChartSkeleton({ chartHeight = 270, className }: LineChartSke
 
 type RankTableSkeletonProps = {
   showMoreFooter?: boolean;
+  showDeltaColumn?: boolean;
 };
 
-/** 排名表 tbody + 页脚骨架 */
-export function RankTableSkeleton({ showMoreFooter = false }: RankTableSkeletonProps) {
+function RankTableColGroup({ showDeltaColumn = true }: { showDeltaColumn?: boolean }) {
+  const cols = rankTableColWidths(showDeltaColumn);
+  return (
+    <colgroup>
+      <col style={{ width: cols.index }} />
+      <col style={{ width: cols.brand }} />
+      <col style={{ width: cols.value }} />
+      {cols.delta ? <col style={{ width: cols.delta }} /> : null}
+    </colgroup>
+  );
+}
+
+/** 排名表 tbody + 页脚骨架（与 AnalysisRankTable 同 table/colgroup 结构，避免 grid 百分比换行） */
+export function RankTableSkeleton({
+  showMoreFooter = false,
+  showDeltaColumn = true,
+}: RankTableSkeletonProps) {
   return (
     <div className="flex flex-col gap-0" aria-hidden>
-      <div className="min-h-0 flex-1 space-y-0 px-2">
-        <div className="grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_3.5rem] gap-x-2 px-2 py-2">
-          <Skeleton className="h-3 w-4" />
-          <Skeleton className="h-3 w-8" />
-          <Skeleton className="h-3 w-10" />
-          <Skeleton className="h-3 w-8" />
-        </div>
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div
-            key={i}
-            className="border-border grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_3.5rem] items-center gap-x-2 border-t px-2 py-2"
-          >
-            <Skeleton className="h-3 w-5" />
-            <div className="flex min-w-0 items-center gap-2">
-              <Skeleton className="size-6 shrink-0 rounded-md" />
-              <Skeleton className="h-3 w-24 max-w-full" />
-            </div>
-            <Skeleton className="h-3 w-10" />
-            <Skeleton className="h-3 w-8" />
-          </div>
-        ))}
+      <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto">
+        <table
+          className="w-full table-fixed text-sm"
+          style={{ minWidth: RANK_TABLE_MIN_WIDTH }}
+        >
+          <RankTableColGroup showDeltaColumn={showDeltaColumn} />
+          <thead className="text-muted-foreground text-left text-xs">
+            <tr className="border-border border-b [&>th]:whitespace-nowrap [&>th]:py-2">
+              <th className="px-2 pl-4 font-medium">
+                <Skeleton className="h-3 w-4" />
+              </th>
+              <th className="px-4 font-medium">
+                <Skeleton className="h-3 w-8" />
+              </th>
+              <th className="px-4 font-medium">
+                <Skeleton className="h-3 w-10" />
+              </th>
+              {showDeltaColumn ? (
+                <th className="px-4 font-medium">
+                  <Skeleton className="h-3 w-8" />
+                </th>
+              ) : null}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <tr key={i} className="border-border border-t [&>td]:py-2">
+                <td className="px-2 pl-4">
+                  <Skeleton className="h-3 w-5" />
+                </td>
+                <td className="min-w-0 overflow-hidden px-4">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Skeleton className="size-6 shrink-0 rounded-md" />
+                    <Skeleton className="h-3 max-w-full min-w-0 flex-1" />
+                  </div>
+                </td>
+                <td className="px-4">
+                  <Skeleton className="h-3 w-10" />
+                </td>
+                {showDeltaColumn ? (
+                  <td className="px-4">
+                    <Skeleton className="h-3 w-8" />
+                  </td>
+                ) : null}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
       {showMoreFooter ? (
-        <div className="mt-6 shrink-0 px-4 py-2">
+        <div className={cn("shrink-0 px-4 py-2", showMoreFooter && "mt-0")}>
           <Skeleton className="h-9 w-full rounded-lg" />
         </div>
       ) : null}

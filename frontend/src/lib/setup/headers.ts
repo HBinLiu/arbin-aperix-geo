@@ -1,35 +1,48 @@
+type SetupLoadingFlags = {
+  discovering: boolean;
+  loadingTopics: boolean;
+  generatingPrompts: boolean;
+};
+
+/** 右侧竖向步骤条：异步加载时指向即将进入的步骤 */
+export function setupVerticalStep(step: number, flags: SetupLoadingFlags): number {
+  if (step === 1 && flags.loadingTopics) return 2;
+  if (step === 2 && flags.generatingPrompts) return 3;
+  return step;
+}
+
 export function setupStepHeader(
   step: number,
-  flags: { analyzingProfile: boolean; discoveringCompetitors: boolean; generatingPrompts: boolean },
+  flags: SetupLoadingFlags,
 ): { title: string; subtitle: string } | null {
-  if (step === 1 && flags.analyzingProfile) {
+  if (step === 1 && flags.discovering) {
     return {
-      title: "正在生成画像",
-      subtitle: "我们正在分析品牌定位，并生成检索词与监测主题。",
+      title: "研究竞争对手",
+      subtitle: "我们正在分析您所在的市场中最相关的竞争对手。",
     };
   }
-  if (step === 2 && flags.discoveringCompetitors) {
+  if (step === 1 && flags.loadingTopics) {
     return {
-      title: "搜索竞争对手",
-      subtitle: "基于您确认的检索词，正在检索并交叉验算竞品。",
+      title: "正在生成主题",
+      subtitle: "我们正在根据您的竞品与市场分析生成主题。",
     };
   }
-  if (step === 3 && flags.generatingPrompts) {
+  if (step === 2 && flags.generatingPrompts) {
     return {
-      title: "正在生成提示词",
+      title: "生成初始提示词",
       subtitle: "我们正基于您选择的主题、竞争对手和市场分析生成个性化提示词。",
     };
   }
   if (step === 1) {
     return {
-      title: "审查检索词与监测主题",
-      subtitle: "检索词用于搜索竞品；监测主题用于生成 AI 提示词。请核对品牌画像并勾选要保留的项。",
+      title: "你们的主要竞争对手是谁？",
+      subtitle: "我们将展示您的可见度与他们的相比如何。",
     };
   }
   if (step === 2) {
     return {
-      title: "你们的主要竞争对手是谁？",
-      subtitle: "我们将展示您的可见度与他们的相比如何。",
+      title: "审查监测主题",
+      subtitle: "我们已根据您的品牌和竞争对手生成主题，请选择用于生成提示词的主题。",
     };
   }
   if (step === 3) {

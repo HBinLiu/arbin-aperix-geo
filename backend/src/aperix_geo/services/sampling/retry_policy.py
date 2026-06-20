@@ -23,6 +23,10 @@ def is_retryable_sampling_error(exc: BaseException) -> bool:
 
 
 def _is_retryable_llm_error(exc: SamplingLLMError) -> bool:
+    from aperix_geo.services.alerts.billing import is_billing_provider_error
+
+    if is_billing_provider_error(str(exc), exc.status_code):
+        return False
     if exc.retryable is True:
         return True
     if exc.retryable is False:

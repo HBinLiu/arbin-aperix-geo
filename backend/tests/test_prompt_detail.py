@@ -1,4 +1,4 @@
-"""Tests for prompt detail response listings."""
+"""Tests for prompt detail page payload."""
 
 from __future__ import annotations
 
@@ -9,10 +9,12 @@ from uuid import uuid4
 from aperix_geo.db.models import Subject, SubjectType
 from aperix_geo.services.analysis import _query
 from aperix_geo.services.analysis import prompt_detail as mod
-from aperix_geo.services.analysis.signal_load import LLMResponseSignalRow, load_llm_response_signals
 from aperix_geo.services.analysis.entity import OWN_ENTITY_ID
-from aperix_geo.services.sampling.signals import build_llm_response_signal_rows
-from aperix_geo.services.sampling.parsed import ParsedSamplingResult
+from aperix_geo.services.analysis.signal_load import (
+    LLMResponseSignalRow,
+    load_llm_response_other_brand_signals,
+    load_llm_response_signals,
+)
 from tests.parsed_fixtures import entity_signal, parsed_payload, signal_rows_from_payload
 
 
@@ -30,9 +32,10 @@ def _signals_from_rows(rows, subject: Subject, payloads: list[dict]) -> list[LLM
     return signal_rows_from_payload(rows, subject, parsed_payloads=payloads)
 
 
-def test_build_prompt_detail_responses_groups_chat_and_citation() -> None:
+def test_build_prompt_detail_groups_chat_and_citation() -> None:
     subject = _subject()
     prompt_id = uuid4()
+    topic_id = uuid4()
     payloads = [
         parsed_payload(
             entity_signal(
@@ -63,15 +66,29 @@ def test_build_prompt_detail_responses_groups_chat_and_citation() -> None:
             parsed=payloads[1],
         ),
     ]
+    prompt = SimpleNamespace(
+        id=prompt_id,
+        subject_id=subject.id,
+        topic_id=topic_id,
+        text="Best CRM tools?",
+        search_intent="informational",
+    )
+    topic = SimpleNamespace(id=topic_id, name="CRM")
 
     signals = _signals_from_rows(rows, subject, payloads)
     original_responses = _query.responses_in_window.override
     original_signals = load_llm_response_signals.override
+    original_other_signals = load_llm_response_other_brand_signals.override
     _query.responses_in_window.override = lambda *args, **kwargs: rows
     load_llm_response_signals.override = lambda *args, **kwargs: signals
+    load_llm_response_other_brand_signals.override = lambda *args, **kwargs: []
+
+    db = SimpleNamespace(
+        get=lambda model, pk: prompt if pk == prompt_id else topic if pk == topic_id else None
+    )
     try:
-        result = mod.build_prompt_detail_responses(
-            db=None,  # type: ignore[arg-type]
+        result = mod.build_prompt_detail(
+            db=db,  # type: ignore[arg-type]
             subject=subject,
             dt_from=datetime(2026, 6, 1, tzinfo=UTC),
             dt_to=datetime(2026, 6, 30, tzinfo=UTC),
@@ -80,10 +97,17 @@ def test_build_prompt_detail_responses_groups_chat_and_citation() -> None:
     finally:
         _query.responses_in_window.override = original_responses
         load_llm_response_signals.override = original_signals
+        load_llm_response_other_brand_signals.override = original_other_signals
 
     assert result["entity_id"] == OWN_ENTITY_ID
-    assert len(result["chat_responses"]) == 2
+    assert result["prompt_text"] == "Best CRM tools?"
+    assert result["topic_name"] == "CRM"
+    assert result["visibility_rate"] == 0.5
+    assert result["average_rank"] == 14.0
+    assert result["citation_rate"] == 1.0
+    assert len(result["visibility_series"]) == 2
+    assert len(result["platforms"]) == 2
+    assert result["opportunity"] is None
+    assert "chat_responses" not in result
     assert len(result["citation_responses"]) == 1
-    assert result["chat_responses"][0]["mentioned"] is True
-    assert result["chat_responses"][0]["rank"] == 14.0
     assert result["citation_responses"][0]["cited_on_source"] is True

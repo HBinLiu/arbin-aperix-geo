@@ -1,6 +1,12 @@
 import type { CSSProperties } from "react";
 
-import type { ContentOpportunityItem, OpportunityPriority } from "@/types";
+import type {
+  CitationMentionedBrand,
+  ContentOpportunityDetailTab,
+  ContentOpportunityItem,
+  ContentOpportunitySortField,
+  OpportunityPriority,
+} from "@/types";
 
 export const CONTENT_OPPORTUNITY_TITLE = "内容机会";
 export const CONTENT_OPPORTUNITY_DESCRIPTION =
@@ -22,13 +28,13 @@ export type ContentOpportunityColumn = {
 };
 
 export const CONTENT_OPPORTUNITY_COLUMNS: readonly ContentOpportunityColumn[] = [
-  { id: "prompt", width: "36%", minWidth: 240 },
-  { id: "priority", width: "10%", minWidth: 100 },
+  { id: "prompt", width: "32%", minWidth: 240 },
+  { id: "priority", width: "12%", minWidth: 120 },
   { id: "platform", width: "12%", minWidth: 135 },
   { id: "competitors", width: "12%", minWidth: 135 },
-  { id: "brandGap", width: "11%", minWidth: 120 },
-  { id: "sourceGap", width: "11%", minWidth: 120 },
-  { id: "action", width: "8%", minWidth: 60 },
+  { id: "brandGap", width: "12%", minWidth: 135 },
+  { id: "sourceGap", width: "12%", minWidth: 135 },
+  { id: "action", width: "8%", minWidth: 80 },
 ];
 
 /** 容器窄于此宽度时出现横向滚动 */
@@ -54,16 +60,19 @@ export function contentOpportunityColumnColStyle(
 
 export type ContentOpportunityRow = {
   id: string;
+  promptId: string;
   promptText: string;
   priority: OpportunityPriority;
   priorityLabel: string;
-  platform: string;
-  competitors: string[];
+  platforms: string[];
+  competitors: CitationMentionedBrand[];
   brandGap: string;
   brandGapNum: number;
+  brandGapPriority: OpportunityPriority;
   brandGapSub: string;
   sourceGap: string;
   sourceGapNum: number;
+  sourceGapPriority: OpportunityPriority;
   sourceGapSub: string;
 };
 
@@ -83,28 +92,53 @@ function formatGapRate(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
 }
 
-function gapSubtext(own: number, total: number): string {
+export function gapReplySubtext(own: number, total: number): string {
   return `${own}/${total} 条回复`;
 }
 
 export function buildContentOpportunityRows(items: ContentOpportunityItem[]): ContentOpportunityRow[] {
   return items.map((item) => ({
     id: item.id,
+    promptId: item.prompt_id,
     promptText: item.prompt_text,
     priority: item.priority,
     priorityLabel: PRIORITY_LABELS[item.priority],
-    platform: item.platform,
-    competitors: item.competitors,
+    platforms: item.platforms,
+    competitors: item.competitors.map((label) => ({ label, domain: null })),
     brandGap: formatGapRate(item.brand_gap_rate),
     brandGapNum: item.brand_gap_rate,
-    brandGapSub: gapSubtext(item.brand_own_count, item.brand_total_count),
+    brandGapPriority: item.brand_gap_priority,
+    brandGapSub: gapReplySubtext(item.brand_own_count, item.brand_total_count),
     sourceGap: formatGapRate(item.source_gap_rate),
     sourceGapNum: item.source_gap_rate,
-    sourceGapSub: gapSubtext(item.source_own_count, item.source_total_count),
+    sourceGapPriority: item.source_gap_priority,
+    sourceGapSub: gapReplySubtext(item.source_own_count, item.source_total_count),
   }));
 }
 
 export type ContentOpportunitySortColumn = "priority" | "brandGap" | "sourceGap";
+
+export function contentOpportunitySortToApiField(
+  column: ContentOpportunitySortColumn,
+  dir: "asc" | "desc",
+): { sortBy: ContentOpportunitySortField; order: "asc" | "desc" } {
+  const sortBy: ContentOpportunitySortField =
+    column === "brandGap"
+      ? "brand_gap_rate"
+      : column === "sourceGap"
+        ? "source_gap_rate"
+        : "priority";
+  return { sortBy, order: dir };
+}
+
+export const CONTENT_OPPORTUNITY_DETAIL_TABS: {
+  id: ContentOpportunityDetailTab;
+  label: string;
+}[] = [
+  { id: "brand", label: "品牌差距" },
+  { id: "source", label: "来源差距" },
+  { id: "chat", label: "聊天" },
+];
 
 export function sortContentOpportunityRows(
   rows: ContentOpportunityRow[],
@@ -129,10 +163,4 @@ export function filterContentOpportunityRows(
   const query = search.trim().toLowerCase();
   if (!query) return rows;
   return rows.filter((row) => row.promptText.toLowerCase().includes(query));
-}
-
-export function gapTone(value: number): "high" | "medium" | "low" {
-  if (value >= 0.8) return "high";
-  if (value >= 0.5) return "medium";
-  return "low";
 }

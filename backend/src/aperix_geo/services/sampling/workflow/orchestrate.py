@@ -11,6 +11,10 @@ RESUME_PENDING_SAMPLING = "aperix_geo.tasks.sampling.sampling_resume_pending"
 
 
 def enqueue_sampling_orchestration(job_id: UUID) -> None:
+    from aperix_geo.services.sampling.workflow.dispatch import try_schedule_sampling_orchestration_task
+
+    if not try_schedule_sampling_orchestration_task(job_id):
+        return
     celery_app.send_task(ORCHESTRATE_SAMPLING_JOB, args=[str(job_id)])
 
 

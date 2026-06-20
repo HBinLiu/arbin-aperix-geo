@@ -29,29 +29,3 @@ def safe_float(data: dict[str, Any], key: str) -> float | None:
         return float(val)
     except (TypeError, ValueError):
         return None
-
-
-def normalize_monitoring_scope(raw: dict[str, Any] | None) -> dict[str, Any]:
-    if raw is None:
-        return {}
-    if not isinstance(raw, dict):
-        return {}
-    out: dict[str, Any] = {}
-    if region := raw.get("region"):
-        if isinstance(region, str) and region.strip():
-            out["region"] = region.strip()
-    if language := raw.get("language"):
-        if isinstance(language, str) and language.strip():
-            out["language"] = language.strip()
-    if note := raw.get("note"):
-        if isinstance(note, str) and note.strip():
-            out["note"] = note.strip()
-    niche = raw.get("niche_profile")
-    if isinstance(niche, dict) and niche:
-        out["niche_profile"] = {
-            key: str(value).strip()
-            for key, value in niche.items()
-            if key in ("company", "industry", "core_features", "target_customers", "micro_keywords")
-            and str(value or "").strip()
-        }
-    return out

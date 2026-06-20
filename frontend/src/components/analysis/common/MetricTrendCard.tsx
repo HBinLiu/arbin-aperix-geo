@@ -1,14 +1,16 @@
 import { CircleHelp } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { LineChartSkeleton } from "@/components/analysis/common/MetricsSkeleton";
-import { SimpleLineChart } from "@/components/analysis/common/SimpleLineChart";
-import { Badge } from "@/components/ui/badge";
+import {
+  SimpleLineChart,
+  type SimpleLineChartProps,
+} from "@/components/analysis/common/SimpleLineChart";
+import { DeltaBadge, type DeltaBadgeProps } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { MultiSeriesPoint } from "@/lib/analysis/chart";
-import { isNeutralDelta } from "@/lib/analysis/format";
 import { cn } from "@/lib/utils";
 
 type MetricTrendCardProps = {
@@ -40,33 +42,12 @@ type MetricTrendCardProps = {
   chart?: React.ReactNode;
   /** 是否展示 KPI 旁的环比 Badge，默认 true */
   showValueDelta?: boolean;
+  /** 是否展示 KPI 数值，默认 true */
+  showValue?: boolean;
 };
 
-function MetricDelta({
-  delta,
-  loading,
-}: {
-  delta: string | null | undefined;
-  loading?: boolean;
-}) {
-  if (loading || isNeutralDelta(delta)) {
-    return (
-      <Badge variant="muted" className="rounded-lg px-1.5 py-0.5 text-xs font-medium tabular-nums">
-        -
-      </Badge>
-    );
-  }
-  if (!delta) return null;
-
-  const isUp = delta.startsWith("+");
-  const isDown = delta.startsWith("-");
-  const variant = isUp ? "green" : isDown ? "red" : "muted";
-
-  return (
-    <Badge variant={variant} className="rounded-lg px-1.5 py-0.5 text-xs font-medium tabular-nums">
-      {delta}
-    </Badge>
-  );
+export function MetricDelta(props: DeltaBadgeProps) {
+  return <DeltaBadge {...props} className={props.className} />;
 }
 
 function MetricTitleInfo({ title, description }: { title: string; description: string }) {
@@ -120,28 +101,64 @@ export function MetricTrendCard({
   loading = false,
   chart,
   showValueDelta = true,
+  showValue = true,
 }: MetricTrendCardProps) {
   const hasPeriodControls = Boolean(
     !chart && (onToggleCurrentPeriod || onTogglePreviousPeriod || onToggleCompare),
   );
-  const splitHeader = Boolean(chart);
+  const compactHeader = embedded && !showValue && !hasPeriodControls && !chart;
+  const splitHeader = Boolean(chart) || compactHeader;
   const fixedChart = chartHeight != null;
+  const fillChart = embedded && !fixedChart;
   const overlayPrevious = !showCompare && showPreviousPeriod;
+
+  const lineChartProps = useMemo(
+    (): SimpleLineChartProps => ({
+      className: fixedChart ? "w-full" : "min-h-0 min-w-0 flex-1",
+      height: chartHeight,
+      multiSeries,
+      singleSeries,
+      labels,
+      hiddenLegendKeys,
+      onToggleLegendKey,
+      previousSeries: overlayPrevious ? previousSeries : undefined,
+      overlayPrevious,
+      showCurrentSeries: showCurrentPeriod,
+      showPreviousSeries: showPreviousPeriod,
+      valueFormatter,
+      yAxisMode,
+    }),
+    [
+      fixedChart,
+      chartHeight,
+      multiSeries,
+      singleSeries,
+      labels,
+      hiddenLegendKeys,
+      onToggleLegendKey,
+      overlayPrevious,
+      previousSeries,
+      showCurrentPeriod,
+      showPreviousPeriod,
+      valueFormatter,
+      yAxisMode,
+    ],
+  );
 
   const displayValue = value ?? "-";
 
-  const valueBlock = (
-    <div className="flex shrink-0 items-baseline gap-2">
+  const valueBlock = showValue ? (
+    <div className="flex shrink-0 items-center gap-2">
       <span className="text-lg font-bold tracking-tight tabular-nums">{displayValue}</span>
-      {showValueDelta ? <MetricDelta delta={delta} loading={loading} /> : null}
+      {showValueDelta ? <MetricDelta delta={delta} /> : null}
     </div>
-  );
+  ) : null;
 
   return (
     <div
       className={cn(
         embedded ? "bg-transparent" : "border-border bg-card rounded-lg border p-6",
-        fixedChart && "flex h-full flex-col",
+        (fixedChart || fillChart) && "flex h-full flex-col",
         className,
       )}
     >
@@ -160,10 +177,12 @@ export function MetricTrendCard({
               <h3 className="text-base font-bold">{title}</h3>
               {description ? <MetricTitleInfo title={title} description={description} /> : null}
             </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-lg font-bold tracking-tight tabular-nums">{displayValue}</span>
-              {showValueDelta ? <MetricDelta delta={delta} loading={loading} /> : null}
-            </div>
+            {showValue ? (
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-bold tracking-tight tabular-nums">{displayValue}</span>
+                {showValueDelta ? <MetricDelta delta={delta} /> : null}
+              </div>
+            ) : null}
           </div>
           {hasPeriodControls ? (
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-5 text-sm">
@@ -207,32 +226,18 @@ export function MetricTrendCard({
           "min-w-0 w-full mx-2",
           fixedChart ? "mt-2 shrink-0" : "mt-3 min-h-0 flex flex-1 flex-col",
         )}
-        style={fixedChart ? { minHeight: chartHeight } : undefined}
+        style={fixedChart ? { height: chartHeight, minHeight: chartHeight } : undefined}
         aria-busy={loading}
       >
         {loading ? (
           <LineChartSkeleton
-            chartHeight={chartHeight}
+            chartHeight={fixedChart ? chartHeight : undefined}
             className={fixedChart ? "w-full" : "min-h-0 min-w-0 flex-1"}
           />
         ) : chart ? (
           chart
         ) : (
-          <SimpleLineChart
-            className={fixedChart ? "w-full" : "min-h-0 min-w-0 flex-1"}
-            height={chartHeight}
-            multiSeries={multiSeries}
-            singleSeries={singleSeries}
-            labels={labels}
-            hiddenLegendKeys={hiddenLegendKeys}
-            onToggleLegendKey={onToggleLegendKey}
-            previousSeries={overlayPrevious ? previousSeries : undefined}
-            overlayPrevious={overlayPrevious}
-            showCurrentSeries={showCurrentPeriod}
-            showPreviousSeries={showPreviousPeriod}
-            valueFormatter={valueFormatter}
-            yAxisMode={yAxisMode}
-          />
+          <SimpleLineChart {...lineChartProps} />
         )}
       </div>
     </div>

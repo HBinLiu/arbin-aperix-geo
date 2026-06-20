@@ -32,7 +32,6 @@ def entity_signal(**kwargs: Any) -> dict[str, Any]:
         "mention_count": 0,
         "mention_rank": None,
         "sentiment_score": None,
-        "sentiment_label": "neutral",
         "has_domain_link": False,
         "cited_on_source": False,
     }

@@ -3,18 +3,18 @@ import { useState } from "react";
 import { SentimentResponseTable } from "@/components/analysis/sentiment/SentimentResponseTable";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SENTIMENT_TABS } from "@/lib/analysis/sentiment";
-import type { SamplingPlatform, SentimentResponseRow, SentimentTab } from "@/types";
+import type { AnalysisFilters, SamplingPlatform, SentimentTab } from "@/types";
 
 type SentimentResponsesSectionProps = {
-  responses: SentimentResponseRow[];
+  subjectId: string;
+  filters: AnalysisFilters;
   platformsMeta: SamplingPlatform[];
-  loading?: boolean;
 };
 
 export function SentimentResponsesSection({
-  responses,
+  subjectId,
+  filters,
   platformsMeta,
-  loading = false,
 }: SentimentResponsesSectionProps) {
   const [activeTab, setActiveTab] = useState<SentimentTab>("positive");
 
@@ -34,10 +34,10 @@ export function SentimentResponsesSection({
       </Tabs>
 
       <SentimentResponseTable
+        subjectId={subjectId}
+        filters={filters}
         activeTab={activeTab}
-        responses={responses}
         platformsMeta={platformsMeta}
-        loading={loading}
       />
     </div>
   );

@@ -1,39 +1,52 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+
 import { AnalysisRankTable } from "@/components/analysis/common/AnalysisRankTable";
 import type { RankRow } from "@/components/analysis/common/AnalysisRankTable";
 import { MetricTrendCard } from "@/components/analysis/common/MetricTrendCard";
-import { SimpleLineChart } from "@/components/analysis/common/SimpleLineChart";
 import { PlatformLogo } from "@/components/brand/PlatformLogo";
-import type { PlatformMatrixMetricDefinition } from "@/lib/analysis/platform";
-import { resolvePlatformMeta } from "@/lib/analysis/shared";
-import type { PlatformMatrixSeriesPoint, SamplingPlatform } from "@/types";
-import { useMemo } from "react";
+import type { MultiSeriesPoint } from "@/lib/analysis/chart";
+import { platformMatrixMetricDescription, type PlatformMatrixMetricDefinition } from "@/lib/analysis/platform";
 
 const SECTION_HEIGHT = 380;
-const CHART_HEIGHT = 270;
 const RANK_TABLE_HEIGHT = SECTION_HEIGHT - 24;
 
 type PlatformMetricSectionProps = {
   metric: PlatformMatrixMetricDefinition;
-  selectedPlatformId: string | null;
-  platformsMeta: SamplingPlatform[];
-  value: number | null | undefined;
-  series: PlatformMatrixSeriesPoint[];
+  multiSeries: MultiSeriesPoint[];
+  chartLabels: string[];
+  scopeKey: string;
   rankRows: RankRow[];
   loading?: boolean;
 };
 
+function useChartLegendToggle(scopeKey: string) {
+  const [hiddenLegendKeys, setHiddenLegendKeys] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    setHiddenLegendKeys(new Set());
+  }, [scopeKey]);
+
+  const toggleLegendKey = useCallback((key: string) => {
+    setHiddenLegendKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  return { hiddenLegendKeys, toggleLegendKey };
+}
+
 export function PlatformMetricSection({
   metric,
-  selectedPlatformId,
-  platformsMeta,
-  value,
-  series,
+  multiSeries,
+  chartLabels,
+  scopeKey,
   rankRows,
   loading = false,
 }: PlatformMetricSectionProps) {
-  const platformLabel = selectedPlatformId
-    ? resolvePlatformMeta(selectedPlatformId, platformsMeta).label
-    : "";
+  const { hiddenLegendKeys, toggleLegendKey } = useChartLegendToggle(scopeKey);
 
   const rankRowsWithIcons = useMemo(
     () =>
@@ -57,33 +70,22 @@ export function PlatformMetricSection({
     >
       <div className="@container flex flex-wrap items-stretch">
         <div
-          className="flex min-w-[min(100%,480px)] flex-[3] flex-col p-5"
+          className="flex min-h-0 min-w-[min(100%,480px)] flex-[3] flex-col p-5"
           style={{ minHeight: SECTION_HEIGHT }}
         >
           <MetricTrendCard
             embedded
             loading={loading}
-            chartHeight={CHART_HEIGHT}
-            className="flex flex-col"
+            className="flex min-h-0 flex-1 flex-col"
             title={metric.label}
-            description={`${platformLabel || "所选平台"}的${metric.label}趋势`}
-            value={value != null ? metric.formatValue(value) : undefined}
-            showValueDelta={false}
+            description={platformMatrixMetricDescription(metric.label)}
+            showValue={false}
+            multiSeries={multiSeries}
+            labels={chartLabels}
+            hiddenLegendKeys={hiddenLegendKeys}
+            onToggleLegendKey={toggleLegendKey}
             valueFormatter={(v) => metric.formatValue(v)}
             yAxisMode={metric.yAxisMode}
-            chart={
-              selectedPlatformId ? (
-                <SimpleLineChart
-                  singleSeries={series.map((point) => ({ date: point.date, value: point.value }))}
-                  labels={[platformLabel]}
-                  showPreviousSeries={false}
-                  valueFormatter={(v) => metric.formatValue(v)}
-                  yAxisMode={metric.yAxisMode}
-                  height={CHART_HEIGHT}
-                  className="mt-4 w-full"
-                />
-              ) : undefined
-            }
           />
         </div>
         <div
@@ -99,6 +101,7 @@ export function PlatformMetricSection({
             valueHeader={metric.rankHeader}
             rows={rankRowsWithIcons}
             entityHeader="平台"
+            showEntityHover={false}
             emptyMessage="暂无平台排名数据"
           />
         </div>

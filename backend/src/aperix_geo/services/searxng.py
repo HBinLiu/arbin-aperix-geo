@@ -1,4 +1,4 @@
-"""SearXNG JSON API 客户端（竞品发现 + DeepSeek/Kimi 采样联网）。"""
+"""SearXNG JSON API 客户端（采样联网、品牌调研、域名解析等）。"""
 
 from __future__ import annotations
 
@@ -66,7 +66,7 @@ def _search_searxng(query: str, *, max_results: int, base_url: str) -> list[Sear
         resp.raise_for_status()
         payload = resp.json()
     except (httpx.HTTPError, ValueError):
-        logger.warning("竞品发现: 【SearXNG】搜索失败 查询=%r", q, exc_info=True)
+        logger.warning("SearXNG: 搜索失败 查询=%r", q, exc_info=True)
         return []
 
     raw_results = payload.get("results") or []
@@ -74,10 +74,7 @@ def _search_searxng(query: str, *, max_results: int, base_url: str) -> list[Sear
     if raw_count == 0:
         dead = payload.get("unresponsive_engines") or []
         if dead:
-            logger.warning(
-                "竞品发现: 【SearXNG】原始条数=0 不可用引擎=%s",
-                dead,
-            )
+            logger.warning("SearXNG: 原始条数=0 不可用引擎=%s", dead)
 
     hits: list[SearchHit] = []
     for item in raw_results:
@@ -92,8 +89,8 @@ def _search_searxng(query: str, *, max_results: int, base_url: str) -> list[Sear
         if len(hits) >= max_results:
             break
 
-    logger.info(
-        "竞品发现: 【SearXNG】查询=%r 原始条数=%d 可用条数=%d",
+    logger.debug(
+        "SearXNG: 查询=%r 原始条数=%d 可用条数=%d",
         q,
         raw_count,
         len(hits),
@@ -102,16 +99,13 @@ def _search_searxng(query: str, *, max_results: int, base_url: str) -> list[Sear
 
 
 def search_text(query: str, *, max_results: int | None = None) -> list[SearchHit]:
-    """竞品发现搜索：仅 SearXNG（须配置 SEARXNG_BASE_URL）。"""
-    from aperix_geo.services.competitor.defaults import SEARCH_PAGE_SIZE
-
+    """通用 SearXNG 文本搜索（须配置 SEARXNG_BASE_URL）。"""
     settings = get_settings()
-    limit = max_results or SEARCH_PAGE_SIZE
-    limit = max(3, min(limit, 50))
+    limit = max(3, min(max_results or 10, 50))
 
     base_url = settings.searxng_base_url.strip()
     if not base_url:
-        logger.warning("竞品发现: 未配置 SEARXNG_BASE_URL，跳过搜索 查询=%r", query)
+        logger.warning("SearXNG: 未配置 SEARXNG_BASE_URL，跳过搜索 查询=%r", query)
         return []
 
     return _search_searxng(query, max_results=limit, base_url=base_url)

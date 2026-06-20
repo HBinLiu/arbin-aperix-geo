@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from aperix_geo.db.models import Competitor, Subject
 from aperix_geo.schemas.catalog import CompetitorItem
 from aperix_geo.services.subject.domain_fields import prepare_domain_and_website_url
 from aperix_geo.utils.domains import ensure_brand
+
+
+def _cross_validated_at(item: CompetitorItem) -> datetime | None:
+    if item.cross_validate_score is None:
+        return None
+    return datetime.now(UTC)
 
 
 def apply_competitors(
@@ -19,7 +27,12 @@ def apply_competitors(
         summary = (item.summary or "").strip()
         domain_raw = (item.domain or "").strip()
         if domain_raw:
-            domain, website_url = prepare_domain_and_website_url(domain_raw, item.website_url)
+            user_url = (item.website_url or "").strip()
+            domain, website_url = prepare_domain_and_website_url(
+                domain_raw,
+                user_url,
+                probe=not bool(user_url),
+            )
             if not domain or len(domain) < 3 or domain in seen_domains:
                 continue
             seen_domains.add(domain)
@@ -32,6 +45,9 @@ def apply_competitors(
                     brand=brand,
                     aliases=alias_list,
                     summary=summary,
+                    cross_validate_score=item.cross_validate_score,
+                    cross_validate_reason=(item.cross_validate_reason or "").strip(),
+                    cross_validated_at=_cross_validated_at(item),
                 )
             )
             continue
@@ -45,5 +61,14 @@ def apply_competitors(
         seen_brands.add(key)
         alias_list = [str(a).strip() for a in (item.aliases or []) if str(a).strip()]
         subject.competitors.append(
-            Competitor(domain="", website_url="", brand=brand, aliases=alias_list, summary=summary)
+            Competitor(
+                domain="",
+                website_url="",
+                brand=brand,
+                aliases=alias_list,
+                summary=summary,
+                cross_validate_score=item.cross_validate_score,
+                cross_validate_reason=(item.cross_validate_reason or "").strip(),
+                cross_validated_at=_cross_validated_at(item),
+            )
         )

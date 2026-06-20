@@ -205,7 +205,7 @@ export function DiagnosisMentionTable({ rows, platformsMeta, loading = false }: 
               const showReviewActions = index === 0 && page === 1;
               return (
                 <tr key={row.id} className={performanceTableClasses.row}>
-                  <td className="overflow-hidden pl-5" style={diagnosisPromptCellStyle(DIAGNOSIS_MENTION_COLUMNS[0].minWidth)}>
+                  <td className="text-foreground overflow-hidden pl-5" style={diagnosisPromptCellStyle(DIAGNOSIS_MENTION_COLUMNS[0].minWidth)}>
                     <PromptTextCell text={row.promptText} />
                   </td>
                   <td>

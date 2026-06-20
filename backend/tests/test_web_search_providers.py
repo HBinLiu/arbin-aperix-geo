@@ -171,6 +171,8 @@ def test_searxng_provider_delegates_to_augmented_chat(
         kwargs = mock_augmented.call_args.kwargs
         assert kwargs["provider_label"] == provider_label
         assert kwargs["model"] == model
+        if provider_label == "Kimi":
+            assert kwargs["temperature"] == 1.0
 
 
 # --- Doubao ---

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
 import { DASHBOARD_SETUP_PATH } from "@/lib/dashboard";
 import { clearSetupCache } from "@/lib/setup";
-import { subjectDisplayLabel, subjectFaviconTarget } from "@/lib/subject";
+import { subjectDisplayLabel, subjectFaviconUrl } from "@/lib/subject";
 import { cn } from "@/lib/utils";
 
 export function SubjectSwitcher() {
@@ -45,6 +45,8 @@ export function SubjectSwitcher() {
     navigate(DASHBOARD_SETUP_PATH);
   };
 
+  const activeFaviconUrl = subjectFaviconUrl(subject);
+
   return (
     <div ref={rootRef} className="relative flex items-center pl-4">
       <button
@@ -54,12 +56,18 @@ export function SubjectSwitcher() {
         onClick={() => setOpen((v) => !v)}
         className="hover:bg-muted/80 flex min-w-0 max-w-[min(100vw-12rem,16rem)] items-center gap-2 rounded-md px-1.5 py-1 outline-hidden"
       >
-        <FaviconImage
-          domain={subjectFaviconTarget(subject)}
-          size={24}
-          className="size-6 shrink-0"
-          iconClassName="size-6"
-        />
+        {activeFaviconUrl ? (
+          <FaviconImage
+            url={activeFaviconUrl}
+            size={24}
+            className="size-6 shrink-0"
+            iconClassName="size-6"
+          />
+        ) : (
+          <span className="bg-muted text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded text-xs font-semibold">
+            {subjectDisplayLabel(subject).slice(0, 1).toUpperCase()}
+          </span>
+        )}
         <span className="truncate text-sm font-semibold">{subjectDisplayLabel(subject)}</span>
         <ChevronsUpDown className="text-muted-foreground size-4 shrink-0" aria-hidden />
       </button>
@@ -73,6 +81,7 @@ export function SubjectSwitcher() {
           <div className="max-h-64 overflow-y-auto p-2">
             {subjects.map((item) => {
               const active = item.id === subject.id;
+              const faviconUrl = subjectFaviconUrl(item);
               return (
                 <button
                   key={item.id}
@@ -81,16 +90,22 @@ export function SubjectSwitcher() {
                   aria-selected={active}
                   onClick={() => onSelect(item.id)}
                   className={cn(
-                    "hover:bg-muted/80 flex w-full min-w-0 items-center gap-2 rounded-md px-3 py-2 text-left text-sm",
-                    active && "bg-muted/50",
+                    "flex w-full min-w-0 items-center gap-2 rounded-md px-3 py-2 text-left text-sm",
+                    active && "bg-muted",
                   )}
                 >
-                  <FaviconImage
-                    domain={subjectFaviconTarget(item)}
-                    size={20}
-                    className="size-5 shrink-0"
-                    iconClassName="size-5"
-                  />
+                  {faviconUrl ? (
+                    <FaviconImage
+                      url={faviconUrl}
+                      size={20}
+                      className="size-5 shrink-0"
+                      iconClassName="size-5"
+                    />
+                  ) : (
+                    <span className="bg-muted text-muted-foreground flex size-5 shrink-0 items-center justify-center rounded text-[10px] font-semibold">
+                      {subjectDisplayLabel(item).slice(0, 1).toUpperCase()}
+                    </span>
+                  )}
                   <span className="min-w-0 flex-1 truncate font-medium">{subjectDisplayLabel(item)}</span>
                   {active ? <Check className="size-4 shrink-0" aria-hidden /> : null}
                 </button>
@@ -100,7 +115,7 @@ export function SubjectSwitcher() {
           <div className="border-border border-t p-2">
             <Button
               type="button"
-              variant="primaryOutline"
+              variant="brandout"
               size="sm"
               onClick={onCreateProject}
               className="w-full"

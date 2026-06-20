@@ -7,7 +7,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import httpx
 
-from aperix_geo.utils.domains import registrable_domain, strip_hostname
+from aperix_geo.utils.domains import is_valid_hostname, registrable_domain, strip_hostname
 from aperix_geo.utils.http import HTML_FETCH_HEADERS
 
 _URL_RE = re.compile(r"https?://[^\s\)\]\"']+", re.IGNORECASE)
@@ -27,6 +27,7 @@ _PLACEHOLDER_REGISTRABLE = frozenset(
     },
 )
 _PLACEHOLDER_HOSTS = frozenset({"localhost", "127.0.0.1", "0.0.0.0", "::1"})
+_NUMERIC_ONLY_HOST_RE = re.compile(r"^[\d.]+$")
 
 
 def extract_urls(text: str) -> list[str]:
@@ -46,6 +47,18 @@ def is_placeholder_citation_host(host: str | None) -> bool:
     return root.endswith((".example", ".test", ".localhost", ".invalid"))
 
 
+def is_valid_citation_host(host: str | None) -> bool:
+    """Real citation host: not placeholder, not numeric-only (e.g. 9.8), has a letter TLD/label."""
+    h = strip_hostname(host or "")
+    if not h or is_placeholder_citation_host(h):
+        return False
+    if _NUMERIC_ONLY_HOST_RE.fullmatch(h):
+        return False
+    if not re.search(r"[a-z]", h):
+        return False
+    return is_valid_hostname(h)
+
+
 def filter_citation_urls(urls: list[str]) -> list[str]:
     """去重并剔除占位/无效域名的引用 URL。"""
     out: list[str] = []
@@ -55,11 +68,24 @@ def filter_citation_urls(urls: list[str]) -> list[str]:
         if not key or key in seen:
             continue
         host = hostname_from_url(key)
-        if not host or is_placeholder_citation_host(host):
+        if not host or not is_valid_citation_host(host):
             continue
         seen.add(key)
         out.append(key)
     return out
+
+
+def is_llm_numeric_fake_url(url: str) -> bool:
+    """True when http(s) URL host looks like an LLM footnote score (e.g. 9.8, 0.5, 3.0.0.1)."""
+    key = (url or "").strip()
+    if not key.lower().startswith(("http://", "https://")):
+        return False
+    host = hostname_from_url(key)
+    if not host:
+        return True
+    if _NUMERIC_ONLY_HOST_RE.fullmatch(host):
+        return True
+    return not re.search(r"[a-z]", host)
 
 
 def hostname_from_url(url: str) -> str | None:
@@ -170,6 +196,50 @@ def homepage_urls(domain: str) -> list[str]:
     「plain HTTP request was sent to HTTPS port」，必须用 https:// 且常需 www。
     """
     return _homepage_https_urls(domain, prefer_www=True)
+
+
+def candidate_website_urls(domain: str, *, preferred_url: str = "") -> list[str]:
+    """URL 候选：优先给定链接，再试 domain 的 www/裸域首页。"""
+    seen: set[str] = set()
+    out: list[str] = []
+    preferred = normalize_user_website_input(preferred_url)
+    if preferred and preferred not in seen:
+        seen.add(preferred)
+        out.append(preferred)
+    for url in homepage_urls(domain):
+        if url not in seen:
+            seen.add(url)
+            out.append(url)
+    return out
+
+
+def probe_first_reachable_url(
+    urls: list[str],
+    *,
+    timeout_s: float = 5.0,
+) -> str | None:
+    """轻量可达性探测：httpx GET，status<400 即视为可打开（不用 Crawl4AI）。"""
+    from aperix_geo.utils.http import HTML_FETCH_HEADERS
+
+    candidates: list[str] = []
+    seen: set[str] = set()
+    for raw in urls:
+        url = normalize_user_website_input(raw)
+        if url and url not in seen:
+            seen.add(url)
+            candidates.append(url)
+    if not candidates:
+        return None
+
+    try:
+        with httpx.Client(headers=HTML_FETCH_HEADERS, follow_redirects=True) as client:
+            for url in candidates:
+                resolved = _probe_reachable_root_url(url, timeout_s=timeout_s, client=client)
+                if resolved:
+                    return resolved
+    except OSError:
+        return None
+    return None
 
 
 def homepage_urls_apex_first(domain: str) -> list[str]:

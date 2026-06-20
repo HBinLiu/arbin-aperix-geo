@@ -22,6 +22,7 @@ from aperix_geo.services.sampling.platforms import (
     resolve_default_sampling_platforms as _resolve_default_sampling_platforms,
     resolve_platforms_for_sampling as _resolve_platforms_for_sampling,
 )
+from aperix_geo.services.sampling.workflow.schedule import subject_has_active_sampling_job
 from aperix_geo.services.subject.rules import validate_brand_competitors, validate_subject_fields
 
 
@@ -68,6 +69,14 @@ def create_and_enqueue_sampling_job(
     if not prompts:
         raise SamplingJobError("No enabled prompts to sample")
 
+    locked_subject = db.execute(
+        select(Subject).where(Subject.id == subject.id).with_for_update()
+    ).scalar_one_or_none()
+    if locked_subject is None:
+        raise SamplingJobError("Subject not found")
+    if subject_has_active_sampling_job(db, subject.id):
+        raise SamplingJobError("A sampling job is already queued or running for this subject")
+
     job = SamplingJob(
         tenant_id=tenant_id,
         subject_id=subject.id,
@@ -89,7 +98,7 @@ def create_and_enqueue_sampling_job(
             )
 
     if update_schedule_anchor:
-        subject.last_sampled_at = datetime.now(UTC)
+        locked_subject.last_sampled_at = datetime.now(UTC)
 
     db.commit()
     db.refresh(job)

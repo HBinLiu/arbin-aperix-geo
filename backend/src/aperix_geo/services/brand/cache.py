@@ -1,4 +1,4 @@
-"""Persistent Redis + L1 cache for resolved brand primary domains."""
+"""Persistent Redis + L1 cache for resolved brand primary domains (subject-scoped)."""
 
 from __future__ import annotations
 
@@ -13,8 +13,7 @@ from aperix_geo.utils.domains import registrable_domain
 
 logger = logging.getLogger(__name__)
 
-_REDIS_PREFIX = "aperix:brand:domain:v1:"
-# L1 仅作进程内加速；Redis 为跨进程/重启的持久层（无 TTL）
+_REDIS_PREFIX = "aperix:brand:domain:v2:"
 _L1_PERMANENT_EXPIRES_AT = 2_000_000_000
 _L1 = BoundedTTLCache(512)
 
@@ -37,23 +36,23 @@ def _normalize_domain(raw: str) -> str:
     return registrable_domain(text) or text
 
 
-def _cache_key(tenant_id: UUID, brand: str) -> str:
+def _cache_key(subject_id: UUID, brand: str) -> str:
     normalized = _normalize_brand_key(brand)
-    digest = hashlib.sha256(f"{tenant_id}:{normalized}".encode("utf-8")).hexdigest()
+    digest = hashlib.sha256(f"{subject_id}:{normalized}".encode("utf-8")).hexdigest()
     return digest
 
 
-def _redis_key(tenant_id: UUID, brand: str) -> str:
-    return f"{_REDIS_PREFIX}{tenant_id}:{_cache_key(tenant_id, brand)}"
+def _redis_key(subject_id: UUID, brand: str) -> str:
+    return f"{_REDIS_PREFIX}{subject_id}:{_cache_key(subject_id, brand)}"
 
 
-def get_brand_domain_cached(*, tenant_id: UUID, brand: str) -> str | None:
+def get_brand_domain_cached(*, subject_id: UUID, brand: str) -> str | None:
     """Return cached domain or None on miss. Empty string is never cached."""
     name = (brand or "").strip()
     if not name:
         return None
 
-    l1_key = _redis_key(tenant_id, name)
+    l1_key = _redis_key(subject_id, name)
     hit = _L1.get(l1_key)
     if isinstance(hit, str) and hit:
         return hit
@@ -68,29 +67,29 @@ def get_brand_domain_cached(*, tenant_id: UUID, brand: str) -> str | None:
     return domain
 
 
-def remember_brand_domain_cached(*, tenant_id: UUID, brand: str, domain: str) -> None:
+def remember_brand_domain_cached(*, subject_id: UUID, brand: str, domain: str) -> None:
     """Persist a resolved domain under brand name (no TTL)."""
     name = (brand or "").strip()
     normalized = _normalize_domain(domain)
     if not name or not normalized:
         return
 
-    l1_key = _redis_key(tenant_id, name)
+    l1_key = _redis_key(subject_id, name)
     _L1.set(l1_key, normalized, expires_at=_L1_PERMANENT_EXPIRES_AT)
     redis_set_json_persistent(l1_key, {"domain": normalized})
-    logger.debug("品牌域名缓存写入 tenant=%s brand=%r domain=%s", tenant_id, name, normalized)
+    logger.debug("品牌域名缓存写入 subject=%s brand=%r domain=%s", subject_id, name, normalized)
 
 
-def remember_brand_row_domains(*, tenant_id: UUID, brand: Brand) -> None:
+def remember_brand_row_domains(*, subject_id: UUID, brand: Brand) -> None:
     """Warm cache for canonical brand name and all aliases."""
     domain = _normalize_domain(brand.domain)
     if not domain:
         return
-    remember_brand_domain_cached(tenant_id=tenant_id, brand=brand.brand, domain=domain)
+    remember_brand_domain_cached(subject_id=subject_id, brand=brand.brand, domain=domain)
     for alias in brand.aliases or []:
         text = str(alias or "").strip()
         if text:
-            remember_brand_domain_cached(tenant_id=tenant_id, brand=text, domain=domain)
+            remember_brand_domain_cached(subject_id=subject_id, brand=text, domain=domain)
 
 
 def clear_brand_domain_cache() -> None:

@@ -14,10 +14,34 @@ from aperix_geo.services.brand.cache import (
     remember_brand_domain_cached,
 )
 from aperix_geo.config import get_settings
-from aperix_geo.services.competitor.filters import SKIP_DOMAINS
 from aperix_geo.services.searxng import SearchHit, search_text
 from aperix_geo.utils.domains import registrable_domain
 from aperix_geo.utils.url import extract_urls, hostname_from_url
+
+# 品牌域名解析时排除的泛域/媒体站（与竞品发现无关，仅用于 search 结果过滤）
+_SKIP_SEARCH_DOMAINS: frozenset[str] = frozenset(
+    {
+        "google.com",
+        "facebook.com",
+        "twitter.com",
+        "x.com",
+        "linkedin.com",
+        "wikipedia.org",
+        "amazon.com",
+        "apple.com",
+        "microsoft.com",
+        "github.com",
+        "youtube.com",
+        "reddit.com",
+        "zhihu.com",
+        "baidu.com",
+        "36kr.com",
+        "weibo.com",
+        "qq.com",
+        "qcc.com",
+        "bilibili.com",
+    },
+)
 
 _NEAR_WINDOW = 120
 _DOMAIN_IN_TEXT_RE = re.compile(
@@ -95,7 +119,7 @@ def _is_usable_brand_domain(domain: str) -> bool:
     normalized = _normalize_domain(domain)
     if not normalized:
         return False
-    if normalized in SKIP_DOMAINS:
+    if normalized in _SKIP_SEARCH_DOMAINS:
         return False
     return True
 
@@ -158,7 +182,7 @@ def search_brand_official_domain(brand: str) -> str:
 def resolve_brand_domain(
     db: Session,
     *,
-    tenant_id: UUID,
+    subject_id: UUID,
     brand: str,
     raw_text: str = "",
     urls: list[str] | None = None,
@@ -173,7 +197,7 @@ def resolve_brand_domain(
         if memoized:
             return memoized
 
-    cached = get_brand_domain_cached(tenant_id=tenant_id, brand=brand)
+    cached = get_brand_domain_cached(subject_id=subject_id, brand=brand)
     if cached:
         if sync_ctx is not None:
             sync_ctx.remember_domain(brand, cached)
@@ -182,17 +206,17 @@ def resolve_brand_domain(
     if sync_ctx is not None:
         existing = sync_ctx.catalog.find_by_name_or_alias(brand)
     else:
-        existing = find_brand_by_name_or_alias(db, tenant_id=tenant_id, brand=brand)
+        existing = find_brand_by_name_or_alias(db, subject_id=subject_id, brand=brand)
     if existing is not None and existing.domain:
         domain = _normalize_domain(existing.domain)
-        remember_brand_domain_cached(tenant_id=tenant_id, brand=brand, domain=domain)
+        remember_brand_domain_cached(subject_id=subject_id, brand=brand, domain=domain)
         if sync_ctx is not None:
             sync_ctx.remember_domain(brand, domain)
         return domain
 
     from_text = extract_domain_from_text_for_brand(raw_text, brand, urls)
     if from_text:
-        remember_brand_domain_cached(tenant_id=tenant_id, brand=brand, domain=from_text)
+        remember_brand_domain_cached(subject_id=subject_id, brand=brand, domain=from_text)
         if sync_ctx is not None:
             sync_ctx.remember_domain(brand, from_text)
         return from_text
@@ -200,7 +224,7 @@ def resolve_brand_domain(
     if allow_search:
         from_search = search_brand_official_domain(brand)
         if from_search:
-            remember_brand_domain_cached(tenant_id=tenant_id, brand=brand, domain=from_search)
+            remember_brand_domain_cached(subject_id=subject_id, brand=brand, domain=from_search)
             if sync_ctx is not None:
                 sync_ctx.remember_domain(brand, from_search)
             return from_search

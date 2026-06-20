@@ -1,77 +1,56 @@
 import { useMemo } from "react";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
-import { fetchOverview, fetchTopicsPerformance } from "@/api/analysis";
-import { useCitationAnalysis } from "@/hooks/useCitationAnalysis";
-import { useVisibilityAnalysis } from "@/hooks/useVisibilityAnalysis";
-import { dateRangeDays, previousDateRange, toAnalysisQueryFilters } from "@/lib/analysis";
-import { buildTopicPerformanceRows } from "@/lib/analysis/prompt";
-import { ownBrandRank } from "@/lib/dashboard/overview";
+import { fetchOverview } from "@/api/analysis";
+import {
+  focusEntityLabel,
+  platformFilterKey,
+  topicFilterKey,
+  toAnalysisQueryFilters,
+} from "@/lib/analysis";
+
+import {
+  buildDashboardTopicRows,
+  buildDashboardVisibilityMetric,
+  dashboardOverviewView,
+} from "@/lib/dashboard/overview";
 import { queryKeys } from "@/lib/queries";
-import type { AnalysisFilters } from "@/types";
+import type { AnalysisEntityRef, AnalysisFilters } from "@/types";
 
-/** 概述页：核心指标 + 可见度趋势/排名 + 主题表现 */
-export function useDashboardOverview(subjectId: string, filters: AnalysisFilters) {
-  const queryFilters = toAnalysisQueryFilters(filters);
-  const { from, to } = useMemo(() => dateRangeDays(Number(filters.days)), [filters.days]);
-  const prevRange = useMemo(() => previousDateRange(from, to), [from, to]);
-  const { entityId, platformId, topicId } = queryFilters;
+/** 概述页：单次请求加载 KPI、可见度趋势、主题表现与排名 */
+export function useDashboardOverview(
+  subjectId: string,
+  filters: AnalysisFilters,
+  entities: AnalysisEntityRef[],
+) {
+  const queryFilters = useMemo(() => toAnalysisQueryFilters(filters), [filters]);
+  const { from, to, entityId, platformIds, topicIds } = queryFilters;
+  const topicKey = topicFilterKey(topicIds);
+  const platformKey = platformFilterKey(platformIds);
 
-  const overviewQuery = useQuery({
-    queryKey: queryKeys.analysisOverview(subjectId, entityId, platformId, topicId, from, to),
-    queryFn: () => fetchOverview(subjectId, queryFilters, from, to),
+  const query = useQuery({
+    queryKey: queryKeys.dashboardOverview(subjectId, entityId, platformKey, topicKey, from, to),
+    queryFn: () => fetchOverview(subjectId, queryFilters),
   });
 
-  const [topicsCurrent, topicsPrevious] = useQueries({
-    queries: [
-      {
-        queryKey: queryKeys.analysisTopics(subjectId, entityId, platformId, topicId, from, to),
-        queryFn: () => fetchTopicsPerformance(subjectId, queryFilters, from, to),
-      },
-      {
-        queryKey: queryKeys.analysisTopics(
-          subjectId,
-          entityId,
-          platformId,
-          topicId,
-          prevRange.from,
-          prevRange.to,
-        ),
-        queryFn: () =>
-          fetchTopicsPerformance(subjectId, queryFilters, prevRange.from, prevRange.to),
-      },
-    ],
-  });
-
-  const visibility = useVisibilityAnalysis(subjectId, filters);
-  const citation = useCitationAnalysis(subjectId, filters);
-
-  const visibilityMetrics = visibility.metrics;
-  const citationOverview = citation.overview;
-
-  const topicRows = useMemo(
-    () => buildTopicPerformanceRows(topicsCurrent.data ?? [], topicsPrevious.data ?? []),
-    [topicsCurrent.data, topicsPrevious.data],
+  const data = query.data;
+  const focusLabel = useMemo(
+    () => focusEntityLabel(entities, data?.entity_id ?? entityId),
+    [data?.entity_id, entityId, entities],
   );
-
-  const topicLoading = topicsCurrent.isLoading || topicsPrevious.isLoading;
+  const focusEntityId = data?.entity_id ?? entityId;
+  const metrics = useMemo(() => dashboardOverviewView(data), [data]);
+  const visibilityMetric = useMemo(
+    () => buildDashboardVisibilityMetric(data, entities, focusEntityId),
+    [data, entities, focusEntityId],
+  );
+  const topicRows = useMemo(() => buildDashboardTopicRows(data?.topic_table), [data?.topic_table]);
 
   return {
-    isLoading:
-      overviewQuery.isLoading ||
-      visibility.isLoading ||
-      citation.isLoading ||
-      topicLoading,
-    overview: overviewQuery.data,
-    ownLabel: visibility.ownLabel,
-    topLabels: visibility.topLabels,
-    visibilityMetric: visibilityMetrics.visibility,
-    citationOverview,
+    isLoading: query.isLoading,
+    metrics,
+    focusLabel,
+    visibilityMetric,
     topicRows,
-    ranks: {
-      visibility: ownBrandRank(visibilityMetrics.visibility.rankRows),
-      citation: ownBrandRank(citationOverview.rankRows),
-      shareVoice: ownBrandRank(visibilityMetrics.shareVoice.rankRows),
-    },
   };
 }

@@ -1,4 +1,4 @@
-"""Platform matrix analysis."""
+"""Platform analysis page — flattened payload (single signal load)."""
 
 from __future__ import annotations
 
@@ -7,24 +7,24 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from aperix_geo.db.models import Prompt, Subject, Topic
+from aperix_geo.db.models import Subject
 from aperix_geo.services.analysis._series import previous_date_range
 from aperix_geo.services.analysis.aggregate import (
     aggregate_metrics,
-    citation_share_from_signals,
     daily_platform_metric_series_from_signals,
     group_signals_by_topic,
     metrics_from_signals,
 )
+from aperix_geo.services.analysis.catalog import load_topic_prompt_catalog
 from aperix_geo.services.analysis.entity import list_analysis_entities, resolve_analysis_entity
-from aperix_geo.services.analysis.performance import build_platform_performance
-from aperix_geo.services.analysis.signal_load import load_llm_response_signals
+from aperix_geo.services.analysis.performance import platform_performance_rows
+from aperix_geo.services.analysis.signal_index import SignalWindowIndex, build_dual_signal_window
+from aperix_geo.services.analysis.signal_load import LLMResponseSignalRow, load_llm_response_signals
+from aperix_geo.services.sampling.platforms import resolve_platforms_for_sampling
 
-PLATFORM_MATRIX_METRICS = ("visibility", "share_voice", "citation", "average_rank", "sentiment")
-
+_PLATFORM_METRICS = ("visibility", "share_voice", "citation", "average_rank", "sentiment")
 _METRIC_FIELDS = {
     "visibility": "visibility_rate",
     "share_voice": "share_voice",
@@ -34,116 +34,202 @@ _METRIC_FIELDS = {
 }
 
 
-def build_platform_matrix_analysis(
+def _signals_flat(index: SignalWindowIndex) -> list[LLMResponseSignalRow]:
+    return [row for rows in index.by_date.values() for row in rows]
+
+
+def _matrix_cell(
+    row_id: str,
+    platform_id: str,
+    *,
+    visibility_rate: float | None,
+    share_voice: float | None,
+    citation_rate: float | None,
+    average_rank: float | None,
+    sentiment_score: float | None,
+) -> dict[str, Any]:
+    return {
+        "row_id": row_id,
+        "platform_id": platform_id,
+        "visibility_rate": visibility_rate,
+        "share_voice": share_voice,
+        "citation_rate": citation_rate,
+        "average_rank": average_rank,
+        "sentiment_score": sentiment_score,
+    }
+
+
+def _build_matrix_cells(
+    signals: list[LLMResponseSignalRow],
+    *,
+    row_dimension: str,
+    platform_ids: list[str],
+    subject: Subject,
+    entities,
+    focus_entity,
+    prompt_to_topic: dict,
+) -> list[dict[str, Any]]:
+    by_platform: dict[str, list[LLMResponseSignalRow]] = defaultdict(list)
+    for row in signals:
+        by_platform[row.platform].append(row)
+
+    cells: list[dict[str, Any]] = []
+
+    for platform_key in platform_ids:
+        platform_signals = by_platform.get(platform_key, [])
+
+        if row_dimension == "competitor":
+            entity_agg = aggregate_metrics(platform_signals, subject=subject, group_by="entity")
+            entity_metrics = {row["label"]: row["metrics"] for row in entity_agg.rows}
+
+            for entity in entities:
+                metrics = entity_metrics.get(entity.label, {})
+                cells.append(
+                    _matrix_cell(
+                        entity.id,
+                        platform_key,
+                        visibility_rate=metrics.get("visibility_rate"),
+                        share_voice=metrics.get("share_voice"),
+                        citation_rate=metrics.get("citation_rate"),
+                        average_rank=metrics.get("average_rank"),
+                        sentiment_score=metrics.get("sentiment_score"),
+                    )
+                )
+            continue
+
+        topic_entity_signals = [row for row in platform_signals if row.entity_id == focus_entity.id]
+        by_topic = group_signals_by_topic(topic_entity_signals, prompt_to_topic=prompt_to_topic)
+        for tid, subset in by_topic.items():
+            metrics = metrics_from_signals(subset, subject=subject, all_signals_for_voice=platform_signals)
+            cells.append(
+                _matrix_cell(
+                    str(tid),
+                    platform_key,
+                    visibility_rate=metrics.visibility_rate,
+                    share_voice=metrics.share_voice,
+                    citation_rate=metrics.citation_rate,
+                    average_rank=metrics.average_rank,
+                    sentiment_score=metrics.sentiment_score,
+                )
+            )
+
+    return cells
+
+
+def _build_platform_charts(
+    platform_ids: list[str],
+    signals: list[LLMResponseSignalRow],
+    *,
+    subject: Subject,
+    entity_id: str,
+) -> dict[str, dict[str, list[dict[str, Any]]]]:
+    """Per-metric multi-platform daily series keyed by platform id."""
+    by_platform: dict[str, list[LLMResponseSignalRow]] = defaultdict(list)
+    for row in signals:
+        by_platform[row.platform].append(row)
+
+    charts: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    for metric in _PLATFORM_METRICS:
+        field = _METRIC_FIELDS[metric]
+        per_platform: dict[str, list[dict[str, Any]]] = {
+            platform_key: daily_platform_metric_series_from_signals(
+                by_platform.get(platform_key, []),
+                subject=subject,
+                entity_id=entity_id,
+                field=field,
+            )
+            for platform_key in platform_ids
+        }
+
+        dates = sorted({point["date"] for points in per_platform.values() for point in points})
+        current: list[dict[str, Any]] = []
+        for date in dates:
+            values: dict[str, float] = {}
+            for platform_key in platform_ids:
+                for point in per_platform[platform_key]:
+                    if point["date"] == date and point.get("value") is not None:
+                        values[platform_key] = float(point["value"])
+                        break
+            current.append({"date": date, "values": values})
+
+        charts[metric] = {"current": current}
+
+    return charts
+
+
+def build_platform_analysis(
     db: Session,
     *,
     subject: Subject,
     dt_from: datetime,
     dt_to: datetime,
-    platforms: list[str] | None = None,
-    topic_id: UUID | None = None,
+    platform: list[str] | None = None,
+    topic_id: list[UUID] | None = None,
     entity_id: str | None = None,
+    matrix_row: str = "competitor",
 ) -> dict[str, Any]:
-    """平台矩阵：竞争对手/主题 × 平台 × 指标，含平台排名与分平台趋势。"""
-    topic_entity = resolve_analysis_entity(subject, entity_id)
+    """平台页扁平化数据：矩阵单元 / 平台排名 / 分指标多平台趋势。"""
+    focus_entity = resolve_analysis_entity(subject, entity_id)
     prev_from, prev_to = previous_date_range(dt_from, dt_to)
+    platform_ids = resolve_platforms_for_sampling(subject, platform)
+
     all_signals = load_llm_response_signals(
         db,
         subject=subject,
         dt_from=prev_from,
         dt_to=dt_to,
-        platforms=platforms,
+        platform=platform,
         topic_id=topic_id,
     )
-    current_signals = [row for row in all_signals if dt_from <= row.created_at <= dt_to]
+    windows = build_dual_signal_window(
+        all_signals,
+        dt_from=dt_from,
+        dt_to=dt_to,
+        prev_from=prev_from,
+        prev_to=prev_to,
+    )
+    current_signals = _signals_flat(windows.current)
+    previous_signals = _signals_flat(windows.previous)
 
     entities = list_analysis_entities(subject)
-    own = next(entity for entity in entities if entity.kind == "own")
-    prompts = {
-        p.id: p for p in db.execute(select(Prompt).where(Prompt.subject_id == subject.id)).scalars().all()
+    prompt_to_topic: dict = {}
+    if matrix_row == "topic":
+        _topics, _prompts, prompt_to_topic = load_topic_prompt_catalog(db, subject.id)
+
+    matrix_kwargs = {
+        "row_dimension": matrix_row,
+        "platform_ids": platform_ids,
+        "subject": subject,
+        "entities": entities,
+        "focus_entity": focus_entity,
+        "prompt_to_topic": prompt_to_topic,
     }
-    topics = {
-        t.id: t for t in db.execute(select(Topic).where(Topic.subject_id == subject.id)).scalars().all()
-    }
-    prompt_to_topic = {pid: p.topic_id for pid, p in prompts.items()}
-
-    by_platform_current: dict[str, list] = defaultdict(list)
-    for row in current_signals:
-        by_platform_current[row.platform].append(row)
-
-    platform_list = sorted(by_platform_current.keys())
-    competitor_rows = [{"id": entity.id, "label": entity.label, "is_own": entity.kind == "own"} for entity in entities]
-    topic_rows = [{"id": str(tid), "label": topics[tid].name} for tid in sorted(topics.keys(), key=lambda k: topics[k].name)]
-
-    competitor_values: dict[str, dict[str, dict[str, float | None]]] = {
-        metric: {entity.label: {} for entity in entities} for metric in PLATFORM_MATRIX_METRICS
-    }
-    topic_values: dict[str, dict[str, dict[str, float | None]]] = {
-        metric: {str(tid): {} for tid in topics} for metric in PLATFORM_MATRIX_METRICS
-    }
-
-    for platform, platform_signals in by_platform_current.items():
-        entity_agg = aggregate_metrics(platform_signals, subject=subject, group_by="entity")
-        _, citation_share, _ = citation_share_from_signals(platform_signals, subject=subject)
-        entity_metrics = {row["label"]: row["metrics"] for row in entity_agg.rows}
-
-        for entity in entities:
-            metrics = entity_metrics.get(entity.label, {})
-            competitor_values["visibility"][entity.label][platform] = metrics.get("visibility_rate")
-            competitor_values["share_voice"][entity.label][platform] = metrics.get("share_voice")
-            competitor_values["citation"][entity.label][platform] = citation_share.get(entity.label)
-            competitor_values["average_rank"][entity.label][platform] = metrics.get("average_rank")
-            competitor_values["sentiment"][entity.label][platform] = metrics.get("sentiment_score")
-
-        topic_entity_signals = [row for row in platform_signals if row.entity_id == topic_entity.id]
-        by_topic = group_signals_by_topic(topic_entity_signals, prompt_to_topic=prompt_to_topic)
-        for tid, subset in by_topic.items():
-            metrics = metrics_from_signals(subset, subject=subject, all_signals_for_voice=platform_signals)
-            tid_key = str(tid)
-            topic_values["visibility"][tid_key][platform] = metrics.visibility_rate
-            topic_values["share_voice"][tid_key][platform] = metrics.share_voice
-            topic_values["citation"][tid_key][platform] = metrics.citation_rate
-            topic_values["average_rank"][tid_key][platform] = metrics.average_rank
-            topic_values["sentiment"][tid_key][platform] = metrics.sentiment_score
-
-    platform_series: dict[str, dict[str, list[dict[str, Any]]]] = {}
-    for platform in platform_list:
-        platform_signals = by_platform_current[platform]
-        platform_series[platform] = {
-            metric: daily_platform_metric_series_from_signals(
-                platform_signals,
-                subject=subject,
-                entity_id=topic_entity.id,
-                field=_METRIC_FIELDS[metric],
-            )
-            for metric in PLATFORM_MATRIX_METRICS
-        }
+    matrix_cells = _build_matrix_cells(current_signals, **matrix_kwargs)
+    matrix_cells_previous = _build_matrix_cells(previous_signals, **matrix_kwargs)
 
     return {
-        "entity_id": topic_entity.id,
-        "own_label": own.label,
-        "platforms": platform_list,
-        "competitor_rows": competitor_rows,
-        "topic_rows": topic_rows,
-        "competitor_values": competitor_values,
-        "topic_values": topic_values,
-        "platform_performance": build_platform_performance(
-            db,
-            subject_id=subject.id,
-            dt_from=dt_from,
-            dt_to=dt_to,
-            platforms=platforms,
-            topic_id=topic_id,
-            entity_id=topic_entity.id,
+        "entity_id": focus_entity.id,
+        "matrix_row": matrix_row,
+        "matrix_cells": {
+            "current": matrix_cells,
+            "previous": matrix_cells_previous,
+        },
+        "performance": {
+            "current": platform_performance_rows(
+                current_signals,
+                subject=subject,
+                entity_id=focus_entity.id,
+            ),
+            "previous": platform_performance_rows(
+                previous_signals,
+                subject=subject,
+                entity_id=focus_entity.id,
+            ),
+        },
+        "charts": _build_platform_charts(
+            platform_ids,
+            current_signals,
+            subject=subject,
+            entity_id=focus_entity.id,
         ),
-        "previous_platform_performance": build_platform_performance(
-            db,
-            subject_id=subject.id,
-            dt_from=prev_from,
-            dt_to=prev_to,
-            platforms=platforms,
-            topic_id=topic_id,
-            entity_id=topic_entity.id,
-        ),
-        "platform_series": platform_series,
     }

@@ -48,3 +48,25 @@ def mode_nonempty(values: list[str]) -> str:
     if not cleaned:
         return ""
     return Counter(cleaned).most_common(1)[0][0]
+
+
+_TEMPLATE_PLACEHOLDER_RE = re.compile(
+    r"\{\{[^}]+\}\}|%\{[^}]+\}|%\([^)]+\)[sd]|\$\{[^}]+\}"
+)
+
+
+def is_template_title(title: str) -> bool:
+    """True when title looks like an unresolved SSR/CSR template placeholder."""
+    text = normalize_whitespace(title)
+    if not text:
+        return False
+    return bool(_TEMPLATE_PLACEHOLDER_RE.search(text))
+
+
+def coalesce_page_title(title: str, *fallbacks: str, url: str = "") -> str:
+    """Return the first non-empty, non-template title; else url."""
+    for candidate in (title, *fallbacks):
+        cleaned = normalize_whitespace(candidate or "")
+        if cleaned and not is_template_title(cleaned):
+            return cleaned
+    return normalize_whitespace(url)

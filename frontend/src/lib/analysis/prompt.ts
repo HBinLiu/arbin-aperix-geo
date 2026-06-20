@@ -6,7 +6,23 @@ import {
   formatSentimentDelta,
   formatSentimentScore,
 } from "@/lib/analysis/format";
-import type { PromptPerformance, TopicPerformance } from "@/types";
+import type { PromptPerformance, TopicPerformance, PromptPerformanceSortField } from "@/types";
+
+export type PromptTableSortKey = "visibility" | "sentiment" | "averageRank" | "citationRate";
+
+export const PROMPT_SORT_TO_API: Record<PromptTableSortKey, PromptPerformanceSortField> = {
+  visibility: "visibility_rate",
+  sentiment: "sentiment_score",
+  averageRank: "average_rank",
+  citationRate: "citation_rate",
+};
+
+export function promptSortToApiField(
+  key: PromptTableSortKey | null | undefined,
+): PromptPerformanceSortField | null {
+  if (!key) return null;
+  return PROMPT_SORT_TO_API[key];
+}
 
 export type TopicPerformanceRow = {
   id: string;
@@ -14,6 +30,7 @@ export type TopicPerformanceRow = {
   visibility: string;
   visibilityDelta: string | null;
   sentiment: string;
+  sentimentLabel: string | null;
   sentimentDelta: string | null;
   averageRank: string;
   averageRankDelta: string | null;
@@ -31,6 +48,7 @@ export type PromptPerformanceRow = {
   visibilityDelta: string | null;
   visibilityNum: number;
   sentiment: string;
+  sentimentLabel: string | null;
   sentimentDelta: string | null;
   sentimentNum: number | null;
   averageRank: string;
@@ -64,6 +82,7 @@ export function buildTopicPerformanceRows(
         visibility: formatRate(row.visibility_rate),
         visibilityDelta: formatDelta(row.visibility_rate, prev?.visibility_rate),
         sentiment: formatSentimentScore(row.sentiment_score),
+        sentimentLabel: row.sentiment_label ?? null,
         sentimentDelta: formatSentimentDelta(row.sentiment_score, prev?.sentiment_score),
         averageRank: formatRank(row.average_rank),
         averageRankDelta: formatScoreDelta(row.average_rank, prev?.average_rank),
@@ -91,6 +110,7 @@ export function buildPromptPerformanceRows(
       visibilityDelta: formatDelta(row.visibility_rate, prev?.visibility_rate),
       visibilityNum: row.visibility_rate ?? 0,
       sentiment: formatSentimentScore(row.sentiment_score),
+      sentimentLabel: row.sentiment_label ?? null,
       sentimentDelta: formatSentimentDelta(row.sentiment_score, prev?.sentiment_score),
       sentimentNum: row.sentiment_score,
       averageRank: formatRank(row.average_rank),

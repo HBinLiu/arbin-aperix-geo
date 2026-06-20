@@ -1,26 +1,54 @@
 import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { RankTableSkeleton } from "@/components/analysis/common/MetricsSkeleton";
-import { BrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
-import { Badge } from "@/components/ui/badge";
+import {
+  RANK_TABLE_MIN_WIDTH,
+  rankTableColWidths,
+} from "@/components/analysis/common/analysisRankTableLayout";
+import { BrandRankLabel } from "@/components/brand/BrandRankLabel";
 import { isNeutralDelta } from "@/lib/analysis/format";
+import { dashboardNavToPath } from "@/lib/dashboard";
 import { cn } from "@/lib/utils";
 
 export type RankRow = {
   id: string;
   label: string;
+  /** 主域名，用于 favicon；无则回退 label 首字母 */
+  domain?: string | null;
   value: string;
   /** 用于排序的原始数值（0–1 比例） */
   valueNum?: number;
   delta: string | null;
   /** 用于趋势排序的原始差值 */
   deltaSortNum?: number | null;
+  sentimentLabel?: string | null;
   isOwn?: boolean;
+  /** 当前 FilterBar 选中的分析对象（竞品视角时为竞品行） */
+  isFocus?: boolean;
   icon?: React.ReactNode;
 };
 
 const DEFAULT_HEIGHT_CLASS = "max-h-[400px]";
+
+function rankDeltaTextClass(delta: string): string {
+  if (delta.startsWith("+")) return "text-success";
+  if (delta.startsWith("-")) return "text-error";
+  return "text-muted-foreground";
+}
+
+function RankDeltaCell({ delta }: { delta: string | null }) {
+  if (delta == null || isNeutralDelta(delta)) {
+    return <span className="text-muted-foreground text-xs font-medium tabular-nums">-</span>;
+  }
+
+  return (
+    <span className={cn("text-xs font-medium tabular-nums", rankDeltaTextClass(delta))}>
+      {delta}
+    </span>
+  );
+}
 
 type SortColumn = "value" | "delta";
 type SortDir = "asc" | "desc";
@@ -60,18 +88,13 @@ function cycleSort(state: SortState, column: SortColumn): SortState {
   return { value: "default", delta: nextDelta };
 }
 
-function resolveSort(state: SortState): { column: SortColumn; dir: SortDir } {
+function resolveSort(state: SortState, valueDefault: SortDir = "desc"): { column: SortColumn; dir: SortDir } {
   if (state.delta !== "default") {
     return { column: "delta", dir: state.delta as SortDir };
   }
   if (state.value === "asc") return { column: "value", dir: "asc" };
   if (state.value === "desc") return { column: "value", dir: "desc" };
-  return { column: "value", dir: "desc" };
-}
-
-function parseValueNum(value: string): number {
-  const n = parseFloat(value.replace(/[^\d.-]/g, ""));
-  return Number.isFinite(n) ? n : 0;
+  return { column: "value", dir: valueDefault };
 }
 
 function parseDeltaNum(delta: string | null): number | null {
@@ -83,7 +106,12 @@ function parseDeltaNum(delta: string | null): number | null {
 
 function compareRankRows(a: RankRow, b: RankRow, column: SortColumn, dir: SortDir): number {
   if (column === "value") {
-    const diff = (a.valueNum ?? parseValueNum(a.value)) - (b.valueNum ?? parseValueNum(b.value));
+    const aNum = a.valueNum;
+    const bNum = b.valueNum;
+    if (aNum == null && bNum == null) return 0;
+    if (aNum == null) return 1;
+    if (bNum == null) return -1;
+    const diff = aNum - bNum;
     return dir === "asc" ? diff : -diff;
   }
 
@@ -95,8 +123,8 @@ function compareRankRows(a: RankRow, b: RankRow, column: SortColumn, dir: SortDi
   return dir === "asc" ? aDelta - bDelta : bDelta - aDelta;
 }
 
-function sortRankRows(rows: RankRow[], sort: SortState): RankRow[] {
-  const { column, dir } = resolveSort(sort);
+function sortRankRows(rows: RankRow[], sort: SortState, valueDefault: SortDir = "desc"): RankRow[] {
+  const { column, dir } = resolveSort(sort, valueDefault);
   return [...rows].sort((a, b) => compareRankRows(a, b, column, dir));
 }
 
@@ -147,15 +175,25 @@ type AnalysisRankTableProps = {
   emptyMessage?: string;
   embedded?: boolean;
   showMoreFooter?: boolean;
+  /** 点击「更多」跳转路径，默认排行榜页 */
+  moreHref?: string;
   /** 是否展示环比趋势列，默认 true */
   showDeltaColumn?: boolean;
   /** 排名对象列标题，默认「品牌」 */
   entityHeader?: string;
+  /** 排名对象列悬停详情卡，默认 true */
+  showEntityHover?: boolean;
   renderValue?: (row: RankRow) => React.ReactNode;
   height?: number;
   className?: string;
   loading?: boolean;
+  /** value 列在未显式排序时的默认方向，默认降序 */
+  valueSortDefault?: SortDir;
+  /** 表头初始排序态，默认 value 降序 */
+  initialSort?: SortState;
 };
+
+export const AVERAGE_RANK_TABLE_SORT: SortState = { value: "asc", delta: "default" };
 
 export function AnalysisRankTable({
   title,
@@ -164,18 +202,26 @@ export function AnalysisRankTable({
   emptyMessage = "暂无排名数据",
   embedded = false,
   showMoreFooter = false,
+  moreHref = dashboardNavToPath("rank"),
   showDeltaColumn = true,
   entityHeader = "品牌",
+  showEntityHover = true,
   renderValue,
   height,
   className,
   loading = false,
+  valueSortDefault = "desc",
+  initialSort = INITIAL_SORT,
 }: AnalysisRankTableProps) {
-  const [sort, setSort] = useState<SortState>(INITIAL_SORT);
-  const sortedRows = useMemo(() => sortRankRows(rows, sort), [rows, sort]);
+  const [sort, setSort] = useState<SortState>(initialSort);
+  const sortedRows = useMemo(
+    () => sortRankRows(rows, sort, valueSortDefault),
+    [rows, sort, valueSortDefault],
+  );
 
   const heightStyle = height != null ? { height } : undefined;
   const heightClass = height != null ? "h-auto shrink-0" : DEFAULT_HEIGHT_CLASS;
+  const colWidths = rankTableColWidths(showDeltaColumn);
 
   if (!loading && rows.length === 0) {
     return (
@@ -210,14 +256,28 @@ export function AnalysisRankTable({
         <h3 className="text-sm font-semibold">{title}</h3>
       </div>
       {loading ? (
-        <RankTableSkeleton showMoreFooter={showMoreFooter} />
+        <RankTableSkeleton showMoreFooter={showMoreFooter} showDeltaColumn={showDeltaColumn} />
       ) : (
         <>
           <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto">
-            <table className="w-full min-w-max table-auto text-sm">
-              <thead className="text-muted-foreground text-left text-xs">
-                <tr className="[&>th]:whitespace-nowrap [&>th]:py-2">
-                  <th className="w-10 min-w-10 px-2 pl-4 font-medium">#</th>
+            <table
+              className="w-full table-fixed text-sm"
+              style={{ minWidth: RANK_TABLE_MIN_WIDTH }}
+            >
+              <colgroup>
+                <col style={{ width: colWidths.index }} />
+                <col style={{ width: colWidths.brand }} />
+                <col style={{ width: colWidths.value }} />
+                {colWidths.delta ? <col style={{ width: colWidths.delta }} /> : null}
+              </colgroup>
+              <thead
+                className={cn(
+                  "text-muted-foreground sticky top-0 z-10 text-left text-xs",
+                  embedded ? "bg-white" : "bg-card",
+                )}
+              >
+                <tr className="border-border border-b [&>th]:whitespace-nowrap [&>th]:py-2">
+                  <th className="px-2 pl-4 font-medium">#</th>
                   <th className="px-4 font-medium">{entityHeader}</th>
                   <th className="px-4 font-medium">
                     <SortableHeader
@@ -242,41 +302,24 @@ export function AnalysisRankTable({
               <tbody>
                 {sortedRows.map((row, index) => (
                   <tr key={row.id} className="border-border border-t [&>td]:whitespace-nowrap [&>td]:py-2">
-                    <td className="text-foreground w-10 min-w-10 px-2 pl-4 tabular-nums">
+                    <td className="text-foreground px-2 pl-4 tabular-nums">
                       #{index + 1}
                     </td>
-                    <td className="px-4">
-                      <div className="flex items-center gap-2 whitespace-nowrap">
-                        <BrandRankIcon label={row.label} icon={row.icon} />
-                        <span className="font-medium">{row.label}</span>
-                        {row.isOwn ? (
-                          <Badge variant="orange" className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium">
-                            拥有
-                          </Badge>
-                        ) : null}
-                      </div>
+                    <td className="min-w-0 overflow-hidden px-4 whitespace-normal">
+                      <BrandRankLabel
+                        label={row.label}
+                        icon={row.icon}
+                        isOwn={row.isOwn}
+                        isFocus={row.isFocus}
+                        showHover={showEntityHover}
+                      />
                     </td>
                     <td className="px-4 font-medium tabular-nums">
                       {renderValue ? renderValue(row) : row.value}
                     </td>
                     {showDeltaColumn ? (
                       <td className="px-4 tabular-nums">
-                        {!row.delta || isNeutralDelta(row.delta) ? (
-                          <span className="font-medium tabular-nums">-</span>
-                        ) : (
-                          <span
-                            className={cn(
-                              "text-xs font-medium tabular-nums",
-                              row.delta.startsWith("+")
-                                ? "text-emerald-600"
-                                : row.delta.startsWith("-")
-                                  ? "text-red-600"
-                                  : "text-muted-foreground",
-                            )}
-                          >
-                            {row.delta}
-                          </span>
-                        )}
+                        <RankDeltaCell delta={row.delta} />
                       </td>
                     ) : null}
                   </tr>
@@ -286,12 +329,12 @@ export function AnalysisRankTable({
           </div>
           {showMoreFooter ? (
             <div className="shrink-0 px-4 py-2">
-              <button
-                type="button"
-                className="border-border text-foreground w-full rounded-lg border py-2 text-center text-sm font-semibold transition-colors"
+              <Link
+                to={moreHref}
+                className="border-border text-foreground hover:bg-muted/40 block w-full rounded-lg border py-2 text-center text-sm font-semibold transition-colors"
               >
                 更多
-              </button>
+              </Link>
             </div>
           ) : null}
         </>

@@ -25,7 +25,7 @@ function SetupWizardHeader({ title, subtitle }: SetupWizardHeaderProps) {
   );
 }
 
-/** 设置 → 审查主题 → 选择竞品 → 确认提示词；discover 三步 + setup-finalize 一次落库。 */
+/** 设置 → 选择竞品 → 审查主题 → 确认提示词；后端 4 个 API。 */
 export function SetupWizard({ onCompleted }: SetupWizardProps) {
   const {
     step,
@@ -38,12 +38,12 @@ export function SetupWizard({ onCompleted }: SetupWizardProps) {
     competitorRows,
     promptRows,
     submitting,
-    analyzingProfile,
-    discoveringCompetitors,
+    discovering,
+    loadingTopics,
     generatingPrompts,
     stepLabels,
+    verticalStep,
     busy,
-    faviconHost,
     activeTopics,
     shellHeader,
     setMode,
@@ -71,15 +71,14 @@ export function SetupWizard({ onCompleted }: SetupWizardProps) {
     brandName,
     region,
     language,
-    faviconHost,
     topicRows,
     competitorRows,
     promptRows,
     activeTopics,
     regionOptions,
     languageOptions,
-    analyzingProfile,
-    discoveringCompetitors,
+    analyzingProfile: discovering,
+    discoveringCompetitors: discovering || loadingTopics,
     generatingPrompts,
   };
   const stepContentActions = {
@@ -120,7 +119,7 @@ export function SetupWizard({ onCompleted }: SetupWizardProps) {
               aria-label="设置流程"
             >
               <div className="relative z-10 flex h-full w-full items-center p-10">
-                <SetupStepVertical steps={stepLabels} currentStep={step} />
+                <SetupStepVertical steps={stepLabels} currentStep={verticalStep} />
               </div>
             </aside>
           </div>

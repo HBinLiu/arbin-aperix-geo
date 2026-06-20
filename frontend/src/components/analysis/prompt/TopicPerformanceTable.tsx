@@ -102,14 +102,17 @@ export function TopicPerformanceTable({
                   }
                 >
                   <td className="text-foreground pl-5 font-medium">{row.topicName}</td>
-                  <td>
+                  <td className="font-medium">
                     <VisibilityMetricCell value={row.visibility} delta={row.visibilityDelta} />
                   </td>
-                  <td>
-                    <SentimentMetricCell value={row.sentiment} delta={null} />
+                  <td className="font-medium">
+                    <SentimentMetricCell
+                      value={row.sentiment}
+                      label={row.sentimentLabel}
+                    />
                   </td>
-                  <td>{row.averageRank}</td>
-                  <td>{row.citationRate}</td>
+                  <td className="font-medium">{row.averageRank}</td>
+                  <td className="font-medium">{row.citationRate}</td>
                 </tr>
               );
             })

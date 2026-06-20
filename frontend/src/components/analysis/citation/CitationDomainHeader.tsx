@@ -2,6 +2,7 @@ import { ChevronRight, ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { FaviconImage } from "@/components/common/FaviconImage";
+import { faviconUrlFromHost } from "@/lib/favicon";
 import { analysisDimensionPath } from "@/lib/analysis";
 
 type CitationDomainHeaderProps = {
@@ -20,7 +21,7 @@ export function CitationDomainHeader({ host }: CitationDomainHeaderProps) {
         返回
       </Link>
       <ChevronRight className="text-muted-foreground size-4 shrink-0" aria-hidden />
-      <FaviconImage domain={host} size={20} className="size-5 shrink-0 rounded-sm" />
+      <FaviconImage url={faviconUrlFromHost(host)} size={20} className="size-5 shrink-0 rounded-sm" />
       <span className="truncate font-semibold" title={host}>
         {host}
       </span>

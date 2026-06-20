@@ -66,15 +66,48 @@ def test_normalize_response_absa_filters_own_alias_from_other() -> None:
     assert "艾佩克斯" not in out["other_brands_sentiment_absa"]
 
 
-def test_normalize_page_geo_page_mentioned_brands() -> None:
+def test_normalize_response_absa_filters_open_set_when_disabled() -> None:
+    data = {
+        "brands_sentiment_absa": {"Aperix": {"mentioned": True, "score": 75}},
+        "other_brands_sentiment_absa": {"Stripe": {"mentioned": True, "score": 80}},
+    }
+    out = normalize_response_absa(
+        data,
+        own_brand="Aperix",
+        competitors=["Beta"],
+        open_set_enabled=False,
+    )
+    assert "Stripe" not in out["other_brands_sentiment_absa"]
+    assert out["other_brands_sentiment_absa"] == {}
+
+
+def test_normalize_page_geo_ignores_llm_brand_mentions() -> None:
     data = {
         "domain_classification": {"type": "科技/垂直行业媒体", "reason": "tech"},
         "url_classification": {"type": "实操指南", "reason": "code"},
-        "page_mentioned_brands": ["Beta", "Aperix"],
+        "page_mentioned_brands": ["Beta", "Aperix", "Stripe"],
     }
     out = normalize_page_geo(data)
     assert out["domain_classification"]["type"] == "科技/垂直行业媒体"
-    assert out["page_mentioned_brands"] == ["Beta", "Aperix"]
+    assert out["page_mentioned_brands"] == []
+
+
+def test_page_mentioned_brands_from_snippet() -> None:
+    from aperix_geo.services.sampling.citation.page_geo import page_mentioned_brands_from_snippet
+
+    page = CitationPageMeta(
+        url="https://example.com/a",
+        domain="example.com",
+        http_status=200,
+        text_snippet="This article compares Aperix and Beta for GEO.",
+        fetch_ok=True,
+    )
+    brands = page_mentioned_brands_from_snippet(
+        page,
+        page_brand_scope=["Aperix", "Beta"],
+        match_terms_by_brand={"Aperix": ["Aperix"], "Beta": ["Beta"]},
+    )
+    assert brands == ["Aperix", "Beta"]
 
 
 def test_page_and_ai_mentioned_brand_names() -> None:
@@ -90,20 +123,23 @@ def test_page_and_ai_mentioned_brand_names() -> None:
     assert ai_mentioned_brand_names(response) == ["Aperix"]
 
 
-def _page(url: str) -> CitationPageMeta:
+def _page(url: str, *, snippet: str = "Aperix review body text") -> CitationPageMeta:
     return CitationPageMeta(
         url=url,
         domain="example.com",
         http_status=200,
         title="T",
-        text_snippet="body " * 20,
+        text_snippet=snippet,
         fetch_ok=True,
     )
 
 
 def test_analyze_citation_pages_geo_batch_single_call() -> None:
     clear_page_geo_cache()
-    pages = [_page("https://example.com/a"), _page("https://example.com/b")]
+    pages = [
+        _page("https://example.com/a"),
+        _page("https://example.com/b", snippet="generic cloud computing article"),
+    ]
     calls: list[int] = []
 
     def _chat(messages, **kwargs):
@@ -114,13 +150,11 @@ def test_analyze_citation_pages_geo_batch_single_call() -> None:
                     "url": pages[0].url,
                     "domain_classification": {"type": "企业/品牌官网", "reason": "r1"},
                     "url_classification": {"type": "品牌官网", "reason": "r2"},
-                    "page_mentioned_brands": ["A"],
                 },
                 {
                     "url": pages[1].url,
                     "domain_classification": {"type": "科技/垂直行业媒体", "reason": "r3"},
-                    "url_classification": {"type": "行业报告与深度综述", "reason": "r4"},
-                    "page_mentioned_brands": [],
+                    "url_classification": {"type": "普通文章", "reason": "r4"},
                 },
             ],
         }
@@ -135,11 +169,14 @@ def test_analyze_citation_pages_geo_batch_single_call() -> None:
         out = analyze_citation_pages_geo(
             pages,
             own_brand="A",
-            competitors=["B"],
+            page_brand_scope=["Aperix"],
+            match_terms_by_brand={"Aperix": ["Aperix"]},
+            enterprise_roots=frozenset({"example.com"}),
             cache_ttl_s=0,
             batch_size=8,
         )
 
     assert len(out) == 2
-    assert out[0]["page_mentioned_brands"] == ["A"]
+    assert out[0]["page_mentioned_brands"] == ["Aperix"]
+    assert out[1]["page_mentioned_brands"] == []
     assert calls == [2]

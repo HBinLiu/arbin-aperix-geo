@@ -16,6 +16,7 @@ def kimi_chat(
     web_search: bool = True,
     searxng_max_results: int = 8,
     timeout_s: float = 120.0,
+    temperature: float = 1.0,
 ) -> SamplingChatResult:
     return augmented_chat(
         messages,
@@ -26,5 +27,6 @@ def kimi_chat(
         web_search=web_search,
         searxng_max_results=searxng_max_results,
         timeout_s=timeout_s,
+        temperature=temperature,
         error_cls=KimiProviderError,
     )

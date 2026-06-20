@@ -6,10 +6,16 @@ import {
   formatRankMetric,
   formatScoreDelta,
 } from "@/lib/analysis/format";
+import { entityRankFlags } from "@/lib/analysis/entities";
 import { ANALYSIS_DIMENSIONS } from "@/lib/analysis/nav";
-import { buildBrandRankRows } from "@/lib/analysis/shared";
 import type { SingleSeriesPoint } from "@/lib/analysis/chart";
-import type { VisibilityAnalysisData, VisibilitySeriesPoint } from "@/types";
+import type {
+  AnalysisEntityRef,
+  DashboardOverviewMetric,
+  DashboardOverviewRankRow,
+  VisibilityAnalysisData,
+  VisibilitySeriesPoint,
+} from "@/types";
 
 /** 可见度页折线图展示模式 */
 export type VisibilityChartMode = "competitors" | "own" | "own-with-previous";
@@ -33,7 +39,6 @@ export function visibilityChartLabels(
 }
 
 export const VISIBILITY_SECTION_HEIGHT = 380;
-export const VISIBILITY_CHART_HEIGHT = 270;
 export const VISIBILITY_RANK_TABLE_HEIGHT = VISIBILITY_SECTION_HEIGHT - 24;
 
 export type VisibilityMetricId = "visibility" | "mention" | "shareVoice" | "averageRank";
@@ -120,86 +125,135 @@ export const VISIBILITY_METRICS: VisibilityMetricDefinition[] = [
 
 const EMPTY_METRIC: VisibilityMetricBundle = { rankRows: [] };
 
-type MetricSource = {
-  series?: VisibilitySeriesPoint[];
-  previousSeries?: VisibilitySeriesPoint[];
-  rankSeries?: SingleSeriesPoint[];
-  pieLabels?: string[];
-  currentShare: Record<string, number | null | undefined>;
-  previousShare: Record<string, number | null | undefined>;
+type VisibilityMetricConfig = {
+  metric: (data: VisibilityAnalysisData) => DashboardOverviewMetric;
+  table: (data: VisibilityAnalysisData) => DashboardOverviewRankRow[];
+  chart?: (data: VisibilityAnalysisData) => {
+    cur_series: VisibilitySeriesPoint[] | SingleSeriesPoint[];
+    pre_series?: VisibilitySeriesPoint[] | SingleSeriesPoint[];
+  };
 };
 
-const VISIBILITY_METRIC_SOURCES: Record<
-  VisibilityMetricId,
-  (data: VisibilityAnalysisData) => MetricSource
-> = {
-  visibility: (data) => ({
-    series: data.series,
-    previousSeries: data.previous_series,
-    currentShare: data.rank.visibility_share,
-    previousShare: data.previous_rank.visibility_share,
-  }),
-  mention: (data) => ({
-    series: data.mention_series,
-    previousSeries: data.previous_mention_series,
-    currentShare: data.rank.mention_rate,
-    previousShare: data.previous_rank.mention_rate,
-  }),
-  shareVoice: (data) => ({
-    pieLabels: data.share_voice_labels,
-    currentShare: data.rank.share_voice,
-    previousShare: data.previous_rank.share_voice,
-  }),
-  averageRank: (data) => ({
-    rankSeries: data.average_rank_series,
-    currentShare: data.rank.average_rank,
-    previousShare: data.previous_rank.average_rank,
-  }),
+const VISIBILITY_METRIC_CONFIG: Record<VisibilityMetricId, VisibilityMetricConfig> = {
+  visibility: {
+    metric: (data) => data.visibility,
+    table: (data) => data.visibility_table,
+    chart: (data) => data.visibility_chart,
+  },
+  mention: {
+    metric: (data) => data.mention,
+    table: (data) => data.mention_table,
+    chart: (data) => data.mention_chart,
+  },
+  shareVoice: {
+    metric: (data) => data.share_voice,
+    table: (data) => data.share_voice_table,
+  },
+  averageRank: {
+    metric: (data) => data.average_rank,
+    table: (data) => data.average_rank_table,
+    chart: (data) => data.average_rank_chart,
+  },
 };
 
-function buildPieSlices(
-  labels: string[],
-  share: Record<string, number | null | undefined>,
+function visibilityRankRows(
+  rows: DashboardOverviewRankRow[] | undefined,
+  entities: AnalysisEntityRef[],
+  focusEntityId: string | undefined,
+  formatValue: VisibilityMetricDefinition["formatValue"],
+  formatDelta: VisibilityMetricDefinition["formatDelta"],
+): RankRow[] {
+  return (rows ?? []).map((row) => {
+    const { isOwn, isFocus } = entityRankFlags(entities, row.id, focusEntityId);
+    return {
+      id: row.id,
+      label: row.label,
+      domain: row.domain || null,
+      value: formatValue(row.cur_value),
+      valueNum: row.cur_value ?? undefined,
+      delta: formatDelta(row.cur_value, row.pre_value),
+      deltaSortNum:
+        row.cur_value != null && row.pre_value != null ? row.cur_value - row.pre_value : null,
+      isOwn,
+      isFocus,
+    };
+  });
+}
+
+function shareVoicePieSlices(
+  entityLabels: string[],
+  table: DashboardOverviewRankRow[] | undefined,
 ): ShareVoiceSlice[] {
-  return labels.map((label) => ({
-    label,
-    value: share[label] ?? 0,
-  }));
+  const byId = Object.fromEntries((table ?? []).map((row) => [row.id, row]));
+  return entityLabels.map((id) => {
+    const row = byId[id];
+    const domain = row?.domain?.trim();
+    return {
+      label: domain || id,
+      colorKey: id,
+      value: row?.cur_value ?? 0,
+    };
+  });
 }
 
 export function buildVisibilityMetricBundle(
   data: VisibilityAnalysisData | undefined,
-  ownLabel: string,
+  entityLabels: string[],
+  entities: AnalysisEntityRef[],
+  focusEntityId: string | undefined,
   def: VisibilityMetricDefinition,
 ): VisibilityMetricBundle {
   if (!data) return EMPTY_METRIC;
 
-  const source = VISIBILITY_METRIC_SOURCES[def.id](data);
-  const { series, previousSeries, rankSeries, pieLabels, currentShare, previousShare } = source;
-  const ownRaw = ownLabel ? currentShare[ownLabel] : undefined;
-  const prevOwnRaw = ownLabel ? previousShare[ownLabel] : undefined;
+  const config = VISIBILITY_METRIC_CONFIG[def.id];
+  const metric = config.metric(data);
+  const rankRows = visibilityRankRows(
+    config.table(data),
+    entities,
+    focusEntityId,
+    def.formatValue,
+    def.formatDelta,
+  );
 
+  if (def.id === "shareVoice") {
+    return {
+      pieSlices: shareVoicePieSlices(entityLabels, config.table(data)),
+      ownValue: metric.current ?? undefined,
+      prevOwnValue: metric.previous ?? undefined,
+      rankRows,
+    };
+  }
+
+  if (def.id === "averageRank") {
+    const chart = config.chart?.(data);
+    return {
+      rankSeries: (chart?.cur_series ?? []) as SingleSeriesPoint[],
+      ownValue: metric.current ?? undefined,
+      prevOwnValue: metric.previous ?? undefined,
+      rankRows,
+    };
+  }
+
+  const chart = config.chart?.(data);
   return {
-    series,
-    previousSeries,
-    rankSeries,
-    pieSlices: pieLabels ? buildPieSlices(pieLabels, currentShare) : undefined,
-    ownValue: ownRaw ?? undefined,
-    prevOwnValue: prevOwnRaw ?? undefined,
-    rankRows:
-      def.id === "averageRank"
-        ? buildBrandRankRows(currentShare, previousShare, ownLabel, def.formatValue, def.formatDelta).sort(
-            (a, b) => (a.valueNum ?? Infinity) - (b.valueNum ?? Infinity),
-          )
-        : buildBrandRankRows(currentShare, previousShare, ownLabel, def.formatValue, def.formatDelta),
+    series: (chart?.cur_series ?? []) as VisibilitySeriesPoint[],
+    previousSeries: (chart?.pre_series ?? []) as VisibilitySeriesPoint[],
+    ownValue: metric.current ?? undefined,
+    prevOwnValue: metric.previous ?? undefined,
+    rankRows,
   };
 }
 
 export function buildVisibilityMetricBundles(
   data: VisibilityAnalysisData | undefined,
-  ownLabel: string,
+  entityLabels: string[],
+  entities: AnalysisEntityRef[],
+  focusEntityId: string | undefined,
 ): Record<VisibilityMetricId, VisibilityMetricBundle> {
   return Object.fromEntries(
-    VISIBILITY_METRICS.map((def) => [def.id, buildVisibilityMetricBundle(data, ownLabel, def)]),
+    VISIBILITY_METRICS.map((def) => [
+      def.id,
+      buildVisibilityMetricBundle(data, entityLabels, entities, focusEntityId, def),
+    ]),
   ) as Record<VisibilityMetricId, VisibilityMetricBundle>;
 }

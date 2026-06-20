@@ -13,7 +13,7 @@ from aperix_geo.db.models import CitationDomain, CitationUrl
 from aperix_geo.services.sampling.parsed import ParsedSamplingResult
 from aperix_geo.utils.coerce import safe_int
 from aperix_geo.utils.text import mode_nonempty
-from aperix_geo.utils.url import filter_citation_urls, hostname_from_url, is_placeholder_citation_host
+from aperix_geo.utils.url import filter_citation_urls, hostname_from_url, is_valid_citation_host
 
 
 def _headings_text(headings: Any) -> str:
@@ -42,7 +42,7 @@ def citations_from_parsed(parsed: dict[str, Any] | ParsedSamplingResult) -> list
         if not key or key in seen:
             continue
         domain = (hostname_from_url(key) or "").strip().lower()
-        if not domain or is_placeholder_citation_host(domain):
+        if not domain or not is_valid_citation_host(domain):
             continue
         seen.add(key)
         src = source_map.get(key, {})
@@ -106,6 +106,8 @@ def replace_citations_for_response(
             CitationDomain.response_id == response_id
         )
     )
+    # Apply deletes before ORM inserts so (response_id, domain) unique rows are cleared first.
+    db.flush()
 
     url_rows = citations_from_parsed(parsed)
     for row in url_rows:

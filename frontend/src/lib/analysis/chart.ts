@@ -36,19 +36,162 @@ export type ChartTooltipRow = {
   color: string;
 };
 
-export const CHART_COLORS = [
-  "#ec4899",
-  "#3b82f6",
-  "#14b8a6",
-  "#f97316",
-  "#8b5cf6",
-  "#64748b",
-] as const;
+/** 黄金角步进：相邻序号色相区分度大 */
+const CHART_GOLDEN_ANGLE = 137.508;
+/** 与产品主色（粉）对齐的起始色相 */
+const CHART_HUE_OFFSET = 330;
+/** 交替饱和度 / 明度，进一步拉开相近色相的视觉差异 */
+const CHART_SATURATIONS = [70, 58, 76, 52] as const;
+const CHART_LIGHTNESSES = [48, 40, 54, 44] as const;
+
+function hashString(input: string): number {
+  let hash = 0;
+  for (let i = 0; i < input.length; i++) {
+    hash = (hash * 31 + input.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
+
+function hslToHex(hue: number, saturation: number, lightness: number): string {
+  const h = hue / 360;
+  const s = saturation / 100;
+  const l = lightness / 100;
+  const hue2rgb = (p: number, q: number, t: number) => {
+    let tt = t;
+    if (tt < 0) tt += 1;
+    if (tt > 1) tt -= 1;
+    if (tt < 1 / 6) return p + (q - p) * 6 * tt;
+    if (tt < 1 / 2) return q;
+    if (tt < 2 / 3) return p + (q - p) * (2 / 3 - tt) * 6;
+    return p;
+  };
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const r = Math.round(hue2rgb(p, q, h + 1 / 3) * 255);
+  const g = Math.round(hue2rgb(p, q, h) * 255);
+  const b = Math.round(hue2rgb(p, q, h - 1 / 3) * 255);
+  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+}
+
+function hslColor(hue: number, saturation: number, lightness: number): string {
+  return hslToHex(hue, saturation, lightness);
+}
+
+/** 按列表序号取色：黄金角色相 + 饱和度/明度交错 */
+export function chartColorAtIndex(index: number): string {
+  const hue = (CHART_HUE_OFFSET + index * CHART_GOLDEN_ANGLE) % 360;
+  const saturation = CHART_SATURATIONS[index % CHART_SATURATIONS.length];
+  const lightness = CHART_LIGHTNESSES[Math.floor(index / 2) % CHART_LIGHTNESSES.length];
+  return hslColor(hue, saturation, lightness);
+}
+
+/**
+ * 为当前图表内的监测项分配颜色：按名称稳定排序后用序号取色，
+ * 同屏 N 项时色相约 360/N 间隔，比纯哈希更少撞色。
+ */
+export function buildChartColorLookup(labels: readonly string[]): ReadonlyMap<string, string> {
+  const unique = [...new Set(labels.map((label) => label.trim()).filter(Boolean))];
+  unique.sort((a, b) => a.localeCompare(b, "zh-CN"));
+  const map = new Map<string, string>();
+  unique.forEach((label, index) => {
+    map.set(label, chartColorAtIndex(index));
+  });
+  return map;
+}
+
+/** 按名称取稳定色（无同屏列表时的回退，仍走黄金角序号） */
+export function chartColorForKey(key: string): string {
+  const normalized = key.trim() || "?";
+  return chartColorAtIndex(hashString(normalized) % 360);
+}
+
+export function chartColorFromLookup(
+  lookup: ReadonlyMap<string, string>,
+  label: string,
+): string {
+  return lookup.get(label.trim()) ?? chartColorForKey(label);
+}
+
+function resolveChartColor(
+  colorLookup: ReadonlyMap<string, string> | undefined,
+  labels: string[],
+  key: string,
+): string {
+  const normalized = key.trim();
+  const fromLookup = colorLookup?.get(normalized);
+  if (fromLookup) return fromLookup;
+  if (labels.length > 0) {
+    const hit = buildChartColorLookup(labels).get(normalized);
+    if (hit) return hit;
+  }
+  return chartColorForKey(key);
+}
 
 export const CHART_HEIGHT = 220;
 export const CHART_Y_LABEL_CHAR_WIDTH = 8;
 export const PREVIOUS_PERIOD_SUFFIX = " (上一期)";
 export const SINGLE_SERIES_KEY = "当前";
+
+/** 从扁平行读取序列值（Recharts row payload） */
+export function chartRowValue(row: ChartRow, key: string): number {
+  const value = row[key];
+  return typeof value === "number" ? value : Number(value ?? 0);
+}
+
+/** 百分比比率 Y 轴：按数据 max 自适应上限，刻度交给 Recharts tickCount */
+export function buildChartYAxis(dataMax: number): { yMin: number; yMax: number } {
+  return {
+    yMin: 0,
+    yMax: Math.max(dataMax * 1.08, 0.01),
+  };
+}
+
+/** AI 提及等绝对值 Y 轴（非百分比） */
+export function buildChartYAxisForScore(
+  dataMin: number,
+  dataMax: number,
+): { yMin: number; yMax: number } {
+  return {
+    yMin: Math.min(dataMin * 0.92, 0),
+    yMax: Math.max(dataMax * 1.08, 0.01),
+  };
+}
+
+export function computeChartDataRange(
+  rows: ChartRow[],
+  lineKeys: string[],
+): { min: number; max: number } {
+  let min = Infinity;
+  let max = 0.01;
+
+  for (const row of rows) {
+    for (const key of lineKeys) {
+      const value = chartRowValue(row, key);
+      if (!Number.isFinite(value)) continue;
+      min = Math.min(min, value);
+      max = Math.max(max, value);
+    }
+  }
+
+  if (!Number.isFinite(min)) min = 0;
+  return { min, max };
+}
+
+/** @deprecated 使用 computeChartDataRange */
+export function computeChartDataMax(rows: ChartRow[], lineKeys: string[]): number {
+  return computeChartDataRange(rows, lineKeys).max;
+}
+
+export function computeChartYAxisWidth(
+  yMin: number,
+  yMax: number,
+  valueFormatter: (v: number) => string,
+): number {
+  const samples = [yMin, yMin + (yMax - yMin) * 0.5, yMax];
+  const tickLabels = samples.map((v) => valueFormatter(v));
+  const longest = Math.max(...tickLabels.map((l) => l.length), 0);
+  return Math.max(36, longest * CHART_Y_LABEL_CHAR_WIDTH + 8);
+}
 
 export function formatChartDayLabel(iso: string): string {
   const d = new Date(iso);
@@ -61,8 +204,7 @@ export function formatChartTooltipDate(iso: string): string {
 }
 
 export function colorOfChartLabel(labels: string[], lab: string): string {
-  const idx = labels.indexOf(lab);
-  return CHART_COLORS[(idx >= 0 ? idx : 0) % CHART_COLORS.length];
+  return resolveChartColor(undefined, labels, lab);
 }
 
 export function previousPeriodDataKey(lab: string): string {
@@ -71,6 +213,29 @@ export function previousPeriodDataKey(lab: string): string {
 
 export function getActiveChartLabels(labels: string[], hiddenLegendKeys?: Set<string>): string[] {
   return labels.filter((l) => !hiddenLegendKeys?.has(l));
+}
+
+/** labels 未传或与序列键不匹配时，从 multiSeries 的 values 键推断 */
+export function inferChartLabels(
+  labels: string[],
+  multiSeries?: MultiSeriesPoint[],
+): string[] {
+  const valueKeys = new Set<string>();
+  for (const point of multiSeries ?? []) {
+    for (const key of Object.keys(point.values ?? {})) {
+      if (key.trim()) valueKeys.add(key.trim());
+    }
+  }
+
+  if (labels.length === 0) {
+    return [...valueKeys].sort((a, b) => a.localeCompare(b, "zh-CN"));
+  }
+
+  if (valueKeys.size > 0 && !labels.some((label) => valueKeys.has(label.trim()))) {
+    return [...valueKeys].sort((a, b) => a.localeCompare(b, "zh-CN"));
+  }
+
+  return labels;
 }
 
 export function shouldOverlayPreviousPeriod({
@@ -94,6 +259,7 @@ type ChartSeriesOptions = {
   drawPrevious: boolean;
   showCurrentSeries?: boolean;
   showPreviousSeries?: boolean;
+  colorLookup?: ReadonlyMap<string, string>;
 };
 
 export type ChartInput = {
@@ -106,7 +272,7 @@ export type ChartInput = {
   showCurrentSeries?: boolean;
   showPreviousSeries?: boolean;
   onToggleLegendKey?: (key: string) => void;
-  valueFormatter: (v: number) => string;
+  valueFormatter?: (v: number) => string;
   /** rate：0–1 比率（可见度）；score：绝对值（AI 提及） */
   yAxisMode?: "rate" | "score";
 };
@@ -115,31 +281,40 @@ export type ChartModel = {
   rows: ChartRow[];
   lines: LineConfig[];
   legendItems: ChartLegendItem[];
+  colorLookup: ReadonlyMap<string, string>;
+  yMin: number;
   yMax: number;
-  yTicks: number[];
   yAxisWidth: number;
   drawPrevious: boolean;
+  labels: string[];
+  hiddenLegendKeys?: Set<string>;
+  overlayPrevious: boolean;
+  previousSeries?: MultiSeriesPoint[];
+  showCurrentSeries: boolean;
+  showPreviousSeries: boolean;
 };
 
-export function buildChartLegendItems(
+function buildChartLegendItems(
   labels: string[],
   {
     hiddenLegendKeys,
     showCurrentSeries,
     showPreviousSeries,
     onToggleLegendKey,
+    colorLookup,
   }: {
     hiddenLegendKeys?: Set<string>;
     showCurrentSeries: boolean;
     showPreviousSeries: boolean;
     onToggleLegendKey?: (key: string) => void;
+    colorLookup?: ReadonlyMap<string, string>;
   },
 ): ChartLegendItem[] {
   const interactive = Boolean(onToggleLegendKey);
 
   if (labels.length === 1) {
     const lab = labels[0];
-    const color = CHART_COLORS[0];
+    const color = resolveChartColor(colorLookup, labels, lab);
     const items: ChartLegendItem[] = [];
     const currentKey = lab;
     const previousKey = previousPeriodDataKey(lab);
@@ -167,82 +342,18 @@ export function buildChartLegendItems(
     return items;
   }
 
-  return labels.map((lab, idx) => ({
+  return labels.map((lab) => ({
     key: lab,
     label: lab,
-    color: CHART_COLORS[idx % CHART_COLORS.length],
+    color: resolveChartColor(colorLookup, labels, lab),
     visible: !hiddenLegendKeys?.has(lab),
     interactive,
     onToggle: onToggleLegendKey ? () => onToggleLegendKey(lab) : undefined,
   }));
 }
 
-/** 百分比比率 Y 轴友好步长（%），保证 5 档刻度均为 *.0% */
-const Y_AXIS_NICE_STEPS_PCT = [1, 2, 5, 10, 15, 20, 25, 30, 40, 50];
-
-/** 根据数据最大值生成 Y 轴上限与 5 档刻度（0、step、2×step … 4×step） */
-export function buildChartYAxis(dataMax: number): { yMax: number; yTicks: number[] } {
-  const paddedPct = Math.max(dataMax * 100 * 1.15, 5);
-  const stepPct = Y_AXIS_NICE_STEPS_PCT.find((s) => s * 4 >= paddedPct) ?? 50;
-  const step = stepPct / 100;
-  const yMax = (stepPct * 4) / 100;
-  const yTicks = [0, 1, 2, 3, 4].map((i) => i * step);
-  return { yMax, yTicks };
-}
-
-const Y_AXIS_NICE_STEPS_SCORE = [0.25, 0.5, 1, 1.5, 2, 2.5, 5, 10];
-
-/** AI 提及等绝对值 Y 轴（非百分比） */
-export function buildChartYAxisForScore(dataMax: number): { yMax: number; yTicks: number[] } {
-  const padded = Math.max(dataMax * 1.15, 0.5);
-  const step = Y_AXIS_NICE_STEPS_SCORE.find((s) => s * 4 >= padded) ?? 10;
-  const yMax = step * 4;
-  const yTicks = [0, 1, 2, 3, 4].map((i) => i * step);
-  return { yMax, yTicks };
-}
-
-export function computeChartDataMax(
-  multiSeries: MultiSeriesPoint[] | undefined,
-  singleSeries: SingleSeriesPoint[] | undefined,
-  previousSeries: MultiSeriesPoint[] | undefined,
-  activeLabels: string[],
-  drawPrevious: boolean,
-): number {
-  let maxVal = 0.01;
-
-  if (multiSeries) {
-    for (const pt of multiSeries) {
-      for (const lab of activeLabels) {
-        maxVal = Math.max(maxVal, pt.values[lab] ?? 0);
-      }
-    }
-    if (drawPrevious && previousSeries) {
-      for (const pt of previousSeries) {
-        for (const lab of activeLabels) {
-          maxVal = Math.max(maxVal, pt.values[lab] ?? 0);
-        }
-      }
-    }
-  } else if (singleSeries) {
-    for (const pt of singleSeries) {
-      if (pt.value != null) maxVal = Math.max(maxVal, pt.value);
-    }
-  }
-
-  return maxVal;
-}
-
-export function computeChartYAxisWidth(
-  yTicks: number[],
-  valueFormatter: (v: number) => string,
-): number {
-  const tickLabels = yTicks.map((v) => valueFormatter(v));
-  const longest = Math.max(...tickLabels.map((l) => l.length), 0);
-  return Math.max(36, longest * CHART_Y_LABEL_CHAR_WIDTH + 8);
-}
-
 /** 领域序列 → Recharts 扁平行数据 */
-export function toChartRows({
+function toChartRows({
   multiSeries,
   singleSeries,
   previousSeries,
@@ -279,7 +390,7 @@ export function toChartRows({
   });
 }
 
-export function toLineConfigs({
+function toLineConfigs({
   multiSeries,
   singleSeries,
   labels,
@@ -287,13 +398,14 @@ export function toLineConfigs({
   drawPrevious,
   showCurrentSeries,
   showPreviousSeries,
+  colorLookup,
 }: ChartSeriesOptions): LineConfig[] {
   const activeLabels = getActiveChartLabels(labels, hiddenLegendKeys);
   const lines: LineConfig[] = [];
 
   if (multiSeries && activeLabels.length > 0) {
-    activeLabels.forEach((lab, idx) => {
-      const color = CHART_COLORS[idx % CHART_COLORS.length];
+    activeLabels.forEach((lab) => {
+      const color = resolveChartColor(colorLookup, labels, lab);
       if (showCurrentSeries !== false) {
         lines.push({ key: lab, color });
       }
@@ -308,7 +420,7 @@ export function toLineConfigs({
   }
 
   if (singleSeries && showCurrentSeries !== false) {
-    lines.push({ key: SINGLE_SERIES_KEY, color: CHART_COLORS[0] });
+    lines.push({ key: SINGLE_SERIES_KEY, color: chartColorForKey(SINGLE_SERIES_KEY) });
   }
 
   return lines;
@@ -326,7 +438,7 @@ export function buildChartModel(input: ChartInput): ChartModel {
     showCurrentSeries = true,
     showPreviousSeries = true,
     onToggleLegendKey,
-    valueFormatter,
+    valueFormatter = (v) => String(v),
     yAxisMode = "rate",
   } = input;
 
@@ -336,39 +448,55 @@ export function buildChartModel(input: ChartInput): ChartModel {
     showPreviousSeries,
   });
 
+  const resolvedLabels = inferChartLabels(labels, multiSeries);
+  const colorLookup = buildChartColorLookup(resolvedLabels);
+
   const seriesOptions: ChartSeriesOptions = {
     multiSeries,
     singleSeries,
     previousSeries,
-    labels,
+    labels: resolvedLabels,
     hiddenLegendKeys,
     drawPrevious,
     showCurrentSeries,
     showPreviousSeries,
+    colorLookup,
   };
 
-  const activeLabels = getActiveChartLabels(labels, hiddenLegendKeys);
   const rows = toChartRows(seriesOptions);
   const lines = toLineConfigs(seriesOptions);
-  const legendItems = buildChartLegendItems(labels, {
+  const legendItems = buildChartLegendItems(resolvedLabels, {
     hiddenLegendKeys,
     showCurrentSeries,
     showPreviousSeries: drawPrevious && showPreviousSeries !== false,
     onToggleLegendKey,
+    colorLookup,
   });
 
-  const dataMax = computeChartDataMax(
-    multiSeries,
-    singleSeries,
-    previousSeries,
-    activeLabels,
-    drawPrevious,
-  );
-  const { yMax, yTicks } =
-    yAxisMode === "score" ? buildChartYAxisForScore(dataMax) : buildChartYAxis(dataMax);
-  const yAxisWidth = computeChartYAxisWidth(yTicks, valueFormatter);
+  const lineKeys = lines.map((line) => line.key);
+  const { min: dataMin, max: dataMax } = computeChartDataRange(rows, lineKeys);
+  const { yMin, yMax } =
+    yAxisMode === "score"
+      ? buildChartYAxisForScore(dataMin, dataMax)
+      : buildChartYAxis(dataMax);
+  const yAxisWidth = computeChartYAxisWidth(yMin, yMax, valueFormatter);
 
-  return { rows, lines, legendItems, yMax, yTicks, yAxisWidth, drawPrevious };
+  return {
+    rows,
+    lines,
+    legendItems,
+    colorLookup,
+    yMin,
+    yMax,
+    yAxisWidth,
+    drawPrevious,
+    labels: resolvedLabels,
+    hiddenLegendKeys,
+    overlayPrevious,
+    previousSeries,
+    showCurrentSeries,
+    showPreviousSeries,
+  };
 }
 
 /** 悬停点各序列原始值 → tooltip 行（与具体图表库无关） */
@@ -381,6 +509,8 @@ export function buildChartTooltipRows({
   showCurrentSeries,
   showPreviousSeries,
   valueFormatter,
+  colorLookup,
+  fallbackLabel,
 }: {
   valuesByKey: Record<string, number>;
   labels: string[];
@@ -390,10 +520,27 @@ export function buildChartTooltipRows({
   showCurrentSeries?: boolean;
   showPreviousSeries?: boolean;
   valueFormatter: (v: number) => string;
+  colorLookup?: ReadonlyMap<string, string>;
+  /** 单序列模式（dataKey 为 SINGLE_SERIES_KEY）时的展示标签 */
+  fallbackLabel?: string;
 }): ChartTooltipRow[] {
   const activeLabels = getActiveChartLabels(labels, hiddenLegendKeys);
   const isPreviousPeriodMode =
     overlayPrevious && Boolean(previousSeries?.length) && activeLabels.length > 0;
+  const color = (lab: string) => resolveChartColor(colorLookup, labels, lab);
+
+  const singleSeriesValue = valuesByKey[SINGLE_SERIES_KEY];
+  const singleSeriesOnly =
+    singleSeriesValue != null && activeLabels.every((lab) => valuesByKey[lab] == null);
+  if (singleSeriesOnly) {
+    const displayLabels =
+      activeLabels.length > 0 ? activeLabels : [fallbackLabel ?? SINGLE_SERIES_KEY];
+    return displayLabels.map((lab) => ({
+      label: lab,
+      value: valueFormatter(singleSeriesValue),
+      color: color(lab),
+    }));
+  }
 
   if (isPreviousPeriodMode) {
     const rows: ChartTooltipRow[] = [];
@@ -402,7 +549,7 @@ export function buildChartTooltipRows({
         rows.push({
           label: lab,
           value: valueFormatter(valuesByKey[lab] ?? 0),
-          color: colorOfChartLabel(labels, lab),
+          color: color(lab),
         });
       });
     }
@@ -412,7 +559,7 @@ export function buildChartTooltipRows({
         rows.push({
           label: key,
           value: valueFormatter(valuesByKey[key] ?? 0),
-          color: colorOfChartLabel(labels, lab),
+          color: color(lab),
         });
       });
     }
@@ -425,9 +572,9 @@ export function buildChartTooltipRows({
     .map((lab) => ({
       label: lab,
       value: valueFormatter(valuesByKey[lab] ?? 0),
-      color: colorOfChartLabel(labels, lab),
+      color: color(lab),
       sortValue: valuesByKey[lab] ?? 0,
     }))
     .sort((a, b) => b.sortValue - a.sortValue)
-    .map(({ label, value, color }) => ({ label, value, color }));
+    .map(({ label, value, color: rowColor }) => ({ label, value, color: rowColor }));
 }

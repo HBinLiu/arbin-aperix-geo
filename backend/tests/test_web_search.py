@@ -60,7 +60,7 @@ def test_search_text_delegates_to_searxng(mock_settings, mock_searx) -> None:
     mock_searx.return_value = [SearchHit(title="A", url="https://a.com", snippet="", query="q")]
     hits = search_text("q")
     assert len(hits) == 1
-    mock_searx.assert_called_once_with("q", max_results=50, base_url="http://127.0.0.1:8061")
+    mock_searx.assert_called_once_with("q", max_results=10, base_url="http://127.0.0.1:8061")
 
 
 @patch("aperix_geo.services.searxng.get_settings")

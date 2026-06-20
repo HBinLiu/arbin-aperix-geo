@@ -93,3 +93,21 @@ def test_extract_metadata_from_fetch_reuses_seo_cache() -> None:
     parsed = extract_metadata_from_fetch(result, html_parse_limit=64_000, include_body=False)
     assert parsed.title == "Fetch Title"
     assert parsed.description == "desc"
+
+
+def test_template_title_falls_back_to_og_title() -> None:
+    html = """
+    <html><head>
+    <title>{{content.leadTitle}}</title>
+    <meta property="og:title" content="真实文章标题" />
+    </head></html>
+    """
+    parsed = extract_page_metadata(html=html)
+    assert parsed.title == "真实文章标题"
+
+
+def test_template_title_falls_back_to_markdown_heading() -> None:
+    html = "<head/><head><title>{{content.leadTitle}}</title></head>"
+    md = "# Markdown 页面标题\n\n正文内容 " * 5
+    parsed = extract_page_metadata(html=html, markdown=md)
+    assert parsed.title == "Markdown 页面标题"

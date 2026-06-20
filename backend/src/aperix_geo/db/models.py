@@ -4,17 +4,17 @@ from __future__ import annotations
 
 import enum
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy import text as sa_text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import Uuid
 
-from aperix_geo.db.base import Base
+from aperix_geo.db.base import Base, utc_now
 
 
 class SubjectType(str, enum.Enum):
@@ -42,10 +42,6 @@ class EntityKind(str, enum.Enum):
     other = "other"
 
 
-def utc_now() -> datetime:
-    return datetime.now(UTC)
-
-
 _NOW = sa_text("now()")
 
 
@@ -61,47 +57,56 @@ class Tenant(Base):
 
     users: Mapped[list["User"]] = relationship(back_populates="tenant")
     subjects: Mapped[list["Subject"]] = relationship(back_populates="tenant")
-    brands: Mapped[list["Brand"]] = relationship(back_populates="tenant")
+
+
+class BrandSource:
+    setup = "setup"
+    sampling_open_set = "sampling_open_set"
 
 
 class Brand(Base):
-    """Tenant-scoped canonical brand registry (shared across subjects)."""
+    """Subject-scoped brand registry (own / configured competitor / open-set other)."""
 
     __tablename__ = "tb_brands"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("tb_tenants.id", ondelete="CASCADE"), nullable=False
+    subject_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_subjects.id", ondelete="CASCADE"), nullable=False
     )
+    entity_kind: Mapped[str] = mapped_column(String(16), nullable=False, default="other", server_default="other")
     brand: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     domain: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     website_url: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     aliases: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default=sa_text("'[]'::jsonb"))
     summary: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    cross_validate_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cross_validate_reason: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    cross_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
     )
 
-    tenant: Mapped[Tenant] = relationship(back_populates="brands")
+    subject: Mapped["Subject"] = relationship(back_populates="brands")
     llm_response_signals: Mapped[list["LLMResponseSignal"]] = relationship(back_populates="brand")
 
     __table_args__ = (
-        Index("ix_brands_tenant_id", "tenant_id"),
-        Index("ix_brands_tenant_brand", "tenant_id", "brand"),
+        Index("ix_brands_subject_id", "subject_id"),
+        Index("ix_brands_subject_brand", "subject_id", "brand"),
         Index(
-            "uq_brands_tenant_domain",
-            "tenant_id",
+            "uq_brands_subject_domain",
+            "subject_id",
             "domain",
             unique=True,
-            postgresql_where=sa_text("domain <> ''"),
+            postgresql_where=sa_text("domain <> '' AND deleted = false"),
         ),
         Index(
-            "uq_brands_tenant_brand_no_domain",
-            "tenant_id",
+            "uq_brands_subject_brand_no_domain",
+            "subject_id",
             "brand",
             unique=True,
-            postgresql_where=sa_text("domain = ''"),
+            postgresql_where=sa_text("domain = '' AND deleted = false"),
         ),
     )
 
@@ -130,14 +135,14 @@ class User(Base):
             "uq_users_phone",
             "phone",
             unique=True,
-            postgresql_where=sa_text("phone <> ''"),
+            postgresql_where=sa_text("phone <> '' AND deleted = false"),
         ),
         Index(
             "uq_users_tenant_email_nn",
             "tenant_id",
             "email",
             unique=True,
-            postgresql_where=sa_text("email <> ''"),
+            postgresql_where=sa_text("email <> '' AND deleted = false"),
         ),
     )
 
@@ -158,15 +163,15 @@ class Subject(Base):
     domain: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     brand: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     aliases: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default=sa_text("'[]'::jsonb"))
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     website_url: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
-    monitoring_scope: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, default=dict, server_default=sa_text("'{}'::jsonb")
-    )
     profile_summary: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    niche_profile: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=sa_text("'{}'::jsonb")
+    )
     sampling_platforms: Mapped[list[Any]] = mapped_column(
         JSONB, nullable=False, server_default=sa_text("'[]'::jsonb")
     )
-    sampling_interval: Mapped[int] = mapped_column(Integer, nullable=False, server_default="24")
     last_sampled_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now, server_default=_NOW
     )
@@ -184,12 +189,9 @@ class Subject(Base):
     sampling_jobs: Mapped[list["SamplingJob"]] = relationship(
         back_populates="subject", cascade="all, delete-orphan"
     )
+    brands: Mapped[list["Brand"]] = relationship(back_populates="subject", cascade="all, delete-orphan")
 
     __table_args__ = (
-        CheckConstraint(
-            "sampling_interval IN (0, 6, 12, 24, 72, 168)",
-            name="ck_tb_subjects_sampling_interval",
-        ),
         Index("ix_subjects_tenant_id", "tenant_id"),
     )
 
@@ -206,6 +208,9 @@ class Competitor(Base):
     brand: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     aliases: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default=sa_text("'[]'::jsonb"))
     summary: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    cross_validate_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cross_validate_reason: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    cross_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
@@ -220,14 +225,14 @@ class Competitor(Base):
             "subject_id",
             "domain",
             unique=True,
-            postgresql_where=sa_text("domain <> ''"),
+            postgresql_where=sa_text("domain <> '' AND deleted = false"),
         ),
         Index(
             "uq_competitors_subject_brand_no_domain",
             "subject_id",
             "brand",
             unique=True,
-            postgresql_where=sa_text("domain = ''"),
+            postgresql_where=sa_text("domain = '' AND deleted = false"),
         ),
     )
 
@@ -284,7 +289,13 @@ class Prompt(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("subject_id", "text_hash", name="uq_subject_prompt_hash"),
+        Index(
+            "uq_subject_prompt_hash",
+            "subject_id",
+            "text_hash",
+            unique=True,
+            postgresql_where=sa_text("deleted = false"),
+        ),
         Index("ix_prompts_subject_id", "subject_id"),
         Index("ix_prompts_topic_id", "topic_id"),
     )
@@ -376,7 +387,14 @@ class LLMResponse(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("sampling_job_id", "prompt_id", "platform", name="uq_job_prompt_platform"),
+        Index(
+            "uq_job_prompt_platform",
+            "sampling_job_id",
+            "prompt_id",
+            "platform",
+            unique=True,
+            postgresql_where=sa_text("deleted = false"),
+        ),
         Index("ix_llm_responses_job_created", "sampling_job_id", "created_at"),
         Index("ix_llm_responses_created_at", "created_at"),
     )
@@ -408,9 +426,10 @@ class LLMResponseSignal(Base):
     mentioned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     mention_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     mention_rank: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
-    sentiment_score: Mapped[float] = mapped_column(Float, nullable=False, default=-1.0, server_default="-1")
-    sentiment_label: Mapped[str] = mapped_column(String(16), nullable=False, default="neutral", server_default="neutral")
+    sentiment_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0, server_default="0")
+    sentiment_reason: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     has_domain_link: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    # Source page body mentions the entity (used by citation_coverage / opportunities, not citation_rate KPI).
     cited_on_source: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
     updated_at: Mapped[datetime] = mapped_column(
@@ -423,7 +442,13 @@ class LLMResponseSignal(Base):
     brand: Mapped["Brand"] = relationship(back_populates="llm_response_signals")
 
     __table_args__ = (
-        UniqueConstraint("response_id", "entity_id", name="uq_llm_response_signal"),
+        Index(
+            "uq_llm_response_signal",
+            "response_id",
+            "entity_id",
+            unique=True,
+            postgresql_where=sa_text("deleted = false"),
+        ),
         Index("ix_llm_response_signals_subject_entity_created", "subject_id", "entity_id", "created_at"),
         Index("ix_llm_response_signals_subject_prompt_entity", "subject_id", "prompt_id", "entity_id"),
         Index("ix_llm_response_signals_response_id", "response_id"),
@@ -458,7 +483,13 @@ class CitationDomain(Base):
     prompt: Mapped[Prompt] = relationship(back_populates="citation_domains")
 
     __table_args__ = (
-        UniqueConstraint("response_id", "domain", name="uq_citation_domain"),
+        Index(
+            "uq_citation_domain",
+            "response_id",
+            "domain",
+            unique=True,
+            postgresql_where=sa_text("deleted = false"),
+        ),
         Index("ix_citation_domains_prompt_id", "prompt_id"),
         Index("ix_citation_domains_domain", "domain"),
         Index("ix_citation_domains_response_id", "response_id"),
@@ -504,7 +535,13 @@ class CitationUrl(Base):
     prompt: Mapped[Prompt] = relationship(back_populates="citation_urls")
 
     __table_args__ = (
-        UniqueConstraint("response_id", "url", name="uq_citation_url"),
+        Index(
+            "uq_citation_url",
+            "response_id",
+            "url",
+            unique=True,
+            postgresql_where=sa_text("deleted = false"),
+        ),
         Index("ix_citation_urls_prompt_id", "prompt_id"),
         Index("ix_citation_urls_response_id", "response_id"),
     )

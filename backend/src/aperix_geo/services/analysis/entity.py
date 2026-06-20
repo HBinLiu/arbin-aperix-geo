@@ -9,7 +9,12 @@ from uuid import UUID
 from fastapi import HTTPException, status
 
 from aperix_geo.db.models import Subject
-from aperix_geo.services.subject.labels import competitor_rank_label, own_label
+from aperix_geo.services.subject.labels import (
+    competitor_rank_domain,
+    competitor_rank_label,
+    own_label,
+    subject_rank_domain,
+)
 
 OWN_ENTITY_ID = "own"
 
@@ -20,6 +25,7 @@ class AnalysisEntity:
     kind: Literal["own", "competitor"]
     label: str
     display_name: str
+    domain: str
     competitor_id: UUID | None = None
 
 
@@ -31,6 +37,7 @@ def own_entity(subject: Subject) -> AnalysisEntity:
         kind="own",
         label=label,
         display_name=display,
+        domain=subject_rank_domain(subject),
         competitor_id=None,
     )
 
@@ -50,6 +57,7 @@ def competitor_entities(subject: Subject) -> list[AnalysisEntity]:
                 kind="competitor",
                 label=label,
                 display_name=display,
+                domain=competitor_rank_domain(domain=competitor.domain or ""),
                 competitor_id=competitor.id,
             )
         )
@@ -58,6 +66,11 @@ def competitor_entities(subject: Subject) -> list[AnalysisEntity]:
 
 def list_analysis_entities(subject: Subject) -> list[AnalysisEntity]:
     return [own_entity(subject), *competitor_entities(subject)]
+
+
+def entity_chart_labels(entities: list[AnalysisEntity]) -> list[str]:
+    """Stable chart series keys in catalog order (not metric-ranked)."""
+    return [entity.label for entity in entities]
 
 
 def resolve_analysis_entity(subject: Subject, entity_id: str | None) -> AnalysisEntity:

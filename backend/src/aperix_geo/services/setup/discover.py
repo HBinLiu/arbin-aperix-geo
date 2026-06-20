@@ -1,4 +1,4 @@
-"""设置向导：微观利基画像 → 竞品搜索（分步 API）。"""
+"""Setup discover：微观利基画像 + 竞品发现（不含监测主题）。"""
 
 from __future__ import annotations
 
@@ -7,38 +7,110 @@ import time
 from typing import Any
 from uuid import UUID
 
-from aperix_geo.config import get_settings
 from aperix_geo.utils.domains import registrable_domain
-from aperix_geo.services.competitor.pipeline import search_brand_competitors, search_domain_competitors
-from aperix_geo.services.competitor.profile import (
-    merge_profile_updates,
-    micro_keywords_list,
-    profile_from_dict,
-    profile_to_dict,
-)
-from aperix_geo.services.providers import LLMProviderError
+from aperix_geo.services.competitor.profile import keywords_list, profile_from_dict, profile_to_dict
 from aperix_geo.services.setup.cache import (
-    cached_competitors_result,
-    competitors_search_fingerprint,
     create_session,
     get_profile_cache,
     get_session,
-    profile_fingerprint,
-    session_patch_after_competitors,
+    profile_hash,
     set_profile_cache,
     update_session,
 )
-from aperix_geo.services.setup.llm.stages import build_subject_profile, run_profile_summary_stage
+from aperix_geo.services.setup.competitors import discover_competitors_for_session
+from aperix_geo.services.setup.helpers import require_deepseek_api_key
+from aperix_geo.services.setup.llm.stages import run_niche_profile_stage
 
 logger = logging.getLogger(__name__)
 
 
-def _require_llm_key() -> None:
-    if not get_settings().deepseek_api_key.strip():
-        raise LLMProviderError("DEEPSEEK_API_KEY is not configured")
+def _competitors_for_response(competitors: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """API 响应仅含 Step1 UI 字段；完整数据在 session.competitors。"""
+    out: list[dict[str, str]] = []
+    for item in competitors:
+        out.append(
+            {
+                "domain": str(item.get("domain") or "").strip(),
+                "website_url": str(item.get("website_url") or "").strip(),
+                "brand": str(item.get("brand") or "").strip(),
+            }
+        )
+    return out
 
 
-def discover_profile(
+def _resolve_target(
+    *,
+    subject_type: str,
+    domain: str | None,
+    brand: str | None,
+) -> tuple[str, str]:
+    if subject_type == "domain":
+        if not domain:
+            raise ValueError("domain is required for domain subject type")
+        raw_website = domain.strip()
+        target = registrable_domain(raw_website)
+        if not target:
+            raise ValueError("invalid domain")
+        return target, raw_website
+    if not brand or not brand.strip():
+        raise ValueError("brand is required for brand subject type")
+    return brand.strip(), ""
+
+
+def _session_matches_request(
+    session: dict[str, Any],
+    *,
+    profile_hash: str,
+    subject_type: str,
+    target: str,
+    region: str,
+    language: str,
+) -> bool:
+    return (
+        session.get("profile_hash") == profile_hash
+        and session.get("subject_type") == subject_type
+        and session.get("target") == target
+        and session.get("region", "CN") == region
+        and session.get("language", "zh-CN") == language
+    )
+
+
+def _load_or_build_profile(
+    *,
+    user_id: str,
+    subject_type: str,
+    target: str,
+    region: str,
+    language: str,
+    website_url: str,
+    profile_hash: str,
+) -> tuple[dict[str, Any], dict[str, Any], list[str], bool]:
+    cached_profile = get_profile_cache(user_id=user_id, profile_hash=profile_hash)
+    if cached_profile is not None:
+        profile_dict = cached_profile["profile"]
+        research_payload = dict(cached_profile["research_payload"])
+        keywords = keywords_list(profile_from_dict(profile_dict)) or ([target] if target else [])
+        return profile_dict, research_payload, keywords, True
+
+    profile, research_payload = run_niche_profile_stage(
+        subject_type=subject_type,
+        target=target,
+        region=region,
+        language=language,
+        website_url=website_url,
+    )
+    profile_dict = profile_to_dict(profile)
+    set_profile_cache(
+        user_id=user_id,
+        profile_hash=profile_hash,
+        profile=profile_dict,
+        research_payload=research_payload,
+    )
+    keywords = keywords_list(profile) or ([target] if target else [])
+    return profile_dict, research_payload, keywords, False
+
+
+def discover_setup(
     *,
     user_id: UUID,
     subject_type: str,
@@ -46,184 +118,108 @@ def discover_profile(
     brand: str | None,
     region: str,
     language: str,
+    session_id: str | None = None,
 ) -> dict[str, Any]:
-    """Step 1：生成微观利基画像 + 监测主题，写入 Redis 会话。"""
-    _require_llm_key()
+    """建立微观画像并完成竞品发现；可选 session_id 用于退回后缓存命中。"""
+    require_deepseek_api_key()
 
-    if subject_type == "domain":
-        if not domain:
-            raise ValueError("domain is required for domain subject type")
-        raw_website = domain.strip()
-        target = registrable_domain(raw_website)
-    else:
-        if not brand or not brand.strip():
-            raise ValueError("brand is required for brand subject type")
-        target = brand.strip()
-        raw_website = ""
-
-    website_for_fp = raw_website if subject_type == "domain" else ""
-    fp = profile_fingerprint(
+    target, raw_website = _resolve_target(
+        subject_type=subject_type,
+        domain=domain,
+        brand=brand,
+    )
+    website_url = raw_website if subject_type == "domain" else ""
+    profile_hash_value = profile_hash(
         subject_type=subject_type,
         target=target,
         region=region,
         language=language,
-        website_url=website_for_fp,
+        website_url=website_url,
     )
-    cached_profile = get_profile_cache(user_id=str(user_id), fingerprint=fp)
-    from_cache = cached_profile is not None
-    if from_cache:
-        profile_dict = cached_profile["profile"]
-        profile = profile_from_dict(profile_dict)
-        monitoring_topics = list(cached_profile["monitoring_topics"])
-        research_payload = dict(cached_profile["research_payload"])
-    else:
-        profile, monitoring_topics, research_payload = build_subject_profile(
+
+    user_key = str(user_id)
+    existing: dict[str, Any] | None = None
+    sid = (session_id or "").strip()
+    if sid:
+        loaded = get_session(user_id=user_key, session_id=sid)
+        if loaded and _session_matches_request(
+            loaded,
+            profile_hash=profile_hash_value,
             subject_type=subject_type,
             target=target,
             region=region,
             language=language,
-            website_url=website_for_fp,
+        ):
+            existing = loaded
+
+    t0 = time.perf_counter()
+    if existing is not None:
+        session_id = sid
+        profile_dict = dict(existing.get("profile") or {})
+        keywords = list(existing.get("keywords") or [])
+        if not existing.get("research_payload"):
+            cached_profile = get_profile_cache(user_id=user_key, profile_hash=profile_hash_value)
+            if cached_profile and cached_profile.get("research_payload"):
+                update_session(
+                    user_id=user_key,
+                    session_id=session_id,
+                    patch={"research_payload": dict(cached_profile["research_payload"])},
+                )
+        logger.info(
+            "设置向导·发现 复用会话 session=%s target=%r",
+            session_id[:8],
+            target,
         )
-        profile_dict = profile_to_dict(profile)
-        set_profile_cache(
-            user_id=str(user_id),
-            fingerprint=fp,
-            profile=profile_dict,
-            monitoring_topics=monitoring_topics,
-            research_payload=research_payload,
+    else:
+        profile_dict, research_payload, keywords, from_cache = _load_or_build_profile(
+            user_id=user_key,
+            subject_type=subject_type,
+            target=target,
+            region=region,
+            language=language,
+            website_url=website_url,
+            profile_hash=profile_hash_value,
         )
-
-    keywords = micro_keywords_list(profile) or ([target] if target else [])
-
-    session_id = create_session(
-        user_id=str(user_id),
-        payload={
-            "subject_type": subject_type,
-            "target": target,
-            "domain": target if subject_type == "domain" else None,
-            "website_url": raw_website if subject_type == "domain" else None,
-            "brand": target if subject_type == "brand" else None,
-            "region": region,
-            "language": language,
-            "profile": profile_dict,
-            "micro_keywords": keywords,
-            "monitoring_topics": monitoring_topics,
-            "research_payload": research_payload,
-            "profile_summary": "",
-        },
-    )
-
-    logger.info(
-        "设置向导: Step1 session=%s target=%r type=%s industry=%r keywords=%s topics=%s%s",
-        session_id[:8],
-        target,
-        subject_type,
-        profile.get("industry", ""),
-        keywords,
-        monitoring_topics,
-        " 缓存" if from_cache else "",
-    )
-    return {
-        "session_id": session_id,
-        "monitoring_topics": monitoring_topics,
-    }
-
-
-def discover_competitors_from_session(
-    *,
-    user_id: UUID,
-    session_id: str,
-    monitoring_topics: list[str],
-) -> dict[str, Any]:
-    """Step 2：搜索竞品并生成完整摘要，更新会话。"""
-    _require_llm_key()
-
-    session = get_session(user_id=str(user_id), session_id=session_id)
-    if session is None:
-        raise ValueError("setup session not found")
-
-    base = profile_from_dict(session.get("profile") or {})
-    confirmed = session.get("micro_keywords") or []
-    profile = merge_profile_updates(
-        base,
-        micro_keywords=confirmed if confirmed else None,
-    )
-    keywords = micro_keywords_list(profile)
-    profile_dict = profile_to_dict(profile)
-    confirmed_topics = monitoring_topics
-
-    subject_type = session["subject_type"]
-    region = session.get("region", "CN")
-    language = session.get("language", "zh-CN")
-    target = session["target"]
-    fingerprint = competitors_search_fingerprint(
-        subject_type=subject_type,
-        target=target,
-        micro_keywords=keywords,
-    )
-
-    cached = cached_competitors_result(session, fingerprint=fingerprint)
-    if cached is not None:
-        update_session(
-            user_id=str(user_id),
-            session_id=session_id,
-            patch={
+        session_id = create_session(
+            user_id=user_key,
+            payload={
+                "subject_type": subject_type,
+                "target": target,
+                "domain": target if subject_type == "domain" else None,
+                "website_url": raw_website if subject_type == "domain" else None,
+                "brand": target if subject_type == "brand" else None,
+                "region": region,
+                "language": language,
+                "profile_hash": profile_hash_value,
                 "profile": profile_dict,
-                "micro_keywords": keywords,
-                "monitoring_topics": confirmed_topics,
+                "keywords": keywords,
+                "monitoring_topics": [],
+                "research_payload": research_payload,
+                "profile_summary": "",
             },
         )
         logger.info(
-            "设置向导: 竞品缓存命中 session=%s competitors=%d",
+            "设置向导·发现 新建会话 session=%s target=%r type=%s 画像缓存=%s",
             session_id[:8],
-            len(cached["competitors"]),
-        )
-        return {"competitors": cached["competitors"]}
-
-    research_payload = session.get("research_payload") or {}
-
-    logger.info("设置向导: 搜索竞品 session=%s type=%s target=%r", session_id[:8], subject_type, target)
-    t0 = time.perf_counter()
-
-    if subject_type == "domain":
-        result = search_domain_competitors(profile, target, region=region, language=language)
-    else:
-        web_research = research_payload.get("web_research") if isinstance(research_payload, dict) else None
-        result = search_brand_competitors(
-            profile,
             target,
-            region=region,
-            language=language,
-            web_research=web_research if isinstance(web_research, list) else None,
+            subject_type,
+            from_cache,
         )
 
-    profile_summary = run_profile_summary_stage(
-        profile=profile,
-        research_payload=research_payload,
-        entity_key=target,
-        region=region,
-        subject_type=subject_type,
-        competitors=result.get("competitors"),
-    )
-    competitors = result.get("competitors") or []
-    update_session(
-        user_id=str(user_id),
+    competitors = discover_competitors_for_session(
+        user_id=user_id,
         session_id=session_id,
-        patch=session_patch_after_competitors(
-            profile_dict=profile_dict,
-            keywords=keywords,
-            confirmed_topics=confirmed_topics,
-            profile_summary=profile_summary,
-            fingerprint=fingerprint,
-            competitors=competitors,
-        ),
+        profile_dict=profile_dict,
+        keywords=keywords,
     )
 
     logger.info(
-        "设置向导: 搜索结束 session=%s %.1fs competitors=%d summary=%d chars",
+        "设置向导·发现 完成 session=%s 耗时=%.1fs 竞品=%d",
         session_id[:8],
         time.perf_counter() - t0,
-        len(result.get("competitors") or []),
-        len(profile_summary or ""),
+        len(competitors),
     )
-    return {"competitors": competitors}
+    return {
+        "session_id": session_id,
+        "competitors": _competitors_for_response(competitors),
+    }

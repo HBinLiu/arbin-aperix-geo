@@ -1,16 +1,12 @@
 import { useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
 
 import {
-  DEFAULT_TABLE_PAGE_SIZE,
-  paginateRows,
   TABLE_PAGE_SIZE_OPTIONS,
   TablePagination,
 } from "@/components/analysis/common/TablePagination";
 import {
   ColumnHelp,
-  EmptyMetricCell,
   PromptTextCell,
   RankMetricCell,
   SentimentMetricCell,
@@ -19,6 +15,7 @@ import {
 import { PromptFunnelBadge } from "@/components/analysis/prompt/PromptFunnelBadge";
 import { PromptIntentBadge } from "@/components/analysis/prompt/PromptIntentBadge";
 import { PromptPerformanceSkeletonRows } from "@/components/analysis/prompt/PerformanceTableSkeleton";
+import { PerformanceTableShell } from "@/components/analysis/prompt/PerformanceTableShell";
 import {
   performanceTableClasses,
   PROMPT_TABLE_COLUMN_COUNT,
@@ -32,47 +29,27 @@ import type { PromptPerformanceRow } from "@/lib/analysis/prompt";
 import { promptDetailPath } from "@/lib/analysis/nav";
 import { cn } from "@/lib/utils";
 
+type SortKey = "visibility" | "sentiment" | "averageRank" | "citationRate";
+type SortDir = "asc" | "desc";
+export type PromptPerformanceSortState = { key: SortKey; dir: SortDir } | null;
+
 type PromptPerformanceTableProps = {
   rows: PromptPerformanceRow[];
   loading?: boolean;
   className?: string;
+  total: number;
+  page: number;
+  pageSize: number;
+  sort: PromptPerformanceSortState;
+  onSortChange: (sort: PromptPerformanceSortState) => void;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
 };
-
-type SortKey = "visibility" | "sentiment" | "averageRank" | "citationRate";
-type SortDir = "asc" | "desc";
-type SortState = { key: SortKey; dir: SortDir } | null;
-
-function sortValue(row: PromptPerformanceRow, key: SortKey): number {
-  switch (key) {
-    case "visibility":
-      return row.visibilityNum;
-    case "sentiment":
-      return row.sentimentNum ?? -1;
-    case "averageRank":
-      return row.averageRankNum ?? Number.POSITIVE_INFINITY;
-    case "citationRate":
-      return row.citationNum ?? -1;
-  }
-}
-
-function compareRows(a: PromptPerformanceRow, b: PromptPerformanceRow, sort: SortState): number {
-  if (!sort) {
-    return b.visibilityNum - a.visibilityNum;
-  }
-
-  const diff = sortValue(a, sort.key) - sortValue(b, sort.key);
-  if (diff === 0) return a.promptText.localeCompare(b.promptText, "zh-CN");
-
-  if (sort.key === "averageRank") {
-    return sort.dir === "asc" ? diff : -diff;
-  }
-  return sort.dir === "asc" ? diff : -diff;
-}
 
 type SortableHeaderProps = {
   label: string;
   sortKey: SortKey;
-  sort: SortState;
+  sort: PromptPerformanceSortState;
   onSort: (key: SortKey) => void;
   help?: { label: string; description: string };
 };
@@ -110,39 +87,30 @@ function SortableHeader({ label, sortKey, sort, onSort, help }: SortableHeaderPr
   );
 }
 
-function cycleSort(prev: SortState, key: SortKey): SortState {
+function cycleSort(prev: PromptPerformanceSortState, key: SortKey): PromptPerformanceSortState {
   if (prev?.key !== key) return { key, dir: "desc" };
   if (prev.dir === "desc") return { key, dir: "asc" };
   return null;
 }
 
-/** 提示词表现明细表：提示词列 minWidth 可伸缩，其余列固定 px */
+/** 提示词表现明细表：服务端分页与排序 */
 export function PromptPerformanceTable({
   rows,
   loading = false,
   className,
+  total,
+  page,
+  pageSize,
+  sort,
+  onSortChange,
+  onPageChange,
+  onPageSizeChange,
 }: PromptPerformanceTableProps) {
   const navigate = useNavigate();
-  const [sort, setSort] = useState<SortState>(null);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
-
-  const sortedRows = useMemo(() => {
-    return [...rows].sort((a, b) => compareRows(a, b, sort));
-  }, [rows, sort]);
-
-  const pageRows = useMemo(
-    () => paginateRows(sortedRows, page, pageSize),
-    [sortedRows, page, pageSize],
-  );
-
-  useEffect(() => {
-    setPage(1);
-  }, [rows]);
 
   const handlePageSizeChange = (nextPageSize: number) => {
-    setPageSize(nextPageSize);
-    setPage(1);
+    onPageSizeChange(nextPageSize);
+    onPageChange(1);
   };
 
   return (
@@ -151,13 +119,13 @@ export function PromptPerformanceTable({
       loading={loading}
       scrollMinWidth={PROMPT_TABLE_MIN_WIDTH}
       footer={
-        !loading && sortedRows.length > 0 ? (
+        !loading && total > 0 ? (
           <TablePagination
-            total={sortedRows.length}
+            total={total}
             page={page}
             pageSize={pageSize}
             pageSizeOptions={TABLE_PAGE_SIZE_OPTIONS}
-            onPageChange={setPage}
+            onPageChange={onPageChange}
             onPageSizeChange={handlePageSizeChange}
           />
         ) : null
@@ -183,7 +151,7 @@ export function PromptPerformanceTable({
                 营销漏斗
                 <ColumnHelp
                   label="营销漏斗"
-                  description="提示词在营销漏斗中的阶段定位，如 BOFU（决策期）或 MOFU（考虑期）。"
+                  description="根据提示词所隐含的意图深度，将其归类到营销漏斗的不同阶段，帮助您判断用户在使用 AI 搜索时所处的决策心理阶段和流量的变现潜力；认知期（TOFU）、考虑期（MOFU）、决策期（BOFU）。"
                 />
               </span>
             </th>
@@ -192,10 +160,10 @@ export function PromptPerformanceTable({
                 label="可见度"
                 sortKey="visibility"
                 sort={sort}
-                onSort={(key) => setSort((prev) => cycleSort(prev, key))}
+                onSort={(key) => onSortChange(cycleSort(sort, key))}
                 help={{
                   label: "可见度",
-                  description: "在该提示词下，至少提及一次自有品牌的 AI 回复占比。",
+                  description: "提及您品牌的 AI 回复总数百分比。数值越高表示在所选渠道中的曝光度和竞争可见度越高。",
                 }}
               />
             </th>
@@ -204,10 +172,10 @@ export function PromptPerformanceTable({
                 label="情感倾向分数"
                 sortKey="sentiment"
                 sort={sort}
-                onSort={(key) => setSort((prev) => cycleSort(prev, key))}
+                onSort={(key) => onSortChange(cycleSort(sort, key))}
                 help={{
                   label: "情感倾向分数",
-                  description: "该提示词下 AI 提及自有品牌时的平均情感得分。",
+                  description: "AI 在回答中提及您品牌时的情感倾向评分（正面/中立/负面），反映了 AI 模型对您品牌产品或服务的评价态度与推荐意愿，数值越高品牌推荐越正向。",
                 }}
               />
             </th>
@@ -216,7 +184,11 @@ export function PromptPerformanceTable({
                 label="平均排名"
                 sortKey="averageRank"
                 sort={sort}
-                onSort={(key) => setSort((prev) => cycleSort(prev, key))}
+                onSort={(key) => onSortChange(cycleSort(sort, key))}
+                help={{
+                  label: "平均排名",
+                  description: "品牌在 AI 推荐列表中的平均排名。反映在 AI 系统中的优先级。排名越高（数字越小）确保立即可见度，并提高用户点击的可能性。",
+                }}
               />
             </th>
             <th style={promptTableColumnCellStyle(promptTableColumn("citation"))}>
@@ -224,10 +196,10 @@ export function PromptPerformanceTable({
                 label="引用率"
                 sortKey="citationRate"
                 sort={sort}
-                onSort={(key) => setSort((prev) => cycleSort(prev, key))}
+                onSort={(key) => onSortChange(cycleSort(sort, key))}
                 help={{
                   label: "引用率",
-                  description: "在该提示词下，提及品牌且伴随自有域名链接的回复占比。",
+                  description: "提及品牌且引用自有域名链接的回复占比。反映内容可信度和将 AI 浏览量转化为网站流量的能力。比率越高表示被引用的内容越广泛。",
                 }}
               />
             </th>
@@ -236,7 +208,7 @@ export function PromptPerformanceTable({
                 意图
                 <ColumnHelp
                   label="意图"
-                  description="提示词的搜索意图类型，如交易型（T）或商业型（C）。"
+                  description="识别查询背后的搜索意图类别。通过区分教育性流量驱动因素和推动直接购买的高价值关键词，帮助调整内容策略；交易型（T）、对比型（C）、了解型（I）。"
                 />
               </span>
             </th>
@@ -245,14 +217,14 @@ export function PromptPerformanceTable({
         <tbody>
           {loading ? (
             <PromptPerformanceSkeletonRows />
-          ) : sortedRows.length === 0 ? (
+          ) : total === 0 ? (
             <tr>
               <td colSpan={PROMPT_TABLE_COLUMN_COUNT} className="text-muted-foreground px-5 py-10 text-center text-sm">
                 暂无提示词表现数据
               </td>
             </tr>
           ) : (
-            pageRows.map((row) => (
+            rows.map((row) => (
               <tr
                 key={row.id}
                 className={cn(
@@ -273,27 +245,38 @@ export function PromptPerformanceTable({
                 >
                   {row.topicName}
                 </td>
-                <td style={promptTableColumnCellStyle(promptTableColumn("funnel"))}>
-                  {row.funnelStage ? <PromptFunnelBadge stage={row.funnelStage} /> : <EmptyMetricCell />}
+                <td
+                  className="text-foreground font-medium" 
+                  style={promptTableColumnCellStyle(promptTableColumn("funnel"))}>
+                  <PromptFunnelBadge stage={row.funnelStage} />
                 </td>
-                <td style={promptTableColumnCellStyle(promptTableColumn("visibility"))}>
+                <td
+                  className="text-foreground font-medium"
+                  style={promptTableColumnCellStyle(promptTableColumn("visibility"))}>
                   <VisibilityMetricCell value={row.visibility} delta={row.visibilityDelta} />
                 </td>
-                <td style={promptTableColumnCellStyle(promptTableColumn("sentiment"))}>
-                  <SentimentMetricCell value={row.sentiment} delta={row.sentimentDelta} />
+                <td
+                  className="text-foreground font-medium"
+                  style={promptTableColumnCellStyle(promptTableColumn("sentiment"))}>
+                    <SentimentMetricCell
+                      value={row.sentiment}
+                      label={row.sentimentLabel}
+                    />
                 </td>
-                <td style={promptTableColumnCellStyle(promptTableColumn("rank"))}>
+                <td
+                  className="text-foreground font-medium"
+                  style={promptTableColumnCellStyle(promptTableColumn("rank"))}>
                   <RankMetricCell value={row.averageRank} delta={row.averageRankDelta} />
                 </td>
-                <td style={promptTableColumnCellStyle(promptTableColumn("citation"))}>
+                <td
+                  className="text-foreground font-medium"
+                  style={promptTableColumnCellStyle(promptTableColumn("citation"))}>
                   {row.citationRate}
                 </td>
-                <td style={promptTableColumnCellStyle(promptTableColumn("intent"))}>
-                  {row.searchIntent ? (
+                <td
+                  className="text-foreground font-medium"
+                  style={promptTableColumnCellStyle(promptTableColumn("intent"))}>
                     <PromptIntentBadge intent={row.searchIntent} />
-                  ) : (
-                    <EmptyMetricCell />
-                  )}
                 </td>
               </tr>
             ))

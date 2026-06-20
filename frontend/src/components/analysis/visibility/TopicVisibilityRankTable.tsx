@@ -1,5 +1,8 @@
 import { BrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
+import { CompetitorHoverCard } from "@/components/brand/CompetitorHoverCard";
+import { LabelHoverPortal } from "@/components/brand/LabelHoverPortal";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useBrandHoverRow } from "@/hooks/useBrandHoverRow";
 import { cn } from "@/lib/utils";
 
 export type TopicVisibilityRankRow = {
@@ -12,6 +15,22 @@ const RANK_SLOTS = ["#1", "#2", "#3", "#4", "#5"] as const;
 const TOPIC_COLUMN_WIDTH = "30%";
 const RANK_COLUMN_WIDTH = "14%";
 const SKELETON_GRID_COLUMNS = `${TOPIC_COLUMN_WIDTH} ${RANK_SLOTS.map(() => RANK_COLUMN_WIDTH).join(" ")}`;
+const HOVER_CARD_ANIMATION =
+  "animate-in fade-in-0 zoom-in-95 slide-in-from-left-2 duration-200";
+
+function TopicRankBrandIcon({ label }: { label: string }) {
+  const resolvedHoverRow = useBrandHoverRow(label);
+
+  return (
+    <LabelHoverPortal
+      label={label}
+      className="inline-flex shrink-0"
+      trigger={<BrandRankIcon label={label} size="lg" />}
+      content={<CompetitorHoverCard row={resolvedHoverRow} />}
+      contentClassName={HOVER_CARD_ANIMATION}
+    />
+  );
+}
 
 type TopicVisibilityRankTableProps = {
   rows: TopicVisibilityRankRow[];
@@ -115,7 +134,11 @@ export function TopicVisibilityRankTable({
                   {RANK_SLOTS.map((slot, index) => (
                     <td key={slot} className="text-center">
                       <div className="flex h-7 items-center justify-center">
-                        <BrandRankIcon label={row.ranks[index] ?? null} size="lg" />
+                        {row.ranks[index] ? (
+                          <TopicRankBrandIcon label={row.ranks[index]!} />
+                        ) : (
+                          <BrandRankIcon label={null} size="lg" />
+                        )}
                       </div>
                     </td>
                   ))}

@@ -86,7 +86,7 @@ export function PromptUploadDialog({
               </div>
               <Button
                 type="button"
-                variant="primaryOutline"
+                variant="brandout"
                 size="sm"
                 className="shrink-0 gap-1.5"
                 disabled={submitting}

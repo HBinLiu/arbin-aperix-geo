@@ -2,24 +2,24 @@ import { CircleHelp } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { AnalysisRankTable, type RankRow } from "@/components/analysis/common/AnalysisRankTable";
+import { buildBrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
 import { SentimentMetricCell } from "@/components/analysis/prompt/PerformanceMetricCells";
 import { SentimentDistributionChart } from "@/components/analysis/sentiment/SentimentDistributionChart";
-import { PlatformLogo } from "@/components/brand/PlatformLogo";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  SENTIMENT_CHART_HEIGHT,
   SENTIMENT_RANK_TABLE_HEIGHT,
   SENTIMENT_SECTION_HEIGHT,
   type SentimentOverviewData,
 } from "@/lib/analysis/sentiment";
-import type { SentimentDistributionPoint } from "@/types";
+import type { SamplingPlatform } from "@/types";
 import { cn } from "@/lib/utils";
 
 const DISTRIBUTION_DESCRIPTION =
-  "统计 AI 回复中提及自有品牌时的情感分布，按日展示正面、中立与负面占比。";
+  "AI 在回答中提及当前品牌时的情感倾向评分（正面/中立/负面），反映了 AI 模型对当前品牌产品或服务的评价态度与推荐意愿，数值越高品牌推荐越正向";
 
 type SentimentOverviewSectionProps = {
   overview: SentimentOverviewData;
+  platformsMeta: SamplingPlatform[];
   loading?: boolean;
 };
 
@@ -41,7 +41,7 @@ function DistributionTitleInfo() {
       <TooltipContent
         side="top"
         sideOffset={8}
-        className="w-[250px] min-w-[250px] max-w-[250px] px-3 py-2.5 text-sm font-medium leading-relaxed text-left text-wrap"
+        className="max-w-[240px] px-3 py-2.5 text-sm font-medium leading-relaxed text-left text-wrap"
       >
         <p className="w-full text-wrap">{DISTRIBUTION_DESCRIPTION}</p>
       </TooltipContent>
@@ -58,22 +58,32 @@ function sentimentBadgeClass(label: string): string {
 type DistributionCardProps = {
   score: number | null | undefined;
   scoreLabel: string;
-  series: SentimentDistributionPoint[];
+  series: SentimentOverviewData["distributionSeries"];
+  platformsMeta: SamplingPlatform[];
   loading?: boolean;
 };
 
-function SentimentDistributionCard({ score, scoreLabel, series, loading }: DistributionCardProps) {
+function SentimentDistributionCard({
+  score,
+  scoreLabel,
+  series,
+  platformsMeta,
+  loading,
+}: DistributionCardProps) {
   const scoreText = score != null ? score.toFixed(1) : null;
 
   return (
-    <div className="flex min-w-[min(100%,480px)] flex-[3] flex-col p-5" style={{ minHeight: SENTIMENT_SECTION_HEIGHT }}>
+    <div
+      className="flex min-h-0 min-w-[min(100%,480px)] flex-[3] flex-col p-5"
+      style={{ minHeight: SENTIMENT_SECTION_HEIGHT }}
+    >
       <div className="border-border flex shrink-0 items-center justify-between gap-4 border-b pb-5">
         <div className="flex min-w-0 items-center gap-1.5">
-          <h3 className="text-base font-bold">情感分布</h3>
+          <h3 className="text-base font-bold">情感倾向</h3>
           <DistributionTitleInfo />
         </div>
         {scoreText ? (
-          <div className="flex shrink-0 items-baseline gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <span className="text-lg font-bold tracking-tight tabular-nums">{scoreText}</span>
             <span className={cn("text-sm font-semibold", sentimentBadgeClass(scoreLabel))}>
               {scoreLabel}
@@ -83,32 +93,31 @@ function SentimentDistributionCard({ score, scoreLabel, series, loading }: Distr
           <div className="bg-muted h-7 w-24 animate-pulse rounded-md" />
         ) : null}
       </div>
-      <div className="mt-4 min-w-0 w-full" style={{ minHeight: SENTIMENT_CHART_HEIGHT }} aria-busy={loading}>
+      <div className="mt-4 flex min-h-0 flex-1 flex-col w-full" aria-busy={loading}>
         {loading ? (
-          <div
-            className="bg-muted/60 w-full animate-pulse rounded-md"
-            style={{ height: SENTIMENT_CHART_HEIGHT }}
-          />
+          <div className="bg-muted/60 min-h-[120px] flex-1 animate-pulse rounded-md" />
         ) : (
-          <SentimentDistributionChart series={series} height={SENTIMENT_CHART_HEIGHT} className="w-full" />
+          <SentimentDistributionChart
+            series={series}
+            platformsMeta={platformsMeta}
+            className="w-full"
+          />
         )}
       </div>
     </div>
   );
 }
 
-export function SentimentOverviewSection({ overview, loading = false }: SentimentOverviewSectionProps) {
+export function SentimentOverviewSection({
+  overview,
+  platformsMeta,
+  loading = false,
+}: SentimentOverviewSectionProps) {
   const rankRowsWithIcons = useMemo(
     () =>
       overview.rankRows.map((row: RankRow) => ({
         ...row,
-        icon: (
-          <PlatformLogo
-            provider={row.id}
-            label={row.label}
-            className="size-6 rounded-md"
-          />
-        ),
+        icon: buildBrandRankIcon(row.domain ?? ""),
       })),
     [overview.rankRows],
   );
@@ -123,6 +132,7 @@ export function SentimentOverviewSection({ overview, loading = false }: Sentimen
           score={overview.score}
           scoreLabel={overview.scoreLabel}
           series={overview.distributionSeries}
+          platformsMeta={platformsMeta}
           loading={loading}
         />
         <div
@@ -135,12 +145,14 @@ export function SentimentOverviewSection({ overview, loading = false }: Sentimen
             showMoreFooter
             height={SENTIMENT_RANK_TABLE_HEIGHT}
             className="min-h-0"
-            title="情感分布排名"
-            entityHeader="平台"
-            valueHeader="情感倾向分数"
+            title="情感倾向排名"
+            entityHeader="品牌"
+            valueHeader="情感倾向"
             rows={rankRowsWithIcons}
-            renderValue={(row) => <SentimentMetricCell value={row.value} delta={null} />}
-            emptyMessage="暂无平台排名数据"
+            renderValue={(row) => (
+              <SentimentMetricCell value={row.value} label={row.sentimentLabel} />
+            )}
+            emptyMessage="暂无品牌排名数据"
           />
         </div>
       </div>

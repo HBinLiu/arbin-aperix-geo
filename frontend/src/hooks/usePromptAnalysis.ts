@@ -1,7 +1,12 @@
 import { useMemo } from "react";
 
-import { fetchPromptsPerformance, fetchTopicsPerformance } from "@/api/analysis";
-import { dateRangeDays, previousDateRange, toAnalysisQueryFilters } from "@/lib/analysis";
+import {
+  fetchPromptsPerformance,
+  type FetchPromptsPerformanceOptions,
+} from "@/api/analysis";
+import { fetchTopicsPerformance } from "@/api/analysis";
+import { previousDateRange, platformFilterKey, topicFilterKey, toAnalysisQueryFilters, withAnalysisDateRange } from "@/lib/analysis";
+
 import {
   buildPromptPerformanceRows,
   buildTopicPerformanceRows,
@@ -10,45 +15,99 @@ import { queryKeys } from "@/lib/queries";
 import type { AnalysisFilters } from "@/types";
 import { useQueries } from "@tanstack/react-query";
 
-export function usePromptAnalysis(subjectId: string, filters: AnalysisFilters) {
-  const queryFilters = toAnalysisQueryFilters(filters);
-  const { from, to } = useMemo(() => dateRangeDays(Number(filters.days)), [filters.days]);
-  const prevRange = useMemo(() => previousDateRange(from, to), [from, to]);
-  const { entityId, platformId, topicId } = queryFilters;
+export type PromptListRequest = {
+  page: number;
+  pageSize: number;
+  search: string;
+  topicId: string | null;
+  sortBy: FetchPromptsPerformanceOptions["sortBy"];
+  order: "asc" | "desc";
+};
+
+export function usePromptAnalysis(
+  subjectId: string,
+  filters: AnalysisFilters,
+  listRequest: PromptListRequest,
+) {
+  const queryFilters = useMemo(() => toAnalysisQueryFilters(filters), [filters]);
+  const prevQueryFilters = useMemo(() => {
+    const prev = previousDateRange(queryFilters.from, queryFilters.to);
+    return withAnalysisDateRange(queryFilters, prev.from, prev.to);
+  }, [queryFilters]);
+  const { from, to, entityId, platformIds, topicIds } = queryFilters;
+  const topicKey = topicFilterKey(topicIds);
+  const platformKey = platformFilterKey(platformIds);
+  const {
+    page,
+    pageSize,
+    search,
+    topicId: listTopicId,
+    sortBy,
+    order,
+  } = listRequest;
+  const searchKey = search.trim();
+  const listTopicKey = listTopicId ?? "";
+  const sortKey = sortBy ?? "";
+  const promptFetchOptions = useMemo(
+    (): FetchPromptsPerformanceOptions => ({
+      page,
+      pageSize,
+      search: searchKey || undefined,
+      topicId: listTopicId,
+      sortBy,
+      order,
+    }),
+    [page, pageSize, searchKey, listTopicId, sortBy, order],
+  );
 
   const [topicsCurrent, topicsPrevious, promptsCurrent, promptsPrevious] = useQueries({
     queries: [
       {
-        queryKey: queryKeys.analysisTopics(subjectId, entityId, platformId, topicId, from, to),
-        queryFn: () => fetchTopicsPerformance(subjectId, queryFilters, from, to),
+        queryKey: queryKeys.analysisTopics(subjectId, entityId, platformKey, topicKey, from, to),
+        queryFn: () => fetchTopicsPerformance(subjectId, queryFilters),
       },
       {
         queryKey: queryKeys.analysisTopics(
           subjectId,
           entityId,
-          platformId,
-          topicId,
-          prevRange.from,
-          prevRange.to,
+          platformKey, topicKey, prevQueryFilters.from,
+          prevQueryFilters.to,
         ),
-        queryFn: () =>
-          fetchTopicsPerformance(subjectId, queryFilters, prevRange.from, prevRange.to),
-      },
-      {
-        queryKey: queryKeys.analysisPrompts(subjectId, entityId, platformId, topicId, from, to),
-        queryFn: () => fetchPromptsPerformance(subjectId, queryFilters, from, to),
+        queryFn: () => fetchTopicsPerformance(subjectId, prevQueryFilters),
       },
       {
         queryKey: queryKeys.analysisPrompts(
           subjectId,
           entityId,
-          platformId,
-          topicId,
-          prevRange.from,
-          prevRange.to,
+          platformKey,
+          topicKey,
+          from,
+          to,
+          page,
+          pageSize,
+          searchKey,
+          listTopicKey,
+          sortKey,
+          order,
         ),
-        queryFn: () =>
-          fetchPromptsPerformance(subjectId, queryFilters, prevRange.from, prevRange.to),
+        queryFn: () => fetchPromptsPerformance(subjectId, queryFilters, promptFetchOptions),
+      },
+      {
+        queryKey: queryKeys.analysisPrompts(
+          subjectId,
+          entityId,
+          platformKey,
+          topicKey,
+          prevQueryFilters.from,
+          prevQueryFilters.to,
+          page,
+          pageSize,
+          searchKey,
+          listTopicKey,
+          sortKey,
+          order,
+        ),
+        queryFn: () => fetchPromptsPerformance(subjectId, prevQueryFilters, promptFetchOptions),
       },
     ],
   });
@@ -65,30 +124,20 @@ export function usePromptAnalysis(subjectId: string, filters: AnalysisFilters) {
   );
 
   const promptRows = useMemo(
-    () => buildPromptPerformanceRows(promptsCurrent.data ?? [], promptsPrevious.data ?? []),
-    [promptsCurrent.data, promptsPrevious.data],
+    () =>
+      buildPromptPerformanceRows(
+        promptsCurrent.data?.items ?? [],
+        promptsPrevious.data?.items ?? [],
+      ),
+    [promptsCurrent.data?.items, promptsPrevious.data?.items],
   );
 
-  return { isLoading, topicRows, promptRows };
-}
-
-export function filterPromptRowsBySearch<T extends { promptText: string; topicName: string }>(
-  rows: T[],
-  search: string,
-): T[] {
-  const query = search.trim().toLowerCase();
-  if (!query) return rows;
-  return rows.filter(
-    (row) =>
-      row.promptText.toLowerCase().includes(query) ||
-      row.topicName.toLowerCase().includes(query),
-  );
-}
-
-export function filterPromptRowsByTopic<T extends { topicId: string | null }>(
-  rows: T[],
-  topicId: string | null | undefined,
-): T[] {
-  if (!topicId) return rows;
-  return rows.filter((row) => row.topicId === topicId);
+  return {
+    isLoading,
+    topicRows,
+    promptRows,
+    promptTotal: promptsCurrent.data?.total ?? 0,
+    promptPage: promptsCurrent.data?.page ?? page,
+    promptPageSize: promptsCurrent.data?.page_size ?? pageSize,
+  };
 }

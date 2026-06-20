@@ -4,13 +4,16 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { AnalysisDimensionTabs } from "@/components/analysis/common/AnalysisDimensionTabs";
 import { PromptAnalysisHeader } from "@/components/analysis/prompt/PromptAnalysisHeader";
 import { CitationDomainHeader } from "@/components/analysis/citation/CitationDomainHeader";
+import { OpportunityContentHeader } from "@/components/opportunity/OpportunityContentHeader";
+import { OpportunityBacklinkHeader } from "@/components/opportunity/OpportunityBacklinkHeader";
 import { OpportunityTabs } from "@/components/opportunity/OpportunityTabs";
 import { SidebarSection } from "@/components/dashboard/SidebarSection";
 import { SubjectSwitcher } from "@/components/dashboard/SubjectSwitcher";
 import { AppShell } from "@/components/layouts/AppShell";
 import { useDashboardSidebar } from "@/hooks/useDashboardSidebar";
+import { AnalysisFiltersProvider } from "@/hooks/useAnalysisFiltersState";
 import { analysisDimensionFromPathname, citationDomainFromPathname, promptIdFromPathname } from "@/lib/analysis";
-import { opportunityTabFromPathname } from "@/lib/opportunity/nav";
+import { opportunityTabFromPathname, contentOpportunityPromptIdFromPathname, backlinkOpportunityHostFromPathname } from "@/lib/opportunity/nav";
 import {
   DASHBOARD_NAV_SECTIONS,
   dashboardNavIdFromPath,
@@ -31,6 +34,8 @@ export function DashboardLayout() {
   const citationDomain = citationDomainFromPathname(pathname);
   const promptDetailId = promptIdFromPathname(pathname);
   const opportunityTab = opportunityTabFromPathname(pathname);
+  const contentOpportunityPromptId = contentOpportunityPromptIdFromPathname(pathname);
+  const backlinkOpportunityHost = backlinkOpportunityHostFromPathname(pathname);
 
   return (
     <AppShell headerStart={<SubjectSwitcher />}>
@@ -81,6 +86,10 @@ export function DashboardLayout() {
               <PromptAnalysisHeader promptId={promptDetailId} />
             ) : isAnalysisPage ? (
               <AnalysisDimensionTabs embedded value={analysisDimension} />
+            ) : isOpportunityPage && backlinkOpportunityHost ? (
+              <OpportunityBacklinkHeader host={backlinkOpportunityHost} />
+            ) : isOpportunityPage && contentOpportunityPromptId ? (
+              <OpportunityContentHeader promptId={contentOpportunityPromptId} />
             ) : isOpportunityPage ? (
               <OpportunityTabs embedded value={opportunityTab} />
             ) : (
@@ -90,7 +99,9 @@ export function DashboardLayout() {
             )}
           </div>
           <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto">
-            <Outlet />
+            <AnalysisFiltersProvider>
+              <Outlet />
+            </AnalysisFiltersProvider>
           </div>
         </main>
       </div>

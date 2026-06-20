@@ -1,11 +1,7 @@
-import { useEffect, useState } from "react";
-
 import { AnalysisFilterBar } from "@/components/analysis/common/AnalysisFilterBar";
 import { RankBoardTable } from "@/components/rank/RankBoardTable";
+import { useAnalysisFiltersState } from "@/hooks/useAnalysisFiltersState";
 import { useRankBoardData } from "@/hooks/useRankBoardData";
-import { useDashboardContext } from "@/hooks/useDashboardContext";
-import { ANALYSIS_FILTER_ALL, DEFAULT_ANALYSIS_FILTERS } from "@/lib/analysis";
-import type { AnalysisFilters } from "@/types";
 
 const PAGE_TITLE = "排行榜";
 const PAGE_DESCRIPTION =
@@ -17,17 +13,7 @@ type RankContentProps = {
 
 /** 排行榜：品牌竞品全指标对比。 */
 export function RankContent({ subjectId }: RankContentProps) {
-  const { subject } = useDashboardContext();
-  const [filters, setFilters] = useState<AnalysisFilters>(DEFAULT_ANALYSIS_FILTERS);
-
-  useEffect(() => {
-    setFilters((prev) => ({
-      ...prev,
-      regionId: ANALYSIS_FILTER_ALL,
-      topicId: ANALYSIS_FILTER_ALL,
-      platformId: ANALYSIS_FILTER_ALL,
-    }));
-  }, [subject.id]);
+  const { filters, setFilters } = useAnalysisFiltersState();
 
   const { isLoading, rows } = useRankBoardData(subjectId, filters);
 

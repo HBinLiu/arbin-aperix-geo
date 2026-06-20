@@ -4,22 +4,22 @@ import { CitationDomainTable } from "@/components/analysis/citation/CitationDoma
 import { CitationUrlTable } from "@/components/analysis/citation/CitationUrlTable";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CITATION_DETAIL_TABS } from "@/lib/analysis/citation";
-import type { CitationDetailTab, CitationDomainRow, CitationUrlRow } from "@/types";
+import type { AnalysisFilters, CitationDetailTab } from "@/types";
 
 type CitationDetailSectionProps = {
-  domains: CitationDomainRow[];
-  urls: CitationUrlRow[];
+  subjectId: string;
+  filters: AnalysisFilters;
   ownLabel: string;
   ownBrand?: string | null;
-  loading?: boolean;
+  citationSearch?: string;
 };
 
 export function CitationDetailSection({
-  domains,
-  urls,
+  subjectId,
+  filters,
   ownLabel,
   ownBrand,
-  loading = false,
+  citationSearch = "",
 }: CitationDetailSectionProps) {
   const [activeTab, setActiveTab] = useState<CitationDetailTab>("domain");
 
@@ -39,9 +39,19 @@ export function CitationDetailSection({
       </Tabs>
 
       {activeTab === "domain" ? (
-        <CitationDomainTable rows={domains} loading={loading} />
+        <CitationDomainTable
+          subjectId={subjectId}
+          filters={filters}
+          citationSearch={citationSearch}
+        />
       ) : (
-        <CitationUrlTable rows={urls} ownLabel={ownLabel} ownBrand={ownBrand} loading={loading} />
+        <CitationUrlTable
+          subjectId={subjectId}
+          filters={filters}
+          ownLabel={ownLabel}
+          ownBrand={ownBrand}
+          citationSearch={citationSearch}
+        />
       )}
     </div>
   );

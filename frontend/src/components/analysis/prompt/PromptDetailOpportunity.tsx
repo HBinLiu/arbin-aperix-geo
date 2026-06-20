@@ -1,62 +1,67 @@
+import { DotBadge, type SemanticBadgeVariant } from "@/components/ui/badge";
 import {
   formatPromptGapRate,
   promptOpportunityPriorityLabel,
-  type PromptOpportunitySummary,
 } from "@/lib/analysis/promptDetail";
-import type { OpportunityPriority } from "@/types";
+import type { OpportunityPriority, PromptDetailOpportunityPayload } from "@/types";
 import { cn } from "@/lib/utils";
 
-const PRIORITY_DOT: Record<OpportunityPriority, string> = {
-  high: "bg-red-500",
-  medium: "bg-amber-500",
-  low: "bg-emerald-500",
+const PRIORITY_VARIANT: Record<OpportunityPriority, SemanticBadgeVariant> = {
+  high: "error",
+  medium: "warning",
+  low: "success",
 };
 
-const GAP_RING: Record<OpportunityPriority, string> = {
-  high: "border-red-400 text-red-500",
-  medium: "border-amber-400 text-amber-600",
-  low: "border-emerald-400 text-emerald-600",
+const GAP_RING: Record<SemanticBadgeVariant, string> = {
+  error: "border-error text-error",
+  warning: "border-warning text-warning",
+  success: "border-success text-success",
+  gray: "border-border text-muted-foreground",
+  primary: "border-primary text-primary",
+  info: "border-info text-info",
 };
 
 type PromptDetailOpportunityProps = {
-  opportunity: PromptOpportunitySummary | null;
+  opportunity: PromptDetailOpportunityPayload | null;
   loading?: boolean;
 };
 
 function GapCard({
   title,
   gapRate,
-  priority,
+  gapPriority,
   loading,
 }: {
   title: string;
   gapRate: number;
-  priority: OpportunityPriority;
+  gapPriority: OpportunityPriority;
   loading?: boolean;
 }) {
+  const variant = PRIORITY_VARIANT[gapPriority];
+
   return (
     <div className="border-border flex flex-1 flex-col rounded-lg border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
       <h4 className="text-sm font-semibold">{title}</h4>
-      <div className="mt-5 flex flex-wrap items-center gap-5">
+      <div className="mt-5 flex flex-wrap items-center gap-4">
         {loading ? (
           <div className="bg-muted h-16 w-28 animate-pulse rounded-3xl" />
         ) : (
           <div
             className={cn(
-              "flex min-w-28 items-center justify-center rounded-3xl border-[3px] px-4 py-3 text-center text-sm font-bold leading-tight",
-              GAP_RING[priority],
+              "flex min-w-28 items-center justify-center rounded-3xl border-[3px] px-4 py-2.5 text-center text-sm font-bold leading-tight",
+              GAP_RING[variant],
             )}
           >
             {formatPromptGapRate(gapRate)}
           </div>
         )}
-        <div className="inline-flex items-center gap-1.5 text-sm font-medium">
-          <span
-            className={cn("inline-block size-2 rounded-full", PRIORITY_DOT[priority])}
-            aria-hidden
-          />
-          {loading ? "…" : promptOpportunityPriorityLabel(priority)}
-        </div>
+        {loading ? (
+          <span className="text-sm font-medium">…</span>
+        ) : (
+          <DotBadge variant={variant} className="px-2 py-0.5 text-sm">
+            {promptOpportunityPriorityLabel(gapPriority)}
+          </DotBadge>
+        )}
       </div>
     </div>
   );
@@ -67,27 +72,25 @@ export function PromptDetailOpportunity({
   opportunity,
   loading = false,
 }: PromptDetailOpportunityProps) {
-  const priority = opportunity?.priority ?? "low";
-
   return (
     <section className="border-border overflow-hidden rounded-lg border bg-white">
-      <div className="border-border border-b px-5 py-4">
+      <div className="border-border border-b bg-muted px-5 py-3">
         <h3 className="text-base font-semibold">机会</h3>
-        <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
-          量化品牌在该提示词下错失的 AI 提及与引用机会，识别高潜力增长空间。
+        <p className="text-muted-foreground mt-1 text-sm font-medium leading-relaxed">
+          量化当前品牌相对其他竞品的 AI 提及与来源引用差距，识别高潜力增长空间。
         </p>
       </div>
       <div className="flex flex-col gap-4 p-5 lg:flex-row">
         <GapCard
           title="品牌差距"
-          gapRate={opportunity?.brandGapRate ?? 0}
-          priority={priority}
+          gapRate={opportunity?.brand_gap_rate ?? 0}
+          gapPriority={opportunity?.brand_gap_priority ?? "low"}
           loading={loading}
         />
         <GapCard
           title="来源差距"
-          gapRate={opportunity?.sourceGapRate ?? 0}
-          priority={priority}
+          gapRate={opportunity?.source_gap_rate ?? 0}
+          gapPriority={opportunity?.source_gap_priority ?? "low"}
           loading={loading}
         />
       </div>

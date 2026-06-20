@@ -5,14 +5,14 @@ export {
   saveSetupCache,
 } from "@/lib/setup/cache";
 export {
-  domainToDisplayName,
+  displayNameFromDomainInput,
   MAX_SETUP_COMPETITORS,
   newCompetitorRow,
   rowsFromDiscover,
   rowsToPersist,
 } from "@/lib/setup/competitors";
 export { buildFinalizePayload } from "@/lib/setup/finalize";
-export { setupStepHeader } from "@/lib/setup/headers";
+export { setupStepHeader, setupVerticalStep } from "@/lib/setup/headers";
 export {
   languageDisplay,
   languageFromMonitoringScope,

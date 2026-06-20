@@ -79,8 +79,8 @@ def build_diagnosis(
     subject: Subject,
     dt_from: datetime,
     dt_to: datetime,
-    platforms: list[str] | None = None,
-    topic_id: UUID | None = None,
+    platform: list[str] | None = None,
+    topic_id: list[UUID] | None = None,
     entity_id: str | None = None,
 ) -> dict[str, Any]:
     """诊断中心：整体得分、维度健康分与提示词 × 平台诊断明细。"""
@@ -90,7 +90,7 @@ def build_diagnosis(
         subject=subject,
         dt_from=dt_from,
         dt_to=dt_to,
-        platforms=platforms,
+        platform=platform,
         topic_id=topic_id,
     )
     entity_signals = [row for row in all_signals if row.entity_id == entity.id]

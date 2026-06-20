@@ -84,7 +84,7 @@ def generate_niche_profile_via_llm(
     user_payload: dict[str, Any],
     temperature: float = 0.15,
 ) -> dict[str, Any]:
-    """Setup Step1a：微观利基结构化画像。"""
+    """Setup 1a: 微观利基结构化画像。"""
     text, _, latency_ms = chat_completion(
         [
             {"role": "system", "content": SUBJECT_PROFILE_SYSTEM},
@@ -101,9 +101,9 @@ def generate_niche_profile_via_llm(
     )
     data = extract_json_object(text)
     logger.debug(
-        "Setup 微观利基画像 LLM: entity=%r keywords=%d (%dms)",
+        "Setup 1a 微观利基画像 LLM: entity=%r keywords=%d (%dms)",
         entity_key,
-        len(data.get("micro_keywords") or []),
+        len(data.get("keywords") or []),
         latency_ms,
     )
     return data
@@ -174,8 +174,8 @@ def generate_monitoring_topics_via_llm(
 
 def fallback_profile_summary(profile: NicheProfile, *, entity: str, region_label: str) -> str:
     name = profile.get("company") or entity
-    features = profile.get("core_features") or "—"
-    customers = profile.get("target_customers") or "—"
+    features = profile.get("features") or "—"
+    customers = profile.get("customers") or "—"
     industry = profile.get("industry") or "—"
     return (
         f"# {name}\n\n"

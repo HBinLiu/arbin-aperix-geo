@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from aperix_geo.config import get_settings
-from aperix_geo.db.models import LLMResponse, LLMResponseSignal, Subject
+from aperix_geo.db.models import BrandSource, LLMResponse, LLMResponseSignal, Subject
 from aperix_geo.services.brand.catalog import BrandSyncContext
 from aperix_geo.services.brand.domain import resolve_brand_domain
 from aperix_geo.services.brand.resolve import primary_domain_for_brand, resolve_or_create_brand
@@ -40,8 +40,7 @@ def backfill_brand_domains_for_response(db: Session, response_id: UUID) -> int:
     parsed = dict(row.parsed or {})
     raw_text = row.raw_text or ""
     urls = list(parsed.get("urls") or [])
-    tenant_id = subject.tenant_id
-    sync_ctx = BrandSyncContext.load(db, tenant_id=tenant_id)
+    sync_ctx = BrandSyncContext.load(db, subject_id=subject.id)
 
     updated = 0
     for signal in signals:
@@ -53,7 +52,7 @@ def backfill_brand_domains_for_response(db: Session, response_id: UUID) -> int:
 
         domain = resolve_brand_domain(
             db,
-            tenant_id=tenant_id,
+            subject_id=subject.id,
             brand=brand_name,
             raw_text=raw_text,
             urls=urls,
@@ -65,9 +64,11 @@ def backfill_brand_domains_for_response(db: Session, response_id: UUID) -> int:
 
         brand_row = resolve_or_create_brand(
             db,
-            tenant_id=tenant_id,
+            subject_id=subject.id,
             brand=brand_name,
             domain=domain,
+            entity_kind="other",
+            source=BrandSource.sampling_open_set,
             catalog=sync_ctx.catalog,
         )
         signal.primary_domain = primary_domain_for_brand(brand_row)
@@ -79,6 +80,11 @@ def backfill_brand_domains_for_response(db: Session, response_id: UUID) -> int:
 def maybe_enqueue_brand_domain_backfill(response_id: UUID) -> None:
     """Enqueue Celery backfill when SearXNG is configured."""
     if not get_settings().searxng_base_url.strip():
+        return
+
+    from aperix_geo.utils.cache.redis_kv import redis_set_nx
+
+    if not redis_set_nx(f"aperix:brand:backfill:{response_id}", ttl_s=3600):
         return
 
     from aperix_geo.tasks.brand import backfill_response_brand_domains

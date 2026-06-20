@@ -12,10 +12,12 @@ from aperix_geo.services.sampling.sentiment import (
     apply_absa_to_drafts,
     reset_sentiment_drafts,
 )
+from aperix_geo.utils.mention import api_mention_rank
 from aperix_geo.utils.sentiment import (
-    api_mention_rank,
+    api_sentiment_label,
     api_sentiment_score,
     clamp_sentiment_score,
+    is_scored_sentiment,
     sentiment_label_from_score,
 )
 from aperix_geo.services.sampling.signal_draft import EntitySignalDraft, init_entity_signal_drafts
@@ -45,7 +47,8 @@ def _subject(*, with_competitor: bool = True) -> Subject:
 def test_sentiment_score_helpers() -> None:
     assert clamp_sentiment_score(90.0) == 90.0
     assert clamp_sentiment_score(105.0) == 100.0
-    assert clamp_sentiment_score(-5.0) == 0.0
+    assert clamp_sentiment_score(-5.0) == 1.0
+    assert clamp_sentiment_score(0.0) == 1.0
     assert sentiment_label_from_score(90.0) == "positive"
     assert sentiment_label_from_score(50.0) == "neutral"
     assert sentiment_label_from_score(45.0) == "neutral"
@@ -61,7 +64,6 @@ def test_competitor_sentiment_cleared_when_not_mentioned() -> None:
     competitors = competitor_entries(subject)
     _, competitor_absa_keys = absa_competitor_keys(competitors)
     comp = next(d for d in drafts if d.entity_kind == "competitor")
-    comp.sentiment_label = "positive"
     comp.sentiment_score = 90.0
     comp.sentiment_reason = "old"
 
@@ -78,7 +80,6 @@ def test_competitor_sentiment_cleared_when_not_mentioned() -> None:
         own_brand="Aperix",
         competitor_absa_keys=competitor_absa_keys,
     )
-    assert comp.sentiment_label == "neutral"
     assert comp.sentiment_score is None
     assert comp.sentiment_reason is None
 
@@ -138,12 +139,12 @@ def test_apply_absa_to_drafts() -> None:
     comp = next(d for d in drafts if d.entity_kind == "competitor")
 
     assert source == "llm"
-    assert own.sentiment_label == "positive"
     assert own.sentiment_score == 90.0
     assert own.sentiment_reason == "明确推荐 Aperix"
-    assert comp.sentiment_label == "neutral"
+    assert sentiment_label_from_score(own.sentiment_score) == "positive"
     assert comp.sentiment_score == 50.0
     assert comp.sentiment_reason == "客观对比 Beta"
+    assert sentiment_label_from_score(comp.sentiment_score) == "neutral"
 
 
 def test_apply_absa_sentiment_ignores_parser_mentions() -> None:
@@ -166,8 +167,8 @@ def test_apply_absa_sentiment_ignores_parser_mentions() -> None:
         competitor_absa_keys=[],
     )
     own = drafts[0]
-    assert own.sentiment_label == "positive"
     assert own.sentiment_score == 80.0
+    assert sentiment_label_from_score(own.sentiment_score) == "positive"
 
 
 def test_apply_absa_sentiment_not_mentioned() -> None:
@@ -185,7 +186,6 @@ def test_apply_absa_sentiment_not_mentioned() -> None:
         competitor_absa_keys=[],
     )
     own = drafts[0]
-    assert own.sentiment_label == "neutral"
     assert own.sentiment_score is None
 
 
@@ -207,13 +207,11 @@ def test_reset_sentiment_drafts() -> None:
             entity_id=OWN_ENTITY_ID,
             entity_kind="own",
             entity_label="Aperix",
-            sentiment_label="positive",
             sentiment_score=90.0,
             sentiment_reason="good",
         )
     ]
     reset_sentiment_drafts(drafts)
-    assert drafts[0].sentiment_label == "neutral"
     assert drafts[0].sentiment_score is None
     assert drafts[0].sentiment_reason is None
 
@@ -228,6 +226,11 @@ def test_api_sentinel_export() -> None:
     assert api_mention_rank(0) is None
     assert api_mention_rank(2) == 2
     assert api_mention_rank(None) is None
-    assert api_sentiment_score(-1.0) is None
+    assert api_sentiment_score(-1.0) == 0.0
     assert api_sentiment_score(72.0) == 72.0
-    assert api_sentiment_score(None) is None
+    assert api_sentiment_score(None) == 0.0
+    assert api_sentiment_label(None) == "negative"
+    assert api_sentiment_label(0.0) == "negative"
+    assert api_sentiment_label(72.0) == "positive"
+    assert is_scored_sentiment(0.0) is False
+    assert is_scored_sentiment(72.0) is True

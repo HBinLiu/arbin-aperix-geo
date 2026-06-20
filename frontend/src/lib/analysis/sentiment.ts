@@ -1,17 +1,20 @@
 import type { RankRow } from "@/components/analysis/common/AnalysisRankTable";
 import { formatSentimentDelta, formatSentimentScore } from "@/lib/analysis/format";
-import { resolvePlatformMeta } from "@/lib/analysis/shared";
+import { entityRankFlags } from "@/lib/analysis/entities";
 import type {
-  PlatformPerformance,
-  SamplingPlatform,
+  AnalysisEntityRef,
   SentimentAnalysisData,
-  SentimentResponseRow,
   SentimentTab,
 } from "@/types";
 
 export const SENTIMENT_SECTION_HEIGHT = 380;
-export const SENTIMENT_CHART_HEIGHT = 270;
 export const SENTIMENT_RANK_TABLE_HEIGHT = SENTIMENT_SECTION_HEIGHT - 24;
+
+export const SENTIMENT_BAR_COLORS: Record<SentimentTab, string> = {
+  positive: "#22c55e",
+  neutral: "#f97316",
+  negative: "#ef4444",
+};
 
 export const SENTIMENT_TABS: { id: SentimentTab; label: string }[] = [
   { id: "positive", label: "正面" },
@@ -25,48 +28,37 @@ export const SENTIMENT_LABELS: Record<SentimentTab, string> = {
   negative: "负面",
 };
 
-export function sentimentLabelFromScore(value: number | null | undefined): string {
-  if (value == null) return "-";
-  if (value > 55) return "正面";
-  if (value < 45) return "负面";
-  return "中立";
-}
-
 export function sentimentLabelFromTab(sentiment: string): string {
   return SENTIMENT_LABELS[sentiment as SentimentTab] ?? sentiment;
 }
 
-export function buildSentimentRankRows(
-  current: PlatformPerformance[],
-  previous: PlatformPerformance[],
-  platformsMeta: SamplingPlatform[],
-): RankRow[] {
-  const prevByPlatform = Object.fromEntries(previous.map((row) => [row.platform, row]));
-
-  return [...current]
-    .sort((a, b) => (b.sentiment_score ?? -1) - (a.sentiment_score ?? -1))
-    .map((row) => {
-      const meta = resolvePlatformMeta(row.platform, platformsMeta);
-      const prevScore = prevByPlatform[row.platform]?.sentiment_score;
-      return {
-        id: row.platform,
-        label: meta.label,
-        value: formatSentimentScore(row.sentiment_score),
-        valueNum: row.sentiment_score ?? undefined,
-        delta: formatSentimentDelta(row.sentiment_score, prevScore),
-        deltaSortNum:
-          row.sentiment_score != null && prevScore != null
-            ? row.sentiment_score - prevScore
-            : null,
-      };
-    });
+/** 将后端 sentiment_label（positive/neutral/negative）映射为展示文案 */
+export function sentimentDisplayLabel(label: string | null | undefined): string {
+  if (label == null || label === "") return "-";
+  return sentimentLabelFromTab(label);
 }
 
-export function filterSentimentResponses(
-  responses: SentimentResponseRow[],
-  tab: SentimentTab,
-): SentimentResponseRow[] {
-  return responses.filter((row) => row.sentiment === tab);
+export function buildSentimentRankRows(
+  rows: SentimentAnalysisData["rank_table"] | undefined,
+  entities: AnalysisEntityRef[],
+  focusEntityId: string | undefined,
+): RankRow[] {
+  return (rows ?? []).map((row) => {
+    const { isOwn, isFocus } = entityRankFlags(entities, row.id, focusEntityId);
+    return {
+      id: row.id,
+      label: row.label,
+      domain: row.domain || null,
+      value: formatSentimentScore(row.cur_value),
+      valueNum: row.cur_value ?? undefined,
+      delta: formatSentimentDelta(row.cur_value, row.pre_value),
+      deltaSortNum:
+        row.cur_value != null && row.pre_value != null ? row.cur_value - row.pre_value : null,
+      sentimentLabel: row.cur_label ?? null,
+      isOwn,
+      isFocus,
+    };
+  });
 }
 
 export type SentimentOverviewData = {
@@ -74,26 +66,18 @@ export type SentimentOverviewData = {
   scoreLabel: string;
   distributionSeries: SentimentAnalysisData["distribution_series"];
   rankRows: RankRow[];
-  responses: SentimentResponseRow[];
 };
 
 export function buildSentimentOverview(
   data: SentimentAnalysisData | undefined,
-  platformsMeta: SamplingPlatform[],
+  entities: AnalysisEntityRef[],
+  focusEntityId: string | undefined,
 ): SentimentOverviewData {
-  const score = data?.sentiment_score;
   return {
-    score,
-    scoreLabel: sentimentLabelFromScore(score),
+    score: data?.sentiment_score,
+    scoreLabel: sentimentDisplayLabel(data?.sentiment_label),
     distributionSeries: data?.distribution_series ?? [],
-    rankRows: data
-      ? buildSentimentRankRows(
-          data.platform_performance,
-          data.previous_platform_performance,
-          platformsMeta,
-        )
-      : [],
-    responses: data?.responses ?? [],
+    rankRows: buildSentimentRankRows(data?.rank_table, entities, focusEntityId),
   };
 }
 

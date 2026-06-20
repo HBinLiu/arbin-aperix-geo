@@ -19,11 +19,11 @@ export type PromptTableRow = {
 
 export const PROMPT_TABLE_COLUMNS = [
   { id: "select", width: "3%", minWidth: 40 },
-  { id: "index", width: "4%", minWidth: 44 },
-  { id: "text", width: "44%", minWidth: 220 },
-  { id: "topic", width: "18%", minWidth: 140 },
-  { id: "createdAt", width: "18%", minWidth: 150 },
-  { id: "action", width: "13%", minWidth: 140 },
+  { id: "index", width: "4%", minWidth: 50 },
+  { id: "text", width: "40%", minWidth: 220 },
+  { id: "topic", width: "20%", minWidth: 160 },
+  { id: "createdAt", width: "20%", minWidth: 160 },
+  { id: "action", width: "13%", minWidth: 160 },
 ] as const;
 
 export const PROMPT_TABLE_MIN_WIDTH = PROMPT_TABLE_COLUMNS.reduce(

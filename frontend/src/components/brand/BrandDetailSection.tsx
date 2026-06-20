@@ -11,8 +11,7 @@ import { clearSetupCache } from "@/lib/setup";
 import {
   subjectDisplayLabel,
   subjectEditAliases,
-  subjectFaviconTarget,
-  subjectPrimaryName,
+  subjectFaviconUrl,
   subjectWebsiteUrl,
 } from "@/lib/subject";
 import type { Subject } from "@/types";
@@ -96,8 +95,8 @@ export function BrandDetailSection({ subject }: BrandDetailSectionProps) {
   const navigate = useNavigate();
   const [editOpen, setEditOpen] = useState(false);
   const displayName = subjectDisplayLabel(subject);
-  const faviconTarget = subjectFaviconTarget(subject);
-  const primaryName = subjectPrimaryName(subject);
+  const faviconUrl = subjectFaviconUrl(subject);
+  const brandName = subject.brand.trim();
   const aliases = subjectEditAliases(subject);
   const websiteUrl = subjectWebsiteUrl(subject);
   const summary = subject.profile_summary?.trim() ?? "";
@@ -118,12 +117,18 @@ export function BrandDetailSection({ subject }: BrandDetailSectionProps) {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-3">
             <div className="border-border flex size-11 shrink-0 items-center justify-center rounded-md border bg-white p-1.5">
-              <FaviconImage
-                domain={faviconTarget}
-                size={32}
-                className="size-8"
-                iconClassName="size-4"
-              />
+              {faviconUrl ? (
+                <FaviconImage
+                  url={faviconUrl}
+                  size={32}
+                  className="size-8"
+                  iconClassName="size-4"
+                />
+              ) : (
+                <span className="text-muted-foreground text-base font-semibold">
+                  {displayName.slice(0, 1).toUpperCase()}
+                </span>
+              )}
             </div>
             <div className="min-w-0">
               <p className="truncate text-lg font-semibold tracking-tight sm:text-xl">{displayName}</p>
@@ -145,12 +150,15 @@ export function BrandDetailSection({ subject }: BrandDetailSectionProps) {
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <DetailField label="名称">{primaryName}</DetailField>
+          <DetailField label="品牌">{brandName || "—"}</DetailField>
           <DetailField label="别名">
             {aliases.length > 0 ? (
-              <span className="inline-flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="inline-flex min-w-0 flex-wrap items-center gap-1.5">
                 {aliases.map((item) => (
-                  <span key={item} className="inline-flex items-center gap-1.5">
+                  <span
+                    key={item}
+                    className="bg-muted text-muted-foreground inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm"
+                  >
                     <Tag className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
                     <span>{item}</span>
                   </span>

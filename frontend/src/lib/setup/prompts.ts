@@ -1,6 +1,6 @@
 import type { GeneratedPromptItem, PromptRow, TopicRow } from "@/types";
 
-const PROMPTS_PER_TOPIC = 10;
+const PROMPT_PER_TOPIC = 10;
 
 export function newPromptRow(partial?: Partial<PromptRow>): PromptRow {
   return {
@@ -13,7 +13,7 @@ export function newPromptRow(partial?: Partial<PromptRow>): PromptRow {
 }
 
 export function maxPromptCount(topicCount: number): number {
-  return Math.max(0, topicCount * PROMPTS_PER_TOPIC);
+  return Math.max(0, topicCount * PROMPT_PER_TOPIC);
 }
 
 function normalizeTopicName(name: string): string {
@@ -25,10 +25,7 @@ function findTopicItem(
   items: { topic: string; prompts: GeneratedPromptItem[] }[],
 ): { topic: string; prompts: GeneratedPromptItem[] } | undefined {
   const key = normalizeTopicName(topic.name);
-  return (
-    items.find((i) => normalizeTopicName(i.topic) === key) ??
-    items.find((i) => normalizeTopicName(i.topic).includes(key) || key.includes(normalizeTopicName(i.topic)))
-  );
+  return items.find((i) => normalizeTopicName(i.topic) === key);
 }
 
 export function promptRowsFromGenerated(
@@ -38,7 +35,7 @@ export function promptRowsFromGenerated(
   const rows: PromptRow[] = [];
   for (const topic of topics) {
     const item = findTopicItem(topic, items);
-    const prompts = (item?.prompts ?? []).slice(0, PROMPTS_PER_TOPIC);
+    const prompts = (item?.prompts ?? []).slice(0, PROMPT_PER_TOPIC);
     for (const prompt of prompts) {
       const text = prompt.text.trim();
       if (!text) continue;

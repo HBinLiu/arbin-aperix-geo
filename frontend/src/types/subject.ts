@@ -1,9 +1,3 @@
-export type MonitoringScope = {
-  region: string;
-  language: string;
-  note?: string | null;
-};
-
 export type Subject = {
   id: string;
   type: string;
@@ -11,10 +5,9 @@ export type Subject = {
   brand: string;
   website_url: string;
   aliases: string[];
-  monitoring_scope: MonitoringScope;
+  summary: string;
   profile_summary: string;
   sampling_platforms?: string[];
-  sampling_interval?: number;
   last_sampled_at: string;
   tenant_id?: string;
   created_at?: string;

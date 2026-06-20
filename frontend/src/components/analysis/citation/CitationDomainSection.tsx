@@ -51,7 +51,7 @@ export function CitationDomainSection({
     () =>
       (data?.series ?? []).map((point) => ({
         date: point.date,
-        value: point.values.count ?? 0,
+        value: point.count ?? 0,
       })),
     [data?.series],
   );

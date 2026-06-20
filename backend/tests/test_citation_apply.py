@@ -117,6 +117,43 @@ def test_apply_citation_to_drafts_competitor_cited_on_any_page() -> None:
     assert comp.cited_on_source is True
 
 
+def test_apply_citation_to_drafts_other_cited_on_source() -> None:
+    subject = _subject()
+    drafts = init_entity_signal_drafts(subject)
+    competitors = competitor_entries(subject)
+    drafts.append(
+        EntitySignalDraft(
+            entity_id="other:stripe",
+            entity_kind="other",
+            entity_label="Stripe",
+            mentioned=True,
+            mention_count=1,
+        )
+    )
+    citation = CitationDocument(
+        citation_urls_own=[],
+        citation_sources=[
+            {
+                "url": "https://news.example.com/payments",
+                "target": "",
+                "llm_analysis": {
+                    "page_mentioned_brands": ["Stripe"],
+                    "analysis_source": "llm",
+                },
+            }
+        ],
+    )
+    apply_citation_to_drafts(
+        drafts,
+        citation,
+        own_brand="Aperix",
+        own_names=["Aperix"],
+        competitors=competitors,
+    )
+    stripe = next(d for d in drafts if d.entity_kind == "other")
+    assert stripe.cited_on_source is True
+
+
 def test_reset_citation_drafts() -> None:
     drafts = [
         EntitySignalDraft(

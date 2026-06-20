@@ -1,6 +1,11 @@
-import { useMemo, type ReactNode } from "react";
-import { Bot, Calendar, Hash, MapPin, Tag, type LucideIcon } from "lucide-react";
+import { type ReactNode } from "react";
+import { type LucideIcon } from "lucide-react";
 
+import { BrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
+import { DateRangeFilterSelect } from "@/components/analysis/common/DateRangeFilterSelect";
+import { PlatformFilterSelect } from "@/components/analysis/common/PlatformFilterSelect";
+import { TopicFilterSelect } from "@/components/analysis/common/TopicFilterSelect";
+import { TextBadge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -8,14 +13,14 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
-import { useDashboardContext } from "@/hooks/useDashboardContext";
-import { ANALYSIS_DATE_OPTIONS, ANALYSIS_ENTITY_OWN, ANALYSIS_FILTER_ALL, dateRangeDays, formatDateRangeLabel } from "@/lib/analysis";
-import { regionDisplay, regionFromMonitoringScope, SETUP_REGIONS } from "@/lib/setup";
-import type { AnalysisFilters } from "@/types";
+import { ANALYSIS_ENTITY_OWN } from "@/lib/analysis";
+import type { AnalysisEntityRef, AnalysisFilters } from "@/types";
 import { cn } from "@/lib/utils";
 
 export type FilterSelectProps = {
-  icon: LucideIcon;
+  icon?: LucideIcon;
+  /** 自定义触发器左侧内容（如品牌 favicon），优先于 icon */
+  leading?: ReactNode;
   value: string;
   displayValue?: string;
   placeholder: string;
@@ -24,10 +29,29 @@ export type FilterSelectProps = {
   onValueChange?: (value: string) => void;
   children?: ReactNode;
   className?: string;
+  contentClassName?: string;
+  variant?: "default" | "primary";
 };
+
+function EntityFilterOption({ entity }: { entity: AnalysisEntityRef }) {
+  const isOwn = entity.kind === "own" || entity.id === ANALYSIS_ENTITY_OWN;
+
+  return (
+    <span className="flex min-w-0 flex-1 items-center gap-2">
+      <BrandRankIcon label={entity.label} size="sm" />
+      <span className="min-w-0 flex-1 truncate">{entity.display_name}</span>
+      {isOwn ? (
+        <TextBadge variant="primary" className="shrink-0 px-2 py-0.5 text-xs font-semibold">
+          拥有
+        </TextBadge>
+      ) : null}
+    </span>
+  );
+}
 
 export function FilterSelect({
   icon: Icon,
+  leading,
   value,
   displayValue,
   placeholder,
@@ -36,7 +60,11 @@ export function FilterSelect({
   onValueChange,
   children,
   className,
+  contentClassName,
+  variant = "default",
 }: FilterSelectProps) {
+  const isPrimary = variant === "primary";
+
   return (
     <Select value={value} onValueChange={onValueChange} disabled={disabled}>
       <SelectTrigger
@@ -47,16 +75,29 @@ export function FilterSelect({
           "focus:border-border focus:shadow-none focus:ring-0",
           "focus-visible:border-border focus-visible:shadow-none focus-visible:ring-0",
           "data-[state=open]:border-border data-[state=open]:shadow-none data-[state=open]:ring-0",
+          isPrimary && [
+            "border-primary bg-primary text-white",
+            "hover:border-primary hover:bg-primary",
+            "focus:border-primary focus-visible:border-primary",
+            "data-[state=open]:border-primary",
+            "[&>svg:last-child]:size-4 [&>svg:last-child]:stroke-[2.5] [&>svg:last-child]:text-white [&>svg:last-child]:opacity-100",
+          ],
           disabled && "opacity-60",
           className,
         )}
       >
-        <Icon className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
-        <span className="truncate text-foreground">
+        {leading ??
+          (Icon ? (
+            <Icon
+              className={cn("size-3.5 shrink-0", isPrimary ? "text-white" : "text-muted-foreground")}
+              aria-hidden
+            />
+          ) : null)}
+        <span className={cn("truncate", isPrimary ? "font-medium text-white" : "text-foreground")}>
           {displayValue ?? placeholder}
         </span>
       </SelectTrigger>
-      {children ? <SelectContent>{children}</SelectContent> : null}
+      {children ? <SelectContent className={contentClassName}>{children}</SelectContent> : null}
     </Select>
   );
 }
@@ -70,11 +111,13 @@ export type AnalysisFilterBarProps = {
   trailing?: ReactNode;
   /** 对比页（排行榜）可隐藏实体切换 */
   hideEntityFilter?: boolean;
-  /** 平台页矩阵需展示全部平台，隐藏平台筛选 */
+  /** 隐藏平台筛选（少数页面不需要按平台过滤） */
   hidePlatformFilter?: boolean;
+  /** 提示词详情页已固定单条提示词，隐藏主题筛选 */
+  hideTopicFilter?: boolean;
 };
 
-/** 分析页筛选条：分析对象、时间、地区、主题、平台。 */
+/** 分析页筛选条：分析对象、时间、主题、平台。 */
 export function AnalysisFilterBar({
   value,
   onChange,
@@ -82,111 +125,59 @@ export function AnalysisFilterBar({
   trailing,
   hideEntityFilter = false,
   hidePlatformFilter = false,
+  hideTopicFilter = false,
 }: AnalysisFilterBarProps) {
-  const { subject } = useDashboardContext();
   const { entities, topics, platforms } = useAnalysisFilter();
 
-  const setupRegionId = useMemo(
-    () => regionFromMonitoringScope(subject.monitoring_scope),
-    [subject.monitoring_scope],
-  );
-  const regionOption = useMemo(
-    () => SETUP_REGIONS.find((r) => r.value === setupRegionId) ?? SETUP_REGIONS[0],
-    [setupRegionId],
-  );
-
-  const { days, entityId, platformId, topicId, regionId } = value;
-  const { from, to } = useMemo(() => dateRangeDays(Number(days)), [days]);
-  const selectedEntity = entities.find((entity) => entity.id === entityId);
-  const selectedTopic = topics.find((t) => t.id === topicId);
-  const selectedPlatform = platforms.find((p) => p.platform === platformId);
-  const topicDisplay =
-    topicId === ANALYSIS_FILTER_ALL ? "所有主题" : (selectedTopic?.name ?? "所有主题");
-  const platformDisplay =
-    platformId === ANALYSIS_FILTER_ALL ? "所有平台" : (selectedPlatform?.label ?? "所有平台");
-  const regionDisplayLabel =
-    regionId === ANALYSIS_FILTER_ALL
-      ? "所有地区"
-      : (SETUP_REGIONS.find((r) => r.value === regionId)?.label ?? regionDisplay(setupRegionId));
+  const { from, to, entityId, platformIds, topicIds } = value;
+  const selectedEntity = entities.find((entity) => entity.id === (entityId || ANALYSIS_ENTITY_OWN));
+  const ownEntity = entities.find((entity) => entity.id === ANALYSIS_ENTITY_OWN);
 
   return (
-    <div className="flex w-full max-w-full min-w-0 flex-wrap items-center gap-2 border-b px-4 py-3">
+    <div className="sticky top-0 z-20 flex w-full max-w-full min-w-0 flex-wrap items-center gap-2 border-b bg-white px-4 py-3">
       {!hideEntityFilter ? (
         <FilterSelect
-          icon={Tag}
+          variant="primary"
+          leading={
+            <BrandRankIcon label={selectedEntity?.label ?? ownEntity?.label ?? null} size="sm" />
+          }
           value={entityId || ANALYSIS_ENTITY_OWN}
-          displayValue={selectedEntity?.display_name ?? "本品牌"}
+          displayValue={selectedEntity?.display_name ?? "所有品牌"}
           placeholder="分析对象"
+          contentClassName="min-w-[14rem]"
           onValueChange={(id) => onChange((prev) => ({ ...prev, entityId: id }))}
           disabled={entities.length === 0}
         >
           {entities.map((entity) => (
             <SelectItem key={entity.id} value={entity.id}>
-              {entity.display_name}
+              <EntityFilterOption entity={entity} />
             </SelectItem>
           ))}
         </FilterSelect>
       ) : null}
 
-      <FilterSelect
-        icon={Calendar}
-        value={days}
-        displayValue={formatDateRangeLabel(from, to)}
-        placeholder="选择时间范围"
-        onValueChange={(id) => onChange((prev) => ({ ...prev, days: id }))}
-      >
-        {ANALYSIS_DATE_OPTIONS.map((opt) => (
-          <SelectItem key={opt.value} value={opt.value}>
-            {opt.label}
-          </SelectItem>
-        ))}
-      </FilterSelect>
-
-      <FilterSelect
-        icon={MapPin}
-        value={regionId}
-        displayValue={regionDisplayLabel}
-        placeholder="所有地区"
-        onValueChange={(id) => onChange((prev) => ({ ...prev, regionId: id }))}
-      >
-        <SelectItem value={ANALYSIS_FILTER_ALL}>所有地区</SelectItem>
-        <SelectItem value={regionOption.value}>
-          {regionOption.flag ? `${regionOption.flag} ` : ""}
-          {regionOption.label}
-        </SelectItem>
-      </FilterSelect>
-
-      <FilterSelect
-        icon={Hash}
-        value={topicId}
-        displayValue={topicDisplay}
-        placeholder="所有主题"
-        onValueChange={(id) => onChange((prev) => ({ ...prev, topicId: id }))}
-      >
-        <SelectItem value={ANALYSIS_FILTER_ALL}>所有主题</SelectItem>
-        {topics.map((topic) => (
-          <SelectItem key={topic.id} value={topic.id}>
-            {topic.name}
-          </SelectItem>
-        ))}
-      </FilterSelect>
+      <DateRangeFilterSelect
+        from={from}
+        to={to}
+        onChange={(range) => onChange((prev) => ({ ...prev, ...range }))}
+      />
 
       {!hidePlatformFilter ? (
-        <FilterSelect
-          icon={Bot}
-          value={platformId}
-          displayValue={platformDisplay}
-          placeholder="所有平台"
-          onValueChange={(id) => onChange((prev) => ({ ...prev, platformId: id }))}
+        <PlatformFilterSelect
+          platforms={platforms}
+          value={platformIds}
+          onChange={(ids) => onChange((prev) => ({ ...prev, platformIds: ids }))}
           disabled={platforms.length === 0}
-        >
-          <SelectItem value={ANALYSIS_FILTER_ALL}>所有平台</SelectItem>
-          {platforms.map((platform) => (
-            <SelectItem key={platform.platform} value={platform.platform}>
-              {platform.label}
-            </SelectItem>
-          ))}
-        </FilterSelect>
+        />
+      ) : null}
+
+      {!hideTopicFilter ? (
+        <TopicFilterSelect
+          topics={topics}
+          value={topicIds}
+          onChange={(ids) => onChange((prev) => ({ ...prev, topicIds: ids }))}
+          disabled={topics.length === 0}
+        />
       ) : null}
 
       {afterFilters}

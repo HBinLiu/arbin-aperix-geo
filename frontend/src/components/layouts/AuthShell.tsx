@@ -14,7 +14,7 @@ export type AuthShellProps = {
  */
 export function AuthShell({ title, description, children }: AuthShellProps) {
   return (
-    <div className="flex min-h-svh flex-col bg-white lg:flex-row">
+    <div className="flex min-h-svh flex-col overflow-y-auto bg-white lg:flex-row">
       <main className="flex flex-1 flex-col justify-center px-5 py-10 sm:px-8 lg:px-14 xl:px-20">
         <div className="mx-auto w-full max-w-[400px]">
           <h1 className="text-2xl font-semibold tracking-tight sm:text-[1.75rem] sm:leading-tight">{title}</h1>

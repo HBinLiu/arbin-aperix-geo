@@ -1,14 +1,10 @@
-import { rowsToPersist, selectedPromptRows, selectedTopicRows } from "@/lib/setup";
+import { selectedPromptRows, selectedTopicRows } from "@/lib/setup";
 import type { FinalizeSetupInput } from "@/types";
 
 export function buildFinalizePayload(input: FinalizeSetupInput) {
-  const { competitors } = rowsToPersist(input.mode, input.competitorRows);
   const topicsToPersist = selectedTopicRows(input.topicRows);
 
-  const promptsByTopicId = new Map<
-    string,
-    { text: string; funnel_stage: string; search_intent: string }[]
-  >();
+  const promptsByTopicId = new Map<string, { text: string; funnel_stage: string; search_intent: string }[]>();
   for (const row of selectedPromptRows(input.promptRows)) {
     const list = promptsByTopicId.get(row.topicId) ?? [];
     list.push({
@@ -20,8 +16,6 @@ export function buildFinalizePayload(input: FinalizeSetupInput) {
   }
 
   return {
-    setup_session_id: input.sessionId.trim(),
-    competitors,
     topics: topicsToPersist.map((t) => ({
       name: t.name.trim(),
       prompts: promptsByTopicId.get(t.id) ?? [],

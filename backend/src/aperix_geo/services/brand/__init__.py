@@ -1,4 +1,4 @@
-"""Tenant-scoped brand registry."""
+"""Subject-scoped brand registry."""
 
 from aperix_geo.services.brand.cache import (
     clear_brand_domain_cache,
@@ -14,6 +14,7 @@ from aperix_geo.services.brand.domain import (
 )
 from aperix_geo.services.brand.keys import configured_brand_keys
 from aperix_geo.services.brand.resolve import (
+    brand_passes_cross_validate,
     find_brand_by_domain,
     find_brand_by_name,
     find_brand_by_name_or_alias,
@@ -21,13 +22,25 @@ from aperix_geo.services.brand.resolve import (
     primary_domain_for_brand,
     resolve_or_create_brand,
 )
-from aperix_geo.services.brand.sync import sync_brand_for_entity, sync_brands_for_entities
+from aperix_geo.services.brand.sync import (
+    sync_brand_for_entity,
+    sync_brands_for_entities,
+    sync_subject_brands_from_setup,
+)
 from aperix_geo.services.brand.types import BrandSyncEntity
+
+
+def resolve_brand_id_for_analysis_entity(*args, **kwargs):
+    from aperix_geo.services.brand.analysis import resolve_brand_id_for_analysis_entity as _fn
+
+    return _fn(*args, **kwargs)
+
 
 __all__ = [
     "BrandCatalog",
     "BrandSyncContext",
     "BrandSyncEntity",
+    "brand_passes_cross_validate",
     "clear_brand_domain_cache",
     "configured_brand_keys",
     "extract_domain_from_text_for_brand",
@@ -39,9 +52,11 @@ __all__ = [
     "other_entity_id",
     "primary_domain_for_brand",
     "remember_brand_domain_cached",
+    "resolve_brand_id_for_analysis_entity",
     "resolve_brand_domain",
     "resolve_or_create_brand",
     "search_brand_official_domain",
     "sync_brand_for_entity",
     "sync_brands_for_entities",
+    "sync_subject_brands_from_setup",
 ]

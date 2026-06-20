@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { SetupWizard } from "@/pages/setup/SetupWizard";
 import { setStoredActiveSubjectId } from "@/lib/subject";
 import { dashboardNavToPath } from "@/lib/dashboard";
-import { queryKeys } from "@/lib/queries";
+import { clearQueries, queryKeys } from "@/lib/queries";
 
 export function SetupRoute() {
   const queryClient = useQueryClient();
@@ -13,8 +13,8 @@ export function SetupRoute() {
   const onCompleted = async (subjectId: string) => {
     setStoredActiveSubjectId(subjectId);
     await queryClient.refetchQueries({ queryKey: queryKeys.subjects });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.me });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.pipelineStatus(subjectId) });
+    clearQueries(queryClient, { queryKey: queryKeys.me });
+    clearQueries(queryClient, { queryKey: queryKeys.pipelineStatus(subjectId) });
     navigate(dashboardNavToPath("brand"), { replace: true });
   };
 

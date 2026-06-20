@@ -47,10 +47,13 @@ def main() -> int:
             if args.dry_run:
                 updated += 1
                 continue
-            reparse_response_row(db, row=row, subject=subject)
-            updated += 1
-        if not args.dry_run:
-            db.commit()
+            try:
+                reparse_response_row(db, row=row, subject=subject)
+                db.commit()
+                updated += 1
+            except ValueError:
+                db.rollback()
+                skipped += 1
     finally:
         db.close()
 

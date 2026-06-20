@@ -1,9 +1,9 @@
 import { CircleHelp } from "lucide-react";
 import { useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
+import { SentimentValue } from "@/components/analysis/sentiment/SentimentValue";
+import { DeltaBadgeSlot } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { isNeutralDelta } from "@/lib/analysis/format";
 import { cn } from "@/lib/utils";
 
 export function ColumnHelp({ label, description }: { label: string; description: string }) {
@@ -37,19 +37,19 @@ export function PromptTextCell({
   text,
   tooltipMaxLength,
 }: {
-  text: string;
+  text: string | null | undefined;
   /** 设置后 tooltip 仅展示截断后的内容 */
   tooltipMaxLength?: number;
 }) {
-  const tooltipText =
+  const tooltipText = text != null ?
     tooltipMaxLength != null && text.length > tooltipMaxLength
       ? `${text.slice(0, tooltipMaxLength).trimEnd()}…`
-      : text;
+      : text : "—";
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="text-muted-foreground block w-full min-w-0 cursor-default truncate">{text}</span>
+        <span className="block w-full min-w-0 cursor-pointer truncate">{text || "—"}</span>
       </TooltipTrigger>
       <TooltipContent
         side="top"
@@ -65,31 +65,6 @@ export function PromptTextCell({
   );
 }
 
-function deltaVariant(delta: string): "green" | "red" | "muted" {
-  if (delta.startsWith("+")) return "green";
-  if (delta.startsWith("-")) return "red";
-  return "muted";
-}
-
-export function PerformanceDeltaBadge({ delta }: { delta: string | null | undefined }) {
-  if (!delta || isNeutralDelta(delta)) {
-    return (
-      <Badge variant="muted" className="rounded-md px-1.5 py-0 text-[11px] font-medium tabular-nums">
-        -
-      </Badge>
-    );
-  }
-
-  return (
-    <Badge
-      variant={deltaVariant(delta)}
-      className="rounded-md px-1.5 py-0 text-[11px] font-medium tabular-nums"
-    >
-      {delta}
-    </Badge>
-  );
-}
-
 export function VisibilityMetricCell({
   value,
   delta,
@@ -99,41 +74,20 @@ export function VisibilityMetricCell({
 }) {
   return (
     <div className="inline-flex items-center gap-1.5 tabular-nums">
-      <span className="font-medium">{value}</span>
-      <PerformanceDeltaBadge delta={delta} />
+      <span>{value}</span>
+      <DeltaBadgeSlot delta={delta} />
     </div>
   );
-}
-
-function sentimentDotClass(scoreText: string): string {
-  if (scoreText === "正面") return "bg-emerald-500";
-  if (scoreText === "负面") return "bg-red-500";
-  if (scoreText === "中立") return "bg-amber-500";
-  if (scoreText === "-") return "bg-muted-foreground/40";
-  const score = Number.parseFloat(scoreText);
-  if (!Number.isFinite(score)) return "bg-muted-foreground/40";
-  if (score >= 55) return "bg-emerald-500";
-  if (score < 45) return "bg-red-500";
-  return "bg-amber-500";
 }
 
 export function SentimentMetricCell({
   value,
-  delta,
+  label,
 }: {
   value: string;
-  delta: string | null;
+  label?: string | null;
 }) {
-  return (
-    <div className="inline-flex items-center gap-1.5 tabular-nums">
-      <span
-        className={cn("inline-block size-2 shrink-0 rounded-full", sentimentDotClass(value))}
-        aria-hidden
-      />
-      <span className="font-medium">{value}</span>
-      {delta ? <PerformanceDeltaBadge delta={delta} /> : null}
-    </div>
-  );
+  return <SentimentValue value={value} label={label} />;
 }
 
 export function RankMetricCell({
@@ -146,11 +100,11 @@ export function RankMetricCell({
   return (
     <div className="inline-flex items-center gap-1.5 tabular-nums">
       <span className="font-medium">{value}</span>
-      {delta ? <PerformanceDeltaBadge delta={delta} /> : null}
+      <DeltaBadgeSlot delta={delta} />
     </div>
   );
 }
 
 export function EmptyMetricCell() {
-  return <span className="text-muted-foreground">—</span>;
+  return <span className="text-foreground font-medium">—</span>;
 }

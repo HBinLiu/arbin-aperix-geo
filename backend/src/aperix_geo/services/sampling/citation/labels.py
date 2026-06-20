@@ -36,3 +36,19 @@ def brand_names_match(names: list[str], mentioned: list[str]) -> bool:
         return False
     mentioned_keys = {m.strip().lower() for m in mentioned if m.strip()}
     return any(n.strip().lower() in mentioned_keys for n in names if n.strip())
+
+
+def filter_page_mentioned_brands(names: list[str], page_brand_scope: list[str]) -> list[str]:
+    """Keep only brands in the closed page-GEO scope; preserve scope canonical casing."""
+    if not page_brand_scope:
+        return []
+    allowed = {n.strip().lower(): n.strip() for n in page_brand_scope if n.strip()}
+    out: list[str] = []
+    seen: set[str] = set()
+    for name in names:
+        key = name.strip().lower()
+        canonical = allowed.get(key)
+        if canonical and key not in seen:
+            seen.add(key)
+            out.append(canonical)
+    return out

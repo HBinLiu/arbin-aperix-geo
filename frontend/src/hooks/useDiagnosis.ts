@@ -2,7 +2,8 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { fetchDiagnosis } from "@/api/analysis";
-import { dateRangeDays, toAnalysisQueryFilters } from "@/lib/analysis";
+import { platformFilterKey, topicFilterKey, toAnalysisQueryFilters } from "@/lib/analysis";
+
 import {
   buildDiagnosisMentionRows,
   buildDiagnosisPromptRows,
@@ -12,13 +13,14 @@ import { queryKeys } from "@/lib/queries";
 import type { AnalysisFilters } from "@/types";
 
 export function useDiagnosis(subjectId: string, filters: AnalysisFilters) {
-  const queryFilters = toAnalysisQueryFilters(filters);
-  const { from, to } = useMemo(() => dateRangeDays(Number(filters.days)), [filters.days]);
-  const { entityId, platformId, topicId } = queryFilters;
+  const queryFilters = useMemo(() => toAnalysisQueryFilters(filters), [filters]);
+  const { from, to, entityId, platformIds, topicIds } = queryFilters;
+  const topicKey = topicFilterKey(topicIds);
+  const platformKey = platformFilterKey(platformIds);
 
   const query = useQuery({
-    queryKey: queryKeys.diagnosis(subjectId, entityId, platformId, topicId, from, to),
-    queryFn: () => fetchDiagnosis(subjectId, queryFilters, from, to),
+    queryKey: queryKeys.diagnosis(subjectId, entityId, platformKey, topicKey, from, to),
+    queryFn: () => fetchDiagnosis(subjectId, queryFilters),
   });
 
   const overview = useMemo(() => diagnosisOverview(query.data), [query.data]);

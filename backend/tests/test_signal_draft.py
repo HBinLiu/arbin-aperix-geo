@@ -67,7 +67,7 @@ def test_draft_records_match_attached_signals() -> None:
 def test_parsed_sampling_result_round_trip_from_fixtures() -> None:
     original = ParsedSamplingResult.from_dict(
         parsed_payload(
-            entity_signal(mentioned=True, mention_count=2, sentiment_score=90.0, sentiment_label="positive"),
+            entity_signal(mentioned=True, mention_count=2, sentiment_score=90.0),
             competitor_signal(mentioned=True, mention_count=1),
         )
     )

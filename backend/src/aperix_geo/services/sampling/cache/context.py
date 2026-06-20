@@ -14,7 +14,7 @@ from aperix_geo.utils.cache import TieredJsonCache
 
 _SAMPLING_CONTEXT_CACHE_TTL_S = 600
 _SUBJECT_CACHE = TieredJsonCache(
-    redis_prefix="aperix:sampling:subject:v1:",
+    redis_prefix="aperix:sampling:subject:v2:",
     l1_max_entries=128,
     use_remaining_ttl=False,
 )
@@ -34,6 +34,7 @@ def _serialize_subject(subject: Subject) -> dict[str, Any]:
         "brand": subject.brand or "",
         "aliases": list(subject.aliases or []),
         "website_url": subject.website_url or "",
+        "niche_profile": dict(subject.niche_profile or {}),
         "competitors": [
             {
                 "id": str(c.id),
@@ -57,6 +58,8 @@ def _deserialize_subject(data: dict[str, Any]) -> Subject:
         aliases=list(data.get("aliases") or []),
         website_url=str(data.get("website_url") or ""),
     )
+    niche = data.get("niche_profile")
+    subject.niche_profile = dict(niche) if isinstance(niche, dict) else {}
     competitors: list[Competitor] = []
     for row in data.get("competitors") or []:
         if not isinstance(row, dict):
@@ -162,3 +165,8 @@ def clear_sampling_context_cache() -> None:
     """Test helper."""
     _SUBJECT_CACHE.clear()
     _PROMPT_CACHE.clear()
+
+
+def clear_subject_sampling_cache(subject_id: UUID) -> None:
+    """Drop cached subject row after competitor list changes."""
+    _SUBJECT_CACHE.delete(str(subject_id))

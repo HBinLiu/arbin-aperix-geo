@@ -1,37 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
-
 import { AnalysisFilterBar } from "@/components/analysis/common/AnalysisFilterBar";
 import { SentimentOverviewSection } from "@/components/analysis/sentiment/SentimentOverviewSection";
 import { SentimentResponsesSection } from "@/components/analysis/sentiment/SentimentResponsesSection";
 import { useAnalysisOutletContext } from "@/hooks/useAnalysisContext";
 import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
-import { useDashboardContext } from "@/hooks/useDashboardContext";
+import { useAnalysisFiltersState } from "@/hooks/useAnalysisFiltersState";
 import { useSentimentAnalysis } from "@/hooks/useSentimentAnalysis";
-import { ANALYSIS_DIMENSIONS, ANALYSIS_FILTER_ALL, DEFAULT_ANALYSIS_FILTERS } from "@/lib/analysis";
-import type { AnalysisFilters } from "@/types";
+import { ANALYSIS_DIMENSIONS } from "@/lib/analysis";
 
 const SENTIMENT_META = ANALYSIS_DIMENSIONS.find((d) => d.id === "sentiment")!;
 
 /** 分析 · 情感倾向 */
 export function SentimentPage() {
   const { subjectId } = useAnalysisOutletContext();
-  const { subject } = useDashboardContext();
-  const { platforms } = useAnalysisFilter();
+  const { filters, setFilters } = useAnalysisFiltersState();
+  const { entities, platforms } = useAnalysisFilter();
 
-  const [filters, setFilters] = useState<AnalysisFilters>(DEFAULT_ANALYSIS_FILTERS);
-
-  useEffect(() => {
-    setFilters((prev) => ({
-      ...prev,
-      regionId: ANALYSIS_FILTER_ALL,
-      topicId: ANALYSIS_FILTER_ALL,
-      platformId: ANALYSIS_FILTER_ALL,
-    }));
-  }, [subject.id]);
-
-  const { isLoading, overview } = useSentimentAnalysis(subjectId, filters);
-
-  const platformsMeta = useMemo(() => platforms, [platforms]);
+  const { isLoading, overview } = useSentimentAnalysis(subjectId, filters, entities);
 
   return (
     <>
@@ -45,11 +29,15 @@ export function SentimentPage() {
           </p>
         </header>
 
-        <SentimentOverviewSection overview={overview} loading={isLoading} />
-        <SentimentResponsesSection
-          responses={overview.responses}
-          platformsMeta={platformsMeta}
+        <SentimentOverviewSection
+          overview={overview}
+          platformsMeta={platforms}
           loading={isLoading}
+        />
+        <SentimentResponsesSection
+          subjectId={subjectId}
+          filters={filters}
+          platformsMeta={platforms}
         />
       </div>
     </>

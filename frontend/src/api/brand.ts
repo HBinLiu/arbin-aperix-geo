@@ -2,7 +2,7 @@ import { api } from "@/api/client";
 import type { CompetitorsData, SamplingPlatform, SubjectPrompt, SubjectTopic } from "@/types";
 
 export async function fetchSamplingPlatforms(): Promise<SamplingPlatform[]> {
-  const { data } = await api.get<SamplingPlatform[]>("/sampling-platforms");
+  const { data } = await api.get<SamplingPlatform[]>("/sampling/platforms");
   return data;
 }
 

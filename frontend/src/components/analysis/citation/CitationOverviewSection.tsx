@@ -6,7 +6,6 @@ import { MetricTrendCard } from "@/components/analysis/common/MetricTrendCard";
 import { useVisibilityChartUI } from "@/hooks/useVisibilityChartUI";
 import {
   CITATION_CHART_DESCRIPTION,
-  CITATION_CHART_HEIGHT,
   CITATION_RANK_TABLE_HEIGHT,
   CITATION_SECTION_HEIGHT,
   type CitationOverviewData,
@@ -14,12 +13,12 @@ import {
 import { formatDelta, formatRate } from "@/lib/analysis/format";
 
 function withRankIcons(rows: RankRow[]) {
-  return rows.map((row) => ({ ...row, icon: buildBrandRankIcon(row.label) }));
+  return rows.map((row) => ({ ...row, icon: buildBrandRankIcon(row.domain ?? "") }));
 }
 
 type CitationOverviewSectionProps = {
   overview: CitationOverviewData;
-  topLabels: string[];
+  chartLabels: string[];
   ownLabel: string;
   subjectScopeKey: string;
   loading?: boolean;
@@ -27,12 +26,12 @@ type CitationOverviewSectionProps = {
 
 export function CitationOverviewSection({
   overview,
-  topLabels,
+  chartLabels,
   ownLabel,
   subjectScopeKey,
   loading = false,
 }: CitationOverviewSectionProps) {
-  const chartUi = useVisibilityChartUI(topLabels, ownLabel, subjectScopeKey);
+  const chartUi = useVisibilityChartUI(chartLabels, ownLabel, subjectScopeKey);
   const rankRows = useMemo(() => withRankIcons(overview.rankRows), [overview.rankRows]);
 
   return (
@@ -42,14 +41,13 @@ export function CitationOverviewSection({
     >
       <div className="@container flex flex-wrap items-stretch">
         <div
-          className="flex min-w-[min(100%,480px)] flex-[3] flex-col p-5"
+          className="flex min-h-0 min-w-[min(100%,480px)] flex-[3] flex-col p-5"
           style={{ minHeight: CITATION_SECTION_HEIGHT }}
         >
           <MetricTrendCard
             embedded
             loading={loading}
-            chartHeight={CITATION_CHART_HEIGHT}
-            className="flex flex-col"
+            className="flex min-h-0 flex-1 flex-col"
             title="引用率"
             description={CITATION_CHART_DESCRIPTION}
             value={overview.ownValue != null ? formatRate(overview.ownValue) : undefined}

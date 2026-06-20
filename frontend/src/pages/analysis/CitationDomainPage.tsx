@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import { AnalysisFilterBar } from "@/components/analysis/common/AnalysisFilterBar";
@@ -6,10 +5,9 @@ import { CitationDomainDetailSection } from "@/components/analysis/citation/Cita
 import { CitationDomainSection } from "@/components/analysis/citation/CitationDomainSection";
 import { useAnalysisOutletContext } from "@/hooks/useAnalysisContext";
 import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
+import { useAnalysisFiltersState } from "@/hooks/useAnalysisFiltersState";
 import { useCitationDomainAnalysis } from "@/hooks/useCitationDomainAnalysis";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
-import { ANALYSIS_FILTER_ALL, DEFAULT_ANALYSIS_FILTERS } from "@/lib/analysis";
-import type { AnalysisFilters } from "@/types";
 
 function decodeRouteHost(value: string | undefined): string {
   if (!value) return "";
@@ -26,17 +24,7 @@ export function CitationDomainPage() {
   const host = decodeRouteHost(hostParam);
   const { subjectId } = useAnalysisOutletContext();
   const { subject } = useDashboardContext();
-
-  const [filters, setFilters] = useState<AnalysisFilters>(DEFAULT_ANALYSIS_FILTERS);
-
-  useEffect(() => {
-    setFilters((prev) => ({
-      ...prev,
-      regionId: ANALYSIS_FILTER_ALL,
-      topicId: ANALYSIS_FILTER_ALL,
-      platformId: ANALYSIS_FILTER_ALL,
-    }));
-  }, [subject.id]);
+  const { filters, setFilters } = useAnalysisFiltersState();
 
   const { isLoading, data } = useCitationDomainAnalysis(subjectId, host, filters);
   const { platforms: platformsMeta } = useAnalysisFilter();
@@ -50,6 +38,9 @@ export function CitationDomainPage() {
         <CitationDomainSection data={data} loading={isLoading} />
 
         <CitationDomainDetailSection
+          subjectId={subjectId}
+          host={host}
+          filters={filters}
           data={data}
           ownLabel={ownLabel}
           ownBrand={subject.brand}

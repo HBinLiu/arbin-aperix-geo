@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import {
   Bar,
   BarChart,
@@ -8,7 +8,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import type { TooltipProps } from "recharts";
 
+import { ChartMetricTooltipPanel } from "@/components/analysis/common/ChartChrome";
+import { PlatformLogo } from "@/components/brand/PlatformLogo";
+import { computeChartYAxisWidth } from "@/lib/analysis/chart";
+import { formatRankMetric } from "@/lib/analysis/format";
 import { resolvePlatformMeta } from "@/lib/analysis/shared";
 import {
   platformMetricValue,
@@ -27,14 +32,15 @@ type PromptPlatformBarChartProps = {
 };
 
 const BAR_COLOR = "#6366f1";
+const HOVER_CURSOR_FILL = "rgba(0,0,0,0.08)";
 const AXIS_TICK = { fill: "#9ca3af", fontSize: 13 };
 const GRID_STROKE = "#e4e4e4";
 
-const TOOLTIP_STYLE = {
-  fontSize: 13,
-  borderRadius: 8,
-  border: "1px solid #e5e7eb",
-  boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+const RATE_Y_TICKS = [0, 0.25, 0.5, 0.75, 1] as const;
+
+type BarTooltipPayload = {
+  platform?: string;
+  label?: string;
 };
 
 /** 提示词详情 · 按平台柱状图 */
@@ -60,6 +66,60 @@ export function PromptPlatformBarChart({
     [platforms, platformsMeta, metricId],
   );
 
+  const yTickFormatter = useCallback(
+    (value: number) =>
+      metric.yAxisMode === "rate" ? `${Math.round(value * 100)}%` : formatRankMetric(value),
+    [metric.yAxisMode],
+  );
+
+  const yMax = useMemo(() => {
+    if (metricId === "averageRank") {
+      const values = data.map((row) => row.value).filter((v): v is number => v != null);
+      if (values.length === 0) return 5;
+      return Math.max(5, Math.ceil(Math.max(...values)));
+    }
+    return 1;
+  }, [data, metricId]);
+
+  const yAxisWidth = useMemo(() => {
+    if (metric.yAxisMode === "rate") {
+      const labels = RATE_Y_TICKS.map((value) => yTickFormatter(value));
+      const longest = Math.max(...labels.map((label) => label.length), 0);
+      return Math.max(36, longest * 8 + 8);
+    }
+    return computeChartYAxisWidth(0, yMax, yTickFormatter);
+  }, [yMax, yTickFormatter, metric.yAxisMode]);
+
+  const tooltipContent = useCallback(
+    ({ active, payload }: TooltipProps<number, string>) => {
+      if (!active || !payload?.length) return null;
+
+      const row = payload[0]?.payload as BarTooltipPayload | undefined;
+      const value = payload[0]?.value;
+
+      return (
+        <ChartMetricTooltipPanel
+          header={metric.label}
+          rows={[
+            {
+              label: row?.label ?? "",
+              value: metric.formatValue(typeof value === "number" ? value : null),
+              icon:
+                row?.platform != null ? (
+                  <PlatformLogo
+                    provider={row.platform}
+                    label={row.label ?? row.platform}
+                    className="size-4 rounded-sm"
+                  />
+                ) : undefined,
+            },
+          ]}
+        />
+      );
+    },
+    [metric],
+  );
+
   if (data.length === 0) {
     return (
       <div
@@ -71,8 +131,7 @@ export function PromptPlatformBarChart({
     );
   }
 
-  const yDomain: [number, number | "auto"] =
-    metricId === "averageRank" ? [0, "auto"] : [0, 1];
+  const yDomain: [number, number] = [0, yMax];
 
   return (
     <div className={cn("min-h-0 w-full", className)} style={{ height }}>
@@ -90,17 +149,25 @@ export function PromptPlatformBarChart({
             tick={AXIS_TICK}
             tickLine={false}
             axisLine={false}
-            width={36}
+            width={yAxisWidth}
             domain={yDomain}
-            tickFormatter={(value: number) =>
-              metric.yAxisMode === "rate" ? `${Math.round(value * 100)}%` : String(value)
-            }
+            ticks={metric.yAxisMode === "rate" ? [...RATE_Y_TICKS] : undefined}
+            tickCount={metric.yAxisMode === "rate" ? undefined : 5}
+            allowDecimals={metricId === "averageRank"}
+            tickFormatter={yTickFormatter}
           />
           <Tooltip
-            formatter={(value: number) => [metric.formatValue(value), metric.label]}
-            contentStyle={TOOLTIP_STYLE}
+            content={tooltipContent}
+            cursor={{ fill: HOVER_CURSOR_FILL }}
+            wrapperStyle={{ outline: "none", zIndex: 10 }}
           />
-          <Bar dataKey="value" fill={BAR_COLOR} radius={[4, 4, 0, 0]} maxBarSize={40} />
+          <Bar
+            dataKey="value"
+            fill={BAR_COLOR}
+            activeBar={{ fill: BAR_COLOR }}
+            radius={[4, 4, 0, 0]}
+            maxBarSize={40}
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>

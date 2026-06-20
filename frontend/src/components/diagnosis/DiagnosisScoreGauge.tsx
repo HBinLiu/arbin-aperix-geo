@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import { DIAGNOSIS_STATUS_LABELS } from "@/lib/diagnosis";
 import type { DiagnosisStatus } from "@/types";
-import { Badge } from "@/components/ui/badge";
+import { TextBadge, type SemanticBadgeVariant } from "@/components/ui/badge";
 
 type DiagnosisScoreGaugeProps = {
   score: number;
@@ -10,11 +10,11 @@ type DiagnosisScoreGaugeProps = {
   className?: string;
 };
 
-const STATUS_BADGE_VARIANT: Record<DiagnosisStatus, "orange" | "green" | "muted" | "red"> = {
-  excellent: "green",
-  good: "green",
-  needs_improvement: "orange",
-  critical: "red",
+const STATUS_BADGE_VARIANT: Record<DiagnosisStatus, SemanticBadgeVariant> = {
+  excellent: "success",
+  good: "success",
+  needs_improvement: "warning",
+  critical: "error",
 };
 
 function formatDiagnosisScore(value: number): string {
@@ -77,12 +77,12 @@ export function DiagnosisScoreGauge({
                 {formatDiagnosisScore(score)}
                 <span className="text-muted-foreground text-base font-medium"> / 100</span>
               </p>
-              <Badge
+              <TextBadge
                 variant={STATUS_BADGE_VARIANT[status]}
                 className="mt-2 rounded-full px-2.5 py-0.5 text-xs font-medium"
               >
                 {DIAGNOSIS_STATUS_LABELS[status]}
-              </Badge>
+              </TextBadge>
             </div>
           </>
         )}

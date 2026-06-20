@@ -5,12 +5,16 @@ import { CitationUrlTable } from "@/components/analysis/citation/CitationUrlTabl
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CITATION_DOMAIN_DETAIL_TABS } from "@/lib/analysis/citation";
 import type {
+  AnalysisFilters,
   CitationDomainAnalysisData,
   CitationDomainDetailTab,
   SamplingPlatform,
 } from "@/types";
 
 type CitationDomainDetailSectionProps = {
+  subjectId: string;
+  host: string;
+  filters: AnalysisFilters;
   data: CitationDomainAnalysisData | undefined;
   ownLabel: string;
   ownBrand?: string | null;
@@ -19,6 +23,9 @@ type CitationDomainDetailSectionProps = {
 };
 
 export function CitationDomainDetailSection({
+  subjectId,
+  host,
+  filters,
   data,
   ownLabel,
   ownBrand,
@@ -44,17 +51,19 @@ export function CitationDomainDetailSection({
 
       {activeTab === "pages" ? (
         <CitationUrlTable
-          rows={data?.urls ?? []}
+          subjectId={subjectId}
+          filters={filters}
+          host={host}
           ownLabel={ownLabel}
           ownBrand={ownBrand}
-          loading={loading}
         />
       ) : activeTab === "prompt" ? (
         <CitationDomainBreakdownTable
-          rows={data?.prompts ?? []}
+          subjectId={subjectId}
+          filters={filters}
+          host={host}
           nameHeader="提示词"
           showTopicColumn
-          loading={loading}
         />
       ) : activeTab === "topic" ? (
         <CitationDomainBreakdownTable

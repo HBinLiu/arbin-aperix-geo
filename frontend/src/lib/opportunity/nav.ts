@@ -30,6 +30,54 @@ export function opportunityTabFromPathname(pathname: string): OpportunityTab {
   if (!normalized.startsWith(`${OPPORTUNITY_BASE_PATH}/`)) {
     return DEFAULT_OPPORTUNITY_TAB;
   }
-  const segment = normalized.slice(`${OPPORTUNITY_BASE_PATH}/`.length).split("/")[0] ?? "";
+  const rest = normalized.slice(`${OPPORTUNITY_BASE_PATH}/`.length);
+  const segment = rest.split("/")[0] ?? "";
   return parseOpportunityTab(segment || null);
+}
+
+const CONTENT_OPPORTUNITY_DETAIL_PREFIX = `${OPPORTUNITY_BASE_PATH}/content/`;
+
+export const BACKLINK_OPPORTUNITY_DETAIL_PREFIX = `${OPPORTUNITY_BASE_PATH}/backlink/`;
+
+export function backlinkOpportunityDetailPath(host: string): string {
+  return `${BACKLINK_OPPORTUNITY_DETAIL_PREFIX}${encodeURIComponent(host)}`;
+}
+
+export function backlinkOpportunityHostFromPathname(pathname: string): string | null {
+  const normalized = pathname.replace(/\/+$/, "");
+  if (!normalized.startsWith(BACKLINK_OPPORTUNITY_DETAIL_PREFIX)) {
+    return null;
+  }
+  const encoded = normalized.slice(BACKLINK_OPPORTUNITY_DETAIL_PREFIX.length).split("/")[0] ?? "";
+  if (!encoded) {
+    return null;
+  }
+  try {
+    return decodeURIComponent(encoded).trim().toLowerCase();
+  } catch {
+    return encoded.trim().toLowerCase();
+  }
+}
+
+export function contentOpportunityDetailPath(promptId: string): string {
+  return `${CONTENT_OPPORTUNITY_DETAIL_PREFIX}${encodeURIComponent(promptId)}`;
+}
+
+export function contentOpportunityPromptIdFromPathname(pathname: string): string | null {
+  const normalized = pathname.replace(/\/+$/, "");
+  if (normalized === `${OPPORTUNITY_BASE_PATH}/content`) {
+    return null;
+  }
+  if (!normalized.startsWith(CONTENT_OPPORTUNITY_DETAIL_PREFIX)) {
+    return null;
+  }
+  const encoded = normalized.slice(CONTENT_OPPORTUNITY_DETAIL_PREFIX.length).split("/")[0] ?? "";
+  if (!encoded) {
+    return null;
+  }
+  try {
+    return decodeURIComponent(encoded).trim();
+  } catch {
+    return encoded.trim();
+  }
 }

@@ -1,13 +1,7 @@
 import * as React from "react";
 
-import {
-  discoverCompetitors,
-  discoverProfile,
-  finalizeSetup,
-  generateSetupPrompts,
-} from "@/api/setup";
+import { discoverSetup, finalizeSetup, generateSetupPrompts, generateSetupTopics } from "@/api/setup";
 import { hostnameFromWebsiteInput } from "@/lib/domain";
-import { normalizeFaviconDomain } from "@/lib/favicon";
 import { setPendingJobId } from "@/lib/sampling";
 import {
   clearSetupCache,
@@ -19,6 +13,7 @@ import {
   selectedTopicNames,
   selectedTopicRows,
   setupStepHeader,
+  setupVerticalStep,
 } from "@/lib/setup";
 import { toast } from "@/lib/toast";
 import type { CompetitorRow, PromptRow, SubjectMode, TopicRow } from "@/types";
@@ -41,20 +36,15 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
   const [competitorRows, setCompetitorRows] = React.useState<CompetitorRow[]>(initial.competitorRows);
   const [promptRows, setPromptRows] = React.useState<PromptRow[]>(initial.promptRows);
   const [submitting, setSubmitting] = React.useState(false);
-  const [analyzingProfile, setAnalyzingProfile] = React.useState(false);
-  const [discoveringCompetitors, setDiscoveringCompetitors] = React.useState(false);
+  const [discovering, setDiscovering] = React.useState(false);
+  const [loadingTopics, setLoadingTopics] = React.useState(false);
   const [generatingPrompts, setGeneratingPrompts] = React.useState(false);
 
   const setupLabel = mode === "domain" ? "网站设置" : "品牌设置";
-  const stepLabels = [setupLabel, "审查主题", "选择竞品", "确认提示词"];
-  const busy = analyzingProfile || discoveringCompetitors || generatingPrompts;
+  const stepLabels = [setupLabel, "选择竞品", "审查主题", "确认提示词"];
+  const busy = discovering || loadingTopics || generatingPrompts || submitting;
 
   const hostPreview = hostnameFromWebsiteInput(websiteUrl);
-  const faviconHost = React.useMemo(() => {
-    if (mode !== "domain") return null;
-    const host = normalizeFaviconDomain(hostPreview || websiteUrl);
-    return host.includes(".") ? host : null;
-  }, [mode, hostPreview, websiteUrl]);
   const activeTopics = React.useMemo(() => selectedTopicRows(topicRows), [topicRows]);
 
   React.useEffect(() => {
@@ -85,20 +75,30 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
 
   const resetDownstream = (fromStep: number) => {
     if (fromStep <= 0) {
-      setSessionId("");
       setTopicRows([]);
       setCompetitorRows([]);
       setPromptRows([]);
       return;
     }
     if (fromStep <= 1) {
-      setCompetitorRows([]);
+      setTopicRows([]);
       setPromptRows([]);
       return;
     }
     if (fromStep <= 2) {
       setPromptRows([]);
     }
+  };
+
+  const clearSession = () => {
+    setSessionId("");
+    resetDownstream(0);
+  };
+
+  const setModeAndReset = (nextMode: SubjectMode) => {
+    if (nextMode === mode) return;
+    setMode(nextMode);
+    clearSession();
   };
 
   const validateStep0 = (): boolean => {
@@ -115,6 +115,19 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
   };
 
   const validateStep1 = (): boolean => {
+    const { competitors } = rowsToPersist(mode, competitorRows);
+    if (mode === "domain" && competitors.filter((c) => c.domain).length < 1) {
+      toast.error("请至少选择一个竞品域名。");
+      return false;
+    }
+    if (mode === "brand" && competitors.filter((c) => c.brand && !c.domain).length < 1) {
+      toast.error("按品牌监测时，请至少选择一个竞品品牌。");
+      return false;
+    }
+    return true;
+  };
+
+  const validateStep2 = (): boolean => {
     const names = selectedTopicNames(topicRows);
     if (names.length < 1) {
       toast.error("请至少选择一个主题。");
@@ -131,19 +144,6 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
     return true;
   };
 
-  const validateStep2 = (): boolean => {
-    const { competitors } = rowsToPersist(mode, competitorRows);
-    if (mode === "domain" && competitors.filter((c) => c.domain).length < 1) {
-      toast.error("请至少选择一个竞品域名。");
-      return false;
-    }
-    if (mode === "brand" && competitors.filter((c) => c.brand && !c.domain).length < 1) {
-      toast.error("按品牌监测时，请至少选择一个竞品品牌。");
-      return false;
-    }
-    return true;
-  };
-
   const validateStep3 = (): boolean => {
     if (selectedPromptRows(promptRows).length < 1) {
       toast.error("请至少选择一条提示词。");
@@ -152,37 +152,20 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
     return true;
   };
 
-  const runDiscoverProfile = async () => {
-    setAnalyzingProfile(true);
+  const runDiscover = async () => {
+    setDiscovering(true);
     setStep(1);
     resetDownstream(0);
     try {
-      const result = await discoverProfile({
+      const result = await discoverSetup({
         mode,
         domain: mode === "domain" ? websiteUrl.trim() : "",
         brand: mode === "brand" ? brandName.trim() : "",
         region,
         language,
+        sessionId: sessionId || undefined,
       });
       setSessionId(result.sessionId);
-      setTopicRows(result.topicRows);
-    } catch {
-      setStep(0);
-    } finally {
-      setAnalyzingProfile(false);
-    }
-  };
-
-  const runDiscoverCompetitors = async () => {
-    if (!sessionId) return;
-    setDiscoveringCompetitors(true);
-    setStep(2);
-    resetDownstream(1);
-    try {
-      const result = await discoverCompetitors({
-        sessionId,
-        monitoringTopics: selectedTopicNames(topicRows),
-      });
       setCompetitorRows(result.competitorRows);
       if (result.competitorRows.length === 0) {
         toast.info(
@@ -192,33 +175,46 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
         );
       }
     } catch {
-      setStep(1);
+      setStep(0);
     } finally {
-      setDiscoveringCompetitors(false);
+      setDiscovering(false);
+    }
+  };
+
+  const runLoadTopics = async () => {
+    if (!sessionId) return;
+    setLoadingTopics(true);
+    resetDownstream(2);
+    try {
+      const { topicRows: rows } = await generateSetupTopics({
+        sessionId,
+        mode,
+        competitorRows,
+      });
+      setTopicRows(rows);
+      setStep(2);
+    } catch {
+      /* API 拦截器已弹出 Toast */
+    } finally {
+      setLoadingTopics(false);
     }
   };
 
   const runGeneratePrompts = async () => {
     if (!sessionId) return;
     setGeneratingPrompts(true);
-    setStep(3);
     const excludePrompts = selectedPromptRows(promptRows).map((row) => row.text);
     resetDownstream(2);
-    const { competitors } = rowsToPersist(mode, competitorRows);
-    const competitorLabels =
-      mode === "domain"
-        ? competitors.map((c) => c.domain).filter(Boolean)
-        : competitors.map((c) => c.brand).filter(Boolean);
     try {
       const rows = await generateSetupPrompts({
         sessionId,
         topics: activeTopics,
-        competitorLabels,
         excludePrompts,
       });
       setPromptRows(rows);
+      setStep(3);
     } catch {
-      setStep(2);
+      /* API 拦截器已弹出 Toast */
     } finally {
       setGeneratingPrompts(false);
     }
@@ -227,16 +223,14 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
   const runFinalize = async () => {
     setSubmitting(true);
     try {
-      const { subject, samplingJobId } = await finalizeSetup({
-        mode,
+      const { subjectId, samplingJobId } = await finalizeSetup({
         sessionId,
         topicRows,
-        competitorRows,
         promptRows,
       });
       clearSetupCache();
-      setPendingJobId(subject.id, samplingJobId);
-      onCompleted(subject.id);
+      setPendingJobId(subjectId, samplingJobId);
+      onCompleted(subjectId);
     } catch {
       /* API 拦截器已弹出 Toast */
     } finally {
@@ -247,12 +241,12 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
   const handleContinue = () => {
     if (step === 0) {
       if (!validateStep0()) return;
-      void runDiscoverProfile();
+      void runDiscover();
       return;
     }
     if (step === 1) {
       if (!validateStep1()) return;
-      void runDiscoverCompetitors();
+      void runLoadTopics();
       return;
     }
     if (step === 2) {
@@ -270,23 +264,53 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
     if (busy) return;
     if (step === 0) return;
     if (step === 1) {
-      setSessionId("");
-      setTopicRows([]);
-    }
-    if (step === 2) {
       setCompetitorRows([]);
+      setTopicRows([]);
+      setPromptRows([]);
     }
     setStep((s) => Math.max(0, s - 1));
   };
 
+  const handleRegionChange = (value: string) => {
+    if (value !== region) {
+      setRegion(value);
+      clearSession();
+    }
+  };
+
+  const handleLanguageChange = (value: string) => {
+    if (value !== language) {
+      setLanguage(value);
+      clearSession();
+    }
+  };
+
+  const handleWebsiteUrlChange = (value: string) => {
+    setWebsiteUrl(value);
+    if (sessionId) clearSession();
+  };
+
+  const handleBrandNameChange = (value: string) => {
+    setBrandName(value);
+    if (sessionId) clearSession();
+  };
+
   const shellHeader = setupStepHeader(step, {
-    analyzingProfile,
-    discoveringCompetitors,
+    discovering,
+    loadingTopics,
     generatingPrompts,
   });
 
+  const verticalStep = setupVerticalStep(step, {
+    discovering,
+    loadingTopics,
+    generatingPrompts,
+  });
+
+
   return {
     step,
+    verticalStep,
     mode,
     websiteUrl,
     brandName,
@@ -296,20 +320,19 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
     competitorRows,
     promptRows,
     submitting,
-    analyzingProfile,
-    discoveringCompetitors,
+    discovering,
+    loadingTopics,
     generatingPrompts,
     setupLabel,
     stepLabels,
     busy,
-    faviconHost,
     activeTopics,
     shellHeader,
-    setMode,
-    setWebsiteUrl,
-    setBrandName,
-    setRegion,
-    setLanguage,
+    setMode: setModeAndReset,
+    setWebsiteUrl: handleWebsiteUrlChange,
+    setBrandName: handleBrandNameChange,
+    setRegion: handleRegionChange,
+    setLanguage: handleLanguageChange,
     setTopicRows,
     setCompetitorRows,
     setPromptRows,

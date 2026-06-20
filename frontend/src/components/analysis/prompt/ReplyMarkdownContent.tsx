@@ -2,6 +2,7 @@ import {
   Children,
   Fragment,
   cloneElement,
+  createElement,
   isValidElement,
   useMemo,
   type ReactNode,
@@ -10,7 +11,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { BrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
-import { Badge } from "@/components/ui/badge";
+import { TextBadge } from "@/components/ui/badge";
 import {
   resolveMentionIconLabel,
   splitTextByTerms,
@@ -26,13 +27,13 @@ type ReplyMarkdownContentProps = {
 
 function BrandInlineChip({ label, iconLabel }: { label: string; iconLabel: string }) {
   return (
-    <Badge
+    <TextBadge
       variant="primary"
-      className="mx-0.5 inline-flex h-auto items-center gap-1 rounded-md border border-primary/20 px-1.5 py-0.5 align-baseline text-sm font-medium"
+      className="mx-0.5 inline-flex h-auto items-center gap-1 rounded-md px-1 py-0.5 align-baseline"
     >
-      <BrandRankIcon label={iconLabel} size="sm" />
-      {label}
-    </Badge>
+      <BrandRankIcon label={iconLabel} size="xs" />
+      <span className="text-xs font-medium">{label}</span>
+    </TextBadge>
   );
 }
 
@@ -79,16 +80,9 @@ function withMentions(children: ReactNode, mentionTerms: ResponseMentionTerm[]):
 }
 
 function buildMarkdownComponents(mentionTerms: ResponseMentionTerm[]): Components {
-  const wrap =
-    (Tag: keyof JSX.IntrinsicElements, className?: string) =>
-    ({ children, node: _node, ...props }: React.ComponentPropsWithoutRef<typeof Tag> & { node?: unknown }) => {
-      const Component = Tag;
-      return (
-        <Component className={className} {...props}>
-          {withMentions(children, mentionTerms)}
-        </Component>
-      );
-    };
+  const wrap = <T extends keyof JSX.IntrinsicElements>(Tag: T, className?: string) =>
+    ({ children, node: _node, ...props }: React.ComponentPropsWithoutRef<T> & { node?: unknown }) =>
+      createElement(Tag, { ...props, className }, withMentions(children, mentionTerms));
 
   return {
     h1: wrap("h1", "text-muted-foreground mt-4 mb-3 text-lg font-semibold first:mt-0"),

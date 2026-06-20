@@ -1,3 +1,5 @@
+import type { SamplingPlatform } from "@/types/brand";
+
 export type AnalysisEntityRef = {
   id: string;
   kind: "own" | "competitor";
@@ -20,23 +22,81 @@ export type OverviewMetrics = {
   average_rank: number | null;
   citation_rate: number | null;
   sentiment_score: number | null;
-  sentiment_count: { positive: number; neutral: number; negative: number };
   citation_coverage: number | null;
 };
 
-export type BrandRankData = {
-  own_label: string;
-  mention_counts: Record<string, number>;
-  visibility_counts: Record<string, number>;
-  visibility_share: Record<string, number>;
-  mention_rate: Record<string, number>;
-  share_voice: Record<string, number>;
-  average_rank: Record<string, number | null>;
-  citation_share: Record<string, number>;
-  sentiment_score: Record<string, number | null>;
+/** 当前 / 上一周期数值对 */
+export type MetricPeriod = {
+  current: number | null;
+  previous: number | null;
 };
 
-export type RankData = BrandRankData;
+/** 带后端情感标签的指标周期（label: positive / neutral / negative） */
+export type LabeledMetricPeriod = MetricPeriod & {
+  label: string | null;
+};
+
+/** 概述页 KPI（含品牌排名位次，1 起） */
+export type DashboardOverviewMetric = MetricPeriod & {
+  rank: number | null;
+};
+
+export type DashboardOverviewSentimentMetric = DashboardOverviewMetric & {
+  label: string | null;
+};
+
+export type DashboardOverviewRankRow = {
+  id: string;
+  label: string;
+  domain: string;
+  cur_value: number | null;
+  pre_value: number | null;
+};
+
+export type DashboardOverviewTopic = {
+  topic_id: string;
+  topic_name: string;
+  response_count: number;
+  visibility: MetricPeriod;
+  citation: MetricPeriod;
+  sentiment: LabeledMetricPeriod;
+  average_rank: MetricPeriod;
+};
+
+/** 控制台概述页统一数据（扁平结构） */
+export type DashboardOverviewData = {
+  entity_id: string;
+  visibility: DashboardOverviewMetric;
+  citation: DashboardOverviewMetric;
+  share_voice: DashboardOverviewMetric;
+  sentiment: DashboardOverviewSentimentMetric;
+  visibility_chart: {
+    cur_series: VisibilitySeriesPoint[];
+    pre_series: VisibilitySeriesPoint[];
+  };
+  visibility_table: DashboardOverviewRankRow[];
+  topic_table: DashboardOverviewTopic[];
+};
+
+export type RankBoardItem = {
+  entity_id: string;
+  label: string;
+  display_name: string;
+  domain: string;
+  is_own: boolean;
+  visibility_rate: number | null;
+  mention_rate: number | null;
+  share_voice: number | null;
+  average_rank: number | null;
+  citation_rate: number | null;
+  sentiment_score: number | null;
+  sentiment_label: string | null;
+};
+
+export type RankData = {
+  own_label: string;
+  items: RankBoardItem[];
+};
 
 export type PromptPerformance = {
   prompt_id: string;
@@ -50,7 +110,22 @@ export type PromptPerformance = {
   average_rank: number | null;
   citation_rate: number | null;
   sentiment_score: number | null;
+  sentiment_label: string | null;
   response_count: number;
+};
+
+export type PromptPerformanceSortField =
+  | "visibility_rate"
+  | "mention_rate"
+  | "average_rank"
+  | "citation_rate"
+  | "sentiment_score";
+
+export type PromptPerformancePage = {
+  items: PromptPerformance[];
+  total: number;
+  page: number;
+  page_size: number;
 };
 
 export type TopicPerformance = {
@@ -61,6 +136,7 @@ export type TopicPerformance = {
   average_rank: number | null;
   citation_rate: number | null;
   sentiment_score: number | null;
+  sentiment_label: string | null;
   response_count: number;
 };
 
@@ -72,6 +148,7 @@ export type PlatformPerformance = {
   average_rank: number | null;
   citation_rate: number | null;
   sentiment_score: number | null;
+  sentiment_label: string | null;
 };
 
 export type PlatformMatrixMetricId =
@@ -83,34 +160,50 @@ export type PlatformMatrixMetricId =
 
 export type PlatformMatrixRowDimension = "competitor" | "topic";
 
-export type PlatformMatrixSeriesPoint = {
-  date: string;
-  value: number | null;
+export type PlatformMatrixCell = {
+  row_id: string;
+  platform_id: string;
+  visibility_rate: number | null;
+  share_voice: number | null;
+  citation_rate: number | null;
+  average_rank: number | null;
+  sentiment_score: number | null;
 };
 
-export type PlatformMatrixData = {
-  own_label: string;
-  platforms: string[];
-  competitor_rows: { id: string; label: string; is_own: boolean }[];
-  topic_rows: { id: string; label: string }[];
-  competitor_values: Record<
-    "visibility" | "share_voice" | "citation" | "average_rank" | "sentiment",
-    Record<string, Record<string, number | null>>
-  >;
-  topic_values: Record<
-    "visibility" | "share_voice" | "citation" | "average_rank" | "sentiment",
-    Record<string, Record<string, number | null>>
-  >;
-  platform_performance: PlatformPerformance[];
-  previous_platform_performance: PlatformPerformance[];
-  platform_series: Record<
-    string,
-    Record<
-      "visibility" | "share_voice" | "citation" | "average_rank" | "sentiment",
-      PlatformMatrixSeriesPoint[]
-    >
-  >;
+export type PlatformMatrixCells = {
+  current: PlatformMatrixCell[];
+  previous: PlatformMatrixCell[];
 };
+
+export type PlatformSeriesMetric =
+  | "visibility"
+  | "share_voice"
+  | "citation"
+  | "average_rank"
+  | "sentiment";
+
+export type PlatformChartSeriesPoint = {
+  date: string;
+  values: Record<string, number>;
+};
+
+export type PlatformChartWindow = {
+  current: PlatformChartSeriesPoint[];
+};
+
+export type PlatformAnalysisData = {
+  entity_id: string;
+  matrix_row: PlatformMatrixRowDimension;
+  matrix_cells: PlatformMatrixCells;
+  performance: {
+    current: PlatformPerformance[];
+    previous: PlatformPerformance[];
+  };
+  charts: Record<PlatformSeriesMetric, PlatformChartWindow>;
+};
+
+/** @deprecated 使用 PlatformAnalysisData */
+export type PlatformMatrixData = PlatformAnalysisData;
 
 export type VisibilitySeriesPoint = {
   date: string;
@@ -118,19 +211,27 @@ export type VisibilitySeriesPoint = {
 };
 
 export type VisibilityAnalysisData = {
-  entity_id?: string;
-  own_label: string;
-  focus_label?: string;
-  labels: string[];
-  share_voice_labels: string[];
-  rank: BrandRankData;
-  series: VisibilitySeriesPoint[];
-  mention_series: VisibilitySeriesPoint[];
-  average_rank_series: { date: string; value: number | null }[];
-  previous_rank: BrandRankData;
-  previous_series: VisibilitySeriesPoint[];
-  previous_mention_series: VisibilitySeriesPoint[];
-  previous_average_rank_series: { date: string; value: number | null }[];
+  entity_id: string;
+  visibility: DashboardOverviewMetric;
+  mention: DashboardOverviewMetric;
+  share_voice: DashboardOverviewMetric;
+  average_rank: DashboardOverviewMetric;
+  visibility_chart: {
+    cur_series: VisibilitySeriesPoint[];
+    pre_series: VisibilitySeriesPoint[];
+  };
+  mention_chart: {
+    cur_series: VisibilitySeriesPoint[];
+    pre_series: VisibilitySeriesPoint[];
+  };
+  average_rank_chart: {
+    cur_series: { date: string; value: number | null }[];
+    pre_series: { date: string; value: number | null }[];
+  };
+  visibility_table: DashboardOverviewRankRow[];
+  mention_table: DashboardOverviewRankRow[];
+  share_voice_table: DashboardOverviewRankRow[];
+  average_rank_table: DashboardOverviewRankRow[];
   topic_visibility_ranks: {
     topic_id: string;
     topic_name: string;
@@ -138,11 +239,24 @@ export type VisibilityAnalysisData = {
   }[];
 };
 
-export type CitationRankData = {
-  own_label: string;
-  citation_counts: Record<string, number>;
-  citation_share: Record<string, number>;
+export type CitationRankRow = {
+  id: string;
+  label: string;
+  domain?: string | null;
+  cur_value: number | null;
+  pre_value: number | null;
 };
+
+export type CitationListPage<T> = {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+  response_total?: number;
+};
+
+export type CitationDomainSortField = "count";
+export type CitationUrlSortField = "count" | "citation_rate";
 
 export type CitationDomainRow = {
   host: string;
@@ -175,17 +289,20 @@ export type CitationUrlRow = {
 };
 
 export type CitationAnalysisData = {
-  entity_id?: string;
+  entity_id: string;
   own_label: string;
   focus_label?: string;
   labels: string[];
   citation_rate: number | null;
-  rank: CitationRankData;
-  previous_rank: CitationRankData;
+  citation_previous: number | null;
   series: VisibilitySeriesPoint[];
   previous_series: VisibilitySeriesPoint[];
-  domains: CitationDomainRow[];
-  urls: CitationUrlRow[];
+  rank_table: CitationRankRow[];
+};
+
+export type CitationDomainSeriesPoint = {
+  date: string;
+  count: number;
 };
 
 export type CitationDomainAnalysisData = {
@@ -194,18 +311,20 @@ export type CitationDomainAnalysisData = {
   citation_rate: number;
   domain_type: string | null;
   prev_count: number;
-  series: VisibilitySeriesPoint[];
-  previous_series: VisibilitySeriesPoint[];
-  urls: CitationUrlRow[];
-  prompts: CitationDomainBreakdownRow[];
+  response_total: number;
+  series: CitationDomainSeriesPoint[];
+  previous_series: CitationDomainSeriesPoint[];
   topics: CitationDomainBreakdownRow[];
   platforms: CitationDomainBreakdownRow[];
 };
+
+export type CitationDomainPromptSortField = "count" | "citation_rate";
 
 export type CitationDomainBreakdownRow = {
   id: string;
   name: string;
   topic_name?: string | null;
+  platforms?: string[];
   count: number;
   citation_rate: number;
 };
@@ -214,48 +333,62 @@ export type CitationDomainDetailTab = "pages" | "prompt" | "topic" | "platform";
 
 export type CitationDetailTab = "domain" | "url";
 
-export type DailySentimentSeries = {
-  own_label: string;
-  series: { date: string; value: number | null }[];
-};
-
 export type SentimentDistributionPoint = {
   date: string;
   positive: number;
   neutral: number;
   negative: number;
+  sentiment_score: number;
+  sentiment_label: SentimentTab;
+  /** 当日各平台平均情感分（chart tooltip） */
+  platform_scores?: Record<string, number>;
 };
 
-export type SentimentResponseRow = {
+export type SentimentRankRow = DashboardOverviewRankRow & {
+  cur_label?: string | null;
+};
+
+export type PlatformSentimentPerformance = {
+  platform_id: string;
+  sentiment_score: number | null;
+  sentiment_label: string | null;
+};
+
+export type AnalysisResponseRow = {
   response_id: string;
-  platform: string;
+  platform_id: string;
   prompt_id: string;
   prompt_text: string;
-  sentiment: "positive" | "neutral" | "negative" | string;
   sentiment_score: number | null;
+  sentiment_label: string | null;
   sentiment_reason?: string | null;
   reply_preview: string;
   created_at: string;
+  mentioned?: boolean;
+  rank?: number | null;
+  mentioned_brands?: CitationMentionedBrand[];
+  cited_on_source?: boolean;
+};
+
+export type AnalysisResponseSortField = "created_at" | "sentiment_score" | "rank";
+
+export type AnalysisResponsesPage = {
+  items: AnalysisResponseRow[];
+  total: number;
+  page: number;
+  page_size: number;
 };
 
 export type SentimentAnalysisData = {
-  own_label: string;
+  entity_id: string;
   sentiment_score: number | null;
-  sentiment_count: { positive: number; neutral: number; negative: number };
+  sentiment_label: string | null;
+  sentiment_previous: number | null;
   distribution_series: SentimentDistributionPoint[];
-  platform_performance: PlatformPerformance[];
-  previous_platform_performance: PlatformPerformance[];
-  responses: SentimentResponseRow[];
+  rank_table: SentimentRankRow[];
 };
 
 export type SentimentTab = "positive" | "neutral" | "negative";
-
-export type CitationsData = {
-  subject_type: string;
-  url_host_counts: { host: string; count: number }[];
-  citation_coverage: number | null;
-  citation_rate: number | null;
-};
 
 export type OpportunityPriority = "high" | "medium" | "low";
 
@@ -265,36 +398,115 @@ export type ContentOpportunityItem = {
   id: string;
   prompt_id: string;
   prompt_text: string;
-  platform: string;
+  platforms: string[];
   priority: OpportunityPriority;
   competitors: string[];
   brand_gap_rate: number;
+  brand_gap_priority: OpportunityPriority;
   brand_own_count: number;
   brand_total_count: number;
   source_gap_rate: number;
+  source_gap_priority: OpportunityPriority;
   source_own_count: number;
   source_total_count: number;
 };
 
 export type ContentOpportunityData = {
   items: ContentOpportunityItem[];
+  total: number;
+  page: number;
+  page_size: number;
 };
 
-export type BacklinkDomainType = "enterprise" | "other";
+export type ContentOpportunitySortField = "priority" | "brand_gap_rate" | "source_gap_rate";
+
+export type ContentOpportunityDetailRow = {
+  entity_id: string;
+  /** 内部分析键（常为域名） */
+  label: string;
+  /** 展示用品牌名 */
+  display_name: string;
+  domain: string | null;
+  platforms: string[];
+  contribution_rate: number;
+  average_rank: number | null;
+  /** 来源差距：该竞品域名在相关回复中的引用链接 */
+  citation_urls?: string[];
+};
+
+export type ContentOpportunityDetailBrand = {
+  gap_rate: number;
+  gap_priority: OpportunityPriority;
+  chat_mention_own: number;
+  chat_mention_total: number;
+  /** 至少被提及一次的配置竞品数量 */
+  competitor_brand_count: number;
+  /** 配置品牌 mention_count 合计（含自有） */
+  total_mention_count: number;
+  rows: ContentOpportunityDetailRow[];
+};
+
+export type ContentOpportunityDetailSource = {
+  gap_rate: number;
+  gap_priority: OpportunityPriority;
+  chat_source_own: number;
+  chat_source_total: number;
+  /** 至少在引用链接中出现域名的配置竞品数（去重域名） */
+  competitor_source_count: number;
+  /** 配置品牌引用链接命中累计次数（含自有，每回复每实体最多计 1） */
+  total_source_count: number;
+  rows: ContentOpportunityDetailRow[];
+};
+
+export type ContentOpportunityDetailData = {
+  prompt_id: string;
+  prompt_text: string;
+  entity_id: string;
+  entity_label: string;
+  platforms: string[];
+  brand: ContentOpportunityDetailBrand;
+  source: ContentOpportunityDetailSource;
+};
+
+export type ContentOpportunityDetailTab = "brand" | "source" | "chat";
 
 export type BacklinkOpportunityItem = {
   id: string;
   host: string;
-  platform: string;
+  platforms: string[];
   priority: OpportunityPriority;
-  domain_type: BacklinkDomainType;
+  domain_type: string | null;
+  citation_count: number;
   prompt_count: number;
   chat_count: number;
 };
 
 export type BacklinkOpportunityData = {
   items: BacklinkOpportunityItem[];
+  total: number;
+  page: number;
+  page_size: number;
 };
+
+export type BacklinkOpportunitySortField = "priority" | "prompt_count" | "chat_count" | "citation_count";
+
+export type BacklinkOpportunityDetailData = {
+  host: string;
+  domain_type: string | null;
+  priority: OpportunityPriority;
+  platforms: string[];
+  citation_count: number;
+  citation_rate: number;
+  chat_count: number;
+  prompt_count: number;
+  mentioned_competitors: CitationMentionedBrand[];
+};
+
+export type BacklinkOpportunityUrlRow = CitationUrlRow & {
+  platforms: string[];
+};
+
+export type BacklinkOpportunityDetailTab = "pages" | "prompt";
 
 export type DiagnosisStatus = "excellent" | "good" | "needs_improvement" | "critical";
 
@@ -344,13 +556,18 @@ export type DiagnosisData = {
 
 export type AnalysisQueryFilters = {
   entityId: string;
-  platformId: string;
-  topicId: string;
-  regionId: string;
+  platformIds: string[];
+  topicIds: string[];
+  from: string;
+  to: string;
 };
 
-export type AnalysisFilters = AnalysisQueryFilters & {
-  days: string;
+export type AnalysisFilters = {
+  from: string;
+  to: string;
+  entityId: string;
+  platformIds: string[];
+  topicIds: string[];
 };
 
 export type AnalysisOutletContext = {
@@ -364,16 +581,50 @@ export type LlmResponseDialogRow = {
 };
 
 export type PromptDetailResponseRow = LlmResponseDialogRow & {
+  mentioned_brands: CitationMentionedBrand[];
   mentioned: boolean;
   rank: number | null;
   created_at: string;
   cited_on_source?: boolean;
 };
 
+export type PromptDetailSeriesPoint = {
+  date: string;
+  value: number | null;
+};
+
+export type PromptDetailPlatformRow = {
+  platform: string;
+  visibility_rate: number | null;
+  average_rank: number | null;
+  citation_rate: number | null;
+};
+
+export type PromptDetailOpportunityPayload = {
+  brand_gap_rate: number;
+  brand_gap_priority: OpportunityPriority;
+  source_gap_rate: number;
+  source_gap_priority: OpportunityPriority;
+  priority: OpportunityPriority;
+};
+
 export type PromptDetailData = {
-  chat_responses: PromptDetailResponseRow[];
+  entity_id: string;
+  entity_label: string;
+  prompt_id: string;
+  prompt_text: string;
+  topic_id: string | null;
+  topic_name: string | null;
+  search_intent: string | null;
+  visibility_rate: number | null;
+  average_rank: number | null;
+  citation_rate: number | null;
+  visibility_series: PromptDetailSeriesPoint[];
+  average_rank_series: PromptDetailSeriesPoint[];
+  citation_series: PromptDetailSeriesPoint[];
+  platforms: PromptDetailPlatformRow[];
+  opportunity: PromptDetailOpportunityPayload | null;
   citation_responses: PromptDetailResponseRow[];
-  query_expansions: unknown[];
 };
 
 /** LLM 回复 parsed 字段（与后端 sampling parser 一致） */
@@ -400,7 +651,7 @@ export type EntitySignalRecord = {
   mention_count?: number;
   mention_rank?: number | null;
   sentiment_score?: number | null;
-  sentiment_label?: string;
+  sentiment_label?: string | null;
   sentiment_reason?: string | null;
   has_domain_link?: boolean;
   cited_on_source?: boolean;

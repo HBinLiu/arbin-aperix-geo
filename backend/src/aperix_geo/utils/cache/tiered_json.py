@@ -87,3 +87,10 @@ class TieredJsonCache:
 
     def clear(self) -> None:
         self._l1.clear()
+
+    def delete(self, key: str) -> None:
+        with self._l1._lock:
+            self._l1._data.pop(key, None)
+        from aperix_geo.utils.cache.redis_kv import redis_delete
+
+        redis_delete(self._redis_key(key))

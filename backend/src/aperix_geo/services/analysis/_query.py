@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Callable
 from uuid import UUID
 
-from sqlalchemy import and_, select
+from sqlalchemy import Select, and_, func, select
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import LLMResponse, LLMResponseStatus, Prompt, SamplingJob
@@ -24,8 +24,8 @@ class _ResponsesInWindowQuery:
         subject_id: UUID,
         dt_from: datetime,
         dt_to: datetime,
-        platforms: list[str] | None = None,
-        topic_id: UUID | None = None,
+        platform: list[str] | None = None,
+        topic_id: list[UUID] | None = None,
         prompt_id: UUID | None = None,
     ) -> list[LLMResponse]:
         if self.override is not None:
@@ -34,7 +34,7 @@ class _ResponsesInWindowQuery:
                 subject_id=subject_id,
                 dt_from=dt_from,
                 dt_to=dt_to,
-                platforms=platforms,
+                platform=platform,
                 topic_id=topic_id,
                 prompt_id=prompt_id,
             )
@@ -43,7 +43,7 @@ class _ResponsesInWindowQuery:
             subject_id=subject_id,
             dt_from=dt_from,
             dt_to=dt_to,
-            platforms=platforms,
+            platform=platform,
             topic_id=topic_id,
             prompt_id=prompt_id,
         )
@@ -55,8 +55,8 @@ class _ResponsesInWindowQuery:
         subject_id: UUID,
         dt_from: datetime,
         dt_to: datetime,
-        platforms: list[str] | None = None,
-        topic_id: UUID | None = None,
+        platform: list[str] | None = None,
+        topic_id: list[UUID] | None = None,
         prompt_id: UUID | None = None,
     ) -> list[LLMResponse]:
         stmt = (
@@ -71,13 +71,70 @@ class _ResponsesInWindowQuery:
                 )
             )
         )
-        if platforms:
-            stmt = stmt.where(LLMResponse.platform.in_(platforms))
-        if topic_id is not None:
-            stmt = stmt.join(Prompt, LLMResponse.prompt_id == Prompt.id).where(Prompt.topic_id == topic_id)
+        if platform:
+            stmt = stmt.where(LLMResponse.platform.in_(platform))
+        if topic_id:
+            stmt = stmt.join(Prompt, LLMResponse.prompt_id == Prompt.id).where(
+                Prompt.topic_id.in_(topic_id)
+            )
         if prompt_id is not None:
             stmt = stmt.where(LLMResponse.prompt_id == prompt_id)
         return [r for r in db.execute(stmt).scalars().all() if r.parsed]
 
 
 responses_in_window = _ResponsesInWindowQuery()
+
+
+def response_ids_in_window_stmt(
+    *,
+    subject_id: UUID,
+    dt_from: datetime,
+    dt_to: datetime,
+    platform: list[str] | None = None,
+    topic_id: list[UUID] | None = None,
+    prompt_id: UUID | None = None,
+) -> Select[tuple[UUID]]:
+    """Success LLM responses in window (with parsed payload) — ID subquery for citation tables."""
+    stmt = (
+        select(LLMResponse.id)
+        .join(SamplingJob, LLMResponse.sampling_job_id == SamplingJob.id)
+        .where(
+            and_(
+                SamplingJob.subject_id == subject_id,
+                LLMResponse.created_at >= dt_from,
+                LLMResponse.created_at <= dt_to,
+                LLMResponse.status == LLMResponseStatus.success,
+                LLMResponse.parsed.isnot(None),
+            )
+        )
+    )
+    if platform:
+        stmt = stmt.where(LLMResponse.platform.in_(platform))
+    if topic_id:
+        stmt = stmt.join(Prompt, LLMResponse.prompt_id == Prompt.id).where(
+            Prompt.topic_id.in_(topic_id)
+        )
+    if prompt_id is not None:
+        stmt = stmt.where(LLMResponse.prompt_id == prompt_id)
+    return stmt
+
+
+def count_responses_in_window(
+    db: Session,
+    *,
+    subject_id: UUID,
+    dt_from: datetime,
+    dt_to: datetime,
+    platform: list[str] | None = None,
+    topic_id: list[UUID] | None = None,
+    prompt_id: UUID | None = None,
+) -> int:
+    stmt = response_ids_in_window_stmt(
+        subject_id=subject_id,
+        dt_from=dt_from,
+        dt_to=dt_to,
+        platform=platform,
+        topic_id=topic_id,
+        prompt_id=prompt_id,
+    )
+    return int(db.scalar(select(func.count()).select_from(stmt.subquery())) or 0)

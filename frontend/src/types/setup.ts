@@ -17,6 +17,7 @@ export type PromptRow = {
   text: string;
   topicId: string;
   selected: boolean;
+  /** 仅用于 finalize 落库，Setup UI 不展示 */
   funnelStage?: string;
   searchIntent?: string;
 };
@@ -25,14 +26,15 @@ export type DiscoveredCompetitor = {
   domain: string;
   website_url?: string;
   brand: string;
-  summary: string;
 };
 
 export type CompetitorRow = {
   id: string;
   name: string;
   domain: string;
+  websiteUrl: string;
   summary: string;
+  aliases: string[];
   selected: boolean;
 };
 
@@ -50,9 +52,7 @@ export type SetupCache = {
 };
 
 export type FinalizeSetupInput = {
-  mode: SubjectMode;
   sessionId: string;
   topicRows: TopicRow[];
-  competitorRows: CompetitorRow[];
   promptRows: PromptRow[];
 };

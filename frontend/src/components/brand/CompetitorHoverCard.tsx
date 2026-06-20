@@ -1,10 +1,21 @@
-import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from "react";
-import { createPortal } from "react-dom";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
 
+import { BrandRankLabel } from "@/components/brand/BrandRankLabel";
 import { FaviconImage } from "@/components/common/FaviconImage";
+import { performanceTableClasses } from "@/components/analysis/prompt/performanceTableLayout";
+import { DotBadge, TextBadge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { brandRowLabel } from "@/lib/brand/hoverRow";
+import { faviconUrlFromHost, faviconUrlFromWebsite } from "@/lib/favicon";
 import { cn } from "@/lib/utils";
 import type { CompetitorItem } from "@/types";
+
+/** 竞品列表最小宽度（窄屏横向滚动） */
+export const COMPETITOR_TABLE_MIN_WIDTH = 480;
+
+/** 操作列固定宽度 */
+export const COMPETITOR_ACTION_COL_WIDTH = "6rem";
 
 type CompetitorHoverCardProps = {
   row: CompetitorItem;
@@ -28,77 +39,92 @@ function Metric({ label, value, valueClassName }: MetricProps) {
 
 function SectionBadge({ children }: { children: string }) {
   return (
-    <span className="inline-flex rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-violet-700">
+    <TextBadge
+      variant="gray"
+      className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-violet-700"
+    >
       {children}
-    </span>
+    </TextBadge>
   );
 }
 
-function rowLabel(row: CompetitorItem): string {
-  return row.brand.trim() || row.domain;
+function competitorWebsiteUrl(row: CompetitorItem): string | null {
+  const url = row.website_url?.trim();
+  if (url) return url;
+  const domain = row.domain?.trim();
+  if (domain) return faviconUrlFromHost(domain);
+  return null;
 }
 
-const HOVER_CARD_GAP = 4;
-const VIEWPORT_BOTTOM_PAD = 10;
-
-function useHoverCardPosition(
-  open: boolean,
-  anchorRef: RefObject<HTMLDivElement | null>,
-  cardRef: RefObject<HTMLDivElement | null>,
-) {
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+/** 简介：两行截断，展开/收起按钮紧贴正文末尾。 */
+function CollapsibleDescription({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [canToggle, setCanToggle] = useState(false);
+  const descriptionRef = useRef<HTMLParagraphElement>(null);
 
   useLayoutEffect(() => {
-    if (!open) {
-      setPosition(null);
-      return;
-    }
+    setExpanded(false);
+  }, [text]);
 
-    const update = () => {
-      const anchor = anchorRef.current;
-      const card = cardRef.current;
-      if (!anchor || !card) return;
+  useLayoutEffect(() => {
+    if (expanded) return;
 
-      const anchorRect = anchor.getBoundingClientRect();
-      const cardHeight = card.offsetHeight;
-      const cardWidth = card.offsetWidth;
-      const viewportH = window.innerHeight;
-      const viewportW = window.innerWidth;
+    const el = descriptionRef.current;
+    if (!el) return;
 
-      const labelHeight = anchorRect.height;
-      let left = anchorRect.right + HOVER_CARD_GAP;
-      let top = anchorRect.bottom + HOVER_CARD_GAP - labelHeight;
-
-      if (top + cardHeight > viewportH) {
-        top = Math.max(0, viewportH - cardHeight - VIEWPORT_BOTTOM_PAD);
-      }
-
-      if (left + cardWidth > viewportW - 8) {
-        left = Math.max(8, anchorRect.left - HOVER_CARD_GAP - cardWidth);
-      }
-
-      setPosition({ top, left });
+    const checkOverflow = () => {
+      setCanToggle(el.scrollHeight > el.clientHeight + 1);
     };
 
-    update();
-    window.addEventListener("scroll", update, true);
-    window.addEventListener("resize", update);
-    return () => {
-      window.removeEventListener("scroll", update, true);
-      window.removeEventListener("resize", update);
-    };
-  }, [open, anchorRef, cardRef]);
+    checkOverflow();
+    const observer = new ResizeObserver(checkOverflow);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [text, expanded]);
 
-  return position;
+  const toggleButtonClass =
+    "text-primary inline align-baseline text-xs font-medium leading-relaxed hover:underline";
+
+  return (
+    <div className="relative mt-2">
+      <p
+        ref={descriptionRef}
+        className={cn(
+          "text-muted-foreground text-xs leading-relaxed",
+          !expanded && "line-clamp-2",
+        )}
+      >
+        {text}
+        {!expanded && canToggle ? (
+          <span aria-hidden className="float-right ml-1 h-[1.625em] w-10 shrink-0 clear-both" />
+        ) : null}
+        {expanded && canToggle ? (
+          <>
+            {" "}
+            <button type="button" className={toggleButtonClass} onClick={() => setExpanded(false)}>
+              收起
+            </button>
+          </>
+        ) : null}
+      </p>
+      {!expanded && canToggle ? (
+        <span className="absolute right-2 bottom-0 inline-flex items-baseline bg-gradient-to-l from-white from-50% to-transparent pl-4">
+          <button type="button" className={toggleButtonClass} onClick={() => setExpanded(true)}>
+            展开
+          </button>
+        </span>
+      ) : null}
+    </div>
+  );
 }
 
 /** 竞争对手悬停信息卡（GEO 指标待后端接入）。 */
 export function CompetitorHoverCard({ row, className }: CompetitorHoverCardProps) {
-  const [expanded, setExpanded] = useState(false);
-  const label = rowLabel(row);
+  const label = brandRowLabel(row);
   const domain = row.domain.trim();
+  const websiteUrl = competitorWebsiteUrl(row);
+  const faviconUrl = faviconUrlFromWebsite(row.website_url, domain);
   const description = row.summary.trim() || "暂无简介。";
-  const canExpand = description.length > 72;
 
   return (
     <div
@@ -109,9 +135,9 @@ export function CompetitorHoverCard({ row, className }: CompetitorHoverCardProps
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center gap-3">
-        {domain ? (
+        {faviconUrl ? (
           <div className="border-border flex size-12 shrink-0 items-center justify-center rounded-md border bg-white p-2">
-            <FaviconImage domain={domain} size={32} className="size-8" iconClassName="size-5" />
+            <FaviconImage url={faviconUrl} size={32} className="size-8" iconClassName="size-5" />
           </div>
         ) : (
           <div className="bg-muted flex size-12 shrink-0 items-center justify-center rounded-full text-base font-semibold">
@@ -120,22 +146,25 @@ export function CompetitorHoverCard({ row, className }: CompetitorHoverCardProps
         )}
         <div className="min-w-0 flex-1">
           <p className="truncate text-base font-semibold tracking-tight">{label}</p>
-          {domain ? <p className="text-muted-foreground truncate text-sm">{domain}</p> : null}
+          {domain ? (
+            websiteUrl ? (
+              <a
+                href={websiteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground block truncate text-sm hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {domain}
+              </a>
+            ) : (
+              <p className="text-muted-foreground truncate text-sm">{domain}</p>
+            )
+          ) : null}
         </div>
       </div>
 
-      <p className={cn("text-muted-foreground mt-2 text-xs leading-relaxed", !expanded && "line-clamp-2")}>
-        {description}
-        {canExpand && !expanded ? (
-          <button
-            type="button"
-            className="text-primary ml-1 inline font-medium hover:underline"
-            onClick={() => setExpanded(true)}
-          >
-            展开
-          </button>
-        ) : null}
-      </p>
+      <CollapsibleDescription text={description} />
 
       <div className="mt-2">
         <div className="flex items-center gap-2">
@@ -159,93 +188,47 @@ type CompetitorTableRowProps = {
   removeDisabled?: boolean;
 };
 
+function competitorBrandIcon(row: CompetitorItem) {
+  const faviconUrl = faviconUrlFromWebsite(row.website_url, row.domain);
+  if (!faviconUrl) return undefined;
+  return <FaviconImage url={faviconUrl} size={20} className="size-5 shrink-0 rounded-md" />;
+}
+
 export function CompetitorTableRow({ row, onRemove, removeDisabled }: CompetitorTableRowProps) {
-  const [hoverOpen, setHoverOpen] = useState(false);
-  const labelRef = useRef<HTMLDivElement>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
-  const closeTimerRef = useRef<number | null>(null);
-  const label = rowLabel(row);
-  const cardPosition = useHoverCardPosition(hoverOpen, labelRef, cardRef);
-
-  const openHover = useCallback(() => {
-    if (closeTimerRef.current !== null) {
-      window.clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
-    }
-    setHoverOpen(true);
-  }, []);
-
-  const scheduleCloseHover = useCallback(() => {
-    closeTimerRef.current = window.setTimeout(() => setHoverOpen(false), 80);
-  }, []);
+  const label = brandRowLabel(row);
 
   return (
-    <li className="relative grid grid-cols-[minmax(0,1fr)_6rem_4rem] items-center gap-2 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_7rem_4rem]">
-      <div className="flex min-w-0 items-center gap-2">
-        {row.domain ? (
-          <FaviconImage domain={row.domain} size={20} className="size-5 shrink-0" />
-        ) : (
-          <span className="bg-muted flex size-5 shrink-0 items-center justify-center rounded text-[10px] font-semibold">
-            {row.brand.slice(0, 1)}
-          </span>
-        )}
-        <div
-          ref={labelRef}
-          className="min-w-0"
-          onMouseEnter={openHover}
-          onMouseLeave={scheduleCloseHover}
-        >
-          <p
-            className={cn(
-              "truncate text-sm font-medium transition-colors",
-              hoverOpen && "text-primary",
-            )}
-          >
-            {label}
-          </p>
-        </div>
-      </div>
+    <tr className={cn(performanceTableClasses.row, "relative")}>
+      <td className="min-w-0 max-w-0 overflow-hidden">
+        <BrandRankLabel
+          label={label}
+          icon={competitorBrandIcon(row)}
+          size="sm"
+          hoverRow={row}
+        />
+      </td>
 
-      {hoverOpen
-        ? createPortal(
-            <div
-              ref={cardRef}
-              className={cn("fixed z-50", !cardPosition && "pointer-events-none opacity-0")}
-              style={
-                cardPosition
-                  ? { top: cardPosition.top, left: cardPosition.left }
-                  : { top: 0, left: 0 }
-              }
-              onMouseEnter={openHover}
-              onMouseLeave={scheduleCloseHover}
-            >
-              <CompetitorHoverCard
-                row={row}
-                className="animate-in fade-in-0 zoom-in-95 slide-in-from-left-2 duration-200"
-              />
-            </div>,
-            document.body,
-          )
-        : null}
+      <td>
+        <DotBadge variant="success" className="gap-1.5 px-1.5 py-0.5 font-medium">
+          就绪
+        </DotBadge>
+      </td>
 
-      <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600">
-        <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden />
-        就绪
-      </span>
-
-      <div className="flex justify-end">
-        <button
+      <td>
+        <Button
           type="button"
+          variant="outline"
+          size="icon"
           className={cn(
-            "text-muted-foreground hover:text-destructive rounded-md p-1.5 transition-colors",
+            "size-8 shrink-0 text-foreground hover:text-foreground",
             removeDisabled && "pointer-events-none opacity-50",
           )}
           aria-label="删除"
           onClick={onRemove}
         >
-          <Trash2 className="size-4" aria-hidden />
-        </button>
-      </div>
-    </li>
+          <Trash2 className="size-4 stroke-[1.5]" aria-hidden />
+        </Button>
+      </td>
+    </tr>
   );
 }

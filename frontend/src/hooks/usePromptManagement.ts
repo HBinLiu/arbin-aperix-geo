@@ -14,16 +14,17 @@ import {
   type PromptUpdateBody,
   type TopicCreateBody,
 } from "@/api/prompt";
-import { queryKeys } from "@/lib/queries";
+import { queryKeys, sessionCatalogQueryOptions } from "@/lib/queries";
 
 export function usePromptManagement(subjectId: string) {
   const topicsQuery = useQuery({
     queryKey: queryKeys.subjectTopics(subjectId),
     queryFn: () => fetchSubjectTopics(subjectId),
+    ...sessionCatalogQueryOptions,
   });
 
   const promptsQuery = useQuery({
-    queryKey: queryKeys.brandPrompts(subjectId),
+    queryKey: queryKeys.subjectPrompts(subjectId),
     queryFn: () => fetchSubjectPrompts(subjectId),
   });
 

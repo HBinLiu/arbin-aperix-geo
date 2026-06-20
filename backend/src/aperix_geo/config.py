@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     celery_result_backend: str = "redis://localhost:6379/2"
 
     sampling_scheduler_tick_seconds: int = Field(default=900, ge=60, le=3600)
+    # 每日定时采样（北京时间）：从 sampling_daily_hour 起，在 window 分钟内按 subject 分散
+    sampling_daily_hour: int = Field(default=2, ge=0, le=23)
+    sampling_daily_window_minutes: int = Field(default=120, ge=15, le=360)
+    sampling_scheduler_max_enqueue_per_tick: int = Field(default=50, ge=1, le=500)
     # 重启后 queued/running 且无 worker 推进时，超过该秒数视为 stale 并重新入队
     sampling_stale_job_seconds: int = Field(default=90, ge=30, le=600)
     sampling_resume_debounce_seconds: int = Field(default=90, ge=30, le=600)
@@ -73,6 +77,9 @@ class Settings(BaseSettings):
     citation_page_geo_cache_ttl_s: int = Field(default=3600, ge=0, le=86_400)
     citation_response_absa_cache_ttl_s: int = Field(default=3600, ge=0, le=86_400)
 
+    # --- 目录接口 Redis 缓存（entities、subject topics）---
+    catalog_cache_ttl_s: int = Field(default=86_400, ge=0, le=604_800)
+
     # --- 大模型：腾讯元宝 / 混元（见 services/providers/）---
     yuanbao_api_key: str = ""
     yuanbao_base_url: str = "https://api.hunyuan.cloud.tencent.com/v1"
@@ -104,6 +111,8 @@ class Settings(BaseSettings):
     kimi_rate_limit_per_minute: int = 30
     kimi_web_search_enabled: bool = True
     kimi_chat_timeout_s: float = Field(default=120.0, ge=10.0, le=600.0)
+    # Kimi 推理类模型（如 kimi-k2）仅允许 temperature=1
+    kimi_temperature: float = Field(default=1.0, ge=0.0, le=2.0)
 
     # --- 大模型：百度 · 文心一言 / 千帆 ERNIE（Dispatch 采样）---
     ernie_api_key: str = ""
@@ -113,7 +122,7 @@ class Settings(BaseSettings):
     ernie_web_search_enabled: bool = True
     ernie_chat_timeout_s: float = Field(default=120.0, ge=10.0, le=600.0)
 
-    # --- 竞品发现（.env：COMPETITOR_* + SEARXNG_BASE_URL）---
+    # --- 竞品发现（.env：COMPETITOR_* + DOUBAO_*）---
     searxng_base_url: str = ""
     # 交叉验算 head 走 PAGE_CRAWL_SEO_*（轻量 httpx）；池越大召回越好，与 PAGE_CRAWL_CONCURRENCY 配合
     competitor_pool_size: int = Field(default=40, ge=8, le=60)
@@ -121,7 +130,6 @@ class Settings(BaseSettings):
     competitor_cross_validate_pass_score: float = Field(default=6.0, ge=0.0, le=10.0)
     # head 已预抓取，瓶颈在 LLM；略大批次减少往返
     competitor_cross_validate_batch_size: int = Field(default=20, ge=1, le=50)
-    competitor_search_page_size: int = Field(default=50, ge=10, le=100)
     competitor_result_min: int = Field(default=3, ge=1, le=20)
     competitor_result_max: int = Field(default=5, ge=1, le=20)
 
@@ -151,6 +159,23 @@ class Settings(BaseSettings):
         description="SendSms 模板 JSON 中验证码字段名，须与阿里云控制台模板变量一致",
     )
     sms_aliyun_endpoint: str = "dysmsapi.aliyuncs.com"
+
+    # --- AI 平台欠费/余额告警（运维通知，非租户 OTP）---
+    provider_alert_enabled: bool = False
+    provider_alert_env_label: str = ""
+    provider_alert_channels: str = "email"
+    provider_alert_email_to: str = ""
+    provider_alert_sms_phones: str = ""
+    provider_alert_cooldown_seconds: int = Field(default=21_600, ge=60, le=604_800)
+    provider_alert_min_fails: int = Field(default=3, ge=1, le=100)
+    provider_alert_sms_template_code: str = ""
+
+    smtp_host: str = ""
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_use_tls: bool = True
 
     # favicon 本地持久化目录（按域名子目录保存全部成功抓取的图标）
     favicon_storage_dir: str = Field(default=str(_BACKEND_DIR / "data" / "favicons"))

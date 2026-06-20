@@ -2,7 +2,7 @@ import type { SamplingPlatform } from "@/types";
 
 /** 试用套餐下最多可选平台数（与弹窗文案一致） */
 export const PLATFORM_PLAN_LABEL = "Trial 7 Days";
-export const PLATFORM_MAX_SELECTION = 1;
+export const PLATFORM_MAX_SELECTION = 6;
 export const DEFAULT_SAMPLING_PROVIDER = "doubao";
 
 export function preferredDefaultSamplingPlatforms(platforms: SamplingPlatform[]): SamplingPlatform[] {
@@ -19,7 +19,8 @@ export function effectiveSamplingPlatforms(
 ): SamplingPlatform[] {
   const saved = subject.sampling_platforms ?? [];
   if (saved.length > 0) {
-    return allPlatforms.filter((p) => saved.includes(p.platform));
+    const byId = Object.fromEntries(allPlatforms.map((p) => [p.platform, p]));
+    return saved.map((id) => byId[id]).filter((p): p is SamplingPlatform => p != null);
   }
   return preferredDefaultSamplingPlatforms(allPlatforms);
 }
@@ -27,17 +28,17 @@ export function effectiveSamplingPlatforms(
 export function platformAccent(provider: string): string {
   switch (provider) {
     case "doubao":
-      return "bg-[#3370ff]/10 text-[#3370ff] border-[#3370ff]/20";
+      return "bg-doubao/10 text-doubao border-doubao/20";
     case "deepseek":
-      return "bg-[#4d6bfe]/10 text-[#4d6bfe] border-[#4d6bfe]/20";
+      return "bg-deepseek/10 text-deepseek border-deepseek/20";
     case "yuanbao":
-      return "bg-[#12b76a]/10 text-[#12b76a] border-[#12b76a]/20";
+      return "bg-yuanbao/10 text-yuanbao border-yuanbao/20";
     case "qianwen":
-      return "bg-[#615fff]/10 text-[#615fff] border-[#615fff]/20";
+      return "bg-qianwen/10 text-qianwen border-qianwen/20";
     case "kimi":
-      return "bg-foreground/5 text-foreground border-border";
+      return "bg-kimi/10 text-kimi border-kimi/20";
     case "ernie":
-      return "bg-[#2932e1]/10 text-[#2932e1] border-[#2932e1]/20";
+      return "bg-ernie/10 text-ernie border-ernie/20";
     default:
       return "bg-muted text-foreground border-border";
   }

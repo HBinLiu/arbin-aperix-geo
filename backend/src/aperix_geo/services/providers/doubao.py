@@ -77,6 +77,7 @@ def doubao_responses_chat(
     model: str,
     web_search: bool = True,
     timeout_s: float = 120.0,
+    system_prompt: str | None = None,
 ) -> SamplingChatResult:
     """Call Ark Responses API; optionally enable built-in web_search tool."""
     if not api_key.strip():
@@ -93,7 +94,10 @@ def doubao_responses_chat(
     )
     kwargs: dict[str, Any] = {
         "model": model.strip(),
-        "input": with_system_prompt(messages, DOUBAO_WEB_SEARCH_SYSTEM),
+        "input": with_system_prompt(
+            messages,
+            system_prompt if system_prompt is not None else DOUBAO_WEB_SEARCH_SYSTEM,
+        ),
         "stream": False,
     }
     if web_search:

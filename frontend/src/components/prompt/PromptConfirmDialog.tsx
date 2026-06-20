@@ -33,7 +33,7 @@ function PromptConfirmDialogFooter({
 
   return (
     <DialogFooter>
-      <Button type="button" variant="primaryOutline" disabled={submitting} onClick={requestClose}>
+      <Button type="button" variant="brandout" disabled={submitting} onClick={requestClose}>
         取消
       </Button>
       <Button type="button" disabled={submitting} onClick={onConfirm}>

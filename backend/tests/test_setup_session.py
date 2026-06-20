@@ -32,11 +32,11 @@ def test_create_and_get_session(mock_redis_fn, mock_redis) -> None:
 def test_update_session_merges(mock_redis_fn, mock_redis) -> None:
     mock_redis_fn.return_value = mock_redis
 
-    session_id = create_session(user_id="u2", payload={"micro_keywords": ["a", "b"]})
-    ok = update_session(user_id="u2", session_id=session_id, patch={"micro_keywords": ["c", "d"]})
+    session_id = create_session(user_id="u2", payload={"keywords": ["a", "b"]})
+    ok = update_session(user_id="u2", session_id=session_id, patch={"keywords": ["c", "d"]})
     assert ok is True
     loaded = get_session(user_id="u2", session_id=session_id)
-    assert loaded["micro_keywords"] == ["c", "d"]
+    assert loaded["keywords"] == ["c", "d"]
 
 
 @patch("aperix_geo.services.setup.cache.session.require_redis_client")

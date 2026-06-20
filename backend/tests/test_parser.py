@@ -13,6 +13,7 @@ from aperix_geo.services.sampling.mentions import competitor_entries, own_names
 from aperix_geo.services.sampling.parse import parse_llm_output
 from aperix_geo.services.sampling.parsed import ParsedSamplingResult
 from aperix_geo.services.sampling.signal_draft import draft_to_record
+from aperix_geo.utils.sentiment import sentiment_label_from_score
 
 
 import pytest
@@ -93,7 +94,7 @@ def _patch_citation_fetch_by_default():
             ai_mentioned=ai_mentioned,
         )
 
-    def _pages_geo(pages, *, own_brand, competitors, cache_ttl_s=0, batch_size=8):
+    def _pages_geo(pages, *, own_brand, page_brand_scope=None, **kwargs):
         return [_default_page_geo(page_mentioned=[]) for _ in pages]
 
     mock_settings = MagicMock()
@@ -149,7 +150,7 @@ def _mock_fetch_page(*, text: str = "Aperix product documentation and guides.", 
             ai_mentioned=ai_mentioned,
         )
 
-    def _pages_geo(pages, *, own_brand, competitors, cache_ttl_s=0, batch_size=8):
+    def _pages_geo(pages, *, own_brand, page_brand_scope=None, **kwargs):
         return [_default_page_geo(page_mentioned=brands_on_page) for _ in pages]
 
     with (
@@ -211,8 +212,8 @@ def test_mention_count_and_rank():
     assert own.get("cited_on_source") is True
     assert parsed.citation_urls_own
     assert parsed.citation_response_absa["brands_sentiment_absa"]["Aperix"]["mentioned"] is True
-    assert own.get("sentiment_label") == "positive"
     assert own.get("sentiment_score") == 90.0
+    assert sentiment_label_from_score(own.get("sentiment_score")) == "positive"
 
 
 def test_citation_requires_source_page_brand_mention():
@@ -294,7 +295,7 @@ def test_competitor_mention_via_url_host_only():
     assert any(signal.get("mentioned") for signal in _competitor_signals(parsed))
 
 
-def test_parse_llm_output_runs_absa_and_citation_in_parallel() -> None:
+def test_parse_llm_output_overlaps_absa_with_page_fetch() -> None:
     subject = Subject(
         id=uuid.uuid4(),
         tenant_id=uuid.uuid4(),
@@ -314,10 +315,14 @@ def test_parse_llm_output_runs_absa_and_citation_in_parallel() -> None:
         marks["absa_end"] = time.monotonic()
         return {"brands_sentiment_absa": {}, "analysis_source": "llm"}
 
-    def _slow_citation(**kwargs):
-        marks["citation_start"] = time.monotonic()
+    def _slow_fetch(urls, **kwargs):
+        marks["fetch_start"] = time.monotonic()
         time.sleep(0.25)
-        marks["citation_end"] = time.monotonic()
+        marks["fetch_end"] = time.monotonic()
+        return []
+
+    def _fast_build(pages, urls, **kwargs):
+        marks["build_start"] = time.monotonic()
         return CitationDocument()
 
     mock_settings = MagicMock()
@@ -345,8 +350,12 @@ def test_parse_llm_output_runs_absa_and_citation_in_parallel() -> None:
             side_effect=_slow_absa,
         ),
         patch(
-            "aperix_geo.services.sampling.parse.analysis.resolve_citation_sources",
-            side_effect=_slow_citation,
+            "aperix_geo.services.sampling.parse.analysis.fetch_citation_pages_for_urls",
+            side_effect=_slow_fetch,
+        ),
+        patch(
+            "aperix_geo.services.sampling.parse.analysis.build_citation_document",
+            side_effect=_fast_build,
         ),
     ):
         parse_llm_output(
@@ -356,6 +365,8 @@ def test_parse_llm_output_runs_absa_and_citation_in_parallel() -> None:
         )
 
     elapsed = time.monotonic() - started
-    assert marks["absa_start"] < marks["citation_end"]
-    assert marks["citation_start"] < marks["absa_end"]
+    assert marks["absa_start"] < marks["fetch_end"]
+    assert marks["fetch_start"] < marks["absa_end"]
+    assert marks["absa_end"] <= marks["build_start"]
+    assert elapsed >= 0.22
     assert elapsed < 0.45

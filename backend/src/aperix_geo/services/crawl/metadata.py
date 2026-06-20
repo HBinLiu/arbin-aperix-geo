@@ -32,7 +32,7 @@ from aperix_geo.services.crawl.seo import (
     seo_has_signal,
     seo_prose_text,
 )
-from aperix_geo.utils.text import headings_from_markdown
+from aperix_geo.utils.text import coalesce_page_title, headings_from_markdown
 
 HEAD_PARSE_MAX_CHARS = 120_000
 MIN_BODY_CHARS = 40
@@ -241,7 +241,6 @@ def _build_page_metadata(
         else SeoMetadata()
     )
     seo = apply_seo_profile(seo_raw, seo_profile)
-    title = seo.title
     description = seo.description
 
     body_text = ""
@@ -270,10 +269,11 @@ def _build_page_metadata(
             has_table = html_has_table(html_slice)
             has_code_block = html_has_code_block(html_slice)
 
-    if not title and md.strip():
-        title = _title_from_markdown(md)
-    if not title and headings:
-        title = headings[0][:500]
+    title = coalesce_page_title(
+        seo.title,
+        _title_from_markdown(md) if md.strip() else "",
+        headings[0][:500] if headings else "",
+    )
     if title != seo.title:
         seo = replace(seo, title=title)
 

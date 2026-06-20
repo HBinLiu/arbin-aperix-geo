@@ -7,7 +7,7 @@ export type SetupStepVerticalProps = {
   currentStep: number;
 };
 
-/** 右侧竖向步骤条（对齐 onboard01.html：font-mono、圆点/竖线、当前步 shiny + spinner） */
+/** 右侧竖向步骤条：当前步 spinner，已完成步实心点，未到步灰点 */
 export function SetupStepVertical({ steps, currentStep }: SetupStepVerticalProps) {
   return (
     <nav className="w-full" aria-label="设置流程">
@@ -18,7 +18,7 @@ export function SetupStepVertical({ steps, currentStep }: SetupStepVerticalProps
           const isLast = i === steps.length - 1;
 
           return (
-            <li key={label} className="flex min-h-14 gap-2">
+            <li key={label} className="flex min-h-14 gap-2" aria-current={isActive ? "step" : undefined}>
               <div className="flex w-5 shrink-0 flex-col items-center">
                 <div className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-transparent">
                   {isActive ? (

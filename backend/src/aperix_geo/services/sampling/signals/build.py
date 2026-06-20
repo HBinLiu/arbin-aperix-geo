@@ -7,7 +7,8 @@ from uuid import UUID
 
 from aperix_geo.db.models import Brand, EntityKind, LLMResponseSignal
 from aperix_geo.services.brand.resolve import primary_domain_for_brand
-from aperix_geo.utils.sentiment import persist_mention_rank, persist_sentiment_score
+from aperix_geo.utils.mention import persist_mention_rank
+from aperix_geo.utils.sentiment import persist_sentiment_reason, persist_sentiment_score
 from aperix_geo.services.sampling.signal_draft import EntitySignalDraft
 
 
@@ -24,8 +25,8 @@ def draft_to_model_fields(draft: EntitySignalDraft) -> dict[str, object]:
         "mentioned": draft.mentioned,
         "mention_count": draft.mention_count,
         "mention_rank": persist_mention_rank(draft.mention_rank),
-        "sentiment_score": persist_sentiment_score(draft.sentiment_score),
-        "sentiment_label": draft.sentiment_label or "neutral",
+        "sentiment_score": persist_sentiment_score(draft.sentiment_score if draft.mentioned else None),
+        "sentiment_reason": persist_sentiment_reason(draft.sentiment_reason if draft.mentioned else None),
         "has_domain_link": draft.has_domain_link,
         "cited_on_source": draft.cited_on_source,
     }

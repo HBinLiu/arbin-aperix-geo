@@ -2,8 +2,11 @@ export {
   dateRangeDays,
   defaultDateRange,
   formatDateRangeLabel,
+  isoToLocalDate,
+  localDatesToIso,
   previousDateRange,
 } from "@/lib/analysis/date";
+export { entityChartLabels, entityRankFlags, focusEntityLabel, ownEntityLabel } from "@/lib/analysis/entities";
 export {
   formatDelta,
   formatRank,
@@ -14,13 +17,18 @@ export {
 } from "@/lib/analysis/format";
 export {
   ANALYSIS_DATE_OPTIONS,
+  ANALYSIS_DATE_PRESETS,
   ANALYSIS_ENTITY_OWN,
   ANALYSIS_FILTER_ALL,
   ANALYSIS_PARAMS_SERIALIZER,
   analysisFilterKey,
   buildAnalysisParams,
   DEFAULT_ANALYSIS_FILTERS,
+  matrixPlatformIds,
+  platformFilterKey,
+  topicFilterKey,
   toAnalysisQueryFilters,
+  withAnalysisDateRange,
 } from "@/lib/analysis/filters";
 export {
   ANALYSIS_DIMENSIONS,
@@ -47,7 +55,6 @@ export {
   buildVisibilityMetricBundles,
   resolveVisibilityChartMode,
   visibilityChartLabels,
-  VISIBILITY_CHART_HEIGHT,
   VISIBILITY_RANK_TABLE_HEIGHT,
   VISIBILITY_SECTION_HEIGHT,
   type VisibilityChartMode,
@@ -67,25 +74,26 @@ export {
   type PlatformMatrixRow,
 } from "@/lib/analysis/platform";
 export {
-  buildChartLegendItems,
+  buildChartColorLookup,
   buildChartModel,
   buildChartTooltipRows,
   buildChartYAxis,
-  CHART_COLORS,
+  buildChartYAxisForScore,
+  chartColorAtIndex,
+  chartColorForKey,
+  chartColorFromLookup,
+  chartRowValue,
+  computeChartDataRange,
   CHART_HEIGHT,
-  CHART_Y_LABEL_CHAR_WIDTH,
   colorOfChartLabel,
-  computeChartDataMax,
-  computeChartYAxisWidth,
   formatChartDayLabel,
   formatChartTooltipDate,
   getActiveChartLabels,
+  inferChartLabels,
   PREVIOUS_PERIOD_SUFFIX,
   previousPeriodDataKey,
   shouldOverlayPreviousPeriod,
   SINGLE_SERIES_KEY,
-  toChartRows,
-  toLineConfigs,
 } from "@/lib/analysis/chart";
 export type {
   ChartInput,

@@ -21,14 +21,17 @@ class LLMResponseSignalRow:
     platform: str
     entity_id: str
     entity_kind: str
+    brand_id: UUID
     mentioned: bool
     mention_count: int
     mention_rank: int
     sentiment_score: float
-    sentiment_label: str
+    sentiment_reason: str
     has_domain_link: bool
     cited_on_source: bool
     created_at: datetime
+    entity_label: str = ""
+    primary_domain: str = ""
 
     @classmethod
     def from_model(cls, row: LLMResponseSignal) -> LLMResponseSignalRow:
@@ -39,14 +42,17 @@ class LLMResponseSignalRow:
             platform=row.platform,
             entity_id=row.entity_id,
             entity_kind=row.entity_kind,
+            brand_id=row.brand_id,
             mentioned=row.mentioned,
             mention_count=row.mention_count,
             mention_rank=row.mention_rank,
             sentiment_score=row.sentiment_score,
-            sentiment_label=row.sentiment_label,
+            sentiment_reason=row.sentiment_reason,
             has_domain_link=row.has_domain_link,
             cited_on_source=row.cited_on_source,
             created_at=row.created_at,
+            entity_label=row.entity_label or "",
+            primary_domain=row.primary_domain or "",
         )
 
 
@@ -56,10 +62,11 @@ def _load_llm_response_signals(
     subject: Subject,
     dt_from: datetime,
     dt_to: datetime,
-    platforms: list[str] | None = None,
-    topic_id: UUID | None = None,
+    platform: list[str] | None = None,
+    topic_id: list[UUID] | None = None,
     prompt_id: UUID | None = None,
     entity_id: str | None = None,
+    brand_id: UUID | None = None,
 ) -> list[LLMResponseSignalRow]:
     stmt = (
         select(LLMResponseSignal)
@@ -75,14 +82,57 @@ def _load_llm_response_signals(
             )
         )
     )
-    if platforms:
-        stmt = stmt.where(LLMResponseSignal.platform.in_(platforms))
-    if topic_id is not None:
-        stmt = stmt.where(Prompt.topic_id == topic_id)
+    if platform:
+        stmt = stmt.where(LLMResponseSignal.platform.in_(platform))
+    if topic_id:
+        stmt = stmt.where(Prompt.topic_id.in_(topic_id))
     if prompt_id is not None:
         stmt = stmt.where(LLMResponseSignal.prompt_id == prompt_id)
-    if entity_id is not None:
-        stmt = stmt.where(LLMResponseSignal.entity_id == entity_id)
+    if brand_id is not None:
+        stmt = stmt.where(LLMResponseSignal.brand_id == brand_id)
+    elif entity_id is not None:
+        from aperix_geo.services.brand.analysis import resolve_brand_id_for_analysis_entity
+
+        resolved_brand_id = resolve_brand_id_for_analysis_entity(
+            db,
+            subject=subject,
+            entity_id=entity_id,
+        )
+        stmt = stmt.where(LLMResponseSignal.brand_id == resolved_brand_id)
+
+    return [LLMResponseSignalRow.from_model(r) for r in db.execute(stmt).scalars().all()]
+
+
+def _load_llm_response_other_brand_signals(
+    db: Session,
+    *,
+    subject: Subject,
+    dt_from: datetime,
+    dt_to: datetime,
+    platform: list[str] | None = None,
+    topic_id: list[UUID] | None = None,
+    prompt_id: UUID | None = None,
+) -> list[LLMResponseSignalRow]:
+    """Open-set brand signals for ``mentioned_brands`` display (not KPI aggregation)."""
+    stmt = (
+        select(LLMResponseSignal)
+        .join(Prompt, LLMResponseSignal.prompt_id == Prompt.id)
+        .where(
+            and_(
+                LLMResponseSignal.subject_id == subject.id,
+                LLMResponseSignal.created_at >= dt_from,
+                LLMResponseSignal.created_at <= dt_to,
+                LLMResponseSignal.entity_kind == EntityKind.other.value,
+                LLMResponseSignal.mentioned.is_(True),
+            )
+        )
+    )
+    if platform:
+        stmt = stmt.where(LLMResponseSignal.platform.in_(platform))
+    if topic_id:
+        stmt = stmt.where(Prompt.topic_id.in_(topic_id))
+    if prompt_id is not None:
+        stmt = stmt.where(LLMResponseSignal.prompt_id == prompt_id)
 
     return [LLMResponseSignalRow.from_model(r) for r in db.execute(stmt).scalars().all()]
 
@@ -99,10 +149,11 @@ class _LoadLLMResponseSignals:
         subject: Subject,
         dt_from: datetime,
         dt_to: datetime,
-        platforms: list[str] | None = None,
-        topic_id: UUID | None = None,
+        platform: list[str] | None = None,
+        topic_id: list[UUID] | None = None,
         prompt_id: UUID | None = None,
         entity_id: str | None = None,
+        brand_id: UUID | None = None,
     ) -> list[LLMResponseSignalRow]:
         if self.override is not None:
             return self.override(
@@ -110,21 +161,63 @@ class _LoadLLMResponseSignals:
                 subject=subject,
                 dt_from=dt_from,
                 dt_to=dt_to,
-                platforms=platforms,
+                platform=platform,
                 topic_id=topic_id,
                 prompt_id=prompt_id,
                 entity_id=entity_id,
+                brand_id=brand_id,
             )
         return _load_llm_response_signals(
             db,
             subject=subject,
             dt_from=dt_from,
             dt_to=dt_to,
-            platforms=platforms,
+            platform=platform,
             topic_id=topic_id,
             prompt_id=prompt_id,
             entity_id=entity_id,
+            brand_id=brand_id,
         )
 
 
 load_llm_response_signals = _LoadLLMResponseSignals()
+
+
+class _LoadLLMResponseOtherBrandSignals:
+    """Patchable load hook for open-set mention display."""
+
+    override: Callable[..., list[LLMResponseSignalRow]] | None = None
+
+    def __call__(
+        self,
+        db: Session,
+        *,
+        subject: Subject,
+        dt_from: datetime,
+        dt_to: datetime,
+        platform: list[str] | None = None,
+        topic_id: list[UUID] | None = None,
+        prompt_id: UUID | None = None,
+    ) -> list[LLMResponseSignalRow]:
+        if self.override is not None:
+            return self.override(
+                db,
+                subject=subject,
+                dt_from=dt_from,
+                dt_to=dt_to,
+                platform=platform,
+                topic_id=topic_id,
+                prompt_id=prompt_id,
+            )
+        return _load_llm_response_other_brand_signals(
+            db,
+            subject=subject,
+            dt_from=dt_from,
+            dt_to=dt_to,
+            platform=platform,
+            topic_id=topic_id,
+            prompt_id=prompt_id,
+        )
+
+
+load_llm_response_other_brand_signals = _LoadLLMResponseOtherBrandSignals()

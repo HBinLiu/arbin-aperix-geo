@@ -163,6 +163,7 @@ def _kimi_chat(settings: Settings) -> Callable[[list[dict[str, str]]], SamplingC
             web_search=settings.kimi_web_search_enabled,
             searxng_max_results=settings.sampling_searxng_max_results,
             timeout_s=settings.kimi_chat_timeout_s,
+            temperature=settings.kimi_temperature,
         )
 
     return _call
@@ -270,7 +271,11 @@ def chat_for_platform(
 ) -> SamplingChatResult:
     spec = resolve_sampling_platform(platform, settings=settings)
     try:
-        return spec.chat(messages)
+        result = spec.chat(messages)
+        from aperix_geo.services.alerts.dispatch import maybe_report_provider_success
+
+        maybe_report_provider_success(spec.platform, settings=settings or get_settings())
+        return result
     except ProviderError as e:
         raise sampling_llm_error_from(e) from e
     except SamplingLLMError:

@@ -4,31 +4,27 @@ import {
   ChevronUp,
   Sparkles,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
 
 import {
-  DEFAULT_TABLE_PAGE_SIZE,
-  paginateRows,
   TABLE_PAGE_SIZE_OPTIONS,
   TablePagination,
 } from "@/components/analysis/common/TablePagination";
-import { BrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
+import { MentionedBrandsCell } from "@/components/analysis/common/MentionedBrandsCell";
 import {
   ColumnHelp,
   PromptTextCell,
 } from "@/components/analysis/prompt/PerformanceMetricCells";
 import { PerformanceTableShell } from "@/components/analysis/prompt/PerformanceTableShell";
 import { performanceTableClasses } from "@/components/analysis/prompt/performanceTableLayout";
-import { PlatformLogo } from "@/components/brand/PlatformLogo";
+import { PlatformLogoGroup } from "@/components/brand/PlatformLogo";
 import { Button } from "@/components/ui/button";
+import { DotBadge, type SemanticBadgeVariant } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   CONTENT_OPPORTUNITY_COLUMNS,
   CONTENT_OPPORTUNITY_MIN_WIDTH,
   contentOpportunityColumnColStyle,
   contentOpportunityPromptCellStyle,
-  gapTone,
-  sortContentOpportunityRows,
   type ContentOpportunityRow,
   type ContentOpportunitySortColumn,
 } from "@/lib/opportunity/content";
@@ -38,32 +34,34 @@ import { cn } from "@/lib/utils";
 type SortDir = "asc" | "desc";
 type HeaderMode = "default" | SortDir;
 
-type SortState = {
+export type ContentOpportunitySortState = {
   column: ContentOpportunitySortColumn;
   dir: HeaderMode;
 };
 
-const DEFAULT_SORT: SortState = { column: "priority", dir: "asc" };
-
-const PRIORITY_DOT: Record<OpportunityPriority, string> = {
-  high: "bg-red-500",
-  medium: "bg-amber-500",
-  low: "bg-muted-foreground/40",
+export const DEFAULT_CONTENT_OPPORTUNITY_SORT: ContentOpportunitySortState = {
+  column: "priority",
+  dir: "default",
 };
 
-const GAP_TONE_CLASS = {
-  high: "text-red-500",
-  medium: "text-amber-500",
-  low: "text-foreground",
-} as const;
+type SortState = ContentOpportunitySortState;
+
+const PRIORITY_VARIANT: Record<OpportunityPriority, SemanticBadgeVariant> = {
+  high: "error",
+  medium: "warning",
+  low: "success",
+};
+
+const GAP_TONE_CLASS: Record<OpportunityPriority, string> = {
+  high: "text-error",
+  medium: "text-warning",
+  low: "text-success",
+};
 
 function cycleSort(state: SortState, column: ContentOpportunitySortColumn): SortState {
-  if (state.column !== column) {
-    return { column, dir: column === "priority" ? "asc" : "desc" };
-  }
-  if (state.dir === "desc") return { column, dir: "asc" };
-  if (state.dir === "asc") return DEFAULT_SORT;
-  return { column, dir: "desc" };
+  if (state.column !== column || state.dir === "default") return { column, dir: "asc" };
+  if (state.dir === "asc") return { column, dir: "desc" };
+  return { column, dir: "default" };
 }
 
 type SortableHeaderProps = {
@@ -130,23 +128,30 @@ function HeaderWithHelp({
   );
 }
 
-function GapMetricCell({ value, subtext, gapNum }: { value: string; subtext: string; gapNum: number }) {
+function GapMetricCell({
+  value,
+  gapPriority,
+  replySub,
+}: {
+  value: string;
+  gapPriority: OpportunityPriority;
+  replySub: string;
+}) {
   return (
     <div className="flex flex-col items-start gap-0.5">
-      <span className={cn("text-base font-bold tabular-nums", GAP_TONE_CLASS[gapTone(gapNum)])}>
+      <span className={cn("text-base font-bold tabular-nums", GAP_TONE_CLASS[gapPriority])}>
         {value}
       </span>
-      <span className="text-muted-foreground text-xs tabular-nums">{subtext}</span>
+      <span className="text-muted-foreground text-xs tabular-nums">{replySub}</span>
     </div>
   );
 }
 
 function PriorityCell({ priority, label }: { priority: OpportunityPriority; label: string }) {
   return (
-    <div className="inline-flex items-center gap-1.5">
-      <span className={cn("inline-block size-2 shrink-0 rounded-full", PRIORITY_DOT[priority])} aria-hidden />
-      <span className="font-medium">{label}</span>
-    </div>
+    <DotBadge variant={PRIORITY_VARIANT[priority]} className="px-2 py-0.5 text-xs">
+      {label}
+    </DotBadge>
   );
 }
 
@@ -187,6 +192,14 @@ type OpportunityContentTableProps = {
   platformsMeta: SamplingPlatform[];
   loading?: boolean;
   className?: string;
+  total: number;
+  page: number;
+  pageSize: number;
+  sort: ContentOpportunitySortState;
+  onSortChange: (sort: ContentOpportunitySortState) => void;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
+  onRowClick?: (row: ContentOpportunityRow) => void;
 };
 
 /** 内容机会表：提示词差距与竞品对比 */
@@ -195,42 +208,22 @@ export function OpportunityContentTable({
   platformsMeta,
   loading = false,
   className,
+  total,
+  page,
+  pageSize,
+  sort,
+  onSortChange,
+  onPageChange,
+  onPageSizeChange,
+  onRowClick,
 }: OpportunityContentTableProps) {
-  const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
-
-  const platformLabelById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const platform of platformsMeta) {
-      map.set(platform.platform, platform.label);
-    }
-    return map;
-  }, [platformsMeta]);
-
-  const sortedRows = useMemo(() => {
-    if (sort.dir === "default") {
-      return sortContentOpportunityRows(rows, "priority", "asc");
-    }
-    return sortContentOpportunityRows(rows, sort.column, sort.dir);
-  }, [rows, sort]);
-
-  const pageRows = useMemo(
-    () => paginateRows(sortedRows, page, pageSize),
-    [sortedRows, page, pageSize],
-  );
-
-  useEffect(() => {
-    setPage(1);
-  }, [rows]);
-
   const handlePageSizeChange = (nextPageSize: number) => {
-    setPageSize(nextPageSize);
-    setPage(1);
+    onPageSizeChange(nextPageSize);
+    onPageChange(1);
   };
 
   const handleSort = (column: ContentOpportunitySortColumn) => {
-    setSort((prev) => cycleSort(prev, column));
+    onSortChange(cycleSort(sort, column));
   };
 
   return (
@@ -239,13 +232,13 @@ export function OpportunityContentTable({
       loading={loading}
       scrollMinWidth={CONTENT_OPPORTUNITY_MIN_WIDTH}
       footer={
-        !loading && sortedRows.length > 0 ? (
+        !loading && total > 0 ? (
           <TablePagination
-            total={sortedRows.length}
+            total={total}
             page={page}
             pageSize={pageSize}
             pageSizeOptions={TABLE_PAGE_SIZE_OPTIONS}
-            onPageChange={setPage}
+            onPageChange={onPageChange}
             onPageSizeChange={handlePageSizeChange}
           />
         ) : null
@@ -308,17 +301,34 @@ export function OpportunityContentTable({
         <tbody>
           {loading ? (
             <OpportunityContentSkeletonRows />
-          ) : sortedRows.length === 0 ? (
+          ) : rows.length === 0 ? (
             <tr>
               <td colSpan={7} className="text-muted-foreground px-5 py-10 text-center text-sm">
                 暂无内容机会
               </td>
             </tr>
           ) : (
-            pageRows.map((row) => {
-              const platformLabel = platformLabelById.get(row.platform) ?? row.platform;
-              return (
-                <tr key={row.id} className={performanceTableClasses.row}>
+            rows.map((row) => (
+                <tr
+                  key={row.id}
+                  className={cn(
+                    performanceTableClasses.row,
+                    onRowClick && "hover:bg-muted/40 cursor-pointer",
+                  )}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  onKeyDown={
+                    onRowClick
+                      ? (event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            onRowClick(row);
+                          }
+                        }
+                      : undefined
+                  }
+                  tabIndex={onRowClick ? 0 : undefined}
+                  role={onRowClick ? "button" : undefined}
+                >
                   <td className="overflow-hidden pl-5 text-foreground font-medium " style={contentOpportunityPromptCellStyle()}>
                     <PromptTextCell text={row.promptText} />
                   </td>
@@ -326,31 +336,27 @@ export function OpportunityContentTable({
                     <PriorityCell priority={row.priority} label={row.priorityLabel} />
                   </td>
                   <td>
-                    <PlatformLogo provider={row.platform} label={platformLabel} className="size-7" />
+                    <PlatformLogoGroup
+                      providers={row.platforms}
+                      platforms={platformsMeta}
+                      logoClassName="size-5"
+                    />
                   </td>
                   <td>
-                    <div className="flex items-center -space-x-1">
-                      {row.competitors.length === 0 ? (
-                        <span className="text-muted-foreground text-sm">—</span>
-                      ) : (
-                        row.competitors.slice(0, 3).map((competitor) => (
-                          <BrandRankIcon key={competitor} label={competitor} size="sm" />
-                        ))
-                      )}
-                    </div>
+                    <MentionedBrandsCell brands={row.competitors} />
                   </td>
                   <td>
                     <GapMetricCell
                       value={row.brandGap}
-                      subtext={row.brandGapSub}
-                      gapNum={row.brandGapNum}
+                      gapPriority={row.brandGapPriority}
+                      replySub={row.brandGapSub}
                     />
                   </td>
                   <td>
                     <GapMetricCell
                       value={row.sourceGap}
-                      subtext={row.sourceGapSub}
-                      gapNum={row.sourceGapNum}
+                      gapPriority={row.sourceGapPriority}
+                      replySub={row.sourceGapSub}
                     />
                   </td>
                   <td className="text-center">
@@ -362,13 +368,13 @@ export function OpportunityContentTable({
                       aria-label={`为「${row.promptText}」生成内容`}
                       title="生成内容（即将推出）"
                       disabled
+                      onClick={(event) => event.stopPropagation()}
                     >
                       <Sparkles className="size-4" aria-hidden />
                     </Button>
                   </td>
                 </tr>
-              );
-            })
+            ))
           )}
         </tbody>
       </table>

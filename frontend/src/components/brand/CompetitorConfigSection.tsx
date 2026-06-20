@@ -4,14 +4,21 @@ import { Plus, Search } from "lucide-react";
 
 import { BrandSectionCard } from "@/components/brand/BrandSectionCard";
 import { AddCompetitorDialog } from "@/components/brand/AddCompetitorDialog";
-import { CompetitorTableRow } from "@/components/brand/CompetitorHoverCard";
+import {
+  COMPETITOR_ACTION_COL_WIDTH,
+  COMPETITOR_TABLE_MIN_WIDTH,
+  CompetitorTableRow,
+} from "@/components/brand/CompetitorHoverCard";
+import { PerformanceTableShell } from "@/components/analysis/prompt/PerformanceTableShell";
+import { performanceTableClasses } from "@/components/analysis/prompt/performanceTableLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatApiError } from "@/api/client";
 import { fetchSubjectCompetitors, saveSubjectCompetitors } from "@/api/brand";
-import { MAX_SETUP_COMPETITORS } from "@/lib/setup";
-import { registrableDomain } from "@/lib/domain";
-import { queryKeys } from "@/lib/queries";
+import { MAX_SETUP_COMPETITORS, displayNameFromDomainInput } from "@/lib/setup";
+import { registrableDomain, websiteUrlFromInput } from "@/lib/domain";
+import { clearAnalysisCatalog, queryKeys, sessionCatalogQueryOptions } from "@/lib/queries";
 import { toast } from "@/lib/toast";
 import type { CompetitorItem } from "@/types";
 
@@ -34,8 +41,9 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
   const [addOpen, setAddOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
-    queryKey: queryKeys.brandCompetitors(subjectId),
+    queryKey: queryKeys.subjectCompetitors(subjectId),
     queryFn: () => fetchSubjectCompetitors(subjectId),
+    ...sessionCatalogQueryOptions,
   });
 
   const rows = useMemo(() => data?.competitors ?? [], [data]);
@@ -54,7 +62,7 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
   const saveMutation = useMutation({
     mutationFn: (next: CompetitorItem[]) => saveSubjectCompetitors(subjectId, { competitors: next }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.brandCompetitors(subjectId) });
+      clearAnalysisCatalog(queryClient, subjectId);
       setAddOpen(false);
     },
     onError: (e: unknown) => {
@@ -83,12 +91,17 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
       return;
     }
 
+    const domain = registrableDomain(raw);
+    if (!domain || domain.length < 3) {
+      toast.error("请填写有效的网站域名。");
+      return;
+    }
     saveMutation.mutate([
       ...rows,
       {
-        domain: raw,
-        website_url: "",
-        brand: registrableDomain(raw),
+        domain,
+        website_url: websiteUrlFromInput(raw) || `https://${domain}/`,
+        brand: displayNameFromDomainInput(domain),
         summary: "",
       },
     ]);
@@ -121,7 +134,7 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
         </div>
         <Button
           type="button"
-          variant="primaryOutline"
+          variant="brandout"
           className="shrink-0 gap-1.5"
           disabled={saveMutation.isPending || rows.length >= MAX_SETUP_COMPETITORS}
           onClick={() => setAddOpen(true)}
@@ -131,32 +144,58 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
         </Button>
       </div>
 
-      <div className="border-border mt-4 overflow-visible rounded-lg border">
-        <div className="border-border bg-muted/30 text-muted-foreground grid grid-cols-[minmax(0,1fr)_6rem_4rem] gap-2 border-b px-3 py-2 text-xs font-medium sm:grid-cols-[minmax(0,1fr)_7rem_4rem]">
-          <span>{isDomain ? "竞品网站" : "竞品品牌"}</span>
-          <span>状态</span>
-          <span className="text-right">操作</span>
-        </div>
-
-        {isLoading ? (
-          <p className="text-muted-foreground px-3 py-6 text-center text-sm">加载竞品…</p>
-        ) : filtered.length === 0 ? (
-          <p className="text-muted-foreground px-3 py-6 text-center text-sm">
-            {rows.length === 0 ? "暂无竞争对手，点击上方按钮添加。" : "无匹配结果。"}
-          </p>
-        ) : (
-          <ul className="divide-border divide-y">
-            {filtered.map((row) => (
-              <CompetitorTableRow
-                key={rowKey(row)}
-                row={row}
-                removeDisabled={saveMutation.isPending}
-                onRemove={() => removeRow(row)}
-              />
-            ))}
-          </ul>
-        )}
-      </div>
+      <PerformanceTableShell
+        className="mt-4 overflow-visible"
+        loading={isLoading}
+        scrollMinWidth={COMPETITOR_TABLE_MIN_WIDTH}
+      >
+        <table className={performanceTableClasses.topicTable}>
+          <colgroup>
+            <col />
+            <col />
+            <col style={{ width: COMPETITOR_ACTION_COL_WIDTH }} />
+          </colgroup>
+          <thead className={performanceTableClasses.head}>
+            <tr>
+              <th>{isDomain ? "竞品网站" : "竞品品牌"}</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <tr key={i} className={performanceTableClasses.row} aria-hidden>
+                  <td>
+                    <Skeleton className="h-4 w-32" />
+                  </td>
+                  <td>
+                    <Skeleton className="h-5 w-14 rounded-full" />
+                  </td>
+                  <td>
+                    <Skeleton className="size-8 rounded-md" />
+                  </td>
+                </tr>
+              ))
+            ) : filtered.length === 0 ? (
+              <tr>
+                <td colSpan={3} className="text-muted-foreground px-4 py-10 text-center text-sm">
+                  {rows.length === 0 ? "暂无竞争对手，点击上方按钮添加。" : "无匹配结果。"}
+                </td>
+              </tr>
+            ) : (
+              filtered.map((row) => (
+                <CompetitorTableRow
+                  key={rowKey(row)}
+                  row={row}
+                  removeDisabled={saveMutation.isPending}
+                  onRemove={() => removeRow(row)}
+                />
+              ))
+            )}
+          </tbody>
+        </table>
+      </PerformanceTableShell>
 
       <AddCompetitorDialog
         open={addOpen}

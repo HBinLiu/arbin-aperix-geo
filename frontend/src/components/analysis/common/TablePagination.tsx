@@ -61,15 +61,16 @@ export function TablePagination({
   onPageSizeChange,
   className,
 }: TablePaginationProps) {
+  if (total === 0) return null;
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  if (totalPages <= 1) return null;
+
   const safePage = Math.min(Math.max(page, 1), totalPages);
   const pageItems = getPageItems(safePage, totalPages);
 
-  if (total === 0) return null;
-
   const rangeStart = (safePage - 1) * pageSize + 1;
   const rangeEnd = Math.min(safePage * pageSize, total);
-  const showPageNav = totalPages > 1;
 
   return (
     <div
@@ -109,42 +110,40 @@ export function TablePagination({
         ) : null}
       </div>
 
-      {showPageNav ? (
-        <Pagination className="mx-0 w-auto justify-end">
-          <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious
-                disabled={safePage <= 1}
-                onClick={() => onPageChange(safePage - 1)}
-              />
-            </PaginationItem>
+      <Pagination className="mx-0 w-auto justify-end" totalPages={totalPages}>
+        <PaginationContent>
+          <PaginationItem>
+            <PaginationPrevious
+              disabled={safePage <= 1}
+              onClick={() => onPageChange(safePage - 1)}
+            />
+          </PaginationItem>
 
-            {pageItems.map((item, index) =>
-              item === "ellipsis" ? (
-                <PaginationItem key={`ellipsis-${index}`}>
-                  <PaginationEllipsis />
-                </PaginationItem>
-              ) : (
-                <PaginationItem key={item}>
-                  <PaginationLink
-                    isActive={item === safePage}
-                    onClick={() => onPageChange(item)}
-                  >
-                    {item}
-                  </PaginationLink>
-                </PaginationItem>
-              ),
-            )}
+          {pageItems.map((item, index) =>
+            item === "ellipsis" ? (
+              <PaginationItem key={`ellipsis-${index}`}>
+                <PaginationEllipsis />
+              </PaginationItem>
+            ) : (
+              <PaginationItem key={item}>
+                <PaginationLink
+                  isActive={item === safePage}
+                  onClick={() => onPageChange(item)}
+                >
+                  {item}
+                </PaginationLink>
+              </PaginationItem>
+            ),
+          )}
 
-            <PaginationItem>
-              <PaginationNext
-                disabled={safePage >= totalPages}
-                onClick={() => onPageChange(safePage + 1)}
-              />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
-      ) : null}
+          <PaginationItem>
+            <PaginationNext
+              disabled={safePage >= totalPages}
+              onClick={() => onPageChange(safePage + 1)}
+            />
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
     </div>
   );
 }

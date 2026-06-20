@@ -1,4 +1,4 @@
-import { hostnameFromWebsiteInput, registrableDomain } from "@/lib/domain";
+import { registrableDomain, websiteUrlFromInput } from "@/lib/domain";
 import type { CompetitorItem, CompetitorRow, DiscoveredCompetitor, SubjectMode } from "@/types";
 
 export const MAX_SETUP_COMPETITORS = 5;
@@ -8,19 +8,12 @@ export function newCompetitorRow(partial?: Partial<CompetitorRow>): CompetitorRo
     id: crypto.randomUUID(),
     name: "",
     domain: "",
+    websiteUrl: "",
     summary: "",
+    aliases: [],
     selected: true,
     ...partial,
   };
-}
-
-/** 从域名推导展示用品牌名（如 airwallex.com → Airwallex） */
-export function domainToDisplayName(domain: string): string {
-  const host = hostnameFromWebsiteInput(domain);
-  if (!host) return "";
-  const base = host.split(".")[0] ?? host;
-  if (!base) return host;
-  return base.charAt(0).toUpperCase() + base.slice(1);
 }
 
 export function rowsFromDiscover(competitors: DiscoveredCompetitor[]): CompetitorRow[] {
@@ -28,7 +21,7 @@ export function rowsFromDiscover(competitors: DiscoveredCompetitor[]): Competito
     newCompetitorRow({
       name: c.brand.trim() || (c.domain ? registrableDomain(c.domain) : ""),
       domain: c.domain ? registrableDomain(c.domain) : "",
-      summary: (c.summary ?? "").trim(),
+      websiteUrl: (c.website_url ?? "").trim(),
       selected: true,
     }),
   );
@@ -40,11 +33,20 @@ export function rowsToPersist(mode: SubjectMode, rows: CompetitorRow[]): { compe
     const seen = new Set<string>();
     const competitors: CompetitorItem[] = [];
     for (const r of selected) {
-      const domain = registrableDomain(r.domain || r.name);
+      const rawInput = (r.domain || r.name).trim();
+      const domain = registrableDomain(rawInput);
       if (domain.length < 3 || seen.has(domain)) continue;
       seen.add(domain);
       const brand = r.name.trim() || registrableDomain(domain);
-      competitors.push({ domain, website_url: "", brand, summary: r.summary.trim() });
+      const websiteUrl =
+        r.websiteUrl.trim() || websiteUrlFromInput(rawInput) || `https://${domain}/`;
+      competitors.push({
+        domain,
+        website_url: websiteUrl,
+        brand,
+        summary: r.summary.trim(),
+        aliases: [...r.aliases],
+      });
     }
     return { competitors };
   }
@@ -56,7 +58,22 @@ export function rowsToPersist(mode: SubjectMode, rows: CompetitorRow[]): { compe
     const key = brand.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    competitors.push({ domain: "", website_url: "", brand, summary: r.summary.trim() });
+    competitors.push({
+      domain: "",
+      website_url: "",
+      brand,
+      summary: r.summary.trim(),
+      aliases: [...r.aliases],
+    });
   }
   return { competitors };
+}
+
+/** 手动添加竞品行时从域名推导展示名 */
+export function displayNameFromDomainInput(domain: string): string {
+  const host = hostnameFromWebsiteInput(domain);
+  if (!host) return "";
+  const base = host.split(".")[0] ?? host;
+  if (!base) return host;
+  return base.charAt(0).toUpperCase() + base.slice(1);
 }

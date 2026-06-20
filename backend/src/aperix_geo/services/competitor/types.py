@@ -3,24 +3,23 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TypedDict
-
-from aperix_geo.services.searxng import SearchHit
+from typing import NotRequired, TypedDict
 
 
 class NicheProfile(TypedDict):
     company: str
     industry: str
-    core_features: str
-    target_customers: str
-    micro_keywords: str
+    features: str
+    customers: str
+    keywords: str
 
 
 class DiscoveredCompetitor(TypedDict):
     domain: str
     website_url: str
     brand: str
-    summary: str
+    summary: NotRequired[str]
+    aliases: NotRequired[list[str]]
 
 
 @dataclass(frozen=True)
@@ -37,15 +36,23 @@ class SiteHead:
     description: str
     reachable: bool
     seo: str = ""
+    resolved_url: str = ""
+    brand_names: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class CandidateMeta:
+    domain: str
+    brand: str
+    website_url: str
 
 
 @dataclass
-class SearchPool:
-    """SearXNG 去重后的主域名候选及原始命中。"""
+class CandidatePool:
+    """交叉验算候选池。"""
 
     domains: list[str]
-    hits: list[SearchHit]
-    hit_by_domain: dict[str, SearchHit] = field(default_factory=dict)
+    by_domain: dict[str, CandidateMeta] = field(default_factory=dict)
 
 
 @dataclass

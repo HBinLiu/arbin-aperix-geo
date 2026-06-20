@@ -19,6 +19,7 @@ def replace_llm_response_signals_for_response(
     brands_by_entity_id: dict[str, Brand] | None = None,
 ) -> None:
     db.execute(delete(LLMResponseSignal).where(LLMResponseSignal.response_id == row.id))
+    db.flush()
     db.add_all(
         build_llm_response_signal_rows(
             response_id=row.id,

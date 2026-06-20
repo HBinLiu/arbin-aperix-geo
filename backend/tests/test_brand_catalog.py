@@ -1,4 +1,4 @@
-"""Tests for tenant brand catalog and alias lookup."""
+"""Tests for subject brand catalog and alias lookup."""
 
 from __future__ import annotations
 
@@ -14,7 +14,8 @@ from aperix_geo.services.brand.resolve import find_brand_by_name_or_alias
 def _brand(*, brand: str, domain: str = "", aliases: list[str] | None = None) -> Brand:
     return Brand(
         id=uuid.uuid4(),
-        tenant_id=uuid.uuid4(),
+        subject_id=uuid.uuid4(),
+        entity_kind="other",
         brand=brand,
         domain=domain,
         website_url="",
@@ -44,7 +45,7 @@ def test_brand_sync_context_memoizes_domain() -> None:
 
 
 def test_find_brand_by_name_or_alias_scans_aliases() -> None:
-    tenant_id = uuid.uuid4()
+    subject_id = uuid.uuid4()
     row = _brand(brand="Stripe", domain="stripe.com", aliases=["斯特里普"])
     db = MagicMock()
     name_result = MagicMock()
@@ -53,7 +54,7 @@ def test_find_brand_by_name_or_alias_scans_aliases() -> None:
     list_result.scalars.return_value = iter([row])
     db.execute.side_effect = [name_result, list_result]
 
-    found = find_brand_by_name_or_alias(db, tenant_id=tenant_id, brand="斯特里普")
+    found = find_brand_by_name_or_alias(db, subject_id=subject_id, brand="斯特里普")
     assert found is row
 
 
@@ -67,7 +68,7 @@ def test_resolve_brand_domain_uses_catalog_alias_hit(mock_extract, mock_search) 
 
     domain = resolve_brand_domain(
         MagicMock(),
-        tenant_id=uuid.uuid4(),
+        subject_id=uuid.uuid4(),
         brand="斯特里普",
         sync_ctx=ctx,
     )
@@ -86,7 +87,7 @@ def test_resolve_brand_domain_reuses_batch_domain_memo(mock_extract, mock_search
 
     domain = resolve_brand_domain(
         MagicMock(),
-        tenant_id=uuid.uuid4(),
+        subject_id=uuid.uuid4(),
         brand="Stripe",
         sync_ctx=ctx,
     )

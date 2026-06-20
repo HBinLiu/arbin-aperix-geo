@@ -61,7 +61,7 @@ export function PromptToolbar({
 
           <div className="relative w-[200px] shrink-0">
             <Search
-              className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2"
+              className="text-muted-foreground pointer-events-none absolute top-1/2 left-4 size-3.5 -translate-y-1/2"
               aria-hidden
             />
             <Input
@@ -81,7 +81,7 @@ export function PromptToolbar({
           <ActionTooltip label="批量删除">
             <Button
               type="button"
-              variant={selectedCount > 0 ? "primaryOutline" : "outline"}
+              variant={selectedCount > 0 ? "brandout" : "outline"}
               size="icon"
               className="size-9 rounded-lg"
               disabled={disabled || selectedCount === 0}
@@ -93,7 +93,7 @@ export function PromptToolbar({
           </ActionTooltip>
           <Button
             type="button"
-            variant="primaryOutline"
+            variant="brandout"
             className="h-9 gap-1.5 rounded-lg px-3"
             disabled={disabled}
             onClick={onUpload}
@@ -103,7 +103,7 @@ export function PromptToolbar({
           </Button>
           <Button
             type="button"
-            variant="primaryOutline"
+            variant="brandout"
             className="h-9 gap-1.5 rounded-lg px-3"
             disabled={disabled}
             onClick={onGenerate}

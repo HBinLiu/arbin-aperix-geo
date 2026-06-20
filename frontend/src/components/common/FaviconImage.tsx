@@ -7,13 +7,13 @@ import {
   getFaviconClientStatus,
   markFaviconClientMiss,
   markFaviconClientOk,
-  normalizeFaviconDomain,
+  resolveFaviconInput,
 } from "@/lib/favicon";
 import { cn } from "@/lib/utils";
 
 type FaviconImageProps = {
-  domain: string;
-  pageUrl?: string | null;
+  /** 网站 URL 或可解析为 URL 的输入（不用裸传 domain）。 */
+  url: string;
   size?: number;
   className?: string;
   iconClassName?: string;
@@ -21,14 +21,9 @@ type FaviconImageProps = {
 
 type DisplayState = "loading" | "loaded" | "fallback";
 
-function resolveInitialState(
-  domain: string,
-  pageUrl: string | null | undefined,
-  host: string,
-  candidates: string[],
-): DisplayState {
-  if (!host || candidates.length === 0) return "fallback";
-  if (getFaviconClientStatus(domain, pageUrl) === "miss") return "fallback";
+function resolveInitialState(url: string, candidates: string[]): DisplayState {
+  if (!resolveFaviconInput(url) || candidates.length === 0) return "fallback";
+  if (getFaviconClientStatus(url) === "miss") return "fallback";
   return "loading";
 }
 
@@ -79,33 +74,28 @@ function FaviconSpinner({
 }
 
 /**
- * 站点图标：domain 可为 URL / www / 子域名 / 主域名（内部 normalize 为 eTLD+1）。
- * 加载中显示转圈；成功显示 favicon；API 204/失败时 onError 回退 Globe（超时由后端 resolve 控制）。
+ * 站点图标：按输入 URL 请求 favicon API（``?url=``）。
+ * 加载中显示转圈；成功显示 favicon；API 204/失败时回退 Globe。
  */
 export function FaviconImage({
-  domain,
-  pageUrl,
+  url,
   size = 20,
   className,
   iconClassName,
 }: FaviconImageProps) {
-  const host = React.useMemo(() => normalizeFaviconDomain(domain), [domain]);
-  const cacheKey = React.useMemo(() => faviconCacheKey(domain, pageUrl), [domain, pageUrl]);
-  const candidates = React.useMemo(
-    () => faviconCandidateUrls(domain, pageUrl),
-    [domain, pageUrl],
-  );
+  const cacheKey = React.useMemo(() => faviconCacheKey(url), [url]);
+  const candidates = React.useMemo(() => faviconCandidateUrls(url), [url]);
   const candidatesKey = candidates.join("|");
 
   const [index, setIndex] = React.useState(0);
   const [display, setDisplay] = React.useState<DisplayState>(() =>
-    resolveInitialState(domain, pageUrl, host, candidates),
+    resolveInitialState(url, candidates),
   );
 
   React.useEffect(() => {
     setIndex(0);
-    setDisplay(resolveInitialState(domain, pageUrl, host, candidates));
-  }, [cacheKey, candidatesKey, domain, pageUrl, host]);
+    setDisplay(resolveInitialState(url, candidates));
+  }, [cacheKey, candidatesKey, url, candidates]);
 
   const src = candidates[index] ?? null;
 
@@ -113,18 +103,18 @@ export function FaviconImage({
     setIndex((current) => {
       const next = current + 1;
       if (next >= candidates.length) {
-        markFaviconClientMiss(domain, pageUrl);
+        markFaviconClientMiss(url);
         setDisplay("fallback");
         return current;
       }
       return next;
     });
-  }, [candidates.length, domain, pageUrl]);
+  }, [candidates.length, url]);
 
   const handleLoad = React.useCallback(() => {
-    markFaviconClientOk(domain, pageUrl);
+    markFaviconClientOk(url);
     setDisplay("loaded");
-  }, [domain, pageUrl]);
+  }, [url]);
 
   if (display === "fallback") {
     return (

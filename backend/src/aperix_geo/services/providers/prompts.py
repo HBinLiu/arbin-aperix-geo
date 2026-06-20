@@ -9,82 +9,82 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from aperix_geo.services.competitor.types import NicheProfile
-    
-# ---------------------------------------------------------------------------
-# 设置向导 Step 1a：微观利基画像（结构化字段）
-# ---------------------------------------------------------------------------
 
-SUBJECT_PROFILE_SYSTEM = """你是商业竞争情报专家，专注从调研材料提取该主体所在垂直赛道的微观利基结构化画像，供竞品搜索引擎检索使用。
-商业模式（B2B、B2C、平台型、品牌方等）须从 site_data / web_research 推断，勿预设或强行归类。
+
+# =============================================================================
+# Setup · Step 0→1 discover · POST /subjects/setup/discover
+# =============================================================================
+
+# --- 微观利基画像（DeepSeek；run_niche_profile_stage） ---
+
+SUBJECT_PROFILE_SYSTEM = """你是商业竞争情报专家，专注从调研材料提取该主体所在垂直赛道的微观利基结构化画像。
 必须且仅输出合法 JSON；禁止 Markdown 代码块包裹 JSON。
 
 # 任务
-根据 user message 中的调研材料，**仅**输出微观利基画像结构化字段；勿输出 Markdown 摘要或监测主题。
+根据 user message 中的调研材料，**仅**输出微观利基画像结构化字段。
 
 【字段准则】：
 1. company：公司/品牌主显示名。
-2. industry：垂直细分赛道，禁止宏观词（如「医疗行业」「软件」）。
-3. core_features：2–3 个核心技术/产品能力词或短语。
-4. target_customers：精准付费或使用群体（与材料中的实际客群一致，勿默认企业采购方）。
-5. micro_keywords：4–5 个高特异性、可独立搜索、低歧义的硬核检索词，**仅**用于竞品搜索引擎检索。
+2. industry：垂直细分赛道，禁止宏观词。
+3. features：2–3 个核心技术/产品能力词或短语。
+4. customers：精准付费或使用群体。
+5. keywords：4–5 个高特异性、可独立搜索、低歧义的硬核检索词，**仅**用于竞品搜索引擎检索。
    - 每条须含「品类+场景/客群」，≥6 字或含明确限定词；禁止单独行业词、宏观词、品牌自名。
-   - 正例（B2B）：「SMB 跨境收款 SaaS」「多币种企业钱包 API」
-   - 正例（B2C/品牌）：「运动跑鞋缓震科技对比」「手游二次元抽卡养成类」
-   - 正例（混合）：「跨境电商独立站收单」「DTC 美妆订阅盒」
-   - 反例：「跨境支付」「SaaS」「金融科技」「软件」
-- mode=domain：依据 site_data（homepage），严禁无依据捏造；site_data 不足时 micro_keywords 可为空数组。
-- mode=brand：优先依据 web_research；检索为空时再保守使用公开常识。
 
 【输出】
 必须且仅输出 JSON（禁止额外键、禁止 null、禁止 Markdown 代码块）：
 {
   "company": "公司/品牌主显示名",
   "industry": "垂直细分赛道",
-  "core_features": ["能力词1", "能力词2"],
-  "target_customers": "精准付费或使用群体（一句或短语）",
-  "micro_keywords": ["检索词1", "检索词2", "检索词3", "检索词4"]
+  "features": ["能力词1", "能力词2"],
+  "customers": "精准付费或使用群体（一句或短语）",
+  "keywords": ["检索词1", "检索词2", "检索词3", "检索词4"]
 }"""
 
 SUBJECT_PROFILE_USER_SUFFIX = "请输出 JSON（仅微观利基画像字段）。"
 
-# ---------------------------------------------------------------------------
-# 设置向导 Step 1b：AI 监测专题
-# ---------------------------------------------------------------------------
 
-SUBJECT_MONITORING_TOPICS_SYSTEM = """你是 GEO（生成式搜索优化）监测策略专家，专注为监测主体设计「AI 问句意图簇」专题名（按 niche_profile 所在赛道自适应，勿预设 B2B/B2C）。
-必须且仅输出合法 JSON；禁止 Markdown 代码块包裹 JSON。
+# --- 豆包联网竞品发现（discover_competitors_via_doubao） ---
 
-# 任务
-**仅**输出 monitoring_topics：3–5 个「AI 监测专题」，用于后续按主题批量生成用户在豆包、DeepSeek 等会真实提问的中文问句。
+COMPETITOR_DOUBAO_DISCOVER_SYSTEM = """你是竞品研究分析师。联网搜索监测主体的直接竞品，仅输出合法 JSON（禁止 Markdown 包裹）。
 
-user message 含 niche_profile（已确认的微观利基画像）、region、language 与 site_data / web_research；micro_keywords_for_exclusion 供你避免重复，勿照抄。
+# 输出
+{"competitors": [{"website_url": "https://...", "domain": "example.com", "brand": "品牌名", "aliases": ["别名1"]}]}
 
-【通用方法】
-先根据 industry、core_features、target_customers 与调研材料，推断该**垂直赛道**的真实用户在 AI 里常问什么、关心哪些决策面，再用**该赛道原生表述**命名专题；专题名须符合 region / language 对应市场的用语习惯（繁体语言时使用繁体专名）。禁止套用固定行业词库或某一品类的硬编码模板。
+# 规则
+- 每条须含 brand、domain、website_url；aliases 为别名/简称/英文名（可为空数组，勿重复 brand）
+- **website_url 须为可打开的官网**（https）；domain 与 URL 主域一致；写前请核对，避免 www/路径错误
+- **按市场认可度降序**（行业知名度、客户规模、融资/市占、专业社区声量等，结合 user 指定市场）
+- 排除监测主体自身，以及媒体/聚合站、政府机构、纯品类词、与赛道无关的大厂泛平台
+- 无有效结果：{"competitors": []}"""
 
-【专题准则】
-- 每个专题是一个可长期抽样的**问句意图簇**，彼此语义互补。
-- 从下列类型中按赛道特点选 3–5 个，名称必须行业化：
-  · 品类/方案认知与入门选型
-  · 核心能力、场景匹配或交付/使用体验
-  · 竞品对比与替代方案
-  · 价格、成本、采购或订阅（若该赛道适用）
-  · 口碑、风险、合规或效果验证（若该赛道适用）
-- 与 micro_keywords_for_exclusion **严格分工**：禁止逐字相同，禁止仅加「竞品/对比」后缀敷衍。
-- 正例（跨境 B2B 支付）：「跨境收款方案选型」「多币种到账与汇兑能力」「国际汇款竞品对比」「SMB 收款费率与开户」「跨境支付合规与风控」
-- 正例（MarTech / 品牌监测类 SaaS）：「AI 搜索可见度监测」「大模型回答引用优化」「AI 搜索关键词分析」「品牌 AI 提及与排名」「AI 推荐效果归因」
-- 正例（消费品牌）：「跑鞋缓震科技对比」「运动装备口碑评价」「同类品牌性价比」「新品发布与联名」「尺码与退换体验」
-- 正例（工业设备）：「产线设备选型」「精度与产能匹配」「主流品牌对比」「设备采购与维保成本」「售后服务口碑」
-- 反例：「软件」「跨境支付」（过宽）；与 micro_keywords_for_exclusion 逐字重复；纯企业内部流程（「盖章审批」）。
 
-【输出】
-必须且仅输出 JSON：{"monitoring_topics": ["专题1", "专题2", ...]}"""
+def competitor_doubao_discover_user_content(
+    *,
+    target: str,
+    website_url: str,
+    profile: NicheProfile,
+    region: str,
+    language: str,
+) -> str:
+    company = str(profile.get("company") or target).strip() or target
+    industry = str(profile.get("industry") or "—").strip() or "—"
+    customers = str(profile.get("customers") or "—").strip() or "—"
+    subject = website_url.strip() or target.strip()
+    return (
+        f"# 监测主体\n"
+        f"- 主体：{subject}\n"
+        f"# 微观利基画像\n"
+        f"- 公司/主体：{company}\n"
+        f"- 垂直赛道：{industry}\n"
+        f"- 目标客户：{customers}\n"
+        f"- 主要市场：{region}（{language}）\n\n"
+        f"请联网搜索，输出 JSON competitors（最少 5 条），按市场认可度降序；"
+        f"每条须有官网 website_url；禁止包含监测主体自身。"
+    )
 
-SUBJECT_MONITORING_TOPICS_USER_SUFFIX = "请输出 JSON（仅 monitoring_topics）。"
 
-# ---------------------------------------------------------------------------
-# 设置向导 Step 2a（域名模式）：竞品交叉验算打分
-# ---------------------------------------------------------------------------
+# --- 竞品交叉验算打分（run_cross_validate；enrich 仅用 head，无 LLM） ---
 
 COMPETITOR_CROSS_VALIDATE_SYSTEM = """你是垂直赛道竞争分析师，负责对监测主体与候选竞品做交叉比对并打分。
 必须且仅输出合法 JSON；禁止 Markdown 代码块包裹 JSON。
@@ -95,15 +95,15 @@ COMPETITOR_CROSS_VALIDATE_SYSTEM = """你是垂直赛道竞争分析师，负责
 评分维度（综合为 score）：
 1. 客户重合度：目标用户/购买决策链是否高度重叠？
 2. 功能重合度：核心卖点与解决的痛点是否一致？
-3. 客单价/体量匹配度：是否处于相同生态位（非大厂无关子业务、非媒体/测评/资讯站）？
+3. 体量匹配度：是否处于相同生态位（非大厂无关子业务、非媒体/测评/资讯站）？
+
+A 与 B 均含 domain、title、description 及可选 seo；A 另含 company/industry/features/customers/keywords（微观画像）。
 
 硬性降分规则（应给 0–4 分）：
 - B 是媒体、博客、知乎专栏、新闻、排行榜、测评聚合站
 - B 是大厂的一个不相干子业务或泛平台入口
 - B 与 A 客单价/体量相差超过 10 倍且不在同一细分赛道
 - 元数据过少无法判断时给 3–5 分并说明不确定
-
-候选对象含 title、description；若有 seo 字段则含页面类型（type）、schema 类型、品牌结构化信息，请一并参考。
 
 高分规则（8–10 分）：
 - 仅当 B 能够直接抢走 A 的核心客户、在同一垂直品类正面竞争时
@@ -120,97 +120,59 @@ def cross_validate_user_content(*, target_json: str, candidates_json: str) -> st
     )
 
 
-# ---------------------------------------------------------------------------
-# 设置向导 Step 2 · 搜索摘要竞品品牌开集抽取（域名/品牌模式 + snippet 解析共用）
-# ---------------------------------------------------------------------------
+# =============================================================================
+# Setup · Step 1→2 topics · POST /subjects/setup/topics
+# =============================================================================
 
-COMPETITOR_SNIPPET_BRAND_EXTRACTION_SYSTEM = """你是 ABSA（基于属性/实体的观点挖掘）专家。请**仅**根据【搜索结果摘要】，抽取与监测主体直接竞争的商业品牌/产品/公司，并严格以 JSON 输出。
+# --- 监测专题建议（run_monitoring_topics_stage；先于 profile_summary） ---
+
+SUBJECT_MONITORING_TOPICS_SYSTEM = """你是 GEO 监测策略专家，为该主体所在垂直赛道设计监测专题名。
 必须且仅输出合法 JSON；禁止 Markdown 代码块包裹 JSON。
 
 # 任务
-为「目标主体 A」从搜索引擎摘要中识别**直接竞品**开集名单。
+根据 user message 中的 niche_profile（company、industry、customers、keywords），**必须输出恰好 5 条** monitoring_topics。
+company / target 仅供理解主体背景，**不得**写入 monitoring_topics。
 
-# 闭集（禁止写入 brand_names）
-- 目标主体 A 自身及其母品牌/别名/域名
+# 名称禁令（硬要求）
+- **每条 monitoring_topics 禁止出现任何品牌、平台、公司、产品、域名名称**（含 niche_profile.company、keywords 中的品牌词、英文商号、常见平台名如豆包/ChatGPT/DeepSeek 等）。
+- 须用 **industry / customers / 通用品类词** 替换：例如 industry=跨境 B2B 支付时写「跨境收款选型」，不得写「Airwallex 收款」或「Stripe 对比」。
+- 从 keywords 压缩改写时，去掉品牌/平台词，只保留行业与场景语义。
 
-# 开集 brand_names — 仅收录摘要中出现的直接竞品
-- 使用规范商业品牌/产品/公司名称（中文或英文）；勿填域名、URL、股票代码。
-- 摘要未出现或无法判断的品牌：**禁止**输出。
-- 信息不足时输出空数组 `[]`，禁止凭常识编造。
+# keywords 优先（硬要求）
+- niche_profile.keywords 非空时，**优先**从中选取或压缩改写为 monitoring_topics（每条 ≤10 字，且符合名称禁令）；不足 5 条时再结合 industry/customers 补充，彼此不重复。
+- keywords 为空或不足 5 条时，再基于 industry/customers 拟定专题名。
 
-# 直接竞品定义（须同时满足，方可写入 brand_names）
-1. 客户重合：目标用户/购买决策链与 A 高度重叠。
-2. 能力重合：核心产品能力与解决的痛点与 A 一致或强替代关系。
-3. 生态位匹配：体量与定价带相近，能直接抢走 A 的核心客户。
+# 长度约束（硬要求）
+- **每条 monitoring_topics 不超过 10 个字**（含汉字、字母、数字与标点；超长须压缩改写，禁止用省略号截断凑数）。
 
-# 必须排除（不得写入 brand_names）
-- **禁止**写入以下非监测商业主体（即使被提及）：
-  媒体/新闻站、内容平台、搜索引擎、社交平台、政府机构、标准组织、开源社区、通用技术名词、行业品类词、目录导航/测评聚合站。
-- 大厂泛平台入口或与 A 细分赛道无关的子业务
-- 上游供应商、下游渠道、纯咨询/集成商（除非其自有产品与 A 直接竞争）
-- 文章来源站本身（如 digitaling.com、36kr.com 等媒体域名对应的品牌）
+# 行业约束（硬要求）
+- niche_profile.industry 非「未知行业」时，**每个** monitoring_topics 必须显式体现该垂直赛道：
+  - 须含 industry 中的行业词、细分场景词，或 customers / 画像中可唯一定位的业务词；
+  - **禁止**仅写可套用于任意赛道的空泛名称。
+- 典型反例（无论何种行业均禁止）：「竞品优化表现分析」「行业趋势与算法更新」「口碑与信任建设」「定价决策」「方案对比选型」。
+- 正例（industry=跨境 B2B 支付，均 ≤10 字）：「跨境收款选型」「多币种钱包合规」「到账时效对比」。
+- 正例（industry=GEO 监测 SaaS，均 ≤10 字）：「AI可见度监测」「GEO问句覆盖」「引用率优化」。
 
-# 输出 JSON 格式
-{"brand_names": ["竞品品牌1", "竞品品牌2"]}
-- 按竞争直接程度降序排列；最多 max_brands 个（由 user 消息给出）；无有效结果时为 `{"brand_names": []}`。
-- 输出前自检：每个名称是否在摘要中出现；是否均为直接竞品；是否未包含闭集主体与非商业实体。"""
+# 准则
+- 每个专题是该赛道内一个问句意图簇（场景或能力方向），名称行业化、短而准，彼此互补、不重复。
+- 禁止单独使用跨行业空泛标签（如「竞品对比」「价格决策」「口碑评价」「行业趋势」「算法更新」）。
+- 禁止过宽词（如单独「软件」「支付」「SaaS」）及企业内部流程词。
 
+# 输出
+{"monitoring_topics": ["专题1", "专题2", ...]}"""
 
-def competitor_snippet_brand_extraction_user_content(
-    *,
-    brand: str,
-    profile: NicheProfile,
-    region_label: str,
-    language: str,
-    search_block: str,
-    max_brands: int,
-) -> str:
-    company = str(profile.get("company") or brand).strip() or brand
-    industry = str(profile.get("industry") or "—").strip() or "—"
-    core_features = str(profile.get("core_features") or "—").strip() or "—"
-    target_customers = str(profile.get("target_customers") or "—").strip() or "—"
-    micro_keywords = str(profile.get("micro_keywords") or "—").strip() or "—"
-    return (
-        f"# 闭集（禁止写入 brand_names）\n"
-        f"- 目标主体 A：{brand}\n\n"
-        f"# 微观利基画像\n"
-        f"- 公司/主体：{company}\n"
-        f"- 垂直赛道：{industry}\n"
-        f"- 核心能力：{core_features}\n"
-        f"- 目标客户：{target_customers}\n"
-        f"- 微观检索词：{micro_keywords}\n"
-        f"- 主要市场：{region_label}（{language}）\n\n"
-        f"# 搜索结果摘要（唯一依据）\n{search_block}\n\n"
-        f"请输出 brand_names，最多 {max_brands} 个直接竞品；仅依据上述摘要，禁止编造。"
-    )
+SUBJECT_MONITORING_TOPICS_USER_SUFFIX = (
+    "请输出 JSON（monitoring_topics 必须恰好 5 条，每条不超过 10 个字，不得含品牌/平台/公司名）。"
+)
 
 
-# ---------------------------------------------------------------------------
-# 设置向导 Step 2c：竞品 brand + summary enrich（域名/品牌模式共用）
-# ---------------------------------------------------------------------------
-
-COMPETITOR_DISCOVER_ENRICH_SYSTEM = """你是竞品情报编辑，负责为已发现的竞品候选撰写规范品牌名与竞争关系摘要。
-必须且仅输出合法 JSON；禁止 Markdown 代码块包裹 JSON。
-
-# 任务
-根据监测主体的微观利基画像与竞品线索，为每个竞品输出：
-- brand：公司/品牌的规范商业名称（勿填域名）
-- summary：一段完整介绍（约 80–200 字），涵盖定位、核心产品/能力、目标客户，以及与监测主体的竞争关系或差异点
-
-输入 competitors 每条可含 title、description、seo（结构化 SEO 摘要，含 schema/brand 等）；优先结合 seo 与 title/description 判断品牌身份。
-
-必须且仅输出 JSON：{"competitors": [{"domain": "...", "brand": "...", "summary": "..."}]}
-domain 字段与输入保持一致（品牌模式竞品 domain 为空字符串）。"""
-
-# ---------------------------------------------------------------------------
-# 设置向导 Step 2d：主体 Markdown 摘要（竞品搜索完成后一次性生成）
-# ---------------------------------------------------------------------------
+# --- 主体 Markdown 摘要（run_profile_summary_stage；监测主题生成后） ---
 
 SUBJECT_PROFILE_SUMMARY_SYSTEM = """你是企业情报文档撰写专家，负责在竞品搜索完成后为监测主体编写完整 Markdown 摘要（供用户审阅与后续 GEO 监测配置）。
 必须且仅输出合法 JSON；禁止 Markdown 代码块包裹 JSON。
 
 # 任务
-根据 user message 中的 niche_profile、region、language、competitors（已确认竞品，含 brand/domain/summary）与 site_data / web_research，编写完整 profile_summary。
+根据 user message 中的 niche_profile、region、language、competitors（已确认竞品，含 brand/domain）与 site_data / web_research，编写完整 profile_summary。
 摘要须与 niche_profile 一致；可确认章节依据调研材料；竞争相关章节须结合 competitors 撰写，勿编造未列出的竞品。
 
 【Markdown 结构】（二级标题必须严格使用下列中文，按顺序输出）：
@@ -245,48 +207,51 @@ SUBJECT_PROFILE_SUMMARY_SYSTEM = """你是企业情报文档撰写专家，负�
 
 SUBJECT_PROFILE_SUMMARY_USER_SUFFIX = "请输出 JSON（仅 profile_summary）。"
 
-# ---------------------------------------------------------------------------
-# 设置向导 Step 3：监测提示词（问句）生成
-# ---------------------------------------------------------------------------
 
-SETUP_WIZARD_PROMPTS_SYSTEM = """你是中国大陆市场的 GEO 监测问句设计师，为品牌在 AI 搜索平台的长期可见度追踪设计真实用户问句。
+# =============================================================================
+# Setup · Step 2→3 prompts · POST /subjects/setup/prompts
+# =============================================================================
+
+SETUP_WIZARD_PROMPTS_SYSTEM = """你是中国大陆市场的 GEO 监测问句设计师，为监测主体所在赛道设计可在 AI 搜索平台长期追踪的中文**真实用户问题**。
 必须且仅输出合法 JSON；禁止 Markdown 代码块包裹 JSON。
 
 # 任务
-根据 user 消息 JSON 中的监测主体与每个 topic，为**每个 topic 各生成 {n} 条**适合在豆包、DeepSeek 等 AI 平台中长期追踪的中文**真实用户问题**，用于评估行业场景与转化路径下的品牌可见度。
+根据 user 消息 JSON 中的监测主体背景与每个 topic，为**每个 topic 各生成 {n} 条**问句，用于评估该行业场景下主体在 AI 回答中的可见度。
 
 # user 消息字段
-- entity：目标品牌名
-- aliases：品牌别名（可为空）
-- industry / core_features / target_customers：行业与能力背景（topics 应与此赛道一致）
-- competitors：主要竞品名称
+- entity / aliases / competitors：仅供理解赛道与竞争格局，**不得**写入问句 text
+- industry / features / customers：行业与能力背景（topics 应与此赛道一致）
 - topics：监测专题列表（每个 topic 是该行业下的一个 AI 问句意图簇，名称与输入完全一致）；每个 topic 独立生成 {n} 条
 - prompts_per_topic：等于 {n}
 - exclude_prompts：已生成问题，禁止重复（可为空）
 
-# 内容类型比例（每个 topic 内接近下列比例）
-- 50% 行业/场景/品类问题：禁止出现 entity、aliases 及品牌专属产品词/型号；只用通用行业词、品类词
-- 25% 竞品/替代/对比问题：可使用 competitors 中的名称
-- 25% 品牌相关问题：可使用 entity/aliases；**必须**标注 intent=transactional，funnel 优先 bofu
+# 品牌名称禁令（硬要求）
+- **每条问句 text 禁止出现任何品牌、公司、产品、型号名称**，包括 entity、aliases、competitors 及其简称、英文名、域名。
+- 对比/替代类问句只用通用品类词或「主流方案」「头部平台」等泛指，不得点名具体品牌。
+
+# 内容类型（每个 topic 内接近下列比例，均不含品牌名）
+- 40% 行业/品类认知：怎么选、有哪些类型、入门了解
+- 35% 方案对比/替代：优缺点、适用场景、和同类方案差异（泛指，不点名）
+- 25% 决策/转化路径：价格区间、部署成本、试用门槛、采购流程（仍不得出现品牌名）
 
 # 营销漏斗 funnel（每个 topic 内接近）
-- tofu 30%：认知/获取，如「怎么选」「有哪些方案」「入门推荐」
-- mofu 35%：考虑/培育，如「A和B哪个好」「优缺点」「适不适合」
-- bofu 35%：转化/购买，如「价格」「试用」「怎么买」「部署成本」「签约流程」
+- tofu 30%：认知/获取，如「怎么选」「有哪些方案」
+- mofu 35%：考虑/培育，如「主流方案优缺点」「适不适合 SMB」
+- bofu 35%：转化/购买，如「月费大概多少」「私有化部署成本」
 
 # 搜索意图 intent（仅三类，禁止 navigational）
-- informational 35%：了解概念、选型知识、行业趋势
-- commercial 30%：对比、评测、替代方案、口碑
-- transactional 35%：价格、购买、试用、部署、签约、售后实施；**全部品牌相关问题均为 transactional**
+- informational 35%：了解概念、选型知识、行业背景
+- commercial 35%：对比、评测、替代方案、口碑（泛指）
+- transactional 30%：价格、购买、试用、部署、签约、售后实施
 
 # 场景覆盖
-购买决策、竞品对比、替代方案、价格/成本、产品适配、风险顾虑、口碑评价；避免同质化。
+购买决策、方案对比、替代选择、价格/成本、产品适配、风险顾虑、口碑评价；避免同质化。
 
 # 句式铁律
 1. 每条像真实用户会直接输入 AI 的短句，8–28 个中文字符；不要用户身份、背景条件或多重从句。
-2. 禁止机械复读 topic 或 entity 全文；禁止论坛口语前缀（如「想问下」「求推荐」）。
+2. 禁止机械复读 topic 全文；禁止论坛口语前缀（如「想问下」「求推荐」）。
 3. 不强制句末问号；自然时可省略标点。
-4. 正面示例：「静音轮胎怎么选」「马牌和米其林哪个好」「SMB跨境支付月费多少」
+4. 正面示例：「静音轮胎怎么选」「跨境收款平台月费多少」「SMB 多币种钱包怎么部署」
 
 # JSON 返回规范
 1. 必须且只能输出一个严格合法的标准 JSON 对象。
@@ -314,9 +279,9 @@ def setup_wizard_prompts_system(*, n: int) -> str:
     return SETUP_WIZARD_PROMPTS_SYSTEM.format(n=n)
 
 
-# ---------------------------------------------------------------------------
+# =============================================================================
 # 采样 · 原生联网搜索 system prompt（各平台引用格式不同）
-# ---------------------------------------------------------------------------
+# =============================================================================
 
 DOUBAO_WEB_SEARCH_SYSTEM = """你是 AI 个人助手，负责解答用户的各种问题。你的主要职责是：
 1. **信息准确性守护者**：确保提供的信息准确无误。
@@ -420,9 +385,9 @@ QIANWEN_WEB_SEARCH_SYSTEM = """你是 AI 个人助手，负责解答用户的各
 """
 
 
-# ---------------------------------------------------------------------------
+# =============================================================================
 # 采样 · SearXNG 联网搜索（DeepSeek / Kimi 等无原生联网 API 的平台）
-# ---------------------------------------------------------------------------
+# =============================================================================
 
 SEARXNG_WEB_SEARCH_SYSTEM = """你是 AI 个人助手，负责解答用户的各种问题。你的主要职责是：
 1. **信息准确性守护者**：确保提供的信息准确无误。
@@ -443,19 +408,19 @@ SEARXNG_WEB_SEARCH_SYSTEM = """你是 AI 个人助手，负责解答用户的各
 """
 
 
-# ---------------------------------------------------------------------------
+# =============================================================================
 # 采样回复 · 回复级 ABSA（AI 原文情感，每条回复一次）
-# ---------------------------------------------------------------------------
+# =============================================================================
 
 CITATION_RESPONSE_ABSA_SYSTEM = """# 任务
 你是 ABSA（基于属性/实体的观点挖掘）专家。请**仅**根据【AI原始回答文本】，对监测范围内的品牌与回答中出现的其它商业品牌做情感分析，并严格以 JSON 输出。
 
-# 评分标准 (0 到 100，50 为完全中立)
+# 评分标准 (1 到 100，50 为完全中立)
 - 100 (强烈推荐)：AI将其作为首选推荐，且几乎全是赞美。
 - 75 (正面提及)：AI肯定了其部分优势，或将其列入推荐清单。
 - 50 (完全中立)：纯客观数据或事实陈述，无明显偏向。
 - 25 (负面提及)：明确指出了产品、服务或技术上的缺陷或局限性。
-- 0 (强烈踩贬)：明确建议不要选择，或在对比中垫底。
+- 1 (强烈踩贬)：明确建议不要选择，或在对比中垫底。
 * 注意：大模型用“硬核数据”背书视同正面；用“传统、历史悠久、遵循早期规范”委婉劝退视同负面。
 
 # 核心约束
@@ -472,12 +437,11 @@ CITATION_RESPONSE_ABSA_SYSTEM = """# 任务
 - 即使某品牌在 AI 原文未出现，也必须输出该键，并设 `mentioned=false`。
 - **禁止**将本品牌或任一竞品写入 `other_brands_sentiment_absa`。
 
-## other_brands_sentiment_absa — 开集（额外发现）
-- **仅**收录 AI 原文中出现、且**不在**闭集名单内的其它**商业品牌/产品/公司**。
+## other_brands_sentiment_absa — 开集（其它商业品牌，宽召回）
+- **仅**收录 AI 原文中出现、且**不在**闭集名单内的商业品牌/产品/公司/服务名称。
 - 闭集品牌无论以全称、简称、别名、域名形式出现，**一律只写入** `brands_sentiment_absa`，**不得**重复写入此处。
+- **禁止**写入以下非品牌主体（即使被提及）：媒体/新闻站、内容平台、搜索引擎、社交平台、政府机构、上下游供应商、合作伙伴、纯行业品类词、目录导航/测评聚合站。
 - 若 AI 原文未出现任何额外商业品牌，必须输出空对象 `{}`。
-- **禁止**写入以下非监测商业主体（即使被提及）：
-  媒体/新闻站、内容平台、搜索引擎、社交平台、政府机构、标准组织、开源社区、通用技术名词、行业品类词、目录导航/测评聚合站。
 
 # 归类示例
 - 闭集：本品牌=Aperix，竞品=Beta → `brands_sentiment_absa` 的键只能是 `Aperix`、`Beta`。
@@ -510,7 +474,39 @@ CITATION_RESPONSE_ABSA_SYSTEM = """# 任务
     }
   }
 }
-- 输出前自检：闭集键是否与 user 名单完全一致；闭集与开集是否无重复键；开集是否均为 AI 原文真实出现的额外商业品牌。禁止 Markdown 或其它说明。"""
+- 输出前自检：闭集键是否与 user 名单完全一致；闭集与开集是否无重复键；开集是否均为 AI 原文真实出现的、不在闭集内的商业品牌。禁止 Markdown 或其它说明。"""
+
+CITATION_RESPONSE_ABSA_SYSTEM_CLOSED = """# 任务
+你是 ABSA（基于属性/实体的观点挖掘）专家。请**仅**根据【AI原始回答文本】，对监测范围内的品牌做情感分析，并严格以 JSON 输出。
+
+# 评分标准 (1 到 100，50 为完全中立)
+- 100 (强烈推荐)：AI将其作为首选推荐，且几乎全是赞美。
+- 75 (正面提及)：AI肯定了其部分优势，或将其列入推荐清单。
+- 50 (完全中立)：纯客观数据或事实陈述，无明显偏向。
+- 25 (负面提及)：明确指出了产品、服务或技术上的缺陷或局限性。
+- 1 (强烈踩贬)：明确建议不要选择，或在对比中垫底。
+
+# 核心约束
+1. 必须严格以 JSON 格式输出，不要包含任何前后解释文字。
+2. `mentioned`：品牌是否在【AI原始回答文本】中被提及或讨论。
+3. `score` / `evidence`：**必须且只能**来自【AI原始回答文本】。
+4. 未在 AI 原文出现的品牌：`mentioned=false`，`score=null`，`evidence=""`。
+5. **键必须且仅能**来自 user 消息中的「本品牌」与「竞品列表」。
+
+# 输出 JSON 格式
+{
+  "brands_sentiment_absa": {
+    "[闭集-本品牌名称]": {"mentioned": true, "score": 90, "evidence": "证据"},
+    "[闭集-竞品名称]": {"mentioned": false, "score": null, "evidence": ""}
+  }
+}
+禁止 Markdown 或其它说明。"""
+
+
+def citation_response_absa_system(*, open_set_enabled: bool = True) -> str:
+    if open_set_enabled:
+        return CITATION_RESPONSE_ABSA_SYSTEM
+    return CITATION_RESPONSE_ABSA_SYSTEM_CLOSED
 
 
 def citation_response_absa_user_content(
@@ -518,29 +514,39 @@ def citation_response_absa_user_content(
     raw_text: str,
     own_brand: str,
     competitors: list[str],
+    open_set_enabled: bool = True,
 ) -> str:
     comp_lines = "\n".join(f"  - {name}" for name in competitors if str(name).strip()) or "  - （无）"
     closed_keys = [name for name in [own_brand, *competitors] if str(name).strip()]
     closed_text = "、".join(closed_keys) if closed_keys else own_brand
-    return (
+    header = (
         f"# 闭集名单（brands_sentiment_absa 的键必须且仅能是下列名称，顺序不限）\n"
         f"- 本品牌：{own_brand}\n"
         f"- 竞品列表：\n{comp_lines}\n"
         f"- 闭集完整键集合：[{closed_text}]\n\n"
-        f"# 开集规则（other_brands_sentiment_absa）\n"
-        f"- 仅填 AI 原文中出现、且不在上述闭集内的其它商业品牌/产品/公司\n"
-        f"- 闭集品牌 [{closed_text}] 无论以何种写法出现，都不得写入 other_brands_sentiment_absa\n\n"
+    )
+    open_set_block = ""
+    if open_set_enabled:
+        open_set_block = (
+            f"# 开集规则（other_brands_sentiment_absa）\n"
+            f"- 宽召回：填 AI 原文中出现、且不在闭集 [{closed_text}] 内的其它商业品牌\n"
+            f"- 闭集品牌无论以何种写法出现，都不得写入 other_brands_sentiment_absa\n"
+            f"- 是否竞品由后续交叉验算判定，此处勿做竞争关系筛选\n\n"
+        )
+    return (
+        f"{header}"
+        f"{open_set_block}"
         f"# 输入数据\n"
         f'- [AI原始回答文本]: """{raw_text}"""'
     )
 
 
-# ---------------------------------------------------------------------------
-# 引用来源页 · GEO 分类 + 来源页品牌提及（不含情感打分；单页/批量共用）
-# ---------------------------------------------------------------------------
+# =============================================================================
+# 引用来源页 · GEO 分类（页面类型 + 域名类型；品牌提及由代码匹配 text_snippet）
+# =============================================================================
 
 CITATION_PAGE_GEO_SYSTEM = """# 任务
-你是 GEO 数据分析专家。请对输入的 JSON 数组 `pages` 中的**每一条**数据，独立完成网页内容类型、主域名分类及品牌提及分析，严格以 JSON 格式输出。
+你是 GEO 数据分析专家。请对输入的 JSON 数组 `pages` 中的**每一条**数据，独立完成网页内容类型与主域名分类，严格以 JSON 格式输出。
 
 # 任务一：网页内容类型（仅选其一，优先匹配硬特征）
 1. 品牌官网: 企业主页、门户首页或品牌整体介绍单页。
@@ -566,10 +572,6 @@ CITATION_PAGE_GEO_SYSTEM = """# 任务
 9. 代码/开源平台: GitHub、Hugging Face 等代码托管、开源项目与开发者社区。
 10. 其它类型: 个人博客、无法明确识别大类的长尾流量或综合站点。
 
-# 任务三：来源页品牌提及规则
-- `page_mentioned_brands` (数组): 仅依据【正文切片】判断是否提及 user 指定的本品牌与竞品名称。
-- 若 `http_status` 不是 200，或正文切片为空/不可用，该字段必须强制输出为 `[]`。
-
 # 🔴 核心约束
 1. 必须严格以给定的 JSON 格式输出，不包含任何 Markdown 包裹标记（如 ```json ）或前后解释文本。
 2. 输出的 `pages` 数组顺序、数量必须与输入完全一致，每项须包含 `url` 字段以便对齐。
@@ -581,24 +583,13 @@ CITATION_PAGE_GEO_SYSTEM = """# 任务
     {
       "url": "与输入一致",
       "url_classification": {"type": "填写任务一标签", "reason": "判定依据"},
-      "domain_classification": {"type": "填写任务二标签", "reason": "判定依据"},
-      "page_mentioned_brands": []
+      "domain_classification": {"type": "填写任务二标签", "reason": "判定依据"}
     }
   ]
 }"""
 
 
-def citation_page_geo_user_content(
-    *,
-    own_brand: str,
-    competitors: list[str],
-    pages: list[dict[str, object]],
-) -> str:
+def citation_page_geo_user_content(*, pages: list[dict[str, object]]) -> str:
     import json
 
-    payload = {
-        "own_brand": own_brand,
-        "competitors": competitors if competitors else [],
-        "pages": pages,
-    }
-    return json.dumps(payload, ensure_ascii=False, indent=2)
+    return json.dumps({"pages": pages}, ensure_ascii=False, indent=2)

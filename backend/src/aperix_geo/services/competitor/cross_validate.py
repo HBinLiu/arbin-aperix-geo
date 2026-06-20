@@ -7,18 +7,15 @@ import logging
 from typing import Any
 
 from aperix_geo.config import get_settings
-from aperix_geo.services.competitor.defaults import (
-    CROSS_VALIDATE_BATCH_SIZE,
-    RESULT_MAX,
-)
 from aperix_geo.services.competitor.diagnostics import log_cross_validate_score
 from aperix_geo.services.competitor.head_fetch import fetch_site_heads
 from aperix_geo.utils.domains import registrable_domain
 from aperix_geo.services.competitor.types import (
+    CandidateMeta,
+    CandidatePool,
     CompetitorScore,
     CrossValidateResult,
     NicheProfile,
-    SearchPool,
     SiteHead,
 )
 from aperix_geo.services.providers.prompts import (
@@ -27,36 +24,72 @@ from aperix_geo.services.providers.prompts import (
 )
 from aperix_geo.services.providers import chat_completion
 from aperix_geo.utils.json import extract_json_object
-from aperix_geo.services.searxng import SearchHit
 
 logger = logging.getLogger(__name__)
 
-# 停搜质量线 = PASS_SCORE + 该偏移（避免 3 个刚及格分就结束 SearXNG）
-QUALITY_STOP_AVG_OFFSET = 0.5
 
-
-def _target_payload(profile: NicheProfile, *, target_domain: str) -> dict[str, str]:
-    return {
-        "domain": target_domain,
-        "company": profile["company"],
-        "industry": profile["industry"],
-        "core_features": profile["core_features"],
-        "target_customers": profile["target_customers"],
-        "micro_keywords": profile["micro_keywords"],
-    }
-
-
-def _candidate_payload(head: SiteHead, hit: SearchHit | None) -> dict[str, str]:
-    title = head.title or (hit.title[:200] if hit else "")
-    description = head.description or (hit.snippet[:400] if hit else "")
-    payload = {
-        "domain": head.domain,
-        "title": title or "（无）",
-        "description": description or "（无）",
+def _site_fields_from_head(
+    head: SiteHead | None,
+    *,
+    brand_fallback: str = "",
+) -> dict[str, str]:
+    if head is None:
+        return {}
+    if not head.reachable:
+        return {
+            "title": "（无）",
+            "description": "（站点不可打开）",
+        }
+    title = head.title or brand_fallback[:200] or "（无）"
+    description = head.description or "（无）"
+    payload: dict[str, str] = {
+        "title": title,
+        "description": description,
     }
     if head.seo.strip():
         payload["seo"] = head.seo[:800]
     return payload
+
+
+def _target_payload(
+    profile: NicheProfile,
+    *,
+    target_domain: str,
+    head: SiteHead | None = None,
+) -> dict[str, str]:
+    payload: dict[str, str] = {
+        "domain": target_domain,
+        "company": profile["company"],
+        "industry": profile["industry"],
+        "features": profile["features"],
+        "customers": profile["customers"],
+        "keywords": profile["keywords"],
+    }
+    payload.update(_site_fields_from_head(head, brand_fallback=profile.get("company") or ""))
+    return payload
+
+
+def _candidate_payload(head: SiteHead, meta: CandidateMeta | None) -> dict[str, str]:
+    brand = meta.brand[:200] if meta else ""
+    payload: dict[str, str] = {"domain": head.domain}
+    payload.update(_site_fields_from_head(head, brand_fallback=brand))
+    return payload
+
+
+def _ensure_target_head(
+    heads: dict[str, SiteHead],
+    *,
+    target_domain: str,
+    target_website_url: str = "",
+) -> dict[str, SiteHead]:
+    key = registrable_domain(target_domain)
+    if not key or key in heads:
+        return heads
+    preferred: dict[str, str] = {}
+    url = target_website_url.strip()
+    if url:
+        preferred[key] = url
+    return {**heads, **fetch_site_heads([key], preferred_urls=preferred)}
 
 
 def _parse_scores(data: dict[str, Any]) -> list[CompetitorScore]:
@@ -102,7 +135,7 @@ def _score_batch(
             ),
         },
     ]
-    text, _, latency_ms = chat_completion(messages, temperature=0.1, json_mode=True)
+    text, _, _latency_ms = chat_completion(messages, temperature=0.1, json_mode=True)
     try:
         data = extract_json_object(text)
     except (json.JSONDecodeError, TypeError):
@@ -110,29 +143,7 @@ def _score_batch(
         return []
 
     scores = _parse_scores(data)
-    logger.info(
-        "竞品发现: 交叉验算批次 %d 候选 %dms 返回 %d 条",
-        len(candidates),
-        latency_ms,
-        len(scores),
-    )
     return scores
-
-
-def _count_reachable_high_scores(
-    scores: list[CompetitorScore],
-    heads: dict[str, SiteHead],
-    *,
-    min_score: float,
-) -> int:
-    n = 0
-    for s in scores:
-        if s.score < min_score:
-            continue
-        head = heads.get(s.domain)
-        if head and head.reachable:
-            n += 1
-    return n
 
 
 def _score_sort_key(s: CompetitorScore, heads: dict[str, SiteHead]) -> tuple[float, int, str]:
@@ -158,42 +169,35 @@ def _score_new_hosts(
     profile: NicheProfile,
     *,
     target_domain: str,
-    pool: SearchPool,
+    pool: CandidatePool,
     new_hosts: list[str],
     heads: dict[str, SiteHead],
     prior_scores: list[CompetitorScore],
 ) -> list[CompetitorScore]:
-    settings = get_settings()
-    target = _target_payload(profile, target_domain=target_domain)
-    min_score = settings.competitor_cross_validate_pass_score
-    stop_at = RESULT_MAX
+    target_key = registrable_domain(target_domain)
+    target = _target_payload(
+        profile,
+        target_domain=target_domain,
+        head=heads.get(target_key) if target_key else None,
+    )
     all_scores: list[CompetitorScore] = []
     ordered_heads = [heads[d] for d in new_hosts if d in heads]
     unreachable = [h for h in ordered_heads if not h.reachable]
     reachable_heads = [h for h in ordered_heads if h.reachable]
     if unreachable:
-        logger.info("竞品发现: %d 个站点不可打开，跳过 LLM 交叉验算", len(unreachable))
         all_scores.extend(
             CompetitorScore(domain=h.domain, score=0.0, reason="站点不可打开，跳过交叉验算")
             for h in unreachable
         )
 
-    for i in range(0, len(reachable_heads), CROSS_VALIDATE_BATCH_SIZE):
-        chunk = reachable_heads[i : i + CROSS_VALIDATE_BATCH_SIZE]
-        payload = [_candidate_payload(h, pool.hit_by_domain.get(h.domain)) for h in chunk]
+    batch_size = get_settings().competitor_cross_validate_batch_size
+    for i in range(0, len(reachable_heads), batch_size):
+        chunk = reachable_heads[i : i + batch_size]
+        payload = [_candidate_payload(h, pool.by_domain.get(h.domain)) for h in chunk]
         try:
             all_scores.extend(_score_batch(target, payload))
         except Exception:
             logger.warning("竞品发现: 交叉验算批次失败 offset=%d", i, exc_info=True)
-
-        merged = _merge_score_lists(prior_scores, all_scores)
-        reachable_high = _count_reachable_high_scores(merged, heads, min_score=min_score)
-        if reachable_high >= stop_at:
-            logger.info(
-                "竞品发现: 可打开且高分候选已够 %d 个，提前结束交叉验算",
-                stop_at,
-            )
-            break
 
     scored = {s.domain for s in all_scores}
     for h in reachable_heads:
@@ -208,8 +212,11 @@ def run_cross_validate(
     profile: NicheProfile,
     *,
     target_domain: str,
-    pool: SearchPool,
+    pool: CandidatePool,
+    target_website_url: str = "",
     prior: CrossValidateResult | None = None,
+    round_idx: int | None = None,
+    round_total: int | None = None,
 ) -> CrossValidateResult:
     settings = get_settings()
     hosts = list(dict.fromkeys(pool.domains))[: settings.competitor_pool_size]
@@ -218,17 +225,27 @@ def run_cross_validate(
 
     prior_heads = dict(prior.heads) if prior else {}
     prior_scores = list(prior.scores) if prior else []
-    seen = set(prior_heads) | {s.domain for s in prior_scores}
+    heads = _ensure_target_head(
+        prior_heads,
+        target_domain=target_domain,
+        target_website_url=target_website_url,
+    )
+    seen = set(heads) | {s.domain for s in prior_scores}
     new_hosts = [h for h in hosts if h not in seen]
 
     if not new_hosts:
         return CrossValidateResult(
             scores=_merge_score_lists(prior_scores, []),
-            heads=prior_heads,
+            heads=heads,
         )
 
-    new_heads = fetch_site_heads(new_hosts)
-    heads = {**prior_heads, **new_heads}
+    preferred_urls = {
+        d: meta.website_url
+        for d in new_hosts
+        if (meta := pool.by_domain.get(d)) and meta.website_url
+    }
+    new_heads = fetch_site_heads(new_hosts, preferred_urls=preferred_urls)
+    heads = {**heads, **new_heads}
     new_scores = _score_new_hosts(
         profile,
         target_domain=target_domain,
@@ -239,15 +256,20 @@ def run_cross_validate(
     )
     scores = _merge_score_lists(prior_scores, new_scores)
 
+    new_scored = {s.domain for s in new_scores}
     heads_map = heads
     for s in scores:
+        if s.domain not in new_scored:
+            continue
         head = heads_map.get(s.domain)
         log_cross_validate_score(
             domain=s.domain,
             score=s.score,
             reason=s.reason,
-            hit=pool.hit_by_domain.get(s.domain),
+            meta=pool.by_domain.get(s.domain),
             reachable=head.reachable if head else None,
+            round_idx=round_idx,
+            round_total=round_total,
         )
 
     return CrossValidateResult(scores=scores, heads=heads)
@@ -265,48 +287,4 @@ def expand_ranked_domains(
     passing = [s for s in result.scores if s.score >= min_score]
     passing.sort(key=lambda s: _score_sort_key(s, heads))
     domains = list(dict.fromkeys(s.domain for s in passing))
-    logger.info(
-        "竞品发现: 及格竞品 %d 个（>=%.1f）按分数排序 %s",
-        len(domains[:max_keep]),
-        min_score,
-        domains[:max_keep],
-    )
     return domains[:max_keep]
-
-
-def build_pack_order(
-    validation: CrossValidateResult,
-    *,
-    min_score: float,
-    max_keep: int,
-) -> list[str]:
-    """打包顺序：及格分域名按分数降序，供 package 取前 N 个可打开站点。"""
-    return expand_ranked_domains(
-        validation,
-        min_score=min_score,
-        max_keep=max_keep,
-        heads=validation.heads,
-    )
-
-
-def competitor_quality_met(
-    validation: CrossValidateResult,
-    *,
-    pass_score: float,
-    min_count: int,
-) -> bool:
-    """可打开及格竞品数量与 top-N 均分（pass_score + QUALITY_STOP_AVG_OFFSET）同时达标时可停搜。"""
-    min_top_avg = pass_score + QUALITY_STOP_AVG_OFFSET
-    heads = validation.heads
-    passing = [s for s in validation.scores if s.score >= pass_score]
-    passing.sort(key=lambda s: _score_sort_key(s, heads))
-    reachable = [
-        s
-        for s in passing
-        if (head := heads.get(s.domain)) is not None and head.reachable
-    ]
-    if len(reachable) < min_count:
-        return False
-    top = reachable[:min_count]
-    avg = sum(s.score for s in top) / len(top)
-    return avg >= min_top_avg

@@ -39,9 +39,17 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
 
-  --color-success: var(--success);
+  --color-doubao: var(--doubao);
+  --color-deepseek: var(--deepseek);
+  --color-yuanbao: var(--yuanbao);
+  --color-qianwen: var(--qianwen);
+  --color-kimi: var(--kimi);
+  --color-ernie: var(--ernie);
 
+  --color-info: var(--info);
   --color-error: var(--error);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
 
   --color-border: var(--border);
   --color-input: var(--input);
@@ -107,6 +115,7 @@
     font-family: var(--font-geist);
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]) {
     cursor: pointer;
@@ -267,5 +276,34 @@
   background-size: cover;
   background-position: center;
   animation: auth-panel-bg-pan 80s ease-in-out infinite;
+}
+
+/*
+ * 控制台用 AppShell(h-svh) 内部滚动；禁止 document 被 Recharts 测量 span 撑出可滚动空白。
+ * span 本身由 installRechartsMeasurementSpanFix() 用 inline !important 持续覆盖。
+ */
+html,
+body {
+  height: 100%;
+  overflow: clip;
+}
+
+#root {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#recharts_measurement_span {
+  position: fixed !important;
+  top: 0 !important;
+  left: -10000px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  overflow: hidden !important;
+  contain: strict !important;
 }
 

@@ -68,6 +68,7 @@ def augmented_chat(
     web_search: bool = True,
     searxng_max_results: int = 8,
     timeout_s: float = 120.0,
+    temperature: float = 0.3,
     error_cls: Type[Exception] = SearxngProviderError,
 ) -> SamplingChatResult:
     """Search via SearXNG, inject hits into prompt, then call chat/completions."""
@@ -103,6 +104,7 @@ def augmented_chat(
             api_key=api_key,
             model=model,
             messages=chat_messages,
+            temperature=temperature,
             timeout_s=timeout_s,
             error_cls=error_cls,
             provider_label=provider_label,

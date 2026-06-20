@@ -19,7 +19,7 @@ from aperix_geo.services.crawl.settings import PageCrawlSettings, page_crawl_set
 from aperix_geo.services.crawl.types import FetchSource, PageFetchResult
 from aperix_geo.utils.cache import run_single_flight
 from aperix_geo.utils.text import truncate_text
-from aperix_geo.utils.url import normalize_crawl_cache_url
+from aperix_geo.utils.url import is_llm_numeric_fake_url, normalize_crawl_cache_url
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +132,9 @@ def fetch_page(
     """Fetch a page via httpx; optionally fall back to Crawl4AI when content is insufficient."""
     key = url.strip()
     if not key:
+        return PageFetchResult(url=key)
+    if is_llm_numeric_fake_url(key):
+        logger.debug("页面抓取跳过无效引用 URL %s", key)
         return PageFetchResult(url=key)
 
     base_settings = crawl or page_crawl_settings()

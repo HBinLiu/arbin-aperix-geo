@@ -32,10 +32,10 @@ export const PROMPT_TABLE_COLUMNS: readonly PromptTableColumn[] = [
   { id: "prompt", minWidth: 300, flex: true },
   { id: "topic", minWidth: 180 },
   { id: "funnel", minWidth: 120 },
-  { id: "visibility", minWidth: 120 },
+  { id: "visibility", minWidth: 150 },
   { id: "sentiment", minWidth: 150 },
-  { id: "rank", minWidth: 100 },
-  { id: "citation", minWidth: 100 },
+  { id: "rank", minWidth: 150 },
+  { id: "citation", minWidth: 150 },
   { id: "intent", minWidth: 100 },
 ];
 
@@ -67,21 +67,87 @@ export const PROMPT_TABLE_MIN_WIDTH = PROMPT_TABLE_COLUMNS.reduce(
 
 export const PROMPT_TABLE_COLUMN_COUNT = PROMPT_TABLE_COLUMNS.length;
 
-/** 提示词详情 · 回复列表表列宽（百分比，合计 100%） */
-export const PROMPT_DETAIL_RESPONSE_TABLE_COLUMNS = [
-  { id: "platform", width: "14%" },
-  { id: "reply", width: "38%" },
-  { id: "mentioned", width: "16%" },
-  { id: "rank", width: "16%" },
-  { id: "date", width: "16%" },
-] as const;
+/** 提示词详情 · 回复列表表列宽（百分比 + 最小宽度，合计百分比可小于 100% 以留给固定列） */
+export type PromptDetailResponseTableColumn = {
+  id: string;
+  width?: string;
+  minWidth: number;
+};
+
+export const PROMPT_DETAIL_RESPONSE_TABLE_COLUMNS: readonly PromptDetailResponseTableColumn[] = [
+  { id: "platform", width: "10%", minWidth: 135 },
+  { id: "reply", width: "36%", minWidth: 280 },
+  { id: "mentionedBrands", width: "15%", minWidth: 150 },
+  { id: "mentioned", width: "12%", minWidth: 135 },
+  { id: "rank", width: "12%", minWidth: 135 },
+  /** 2026-06-09 04:03:42 */
+  { id: "date", minWidth: 180 },
+];
+
+export function promptDetailResponseColumnColStyle(
+  column: PromptDetailResponseTableColumn,
+): CSSProperties {
+  if (column.width) {
+    return { width: column.width, minWidth: column.minWidth };
+  }
+  return { width: column.minWidth, minWidth: column.minWidth, maxWidth: column.minWidth };
+}
+
+export function promptDetailResponseColumnCellStyle(
+  column: PromptDetailResponseTableColumn,
+): CSSProperties {
+  return { minWidth: column.minWidth };
+}
 
 /** 回复列表最小宽度：容器更窄时出现横向滚动条 */
-export const PROMPT_DETAIL_RESPONSE_TABLE_MIN_WIDTH = 760;
+export const PROMPT_DETAIL_RESPONSE_TABLE_MIN_WIDTH = PROMPT_DETAIL_RESPONSE_TABLE_COLUMNS.reduce(
+  (sum, column) => sum + column.minWidth,
+  0,
+);
+
+/** 情感倾向 · 回复列表列宽（百分比 + 最小宽度，合计 100%） */
+export type SentimentResponseTableColumn = {
+  id: string;
+  width: string;
+  minWidth: number;
+};
+
+export const SENTIMENT_RESPONSE_TABLE_COLUMNS: readonly SentimentResponseTableColumn[] = [
+  { id: "platform", width: "12%", minWidth: 120 },
+  { id: "prompt", width: "25%", minWidth: 180 },
+  { id: "sentiment", width: "12%", minWidth: 120 },
+  { id: "reply", width: "35%", minWidth: 240 },
+  { id: "date", width: "16%", minWidth: 200 },
+];
+
+export const SENTIMENT_RESPONSE_TABLE_MIN_WIDTH = SENTIMENT_RESPONSE_TABLE_COLUMNS.reduce(
+  (sum, column) => sum + column.minWidth,
+  0,
+);
+
+export function sentimentResponseColumnColStyle(
+  column: SentimentResponseTableColumn,
+): CSSProperties {
+  return { width: column.width, minWidth: column.minWidth };
+}
+
+export function sentimentResponseColumnCellStyle(
+  column: SentimentResponseTableColumn,
+): CSSProperties {
+  return { minWidth: column.minWidth };
+}
+
+export function sentimentResponseColumn(id: string): SentimentResponseTableColumn {
+  const column = SENTIMENT_RESPONSE_TABLE_COLUMNS.find((item) => item.id === id);
+  if (!column) {
+    throw new Error(`Unknown sentiment response table column: ${id}`);
+  }
+  return column;
+}
 
 export const performanceTableClasses = {
   head: "text-muted-foreground bg-muted/80 text-left text-sm [&_th]:whitespace-nowrap [&_th]:px-4 [&_th]:py-3 [&_th]:font-medium",
-  row: "border-border border-t [&>td]:align-middle [&>td]:whitespace-nowrap [&>td]:px-4 [&>td]:py-2",
+  row: "border-border h-11 border-t [&>td]:align-middle [&>td]:whitespace-nowrap [&>td]:px-4 [&>td]:py-1",
   topicTable: "w-full table-fixed text-sm",
   promptTable: "w-full table-fixed text-sm",
 } as const;

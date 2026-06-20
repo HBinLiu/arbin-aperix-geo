@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -13,46 +15,53 @@ from aperix_geo.db.models import (
     Topic,
     User,
 )
-from aperix_geo.schemas.catalog import SetupFinalizeRequest
-from aperix_geo.services.competitor.profile import profile_from_dict, profile_to_dict
+from aperix_geo.schemas.catalog import CompetitorItem, SetupFinalizeBody
 from aperix_geo.services.competitor.persist import apply_competitors
-from aperix_geo.services.sampling.workflow import (
-    DEFAULT_SAMPLING_INTERVAL_HOURS,
-    create_and_enqueue_sampling_job,
-)
+from aperix_geo.services.prompts.taxonomy import normalize_funnel_stage, normalize_search_intent
+from aperix_geo.services.brand.sync import sync_subject_brands_from_setup
 from aperix_geo.services.sampling.platforms import resolve_subject_sampling_platforms
+from aperix_geo.services.sampling.workflow import create_and_enqueue_sampling_job
+from aperix_geo.services.setup.cache import delete_session, get_session
+from aperix_geo.services.competitor.enrich import enrich_confirmed_competitors
 from aperix_geo.services.setup.helpers import (
     company_from_session,
+    confirmed_competitors_from_session,
     profile_summary_from_session,
+    subject_aliases_from_session,
+    subject_summary_from_session,
+    validate_confirmed_competitors,
 )
-from aperix_geo.services.setup.cache import delete_session, get_session
-from aperix_geo.services.prompts.taxonomy import normalize_funnel_stage, normalize_search_intent
 from aperix_geo.services.subject.domain_fields import apply_subject_domain_fields
-from aperix_geo.utils.domains import ensure_brand
 from aperix_geo.services.subject.rules import validate_brand_competitors, validate_subject_fields
-from aperix_geo.utils.coerce import normalize_monitoring_scope
+from aperix_geo.utils.domains import ensure_brand
 from aperix_geo.utils.text import prompt_text_hash
+
+logger = logging.getLogger(__name__)
 
 
 def finalize_setup(
     db: Session,
     *,
     user: User,
-    body: SetupFinalizeRequest,
+    session_id: str,
+    body: SetupFinalizeBody,
 ) -> tuple[Subject, SamplingJob]:
-    setup_session_id = body.setup_session_id.strip()
+    setup_session_id = session_id.strip()
     setup_session = get_session(user_id=str(user.id), session_id=setup_session_id)
     if setup_session is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="setup session not found")
 
     st = SubjectType(setup_session["subject_type"])
     if st == SubjectType.domain:
-        raw_domain = str(setup_session.get("website_url") or setup_session.get("domain") or "").strip()
+        raw_domain = str(setup_session.get("domain") or setup_session.get("target") or "").strip()
+        raw_website = str(setup_session.get("website_url") or setup_session.get("domain") or "").strip()
     else:
         raw_domain = ""
+        raw_website = str(setup_session.get("website_url") or "").strip()
     domain, website_url = apply_subject_domain_fields(
         subject_type=st,
         raw_domain=raw_domain,
+        raw_website_url=raw_website,
     )
 
     topic_items = [t for t in body.topics if t.name.strip()]
@@ -63,12 +72,33 @@ def finalize_setup(
     if prompt_count < 1:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="至少需要一条提示词")
 
-    if st == SubjectType.domain and not any((c.domain or "").strip() for c in body.competitors):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="按网站监测时至少需要一个竞品域名")
-    if st == SubjectType.brand and not any(
-        (c.brand or "").strip() and not (c.domain or "").strip() for c in body.competitors
-    ):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="按品牌监测时至少需要一个竞品品牌")
+    try:
+        session_competitors = confirmed_competitors_from_session(setup_session)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    try:
+        validate_confirmed_competitors(subject_type=st.value, competitors=session_competitors)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    enriched_competitors = enrich_confirmed_competitors(session_competitors, session=setup_session)
+    competitors_for_persist = [
+        CompetitorItem(
+            domain=str(row.get("domain") or ""),
+            website_url=str(row.get("website_url") or ""),
+            brand=str(row.get("brand") or ""),
+            summary=str(row.get("summary") or ""),
+            aliases=list(row.get("aliases") or []),
+            cross_validate_score=(
+                float(row["cross_validate_score"])
+                if row.get("cross_validate_score") is not None
+                else None
+            ),
+            cross_validate_reason=str(row.get("cross_validate_reason") or ""),
+        )
+        for row in enriched_competitors
+    ]
 
     profile_company = company_from_session(setup_session)
     brand_from_session = str(setup_session.get("brand") or "").strip()
@@ -76,19 +106,8 @@ def finalize_setup(
         profile_company or brand_from_session,
         domain=domain if st == SubjectType.domain else None,
     )
-
-    scope = normalize_monitoring_scope(
-        {
-            "region": setup_session.get("region", "CN"),
-            "language": setup_session.get("language", "zh-CN"),
-        }
-    )
-    raw_profile = setup_session.get("profile")
-    if isinstance(raw_profile, dict) and raw_profile:
-        scope = {
-            **scope,
-            "niche_profile": profile_to_dict(profile_from_dict(raw_profile)),
-        }
+    aliases = subject_aliases_from_session(setup_session)
+    niche_profile_data = dict(setup_session.get("profile") or {})
 
     subject = Subject(
         tenant_id=user.tenant_id,
@@ -96,17 +115,18 @@ def finalize_setup(
         domain=domain,
         brand=brand,
         website_url=website_url,
-        aliases=[],
-        monitoring_scope=scope,
+        aliases=aliases,
         profile_summary=profile_summary_from_session(setup_session),
-        sampling_interval=DEFAULT_SAMPLING_INTERVAL_HOURS,
+        summary=subject_summary_from_session(setup_session),
+        niche_profile=niche_profile_data,
     )
     validate_subject_fields(subject)
-    apply_competitors(subject, competitors=body.competitors)
+    apply_competitors(subject, competitors=competitors_for_persist)
     validate_brand_competitors(subject)
 
     db.add(subject)
     db.flush()
+    sync_subject_brands_from_setup(db, subject=subject)
 
     platforms = resolve_subject_sampling_platforms(subject)
     if not platforms:
@@ -165,4 +185,12 @@ def finalize_setup(
     )
     db.refresh(subject)
     delete_session(user_id=str(user.id), session_id=setup_session_id)
+    logger.info(
+        "设置向导·落库 完成 session=%s subject=%s 主题=%d 问句=%d 别名=%d",
+        setup_session_id[:8],
+        subject.id,
+        len(topics),
+        len(prompts),
+        len(aliases),
+    )
     return subject, job

@@ -5,6 +5,12 @@ from aperix_geo.services.favicon._resolve import resolve_favicon_coalesced
 
 
 def test_normalize_favicon_domain() -> None:
+    from aperix_geo.services.favicon._domain import (
+        is_favicon_homepage_url,
+        normalize_favicon_domain,
+        resolve_favicon_request_url,
+    )
+
     assert normalize_favicon_domain("huanqiulvzhou.com") == "huanqiulvzhou.com"
     assert normalize_favicon_domain("example.com") == "example.com"
     assert normalize_favicon_domain("www.Airwallex.com") == "airwallex.com"
@@ -13,6 +19,11 @@ def test_normalize_favicon_domain() -> None:
     assert normalize_favicon_domain("yjj.gxzf.gov.cn") == "yjj.gxzf.gov.cn"
     assert normalize_favicon_domain("m.iefans.net") == "m.iefans.net"
     assert normalize_favicon_domain("https://m.iefans.net/android/1728638.html") == "m.iefans.net"
+
+    resolved = resolve_favicon_request_url("https://geowise.newrank.cn/")
+    assert resolved == ("geowise.newrank.cn", "https://geowise.newrank.cn/")
+    assert is_favicon_homepage_url("https://example.com/", "example.com") is True
+    assert is_favicon_homepage_url("https://m.example.com/article", "example.com") is False
 
 
 def test_favicon_homepage_urls_apex_before_www(monkeypatch) -> None:
@@ -466,12 +477,12 @@ def test_favicon_api_serves_disk_file(tmp_path, monkeypatch) -> None:
     )
 
     client = TestClient(app)
-    ok = client.get("/api/v1/favicon?domain=static-api.example.com")
+    ok = client.get("/api/v1/favicon?url=https://static-api.example.com/")
     assert ok.status_code == 200
     assert ok.content == body
     assert ok.headers["content-type"].startswith("image/png")
 
-    miss = client.get("/api/v1/favicon?domain=unknown.example.com")
+    miss = client.get("/api/v1/favicon?url=https://unknown.example.com/")
     assert miss.status_code == 204
 
 

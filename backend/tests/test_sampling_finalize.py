@@ -70,13 +70,12 @@ class _FakeSession:
             row.sampling_job_id = job.id
         self.rows = rows
         self.committed = False
-
-    def get(self, model, ident):  # noqa: ANN001
-        if model is SamplingJob and ident == self.job.id:
-            return self.job
-        return None
+        self._execute_calls = 0
 
     def execute(self, _stmt):  # noqa: ANN001
+        self._execute_calls += 1
+        if self._execute_calls == 1:
+            return _JobResult(self.job)
         return _ScalarResult(self.rows)
 
     def commit(self) -> None:
@@ -85,6 +84,14 @@ class _FakeSession:
     def refresh(self, obj) -> None:  # noqa: ANN001
         if isinstance(obj, SamplingJob):
             obj.updated_at = datetime.now(UTC)
+
+
+class _JobResult:
+    def __init__(self, job: SamplingJob) -> None:
+        self._job = job
+
+    def scalar_one_or_none(self) -> SamplingJob:
+        return self._job
 
 
 class _ScalarResult:

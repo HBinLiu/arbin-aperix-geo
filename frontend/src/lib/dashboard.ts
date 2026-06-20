@@ -20,7 +20,7 @@ export const DASHBOARD_NAV_SECTIONS: DashboardNavSection[] = [
     items: [
       { id: "analysis", label: "分析", icon: BarChart3 },
       { id: "rank", label: "排行榜", icon: Trophy },
-      { id: "opportunity", label: "机会", icon: Lightbulb },
+      { id: "opportunity", label: "潜在机会", icon: Lightbulb },
     ],
   },
   {

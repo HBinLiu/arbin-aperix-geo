@@ -3,7 +3,9 @@ import {
   formatRankMetric,
   formatSentimentScore,
 } from "@/lib/analysis/format";
+import { buildBrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
 import type { RankData } from "@/types";
+import type { ReactNode } from "react";
 
 export type RankBoardSortColumn =
   | "visibility"
@@ -16,6 +18,8 @@ export type RankBoardSortColumn =
 export type RankBoardRow = {
   id: string;
   label: string;
+  domain?: string | null;
+  icon?: ReactNode;
   isOwn: boolean;
   visibility: string;
   visibilityNum: number;
@@ -29,6 +33,7 @@ export type RankBoardRow = {
   citationNum: number;
   sentiment: string;
   sentimentNum: number | null;
+  sentimentLabel: string | null;
 };
 
 function formatShareVoice(value: number | null | undefined): { text: string; num: number | null } {
@@ -53,22 +58,21 @@ function formatSentiment(value: number | null | undefined): {
 }
 
 export function buildRankBoardRows(data: RankData): RankBoardRow[] {
-  const labels = Object.keys(data.visibility_share).sort(
-    (a, b) => (data.visibility_share[b] ?? 0) - (data.visibility_share[a] ?? 0),
-  );
-
-  return labels.map((label) => {
-    const visibilityNum = data.visibility_share[label] ?? 0;
-    const shareVoice = formatShareVoice(data.share_voice[label]);
-    const mentionNum = data.mention_rate[label] ?? 0;
-    const averageRank = formatAverageRank(data.average_rank[label]);
-    const citationNum = data.citation_share?.[label] ?? 0;
-    const sentiment = formatSentiment(data.sentiment_score?.[label]);
+  return data.items.map((item) => {
+    const visibilityNum = item.visibility_rate ?? 0;
+    const shareVoice = formatShareVoice(item.share_voice);
+    const mentionNum = item.mention_rate ?? 0;
+    const averageRank = formatAverageRank(item.average_rank);
+    const citationNum = item.citation_rate ?? 0;
+    const sentiment = formatSentiment(item.sentiment_score);
+    const displayName = item.display_name.trim() || item.label;
 
     return {
-      id: label,
-      label,
-      isOwn: label === data.own_label,
+      id: item.entity_id,
+      label: displayName,
+      domain: item.domain || null,
+      icon: buildBrandRankIcon(item.domain || item.label),
+      isOwn: item.is_own,
       visibility: formatRate(visibilityNum),
       visibilityNum,
       shareVoice: shareVoice.text,
@@ -81,6 +85,7 @@ export function buildRankBoardRows(data: RankData): RankBoardRow[] {
       citationNum,
       sentiment: sentiment.text,
       sentimentNum: sentiment.num,
+      sentimentLabel: item.sentiment_label ?? null,
     };
   });
 }

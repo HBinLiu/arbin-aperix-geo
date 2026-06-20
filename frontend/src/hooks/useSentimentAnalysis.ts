@@ -1,33 +1,30 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { fetchSentimentAnalysis } from "@/api/analysis";
-import { fetchSamplingPlatforms } from "@/api/brand";
-import { dateRangeDays, toAnalysisQueryFilters } from "@/lib/analysis";
+import { platformFilterKey, topicFilterKey, toAnalysisQueryFilters } from "@/lib/analysis";
 import { buildSentimentOverview } from "@/lib/analysis/sentiment";
 import { queryKeys } from "@/lib/queries";
-import type { AnalysisFilters } from "@/types";
+import type { AnalysisEntityRef, AnalysisFilters } from "@/types";
 
-export function useSentimentAnalysis(subjectId: string, filters: AnalysisFilters) {
-  const queryFilters = toAnalysisQueryFilters(filters);
-  const { from, to } = dateRangeDays(Number(filters.days));
-  const { entityId, platformId, topicId } = queryFilters;
+export function useSentimentAnalysis(
+  subjectId: string,
+  filters: AnalysisFilters,
+  entities: AnalysisEntityRef[],
+) {
+  const queryFilters = useMemo(() => toAnalysisQueryFilters(filters), [filters]);
+  const { from, to, entityId, platformIds, topicIds } = queryFilters;
+  const topicKey = topicFilterKey(topicIds);
+  const platformKey = platformFilterKey(platformIds);
 
   const analysisQuery = useQuery({
-    queryKey: queryKeys.sentimentAnalysis(subjectId, entityId, platformId, topicId, from, to),
-    queryFn: () => fetchSentimentAnalysis(subjectId, queryFilters, from, to),
+    queryKey: queryKeys.sentimentAnalysis(subjectId, entityId, platformKey, topicKey, from, to),
+    queryFn: () => fetchSentimentAnalysis(subjectId, queryFilters),
   });
-
-  const platformsMetaQuery = useQuery({
-    queryKey: queryKeys.samplingPlatforms,
-    queryFn: fetchSamplingPlatforms,
-  });
-
-  const data = analysisQuery.data;
-  const platformsMeta = platformsMetaQuery.data ?? [];
 
   return {
-    isLoading: analysisQuery.isLoading || platformsMetaQuery.isLoading,
-    data,
-    overview: buildSentimentOverview(data, platformsMeta),
+    isLoading: analysisQuery.isLoading,
+    data: analysisQuery.data,
+    overview: buildSentimentOverview(analysisQuery.data, entities, entityId),
   };
 }

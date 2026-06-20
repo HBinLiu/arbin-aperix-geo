@@ -63,7 +63,7 @@ export function PlatformMatrixConfig({
     <div ref={rootRef} className="relative shrink-0 self-center">
       <Button
         type="button"
-        variant="primaryOutline"
+        variant="brandout"
         size="sm"
         className="h-9 items-center gap-1.5 px-3"
         aria-expanded={open}

@@ -10,28 +10,54 @@ import {
 import { ColumnHelp } from "@/components/analysis/prompt/PerformanceMetricCells";
 import { PlatformLogo } from "@/components/brand/PlatformLogo";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCitationDomainPrompts } from "@/hooks/useCitationList";
+import { DEFAULT_ANALYSIS_FILTERS } from "@/lib/analysis/filters";
 import { formatRate } from "@/lib/analysis/format";
 import { resolvePlatformMeta } from "@/lib/analysis/shared";
 import { cn } from "@/lib/utils";
-import type { CitationDomainBreakdownRow, SamplingPlatform } from "@/types";
+import type {
+  AnalysisFilters,
+  CitationDomainBreakdownRow,
+  CitationDomainPromptSortField,
+  SamplingPlatform,
+} from "@/types";
 
 const SKELETON_ROWS = 8;
-const TABLE_MIN_HEIGHT = 420;
 const COUNT_DESCRIPTION = "在当前域名下被引用为来源的 AI 生成答案总数。";
-const CITATION_RATE_DESCRIPTION = "在当前域名总引用量中的占比。";
+const CITATION_RATE_DESCRIPTION = "该提示词引用在窗口内全部 AI 回复中的占比。";
 
 type SortKey = "count" | "citation_rate";
 type SortDir = "asc" | "desc";
 type SortState = { key: SortKey; dir: SortDir } | null;
 
+function sortParams(sort: SortState): { sortBy: CitationDomainPromptSortField; order: "asc" | "desc" } {
+  if (!sort) {
+    return { sortBy: "count", order: "desc" };
+  }
+  return { sortBy: sort.key, order: sort.dir };
+}
+
 type CitationDomainBreakdownTableProps = {
-  rows: CitationDomainBreakdownRow[];
   nameHeader: string;
-  loading?: boolean;
   variant?: "text" | "platform";
   platformsMeta?: SamplingPlatform[];
   showTopicColumn?: boolean;
-};
+} & (
+  | {
+      subjectId: string;
+      filters: AnalysisFilters;
+      host: string;
+      rows?: never;
+      loading?: never;
+    }
+  | {
+      rows: CitationDomainBreakdownRow[];
+      loading?: boolean;
+      subjectId?: never;
+      filters?: never;
+      host?: never;
+    }
+);
 
 function cycleSort(prev: SortState, key: SortKey): SortState {
   if (prev?.key !== key) return { key, dir: "desc" };
@@ -111,31 +137,51 @@ function SkeletonRows({ columnCount }: { columnCount: number }) {
   );
 }
 
-export function CitationDomainBreakdownTable({
-  rows,
-  nameHeader,
-  loading = false,
-  variant = "text",
-  platformsMeta = [],
-  showTopicColumn = false,
-}: CitationDomainBreakdownTableProps) {
+export function CitationDomainBreakdownTable(props: CitationDomainBreakdownTableProps) {
+  const {
+    nameHeader,
+    variant = "text",
+    platformsMeta = [],
+    showTopicColumn = false,
+  } = props;
+  const staticMode = "rows" in props && props.rows != null;
+
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
   const [sort, setSort] = useState<SortState>(null);
   const columnCount = showTopicColumn ? 4 : 3;
+  const { sortBy, order } = sortParams(sort);
 
-  const sortedRows = useMemo(
-    () => [...rows].sort((a, b) => compareRows(a, b, sort)),
-    [rows, sort],
+  const remoteQuery = useCitationDomainPrompts(
+    staticMode ? "" : props.subjectId,
+    staticMode ? DEFAULT_ANALYSIS_FILTERS : props.filters,
+    {
+      host: staticMode ? "" : props.host,
+      page,
+      pageSize,
+      sortBy,
+      order,
+      enabled: !staticMode,
+    },
   );
-  const pageRows = useMemo(
+
+  const staticRowsSource = staticMode ? props.rows : null;
+  const sortedRows = useMemo(() => {
+    if (!staticRowsSource) return [];
+    return [...staticRowsSource].sort((a, b) => compareRows(a, b, sort));
+  }, [staticRowsSource, sort]);
+  const staticPageRows = useMemo(
     () => paginateRows(sortedRows, page, pageSize),
     [sortedRows, page, pageSize],
   );
 
+  const isLoading = staticMode ? (props.loading ?? false) : remoteQuery.isLoading;
+  const rows = staticMode ? staticPageRows : remoteQuery.rows;
+  const total = staticMode ? sortedRows.length : remoteQuery.total;
+
   useEffect(() => {
     setPage(1);
-  }, [sort]);
+  }, [sort, pageSize, staticRowsSource, staticMode ? null : props.host, staticMode ? null : props.filters]);
 
   const handlePageSizeChange = (nextPageSize: number) => {
     setPageSize(nextPageSize);
@@ -145,9 +191,9 @@ export function CitationDomainBreakdownTable({
   return (
     <div
       className="border-border overflow-hidden rounded-lg border bg-white"
-      aria-busy={loading}
+      aria-busy={isLoading}
     >
-      <div className="overflow-x-auto" style={{ minHeight: TABLE_MIN_HEIGHT }}>
+      <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] table-fixed text-sm">
           <colgroup>
             {showTopicColumn ? (
@@ -190,20 +236,16 @@ export function CitationDomainBreakdownTable({
             </tr>
           </thead>
           <tbody className="border-border border-t">
-            {loading ? (
+            {isLoading ? (
               <SkeletonRows columnCount={columnCount} />
             ) : rows.length === 0 ? (
               <tr>
-                <td
-                  colSpan={columnCount}
-                  className="text-muted-foreground px-4 text-center align-middle"
-                  style={{ height: TABLE_MIN_HEIGHT - 40 }}
-                >
+                <td colSpan={columnCount} className="text-muted-foreground px-5 py-10 text-center text-sm">
                   暂无数据
                 </td>
               </tr>
             ) : (
-              pageRows.map((row) => {
+              rows.map((row) => {
                 const platformMeta =
                   variant === "platform"
                     ? resolvePlatformMeta(row.id, platformsMeta)
@@ -248,9 +290,9 @@ export function CitationDomainBreakdownTable({
         </table>
       </div>
 
-      {!loading && rows.length > 0 ? (
+      {!isLoading && total > 0 ? (
         <TablePagination
-          total={rows.length}
+          total={total}
           page={page}
           pageSize={pageSize}
           pageSizeOptions={TABLE_PAGE_SIZE_OPTIONS}

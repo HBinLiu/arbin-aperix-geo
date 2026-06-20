@@ -38,8 +38,9 @@ def apply_citation_to_drafts(
     own_draft.has_domain_link = bool(citation.citation_urls_own)
     own_draft.cited_on_source = False
     for draft in drafts:
-        if draft.entity_kind == "competitor":
-            draft.has_domain_link = False
+        if draft.entity_kind in ("competitor", "other"):
+            if draft.entity_kind == "competitor":
+                draft.has_domain_link = False
             draft.cited_on_source = False
 
     for source in citation.citation_sources:
@@ -65,4 +66,11 @@ def apply_citation_to_drafts(
                 continue
             entry_keys = list(entry.terms) or collect_match_terms(entry.brand, entry.label)
             if brand_names_match(entry_keys, page_mentioned):
+                draft.cited_on_source = True
+
+        for draft in drafts:
+            if draft.entity_kind != "other":
+                continue
+            keys = collect_match_terms(draft.entity_label)
+            if brand_names_match(keys, page_mentioned):
                 draft.cited_on_source = True

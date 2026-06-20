@@ -17,16 +17,18 @@ from aperix_geo.db.models import (
 from aperix_geo.schemas.sampling import (
     SamplingJobCreate,
     SamplingJobOut,
+    SamplingJobRetryFailedOut,
     SamplingPlatformOut,
     SampleSyncRequest,
 )
-from aperix_geo.services.sampling.workflow import build_pipeline_status
 from aperix_geo.services.sampling.workflow import (
     SamplingJobError,
+    build_pipeline_status,
     chat_prompt_on_platform,
     enqueue_subject_sampling,
     mark_response_failed,
     resolve_platforms_for_sampling,
+    retry_failed_responses_for_job,
     run_sample,
 )
 from aperix_geo.services.sampling.llm import (
@@ -39,7 +41,7 @@ from aperix_geo.services.sampling.signals import parsed_api_dict
 router = APIRouter(tags=["sampling"])
 
 
-@router.get("/sampling-platforms", response_model=list[SamplingPlatformOut])
+@router.get("/sampling/platforms", response_model=list[SamplingPlatformOut])
 def get_sampling_platforms(current: CurrentUser) -> list[dict[str, str]]:
     _ = current
     return list_sampling_platforms()
@@ -81,6 +83,22 @@ def get_sampling_job(job_id: UUID, db: DbSession, current: CurrentUser) -> Sampl
     if not job or job.tenant_id != current.tenant_id:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
+
+
+@router.post(
+    "/sampling-jobs/{job_id}/retry-failed",
+    response_model=SamplingJobRetryFailedOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def retry_failed_sampling_job(job_id: UUID, db: DbSession, current: CurrentUser) -> SamplingJobRetryFailedOut:
+    job = db.get(SamplingJob, job_id)
+    if not job or job.tenant_id != current.tenant_id:
+        raise HTTPException(status_code=404, detail="Job not found")
+    try:
+        retried_count = retry_failed_responses_for_job(db, job_id)
+    except SamplingJobError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    return SamplingJobRetryFailedOut(job_id=job_id, retried_count=retried_count)
 
 
 @router.get("/sampling-jobs/{job_id}/responses")

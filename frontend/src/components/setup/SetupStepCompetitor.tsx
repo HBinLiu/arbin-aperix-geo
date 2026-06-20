@@ -7,10 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input, InputGroup } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  displayNameFromDomainInput,
   MAX_SETUP_COMPETITORS,
   newCompetitorRow,
 } from "@/lib/setup";
-import { registrableDomain } from "@/lib/domain";
+import { registrableDomain, websiteUrlFromInput } from "@/lib/domain";
+import { faviconUrlFromWebsite } from "@/lib/favicon";
 import type { CompetitorRow, SubjectMode } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -79,7 +81,9 @@ function CompetitorDomainTable({
       </div>
 
       <div className={cn("col-span-full grid gap-x-4 gap-y-2 pl-2", COMPETITOR_COLS)}>
-        {rows.map((row) => (
+        {rows.map((row) => {
+          const faviconUrl = faviconUrlFromWebsite(row.websiteUrl, row.domain);
+          return (
           <React.Fragment key={row.id}>
             <InputGroup className="col-span-2 grid h-9 grid-cols-subgrid">
               <Input
@@ -92,7 +96,11 @@ function CompetitorDomainTable({
               />
               <div className="border-input relative min-w-0 border-l">
                 <div className="pointer-events-none absolute top-1/2 left-2.5 flex -translate-y-1/2 items-center">
-                  <FaviconImage domain={row.domain} size={20} iconClassName="size-5" />
+                  {faviconUrl ? (
+                    <FaviconImage url={faviconUrl} size={20} iconClassName="size-5" />
+                  ) : (
+                    <Globe className="text-muted-foreground size-5" aria-hidden />
+                  )}
                 </div>
                 <Input
                   variant="merged"
@@ -100,10 +108,13 @@ function CompetitorDomainTable({
                   value={row.domain}
                   onChange={(e) => onUpdateRow(row.id, { domain: e.target.value })}
                   onBlur={(e) => {
-                    const main = registrableDomain(e.target.value);
-                    if (main && main !== row.domain) {
-                      onUpdateRow(row.id, { domain: main });
-                    }
+                    const raw = e.target.value.trim();
+                    const main = registrableDomain(raw);
+                    if (!main) return;
+                    onUpdateRow(row.id, {
+                      domain: main,
+                      websiteUrl: websiteUrlFromInput(raw) || `https://${main}/`,
+                    });
                   }}
                   placeholder="主域名"
                   aria-label={`${row.name || "竞品"} 主域名`}
@@ -134,7 +145,8 @@ function CompetitorDomainTable({
               </div>
             </div>
           </React.Fragment>
-        ))}
+          );
+        })}
       </div>
 
       {!atMax ? (
@@ -268,7 +280,8 @@ export function SetupStepCompetitor({ mode, rows, onChange }: SetupStepCompetito
   };
 
   const addFromDraft = () => {
-    const main = registrableDomain(draftDomain);
+    const raw = draftDomain.trim();
+    const main = registrableDomain(raw);
     if (!main || main.length < 3 || atMax) return;
     if (rows.some((r) => registrableDomain(r.domain) === main)) {
       setDraftDomain("");
@@ -277,8 +290,9 @@ export function SetupStepCompetitor({ mode, rows, onChange }: SetupStepCompetito
     onChange([
       ...rows,
       newCompetitorRow({
-        name: main,
+        name: displayNameFromDomainInput(main),
         domain: main,
+        websiteUrl: websiteUrlFromInput(raw) || `https://${main}/`,
         selected: true,
       }),
     ]);

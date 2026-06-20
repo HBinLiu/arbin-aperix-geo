@@ -12,7 +12,7 @@ from aperix_geo.services.crawl.metadata import SeoProfile, extract_page_metadata
 from aperix_geo.services.crawl.settings import PageCrawlSettings
 from aperix_geo.utils.domains import registrable_domain
 from aperix_geo.utils.text import truncate_text
-from aperix_geo.utils.url import hostname_from_url
+from aperix_geo.utils.url import filter_citation_urls, hostname_from_url, is_valid_citation_host
 
 
 @dataclass
@@ -26,6 +26,8 @@ class CitationPageMeta:
     has_table: bool = False
     has_code_block: bool = False
     text_snippet: str = ""
+    schema_types: list[str] = field(default_factory=list)
+    content_type: str = ""
     fetch_ok: bool = False
     fetch_source: str = "none"
 
@@ -44,6 +46,8 @@ class CitationPageMeta:
             "has_table": self.has_table,
             "has_code_block": self.has_code_block,
             "text_snippet": self.text_snippet,
+            "schema_types": list(self.schema_types),
+            "content_type": self.content_type,
             "fetch_ok": self.fetch_ok,
             "fetch_source": self.fetch_source,
         }
@@ -60,6 +64,8 @@ class CitationPageMeta:
             has_table=bool(data.get("has_table")),
             has_code_block=bool(data.get("has_code_block")),
             text_snippet=str(data.get("text_snippet") or ""),
+            schema_types=list(data.get("schema_types") or []),
+            content_type=str(data.get("content_type") or ""),
             fetch_ok=bool(data.get("fetch_ok")),
             fetch_source=str(data.get("fetch_source") or "none"),
         )
@@ -88,7 +94,8 @@ def fetch_citation_page_meta(
 
     key = url.strip()
     domain = _primary_domain(key)
-    if not key:
+    host = hostname_from_url(key)
+    if not key or not is_valid_citation_host(host):
         return CitationPageMeta(url=key, domain=domain)
 
     if sampling_job_id is not None:
@@ -129,6 +136,8 @@ def fetch_citation_page_meta(
     if parsed.body_text:
         snippet_parts.append(parsed.body_text)
     meta.text_snippet = truncate_text("\n\n".join(snippet_parts), snippet_chars) if snippet_parts else ""
+    meta.schema_types = list(parsed.schema_types)
+    meta.content_type = parsed.content_type
     meta.fetch_ok = parsed.has_content()
 
     if sampling_job_id is not None:

@@ -28,7 +28,13 @@ from aperix_geo.services.sampling.workflow import (
     mark_response_failed,
     pending_response_id_strs,
     reconcile_stale_sampling_jobs,
-    run_sample,
+)
+from aperix_geo.services.sampling.workflow.claim import release_response_claim, try_claim_response
+from aperix_geo.services.sampling.workflow.dispatch import try_schedule_sampling_chord_dispatch
+from aperix_geo.services.sampling.workflow.execute import (
+    execute_sample_without_row_lock,
+    mark_response_failed_if_pending,
+    persist_sample_if_pending,
 )
 from aperix_geo.services.sampling.cache import (
     load_prompt_text_cached,
@@ -50,6 +56,8 @@ def _dispatch_response_chord(job_id: str, response_ids: list[str]) -> None:
     if not response_ids:
         sampling_finalize_job.apply(args=[[], job_id])
         return
+    if not try_schedule_sampling_chord_dispatch(UUID(job_id), response_ids):
+        return
     header = group(sample_one_prompt.s(response_id) for response_id in response_ids)
     chord(header)(sampling_finalize_job.s(job_id))
 
@@ -59,11 +67,18 @@ def sample_one_prompt(self, response_id: str) -> dict:
     """Fetch one LLMResponse row, call LLM, parse, persist."""
     rid = UUID(response_id)
     db = SessionLocal()
+    platform = ""
+    prompt_text = ""
+    subject = None
+    sampling_job_id: UUID | None = None
     try:
-        row = db.get(LLMResponse, rid)
+        row = db.execute(
+            select(LLMResponse).where(LLMResponse.id == rid).with_for_update()
+        ).scalar_one_or_none()
         if not row:
             return {"ok": False, "error": "missing response row"}
         if row.status != LLMResponseStatus.pending:
+            db.commit()
             return {"ok": True, "skipped": True}
 
         try:
@@ -92,23 +107,46 @@ def sample_one_prompt(self, response_id: str) -> dict:
             db.commit()
             return {"ok": False}
 
-        try:
-            run_sample(db, row=row, subject=subject, prompt_text=prompt_text)
-        except SamplingLLMError as e:
-            _retry_if_transient(self, e)
-            mark_response_failed(db, row=row, error_text=str(e))
-            db.commit()
-            return {"ok": False, "error": str(e)}
-        except Exception as e:
-            mark_response_failed(db, row=row, error_text=str(e))
-            db.commit()
-            return {"ok": False, "error": str(e)}
-
+        platform = row.platform
+        sampling_job_id = row.sampling_job_id
         db.commit()
-        from aperix_geo.services.brand.backfill import maybe_enqueue_brand_domain_backfill
 
-        maybe_enqueue_brand_domain_backfill(row.id)
-        return {"ok": True}
+        if not try_claim_response(rid):
+            return {"ok": True, "skipped": True, "reason": "claimed"}
+
+        try:
+            try:
+                result, parsed = execute_sample_without_row_lock(
+                    platform=platform,
+                    prompt_text=prompt_text,
+                    subject=subject,
+                    sampling_job_id=sampling_job_id,
+                    db=db,
+                )
+            except SamplingLLMError as e:
+                _retry_if_transient(self, e)
+                mark_response_failed_if_pending(db, response_id=rid, error_text=str(e))
+                return {"ok": False, "error": str(e)}
+            except Exception as e:
+                db.rollback()
+                mark_response_failed_if_pending(db, response_id=rid, error_text=str(e))
+                return {"ok": False, "error": str(e)}
+
+            if not persist_sample_if_pending(
+                db,
+                response_id=rid,
+                result=result,
+                parsed=parsed,
+                subject=subject,
+            ):
+                return {"ok": True, "skipped": True, "reason": "no_longer_pending"}
+
+            from aperix_geo.services.brand.backfill import maybe_enqueue_brand_domain_backfill
+
+            maybe_enqueue_brand_domain_backfill(rid)
+            return {"ok": True}
+        finally:
+            release_response_claim(rid)
     finally:
         db.close()
 
@@ -192,7 +230,7 @@ def sampling_recover_stale_jobs(*, force: bool = False) -> dict:
 
 @celery_app.task
 def sampling_scheduled_tick() -> dict:
-    """Enqueue sampling jobs for subjects whose interval has elapsed."""
+    """Enqueue daily sampling jobs for subjects past today's slot and not yet sampled."""
     db = SessionLocal()
     enqueued = 0
     skipped = 0

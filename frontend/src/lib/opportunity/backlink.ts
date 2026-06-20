@@ -1,20 +1,21 @@
 import type { CSSProperties } from "react";
 
-import type { BacklinkOpportunityItem, OpportunityPriority } from "@/types";
+import type { BacklinkOpportunityDetailTab, BacklinkOpportunityItem, BacklinkOpportunitySortField, OpportunityPriority } from "@/types";
 
 export type BacklinkOpportunityColumn = {
-  id: "domain" | "priority" | "domainType" | "platform" | "promptCount" | "chatCount";
+  id: "domain" | "priority" | "domainType" | "platform" | "citationCount" | "promptCount" | "chatCount";
   width: string;
   minWidth: number;
 };
 
 export const BACKLINK_OPPORTUNITY_COLUMNS: readonly BacklinkOpportunityColumn[] = [
-  { id: "domain", width: "32%", minWidth: 200 },
-  { id: "priority", width: "10%", minWidth: 96 },
-  { id: "domainType", width: "14%", minWidth: 120 },
-  { id: "platform", width: "12%", minWidth: 104 },
-  { id: "promptCount", width: "16%", minWidth: 112 },
-  { id: "chatCount", width: "16%", minWidth: 112 },
+  { id: "domain", width: "25%", minWidth: 200 },
+  { id: "priority", width: "12%", minWidth: 100 },
+  { id: "domainType", width: "13%", minWidth: 120 },
+  { id: "platform", width: "14%", minWidth: 180 },
+  { id: "citationCount", width: "12%", minWidth: 120 },
+  { id: "promptCount", width: "12%", minWidth: 120 },
+  { id: "chatCount", width: "12%", minWidth: 120 },
 ];
 
 export const BACKLINK_OPPORTUNITY_MIN_WIDTH = BACKLINK_OPPORTUNITY_COLUMNS.reduce(
@@ -40,7 +41,8 @@ export type BacklinkOpportunityRow = {
   priority: OpportunityPriority;
   priorityLabel: string;
   domainType: string;
-  platform: string;
+  platforms: string[];
+  citationCount: number;
   promptCount: number;
   chatCount: number;
 };
@@ -51,16 +53,16 @@ const PRIORITY_LABELS: Record<OpportunityPriority, string> = {
   low: "低",
 };
 
-const PRIORITY_ORDER: Record<OpportunityPriority, number> = {
-  high: 0,
-  medium: 1,
-  low: 2,
-};
+export function backlinkPriorityLabel(priority: OpportunityPriority): string {
+  return PRIORITY_LABELS[priority];
+}
 
-const DOMAIN_TYPE_LABELS: Record<BacklinkOpportunityItem["domain_type"], string> = {
-  enterprise: "企业/品牌官网",
-  other: "其他",
-};
+export const BACKLINK_OPPORTUNITY_DETAIL_TABS: { id: BacklinkOpportunityDetailTab; label: string }[] = [
+  { id: "pages", label: "引用率" },
+  { id: "prompt", label: "提示词" },
+];
+
+const DOMAIN_TYPE_FALLBACK = "其它类型";
 
 export function buildBacklinkOpportunityRows(items: BacklinkOpportunityItem[]): BacklinkOpportunityRow[] {
   return items.map((item) => ({
@@ -68,36 +70,31 @@ export function buildBacklinkOpportunityRows(items: BacklinkOpportunityItem[]): 
     host: item.host,
     priority: item.priority,
     priorityLabel: PRIORITY_LABELS[item.priority],
-    domainType: DOMAIN_TYPE_LABELS[item.domain_type],
-    platform: item.platform,
+    domainType: item.domain_type?.trim() || DOMAIN_TYPE_FALLBACK,
+    platforms: item.platforms,
+    citationCount: item.citation_count,
     promptCount: item.prompt_count,
     chatCount: item.chat_count,
   }));
 }
 
-export type BacklinkOpportunitySortColumn = "priority" | "promptCount" | "chatCount";
+export type BacklinkOpportunitySortColumn =
+  | "priority"
+  | "citationCount"
+  | "promptCount"
+  | "chatCount";
 
-export function sortBacklinkOpportunityRows(
-  rows: BacklinkOpportunityRow[],
+export function backlinkOpportunitySortToApiField(
   column: BacklinkOpportunitySortColumn,
   dir: "asc" | "desc",
-): BacklinkOpportunityRow[] {
-  const sign = dir === "asc" ? 1 : -1;
-
-  const valueOf = (row: BacklinkOpportunityRow): number => {
-    if (column === "priority") return PRIORITY_ORDER[row.priority];
-    if (column === "promptCount") return row.promptCount;
-    return row.chatCount;
-  };
-
-  return [...rows].sort((a, b) => (valueOf(a) - valueOf(b)) * sign);
-}
-
-export function filterBacklinkOpportunityRows(
-  rows: BacklinkOpportunityRow[],
-  search: string,
-): BacklinkOpportunityRow[] {
-  const query = search.trim().toLowerCase();
-  if (!query) return rows;
-  return rows.filter((row) => row.host.toLowerCase().includes(query));
+): { sortBy: BacklinkOpportunitySortField; order: "asc" | "desc" } {
+  const sortBy: BacklinkOpportunitySortField =
+    column === "citationCount"
+      ? "citation_count"
+      : column === "promptCount"
+        ? "prompt_count"
+        : column === "chatCount"
+          ? "chat_count"
+          : "priority";
+  return { sortBy, order: dir };
 }

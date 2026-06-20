@@ -18,6 +18,7 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup, SoupStrainer
 
 from aperix_geo.utils.html import _meta_content, _normalize_text
+from aperix_geo.utils.text import is_template_title
 
 _HEAD_SEO_STRAINER = SoupStrainer(["title", "meta", "link"])
 _JSON_LD_TYPE = re.compile(r"application/ld\+json", re.I)
@@ -671,8 +672,12 @@ def parse_seo_from_html(
     title = ""
     if soup.title:
         title = _normalize_text(soup.title.get_text(), limit=500)
+    if title and is_template_title(title):
+        title = ""
     if not title:
         title = _first_meta(soup, "og:title", "twitter:title")
+    if title and is_template_title(title):
+        title = ""
 
     description = _first_meta(
         soup,

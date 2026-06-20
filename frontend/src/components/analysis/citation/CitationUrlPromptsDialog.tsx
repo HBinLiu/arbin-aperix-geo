@@ -1,3 +1,4 @@
+import { citationUrlDisplayTitle } from "@/lib/analysis/citation";
 import { FaviconImage } from "@/components/common/FaviconImage";
 import {
   Dialog,
@@ -20,8 +21,7 @@ export function CitationUrlPromptsDialog({
 }: CitationUrlPromptsDialogProps) {
   if (!row) return null;
 
-  const displayHost = row.host || row.url;
-  const title = row.title || row.url;
+  const title = citationUrlDisplayTitle(row.title, row.url);
   const prompts = row.citing_prompts ?? [];
 
   return (
@@ -38,12 +38,7 @@ export function CitationUrlPromptsDialog({
         </div>
 
         <div className="flex min-w-0 items-center gap-2.5 px-6 pb-4">
-          <FaviconImage
-            domain={displayHost}
-            pageUrl={row.url}
-            size={20}
-            className="size-5 shrink-0 rounded-sm"
-          />
+          <FaviconImage url={row.url} size={20} className="size-5 shrink-0 rounded-sm" />
           <p className="min-w-0 truncate font-medium text-foreground">{title}</p>
         </div>
 

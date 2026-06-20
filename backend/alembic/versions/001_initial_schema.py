@@ -335,7 +335,7 @@ def upgrade() -> None:
         sa.Column("mention_count", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("mention_rank", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("sentiment_score", sa.Float(), nullable=False, server_default="-1"),
-        sa.Column("sentiment_label", sa.String(16), nullable=False, server_default="neutral"),
+        sa.Column("sentiment_reason", sa.Text(), nullable=False, server_default=""),
         sa.Column("has_domain_link", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("cited_on_source", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("created_at", _TS, nullable=False, server_default=_NOW),

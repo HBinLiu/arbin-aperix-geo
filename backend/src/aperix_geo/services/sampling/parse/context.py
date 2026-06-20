@@ -1,10 +1,11 @@
-"""Build parse context: URLs, mention drafts, citation/ABSA kwargs."""
+"""Phase 1 — extract: URLs, mention drafts, citation/ABSA inputs."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 from uuid import UUID
+
+from sqlalchemy.orm import Session
 
 from aperix_geo.config import get_settings
 from aperix_geo.db.models import Subject
@@ -17,6 +18,8 @@ from aperix_geo.services.sampling.mentions import (
     absa_competitor_keys,
     own_names,
 )
+from aperix_geo.services.sampling.parse.types import CitationParseParams
+from aperix_geo.services.sampling.response_absa import response_absa_needed
 from aperix_geo.services.sampling.signal_draft import (
     EntitySignalDraft,
     build_mention_entity_signals,
@@ -35,12 +38,13 @@ class ParseContext:
     competitor_brand_names: list[str]
     competitor_absa_keys: list[tuple[str, str]]
     configured_brand_keys: frozenset[str]
-    citation_kwargs: dict[str, Any]
+    citation: CitationParseParams
     absa_needed: bool
     absa_cache_ttl_s: int
     web_search_mode: str
     source_urls: list[str] | None
     subject: Subject
+    db: Session | None = None
 
 
 def extract_citation_urls(raw_text: str, source_urls: list[str] | None) -> tuple[list[str], list[str]]:
@@ -55,13 +59,14 @@ def extract_citation_urls(raw_text: str, source_urls: list[str] | None) -> tuple
     return urls, url_hosts
 
 
-def build_parse_context(
+def extract_parse_context(
     raw_text: str,
     *,
     subject: Subject,
     source_urls: list[str] | None,
     web_search_mode: str,
     sampling_job_id: UUID | None,
+    db: Session | None = None,
 ) -> ParseContext:
     text = raw_text or ""
     urls, url_hosts = extract_citation_urls(text, source_urls)
@@ -82,14 +87,20 @@ def build_parse_context(
     settings = get_settings()
     crawl = page_crawl_settings(settings)
     llm_key = settings.deepseek_api_key.strip()
-    absa_needed = bool(text.strip()) and bool(llm_key)
+    absa_needed = response_absa_needed(
+        llm_configured=bool(llm_key),
+        text=text,
+        entity_signals=entity_signals,
+        urls=urls,
+    )
 
-    citation_kwargs = dict(
+    citation_params = CitationParseParams(
         urls=urls,
         root=citation_root(subject),
         own_names=own_names(subject),
         own_brand=own_brand,
         competitors=competitors,
+        entity_signals=entity_signals,
         crawl=crawl,
         snippet_chars=settings.citation_text_snippet_chars,
         llm_enabled=settings.citation_page_geo_llm_enabled and bool(llm_key),
@@ -108,10 +119,31 @@ def build_parse_context(
         competitor_brand_names=competitor_brand_names,
         competitor_absa_keys=competitor_absa_keys,
         configured_brand_keys=brand_keys,
-        citation_kwargs=citation_kwargs,
+        citation=citation_params,
         absa_needed=absa_needed,
         absa_cache_ttl_s=settings.citation_response_absa_cache_ttl_s,
         web_search_mode=web_search_mode,
         source_urls=source_urls,
         subject=subject,
+        db=db,
+    )
+
+
+def build_parse_context(
+    raw_text: str,
+    *,
+    subject: Subject,
+    source_urls: list[str] | None,
+    web_search_mode: str,
+    sampling_job_id: UUID | None,
+    db: Session | None = None,
+) -> ParseContext:
+    """Alias for :func:`extract_parse_context` (legacy name)."""
+    return extract_parse_context(
+        raw_text,
+        subject=subject,
+        source_urls=source_urls,
+        web_search_mode=web_search_mode,
+        sampling_job_id=sampling_job_id,
+        db=db,
     )

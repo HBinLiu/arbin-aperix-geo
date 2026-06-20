@@ -17,3 +17,6 @@ class BrandSyncEntity:
     website_url: str = ""
     aliases: tuple[str, ...] = ()
     summary: str = ""
+    source: str = ""
+    cross_validate_score: float | None = None
+    cross_validate_reason: str = ""

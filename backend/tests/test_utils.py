@@ -23,6 +23,7 @@ from aperix_geo.utils.url import (
     host_matches_root,
     hostname_from_url,
     is_placeholder_citation_host,
+    is_valid_citation_host,
     normalize_domain,
 )
 
@@ -101,10 +102,35 @@ def test_is_placeholder_citation_host() -> None:
     assert not is_placeholder_citation_host("11467.com")
 
 
+def test_is_valid_citation_host_rejects_numeric_scores() -> None:
+    assert not is_valid_citation_host("9.8")
+    assert not is_valid_citation_host("9.5")
+    assert not is_valid_citation_host("9.2")
+    assert not is_valid_citation_host("0.5")
+    assert not is_valid_citation_host("1.75")
+    assert not is_valid_citation_host("0.0.0.5")
+    assert not is_valid_citation_host("3.0.0.1")
+    assert is_valid_citation_host("wise.com")
+    assert is_valid_citation_host("11467.com")
+
+
+def test_is_llm_numeric_fake_url() -> None:
+    from aperix_geo.utils.url import is_llm_numeric_fake_url
+
+    assert is_llm_numeric_fake_url("https://0.5/")
+    assert is_llm_numeric_fake_url("https://1.75/")
+    assert is_llm_numeric_fake_url("https://0.0.0.5/")
+    assert not is_llm_numeric_fake_url("https://wise.com/page")
+    assert not is_llm_numeric_fake_url("https://example.com/page")
+    assert not is_llm_numeric_fake_url("/relative/path")
+
+
 def test_filter_citation_urls() -> None:
     urls = filter_citation_urls(
         [
             "https://example.com/a",
+            "https://9.8/",
+            "https://9.5/path",
             "https://wise.com/b",
             "https://wise.com/b",
         ]

@@ -1,4 +1,4 @@
-"""Setup Step2 竞品搜索结果 session 缓存。"""
+"""Setup session 竞品列表：discover 写入候选，topics 覆盖为用户确认 enrich 结果。"""
 
 from __future__ import annotations
 
@@ -7,17 +7,17 @@ import json
 from typing import Any
 
 
-def competitors_search_fingerprint(
+def competitors_search_hash(
     *,
     subject_type: str,
     target: str,
-    micro_keywords: list[str],
+    keywords: list[str],
 ) -> str:
-    """检索词未变时复用 Step2 竞品搜索结果。"""
+    """检索词未变时复用 discover 竞品搜索结果。"""
     payload = {
         "subject_type": subject_type,
         "target": target.strip(),
-        "micro_keywords": sorted(k.strip() for k in micro_keywords if k.strip()),
+        "keywords": sorted(k.strip() for k in keywords if k.strip()),
     }
     raw = json.dumps(payload, ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
@@ -26,37 +26,31 @@ def competitors_search_fingerprint(
 def cached_competitors_result(
     session: dict[str, Any],
     *,
-    fingerprint: str,
+    competitors_hash: str,
 ) -> dict[str, Any] | None:
-    if session.get("competitors_fingerprint") != fingerprint:
+    if session.get("competitors_hash") != competitors_hash:
         return None
-    competitors = session.get("competitors_cache")
-    profile_summary = str(session.get("profile_summary") or "").strip()
-    if not isinstance(competitors, list) or not competitors or not profile_summary:
+    competitors = session.get("competitors")
+    if not isinstance(competitors, list) or not competitors:
         return None
-    return {
-        "competitors": competitors,
-        "profile_summary": profile_summary,
-    }
+    return {"competitors": competitors}
 
 
 def session_patch_after_competitors(
     *,
     profile_dict: dict[str, Any],
     keywords: list[str],
-    confirmed_topics: list[str],
-    profile_summary: str,
-    fingerprint: str,
+    competitors_hash: str,
     competitors: list[dict[str, Any]],
 ) -> dict[str, Any]:
     return {
         "profile": profile_dict,
-        "micro_keywords": keywords,
-        "monitoring_topics": confirmed_topics,
-        "profile_summary": profile_summary,
-        "competitors_fingerprint": fingerprint,
-        "competitors_cache": competitors,
-        "research_payload": None,
-        "prompts_fingerprint": None,
+        "keywords": keywords,
+        "competitors_hash": competitors_hash,
+        "competitors": competitors,
+        "profile_summary": "",
+        "confirmed_competitors_hash": None,
+        "monitoring_topics": [],
+        "prompts_hash": None,
         "prompts_cache": None,
     }

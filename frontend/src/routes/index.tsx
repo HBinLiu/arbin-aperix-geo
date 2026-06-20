@@ -18,6 +18,8 @@ import {
   BrandRoute,
   DiagnosisRoute,
   OpportunityRoute,
+  OpportunityContentDetailRoute,
+  OpportunityBacklinkDetailRoute,
   OverviewRoute,
   PromptRoute,
   RankRoute,
@@ -63,6 +65,8 @@ export function AppRoutes() {
             <Route path="rank" element={<RankRoute />} />
             <Route path="opportunity">
               <Route index element={<Navigate to="content" replace />} />
+              <Route path="content/:promptId" element={<OpportunityContentDetailRoute />} />
+              <Route path="backlink/:host" element={<OpportunityBacklinkDetailRoute />} />
               <Route path=":tab" element={<OpportunityRoute />} />
             </Route>
             <Route path="agent" element={<AgentRoute />} />

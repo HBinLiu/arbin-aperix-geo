@@ -67,7 +67,7 @@ def sync_brands_for_drafts(
     entities = [brand_sync_entity_for_draft(subject, draft) for draft in drafts]
     return sync_brands_for_entities(
         db,
-        tenant_id=subject.tenant_id,
+        subject_id=subject.id,
         entities=entities,
         raw_text=raw_text,
         urls=urls,

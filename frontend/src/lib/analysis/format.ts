@@ -21,7 +21,7 @@ export function formatDelta(
 }
 
 export function isNeutralDelta(delta: string | null | undefined): boolean {
-  return delta === "0%" || delta === "0.00";
+  return delta === "0%" || delta === "0.00" || delta === "0.0" || delta === "0";
 }
 
 export function formatRate(value: number | null | undefined, suffix = "%"): string {

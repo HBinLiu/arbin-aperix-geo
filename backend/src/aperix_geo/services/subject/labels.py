@@ -24,6 +24,16 @@ def competitor_rank_label(*, brand: str = "", domain: str = "") -> str:
     return brand.strip()
 
 
+def competitor_rank_domain(*, domain: str = "") -> str:
+    if not domain.strip():
+        return ""
+    return registrable_domain(domain.strip()) or domain.strip()
+
+
+def subject_rank_domain(subject: Subject) -> str:
+    return _subject_rank_domain(subject)
+
+
 def own_label(subject: Subject) -> str:
     domain = _subject_rank_domain(subject)
     if domain:

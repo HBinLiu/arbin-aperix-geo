@@ -33,8 +33,17 @@
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
 
+  --doubao: #3370ff;
+  --deepseek: #5471fa;
+  --yuanbao: #00cd70;
+  --qianwen: #634cf2;
+  --kimi: #202010;
+  --ernie: #1C9EFC;
+
+  --info: #0284c7;
   --error: #dc2626;
   --success: #16a34a;
+  --warning: #d97706;
 
   --border: #e4e4e4;
   --input: #e4e4e4;
@@ -107,8 +116,17 @@
   --destructive: #b91c1c;
   --destructive-foreground: #ffffff;
 
+  --doubao: #3370ff;
+  --deepseek: #5471fa;
+  --yuanbao: #00cd70;
+  --qianwen: #634cf2;
+  --kimi: #202010;
+  --ernie: #1C9EFC;
+
+  --info: #0284c7;
   --error: #b91c1c;
   --success: #16a34a;
+  --warning: #d97706;
 
   --border: #2a3444;
   --input: #2a3444;

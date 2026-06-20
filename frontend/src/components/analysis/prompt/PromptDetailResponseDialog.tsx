@@ -4,6 +4,7 @@ import { Check, Copy, UserRound } from "lucide-react";
 
 import { fetchLlmResponse } from "@/api/responses";
 import { BrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
+import { SentimentValue } from "@/components/analysis/sentiment/SentimentValue";
 import { PlatformLogo } from "@/components/brand/PlatformLogo";
 import { FaviconImage } from "@/components/common/FaviconImage";
 import {
@@ -73,7 +74,7 @@ function UserPromptAvatar() {
 function UserPromptMessage({ text }: { text: string }) {
   return (
     <div className="flex w-full items-start justify-end gap-2.5">
-      <p className="bg-muted max-w-[85%] rounded-lg px-3 py-2 text-left text-sm leading-6 whitespace-pre-wrap">
+      <p className="bg-muted max-w-[85%] rounded-lg px-3 py-2 text-left text-sm font-medium leading-6 whitespace-pre-wrap">
         {text.trim() || "—"}
       </p>
       <UserPromptAvatar />
@@ -98,6 +99,8 @@ function ChatMessageRow({
 
 const SCROLL_FADE_SIZE = "h-5";
 const SCROLL_FADE_THRESHOLD = 2;
+/** 固定弹窗主体高度，避免加载前后布局跳动 */
+const DIALOG_HEIGHT_CLASS = "h-[82vh] max-h-[82vh]";
 
 function SidebarSection({
   title,
@@ -196,7 +199,10 @@ export function PromptDetailResponseDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="flex max-h-[82vh] max-w-5xl flex-col overflow-hidden rounded-xl p-0 [--tw-enter-scale:1] [--tw-exit-scale:1]"
+        className={cn(
+          "flex w-full max-w-5xl flex-col overflow-hidden rounded-xl p-0 [--tw-enter-scale:1] [--tw-exit-scale:1]",
+          DIALOG_HEIGHT_CLASS,
+        )}
         aria-labelledby="prompt-detail-response-dialog-title"
       >
         <div className="border-border flex shrink-0 items-center justify-between gap-3 border-b px-5 py-4">
@@ -218,10 +224,10 @@ export function PromptDetailResponseDialog({
           <DialogClose className="shrink-0" />
         </div>
 
-        <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,7fr)_minmax(240px,3fr)]">
-          <div className="min-h-0 overflow-y-auto px-5 py-4">
+        <div className="grid min-h-0 flex-1 overflow-hidden lg:grid-cols-[minmax(0,7fr)_minmax(240px,3fr)]">
+          <div className="min-h-0 overflow-y-auto overscroll-contain px-5 py-4">
             {detailQuery.isLoading ? (
-              <div className="space-y-6 text-left">
+              <div className="flex min-h-full flex-col space-y-6 text-left">
                 <div className="flex items-start justify-end gap-2.5">
                   <Skeleton className="h-10 w-4/5 max-w-sm rounded-lg" />
                   <Skeleton className="size-10 shrink-0 rounded-full" />
@@ -236,7 +242,9 @@ export function PromptDetailResponseDialog({
                 </div>
               </div>
             ) : detailQuery.isError ? (
-              <p className="text-muted-foreground text-sm">加载回复详情失败，请稍后重试。</p>
+              <div className="flex min-h-full items-start">
+                <p className="text-muted-foreground text-sm">加载回复详情失败，请稍后重试。</p>
+              </div>
             ) : (
               <div className="space-y-6 text-left">
                 <UserPromptMessage text={promptText} />
@@ -260,7 +268,7 @@ export function PromptDetailResponseDialog({
             )}
           </div>
 
-          <aside className="border-border flex min-h-0 flex-col gap-4 border-t px-4 py-4 lg:border-t-0 lg:border-l">
+          <aside className="border-border flex min-h-0 flex-col gap-4 overflow-hidden border-t px-4 py-4 lg:border-t-0 lg:border-l">
             <SidebarSection title="提及品牌">
               {detailQuery.isLoading ? (
                 <div className="space-y-3">
@@ -276,10 +284,11 @@ export function PromptDetailResponseDialog({
                     <li key={item.label} className="flex items-center gap-2 rounded-md py-1">
                       <BrandRankIcon label={item.iconLabel} size="sm" />
                       <span className="min-w-0 flex-1 truncate text-sm font-medium">{item.label}</span>
-                      <span className="inline-flex items-center gap-1.5 text-sm font-semibold tabular-nums">
-                        <span className="bg-orange-500 size-2 shrink-0 rounded-full" aria-hidden />
-                        {item.scoreLabel}
-                      </span>
+                      <SentimentValue
+                        value={item.scoreLabel}
+                        label={item.sentimentLabel}
+                        className="text-sm font-semibold"
+                      />
                     </li>
                   ))}
                 </ul>
@@ -305,8 +314,7 @@ export function PromptDetailResponseDialog({
                       <div className="min-w-0">
                         <div className="flex min-w-0 items-center gap-2">
                           <FaviconImage
-                            domain={source.host}
-                            pageUrl={source.url}
+                            url={source.url}
                             size={16}
                             className="size-4 shrink-0 rounded-sm"
                           />

@@ -22,14 +22,24 @@ function MetricHelp({ label, description }: { label: string; description: string
   return (
     <Tooltip open={open} onOpenChange={setOpen}>
       <TooltipTrigger asChild>
-        <button
-          type="button"
+        <span
+          role="button"
+          tabIndex={0}
           className="text-muted-foreground hover:text-foreground inline-flex shrink-0 rounded-sm transition-colors"
           aria-label={`了解${label}`}
-          onClick={() => setOpen((prev) => !prev)}
+          onClick={(event) => {
+            event.stopPropagation();
+            setOpen((prev) => !prev);
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            event.stopPropagation();
+            setOpen((prev) => !prev);
+          }}
         >
           <CircleHelp className="size-4" aria-hidden />
-        </button>
+        </span>
       </TooltipTrigger>
       <TooltipContent
         side="top"
@@ -60,20 +70,20 @@ export function PromptDetailMetricCards({
             aria-pressed={active}
             onClick={() => onMetricChange(metric.id)}
             className={cn(
-              "border-border flex min-h-[108px] flex-col rounded-lg border bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-colors",
+              "border-border flex flex-col rounded-lg border bg-white px-6 py-4 text-left transition-colors",
               active
-                ? "border-orange-400 ring-1 ring-orange-400/40"
-                : "hover:border-border/80 hover:bg-muted/20",
+                ? "border-primary shadow-[8px_10px_16px_-8px_rgba(15,23,42,0.12)]"
+                : "hover:border-primary/60 hover:shadow-[8px_10px_16px_-8px_rgba(15,23,42,0.12)]",
             )}
           >
             <div className="flex items-center gap-1.5">
-              <span className="text-sm font-medium">{metric.label}</span>
+              <span className="text-sm text-muted-foreground font-medium">{metric.label}</span>
               <MetricHelp label={metric.label} description={metric.description} />
             </div>
             {loading ? (
               <div className="bg-muted mt-4 h-8 w-20 animate-pulse rounded-md" />
             ) : (
-              <p className="mt-3 text-2xl font-bold tracking-tight tabular-nums">
+              <p className="mt-4 text-2xl font-bold tracking-tight tabular-nums">
                 {values[metric.id] ?? "—"}
               </p>
             )}

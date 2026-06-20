@@ -1,16 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { AnalysisFilterBar } from "@/components/analysis/common/AnalysisFilterBar";
-import { OpportunityBacklinkTable } from "@/components/opportunity/OpportunityBacklinkTable";
-import { OpportunityContentTable } from "@/components/opportunity/OpportunityContentTable";
+import { DEFAULT_TABLE_PAGE_SIZE } from "@/components/analysis/common/TablePagination";
+import {
+  DEFAULT_CONTENT_OPPORTUNITY_SORT,
+  OpportunityContentTable,
+  type ContentOpportunitySortState,
+} from "@/components/opportunity/OpportunityContentTable";
+import {
+  DEFAULT_BACKLINK_OPPORTUNITY_SORT,
+  OpportunityBacklinkTable,
+  type BacklinkOpportunitySortState,
+} from "@/components/opportunity/OpportunityBacklinkTable";
 import { Input } from "@/components/ui/input";
 import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
+import { useAnalysisFiltersState } from "@/hooks/useAnalysisFiltersState";
 import { useBacklinkOpportunity } from "@/hooks/useBacklinkOpportunity";
 import { useContentOpportunity } from "@/hooks/useContentOpportunity";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
-import { ANALYSIS_FILTER_ALL, DEFAULT_ANALYSIS_FILTERS } from "@/lib/analysis";
+import { contentOpportunitySortToApiField } from "@/lib/opportunity/content";
+import { backlinkOpportunitySortToApiField } from "@/lib/opportunity/backlink";
 import {
   BACKLINK_OPPORTUNITY_DESCRIPTION,
   BACKLINK_OPPORTUNITY_TITLE,
@@ -19,8 +30,12 @@ import {
   SOCIAL_OPPORTUNITY_DESCRIPTION,
   SOCIAL_OPPORTUNITY_TITLE,
 } from "@/lib/opportunity/content";
-import { opportunityTabFromPathname } from "@/lib/opportunity/nav";
-import type { AnalysisFilters, OpportunityTab } from "@/types";
+import {
+  backlinkOpportunityDetailPath,
+  contentOpportunityDetailPath,
+  opportunityTabFromPathname,
+} from "@/lib/opportunity/nav";
+import type { OpportunityTab } from "@/types";
 
 const TAB_META: Record<
   OpportunityTab,
@@ -54,30 +69,87 @@ export function OpportunityContent({ subjectId }: OpportunityContentProps) {
   const { subject } = useDashboardContext();
   const { platforms } = useAnalysisFilter();
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const activeTab = opportunityTabFromPathname(pathname);
-  const [filters, setFilters] = useState<AnalysisFilters>(DEFAULT_ANALYSIS_FILTERS);
+  const { filters, setFilters } = useAnalysisFiltersState();
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
+  const [contentSort, setContentSort] = useState<ContentOpportunitySortState>(
+    DEFAULT_CONTENT_OPPORTUNITY_SORT,
+  );
+  const [backlinkSort, setBacklinkSort] = useState<BacklinkOpportunitySortState>(
+    DEFAULT_BACKLINK_OPPORTUNITY_SORT,
+  );
 
   useEffect(() => {
-    setFilters((prev) => ({
-      ...prev,
-      regionId: ANALYSIS_FILTER_ALL,
-      topicId: ANALYSIS_FILTER_ALL,
-      platformId: ANALYSIS_FILTER_ALL,
-    }));
     setSearch("");
+    setDebouncedSearch("");
+    setPage(1);
+    setContentSort(DEFAULT_CONTENT_OPPORTUNITY_SORT);
+    setBacklinkSort(DEFAULT_BACKLINK_OPPORTUNITY_SORT);
   }, [subject.id, activeTab]);
 
-  const { isLoading: isContentLoading, rows: contentRows } = useContentOpportunity(
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search), 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, filters, contentSort, backlinkSort, pageSize]);
+
+  const contentListRequest = useMemo(() => {
+    const apiSort =
+      contentSort.dir === "default"
+        ? null
+        : contentOpportunitySortToApiField(contentSort.column, contentSort.dir);
+    return {
+      page,
+      pageSize,
+      search: debouncedSearch,
+      sortBy: apiSort?.sortBy ?? null,
+      order: apiSort?.order,
+    };
+  }, [page, pageSize, debouncedSearch, contentSort]);
+
+  const backlinkListRequest = useMemo(() => {
+    const apiSort =
+      backlinkSort.dir === "default"
+        ? null
+        : backlinkOpportunitySortToApiField(backlinkSort.column, backlinkSort.dir);
+    return {
+      page,
+      pageSize,
+      search: debouncedSearch,
+      sortBy: apiSort?.sortBy ?? null,
+      order: apiSort?.order,
+    };
+  }, [page, pageSize, debouncedSearch, backlinkSort]);
+
+  const {
+    isLoading: isContentLoading,
+    rows: contentRows,
+    total: contentTotal,
+    page: contentPage,
+    pageSize: contentPageSize,
+  } = useContentOpportunity(
     subjectId,
     filters,
-    search,
+    contentListRequest,
     activeTab === "content",
   );
-  const { isLoading: isBacklinkLoading, rows: backlinkRows } = useBacklinkOpportunity(
+  const {
+    isLoading: isBacklinkLoading,
+    rows: backlinkRows,
+    total: backlinkTotal,
+    page: backlinkPage,
+    pageSize: backlinkPageSize,
+  } = useBacklinkOpportunity(
     subjectId,
     filters,
-    search,
+    backlinkListRequest,
     activeTab === "backlink",
   );
   const meta = TAB_META[activeTab];
@@ -87,11 +159,12 @@ export function OpportunityContent({ subjectId }: OpportunityContentProps) {
       <AnalysisFilterBar
         value={filters}
         onChange={setFilters}
+        hideEntityFilter
         afterFilters={
           meta.searchPlaceholder ? (
             <div className="relative">
               <Search
-                className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2"
+                className="text-muted-foreground pointer-events-none absolute top-1/2 left-4 size-3.5 -translate-y-1/2"
                 aria-hidden
               />
               <Input
@@ -111,15 +184,43 @@ export function OpportunityContent({ subjectId }: OpportunityContentProps) {
       <div className="flex flex-col gap-4 px-4 py-4 sm:px-6">
         <header>
           <h2 className="text-xl font-semibold tracking-tight">{meta.title}</h2>
-          <p className="text-muted-foreground mt-1 max-w-3xl text-sm leading-relaxed">
+          <p className="text-muted-foreground mt-1 max-w-4xl text-sm font-medium leading-relaxed">
             {meta.description}
           </p>
         </header>
 
         {activeTab === "content" ? (
-          <OpportunityContentTable rows={contentRows} platformsMeta={platforms} loading={isContentLoading} />
+          <OpportunityContentTable
+            rows={contentRows}
+            platformsMeta={platforms}
+            loading={isContentLoading}
+            total={contentTotal}
+            page={contentPage}
+            pageSize={contentPageSize}
+            sort={contentSort}
+            onSortChange={setContentSort}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            onRowClick={(row) => {
+              navigate(contentOpportunityDetailPath(row.promptId));
+            }}
+          />
         ) : activeTab === "backlink" ? (
-          <OpportunityBacklinkTable rows={backlinkRows} platformsMeta={platforms} loading={isBacklinkLoading} />
+          <OpportunityBacklinkTable
+            rows={backlinkRows}
+            platformsMeta={platforms}
+            loading={isBacklinkLoading}
+            total={backlinkTotal}
+            page={backlinkPage}
+            pageSize={backlinkPageSize}
+            sort={backlinkSort}
+            onSortChange={setBacklinkSort}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            onRowClick={(row) => {
+              navigate(backlinkOpportunityDetailPath(row.host));
+            }}
+          />
         ) : (
           <div className="border-border text-muted-foreground flex min-h-[240px] items-center justify-center rounded-lg border bg-white px-6 py-10 text-sm">
             {meta.empty}

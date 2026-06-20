@@ -17,25 +17,26 @@ from aperix_geo.services.brand.domain import resolve_brand_domain
 
 def test_remember_and_get_brand_domain_cached() -> None:
     clear_brand_domain_cache()
-    tenant_id = uuid.uuid4()
+    subject_id = uuid.uuid4()
     with patch("aperix_geo.services.brand.cache.redis_set_json_persistent") as mock_set:
         with patch("aperix_geo.services.brand.cache.redis_get_json", return_value=None):
-            remember_brand_domain_cached(tenant_id=tenant_id, brand="Stripe", domain="stripe.com")
+            remember_brand_domain_cached(subject_id=subject_id, brand="Stripe", domain="stripe.com")
             assert mock_set.called
 
     with patch(
         "aperix_geo.services.brand.cache.redis_get_json",
         return_value={"domain": "stripe.com"},
     ):
-        assert get_brand_domain_cached(tenant_id=tenant_id, brand="stripe") == "stripe.com"
+        assert get_brand_domain_cached(subject_id=subject_id, brand="stripe") == "stripe.com"
 
 
 def test_remember_brand_row_domains_warms_aliases() -> None:
     clear_brand_domain_cache()
-    tenant_id = uuid.uuid4()
+    subject_id = uuid.uuid4()
     row = Brand(
         id=uuid.uuid4(),
-        tenant_id=tenant_id,
+        subject_id=subject_id,
+        entity_kind="other",
         brand="Stripe",
         domain="stripe.com",
         website_url="",
@@ -43,7 +44,7 @@ def test_remember_brand_row_domains_warms_aliases() -> None:
         summary="",
     )
     with patch("aperix_geo.services.brand.cache.redis_set_json_persistent") as mock_set:
-        remember_brand_row_domains(tenant_id=tenant_id, brand=row)
+        remember_brand_row_domains(subject_id=subject_id, brand=row)
         assert mock_set.call_count == 2
 
 
@@ -59,7 +60,7 @@ def test_resolve_brand_domain_uses_redis_before_db(
 ) -> None:
     domain = resolve_brand_domain(
         None,  # type: ignore[arg-type]
-        tenant_id=uuid.uuid4(),
+        subject_id=uuid.uuid4(),
         brand="Stripe",
     )
     assert domain == "stripe.com"

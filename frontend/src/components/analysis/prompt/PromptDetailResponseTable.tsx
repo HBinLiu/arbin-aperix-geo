@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
 
 import {
   DEFAULT_TABLE_PAGE_SIZE,
@@ -6,13 +7,14 @@ import {
   TABLE_PAGE_SIZE_OPTIONS,
   TablePagination,
 } from "@/components/analysis/common/TablePagination";
+import { MentionedBrandsCell } from "@/components/analysis/common/MentionedBrandsCell";
 import {
   ColumnHelp,
   PromptTextCell,
 } from "@/components/analysis/prompt/PerformanceMetricCells";
 import { PromptDetailResponseDialog } from "@/components/analysis/prompt/PromptDetailResponseDialog";
 import { PlatformLogo } from "@/components/brand/PlatformLogo";
-import { Badge } from "@/components/ui/badge";
+import { DotBadge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatRank } from "@/lib/analysis/format";
 import {
@@ -27,15 +29,89 @@ import {
   performanceTableClasses,
   PROMPT_DETAIL_RESPONSE_TABLE_COLUMNS,
   PROMPT_DETAIL_RESPONSE_TABLE_MIN_WIDTH,
+  promptDetailResponseColumnCellStyle,
+  promptDetailResponseColumnColStyle,
 } from "@/components/analysis/prompt/performanceTableLayout";
 import { cn } from "@/lib/utils";
 
-const TABLE_MIN_HEIGHT = 300;
 const SKELETON_ROWS = 6;
+const DATE_COLUMN = PROMPT_DETAIL_RESPONSE_TABLE_COLUMNS.find((column) => column.id === "date")!;
+const DATE_CELL_STYLE = promptDetailResponseColumnCellStyle(DATE_COLUMN);
+
+type RankSortState = "asc" | "desc" | null;
+
+function cycleRankSort(prev: RankSortState): RankSortState {
+  if (prev === null) return "desc";
+  if (prev === "desc") return "asc";
+  return null;
+}
+
+function rankSortValue(rank: number | null | undefined): number {
+  return rank ?? Number.POSITIVE_INFINITY;
+}
+
+function compareByRank(
+  a: PromptDetailResponseRow,
+  b: PromptDetailResponseRow,
+  sort: RankSortState,
+): number {
+  if (!sort) return 0;
+
+  const diff = rankSortValue(a.rank) - rankSortValue(b.rank);
+  if (diff === 0) {
+    return b.created_at.localeCompare(a.created_at);
+  }
+  return sort === "asc" ? diff : -diff;
+}
+
+type RankSortableHeaderProps = {
+  label: string;
+  sort: RankSortState;
+  onSort: () => void;
+  help: { label: string; description: string };
+};
+
+function RankSortableHeader({ label, sort, onSort, help }: RankSortableHeaderProps) {
+  const icon =
+    sort === "asc" ? (
+      <ChevronUp className="size-3 shrink-0" aria-hidden />
+    ) : sort === "desc" ? (
+      <ChevronDown className="size-3 shrink-0" aria-hidden />
+    ) : (
+      <ChevronsUpDown className="size-3 shrink-0" aria-hidden />
+    );
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      <button
+        type="button"
+        className={cn(
+          "inline-flex items-center gap-0.5 transition-colors",
+          sort ? "text-primary" : "text-muted-foreground",
+        )}
+        aria-label={`按${label}排序`}
+        aria-sort={sort === "asc" ? "ascending" : sort === "desc" ? "descending" : "none"}
+        onClick={onSort}
+      >
+        {label}
+        {icon}
+      </button>
+      <ColumnHelp label={help.label} description={help.description} />
+    </span>
+  );
+}
 
 type PromptDetailResponseTableProps = {
   activeTab: PromptDetailResponseTab;
   data: PromptDetailData | null;
+  chatResponses?: PromptDetailResponseRow[];
+  chatTotal?: number;
+  chatPage?: number;
+  chatPageSize?: number;
+  onChatPageChange?: (page: number) => void;
+  onChatPageSizeChange?: (pageSize: number) => void;
+  rankSort?: RankSortState;
+  onRankSortChange?: (sort: RankSortState) => void;
   platformsMeta: SamplingPlatform[];
   promptText: string;
   loading?: boolean;
@@ -43,13 +119,9 @@ type PromptDetailResponseTableProps = {
 
 function MentionStatusCell({ mentioned }: { mentioned: boolean }) {
   return (
-    <Badge variant={mentioned ? "success" : "error"} className="px-1.5 py-0.5 font-semibold">
-      <span
-        className={cn("size-2 shrink-0 rounded-full", mentioned ? "bg-success" : "bg-error")}
-        aria-hidden
-      />
+    <DotBadge variant={mentioned ? "success" : "error"} className="px-1.5 py-0.5 font-semibold">
       {mentioned ? "是" : "否"}
-    </Badge>
+    </DotBadge>
   );
 }
 
@@ -68,13 +140,16 @@ function SkeletonRows() {
             <Skeleton className="h-4 w-4/5" />
           </td>
           <td>
+            <Skeleton className="h-6 w-16 rounded-full" />
+          </td>
+          <td>
             <Skeleton className="h-5 w-12 rounded-full" />
           </td>
           <td>
             <Skeleton className="h-4 w-10" />
           </td>
-          <td>
-            <Skeleton className="h-4 w-28" />
+          <td style={DATE_CELL_STYLE}>
+            <Skeleton className="h-4 w-36" />
           </td>
         </tr>
       ))}
@@ -108,16 +183,19 @@ function ResponseRow({
           <span className="font-medium">{platformMeta.label}</span>
         </div>
       </td>
-      <td className="max-w-0 pl-4 pr-8">
-        <PromptTextCell text={row.reply_preview || "—"} tooltipMaxLength={120} />
+      <td className="text-muted-foreground max-w-0 pl-4 pr-8">
+        <PromptTextCell text={row.reply_preview} />
       </td>
-      <td className="px-4">
+      <td className="px-4 font-semibold tabular-nums">
+        <MentionedBrandsCell brands={row.mentioned_brands} />
+      </td>
+      <td className="px-4 font-semibold tabular-nums">
         <MentionStatusCell mentioned={row.mentioned} />
       </td>
       <td className="px-4 font-semibold tabular-nums">
-        {row.rank != null ? formatRank(row.rank) : "—"}
+        {formatRank(row.rank)}
       </td>
-      <td className="text-foreground px-4 whitespace-nowrap tabular-nums">
+      <td className="text-foreground px-4 whitespace-nowrap tabular-nums" style={DATE_CELL_STYLE}>
         {formatSentimentDateTime(row.created_at)}
       </td>
     </tr>
@@ -127,41 +205,60 @@ function ResponseRow({
 export function PromptDetailResponseTable({
   activeTab,
   data,
+  chatResponses = [],
+  chatTotal = 0,
+  chatPage = 1,
+  chatPageSize = DEFAULT_TABLE_PAGE_SIZE,
+  onChatPageChange,
+  onChatPageSizeChange,
+  rankSort = null,
+  onRankSortChange,
   platformsMeta,
   promptText,
   loading = false,
 }: PromptDetailResponseTableProps) {
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
+  const [citationPage, setCitationPage] = useState(1);
+  const [citationPageSize, setCitationPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
   const [selectedRow, setSelectedRow] = useState<PromptDetailResponseRow | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const rows = useMemo(
-    () => promptDetailResponsesForTab(data, activeTab),
-    [data, activeTab],
+  const citationRows = useMemo(
+    () => promptDetailResponsesForTab(data, "citation"),
+    [data],
   );
 
-  const pageRows = useMemo(
-    () => paginateRows(rows, page, pageSize),
-    [rows, page, pageSize],
+  const sortedCitationRows = useMemo(() => {
+    if (!rankSort) return citationRows;
+    return [...citationRows].sort((a, b) => compareByRank(a, b, rankSort));
+  }, [citationRows, rankSort]);
+
+  const citationPageRows = useMemo(
+    () => paginateRows(sortedCitationRows, citationPage, citationPageSize),
+    [sortedCitationRows, citationPage, citationPageSize],
   );
+
+  const isChatTab = activeTab === "chat";
+  const displayRows = isChatTab ? chatResponses : citationPageRows;
+  const paginationTotal = isChatTab ? chatTotal : sortedCitationRows.length;
+  const paginationPage = isChatTab ? chatPage : citationPage;
+  const paginationPageSize = isChatTab ? chatPageSize : citationPageSize;
 
   useEffect(() => {
-    setPage(1);
-  }, [activeTab, data]);
+    setCitationPage(1);
+  }, [activeTab, data, rankSort]);
 
   const emptyLabel =
     PROMPT_DETAIL_RESPONSE_TABS.find((tab) => tab.id === activeTab)?.label ?? "数据";
 
   return (
-    <div className="overflow-x-auto" style={{ minHeight: TABLE_MIN_HEIGHT }}>
+    <div className="overflow-x-auto">
       <table
         className={performanceTableClasses.topicTable}
         style={{ minWidth: PROMPT_DETAIL_RESPONSE_TABLE_MIN_WIDTH }}
       >
         <colgroup>
           {PROMPT_DETAIL_RESPONSE_TABLE_COLUMNS.map((column) => (
-            <col key={column.id} style={{ width: column.width }} />
+            <col key={column.id} style={promptDetailResponseColumnColStyle(column)} />
           ))}
         </colgroup>
         <thead className={performanceTableClasses.head}>
@@ -170,23 +267,34 @@ export function PromptDetailResponseTable({
             <th>回复</th>
             <th>
               <span className="inline-flex items-center gap-1">
-                是否提及
+                提及品牌
                 <ColumnHelp
-                  label="是否提及"
-                  description="AI 回复正文中是否提及自有品牌。"
+                  label="提及品牌"
+                  description="AI 回复正文中提及的品牌列表。"
                 />
               </span>
             </th>
             <th>
               <span className="inline-flex items-center gap-1">
-                平均排名
+                是否提及
                 <ColumnHelp
-                  label="平均排名"
-                  description="该条回复中自有品牌在 AI 回答里的出现顺位。"
+                  label="是否提及"
+                  description="AI 回复正文中是否提及当前品牌。"
                 />
               </span>
             </th>
-            <th>日期</th>
+            <th>
+              <RankSortableHeader
+                label="提及排名"
+                sort={rankSort}
+                onSort={() => onRankSortChange?.(cycleRankSort(rankSort))}
+                help={{
+                  label: "提及排名",
+                  description: "AI 回复正文中当前品牌的排名。",
+                }}
+              />
+            </th>
+            <th style={DATE_CELL_STYLE}>日期</th>
           </tr>
         </thead>
         <tbody className={performanceTableClasses.row}>
@@ -194,26 +302,18 @@ export function PromptDetailResponseTable({
             <SkeletonRows />
           ) : activeTab === "queryExpansion" ? (
             <tr>
-              <td
-                colSpan={5}
-                className="text-muted-foreground px-4 text-center align-middle"
-                style={{ height: TABLE_MIN_HEIGHT - 40 }}
-              >
+              <td colSpan={6} className="text-muted-foreground px-5 py-10 text-center text-sm">
                 暂无查询扩展数据
               </td>
             </tr>
-          ) : rows.length === 0 ? (
+          ) : paginationTotal === 0 ? (
             <tr>
-              <td
-                colSpan={5}
-                className="text-muted-foreground px-4 text-center align-middle"
-                style={{ height: TABLE_MIN_HEIGHT - 40 }}
-              >
+              <td colSpan={6} className="text-muted-foreground px-5 py-10 text-center text-sm">
                 暂无{emptyLabel}数据
               </td>
             </tr>
           ) : (
-            pageRows.map((row) => (
+            displayRows.map((row) => (
               <ResponseRow
                 key={row.response_id}
                 row={row}
@@ -236,16 +336,26 @@ export function PromptDetailResponseTable({
         platformsMeta={platformsMeta}
       />
 
-      {!loading && activeTab !== "queryExpansion" && rows.length > 0 ? (
+      {!loading && activeTab !== "queryExpansion" && paginationTotal > 0 ? (
         <TablePagination
-          total={rows.length}
-          page={page}
-          pageSize={pageSize}
+          total={paginationTotal}
+          page={paginationPage}
+          pageSize={paginationPageSize}
           pageSizeOptions={TABLE_PAGE_SIZE_OPTIONS}
-          onPageChange={setPage}
+          onPageChange={(nextPage) => {
+            if (isChatTab) {
+              onChatPageChange?.(nextPage);
+              return;
+            }
+            setCitationPage(nextPage);
+          }}
           onPageSizeChange={(nextPageSize) => {
-            setPageSize(nextPageSize);
-            setPage(1);
+            if (isChatTab) {
+              onChatPageSizeChange?.(nextPageSize);
+              return;
+            }
+            setCitationPageSize(nextPageSize);
+            setCitationPage(1);
           }}
         />
       ) : null}

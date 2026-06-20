@@ -1,31 +1,87 @@
-import { useMemo, useState } from "react";
+import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import {
   DEFAULT_TABLE_PAGE_SIZE,
-  paginateRows,
   TABLE_PAGE_SIZE_OPTIONS,
   TablePagination,
 } from "@/components/analysis/common/TablePagination";
 import { ColumnHelp } from "@/components/analysis/prompt/PerformanceMetricCells";
 import { FaviconImage } from "@/components/common/FaviconImage";
-import { Badge } from "@/components/ui/badge";
+import { faviconUrlFromHost } from "@/lib/favicon";
+import { TextBadge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCitationDomains } from "@/hooks/useCitationList";
 import { formatRate } from "@/lib/analysis/format";
 import { citationDomainDetailPath } from "@/lib/analysis/nav";
-import type { CitationDomainRow } from "@/types";
+import { cn } from "@/lib/utils";
+import type { AnalysisFilters, CitationDomainSortField } from "@/types";
 
 const SKELETON_ROWS = 8;
-const TABLE_MIN_HEIGHT = 420;
 const COLUMN_COUNT = 4;
 const COL_DOMAIN_WIDTH = "32%";
 const COL_TYPE_WIDTH = "28%";
 const COL_COUNT_WIDTH = "20%";
 const COL_RATE_WIDTH = "20%";
 
+type DomainSortDir = "asc" | "desc";
+type DomainSortState = DomainSortDir | null;
+
+function cycleDomainSort(prev: DomainSortState): DomainSortState {
+  if (prev === null) return "desc";
+  if (prev === "desc") return "asc";
+  return null;
+}
+
+function domainSortParams(sort: DomainSortState): {
+  sortBy: CitationDomainSortField;
+  order: "asc" | "desc";
+} {
+  return { sortBy: "count", order: sort ?? "desc" };
+}
+
+type DomainSortableHeaderProps = {
+  label: string;
+  sort: DomainSortState;
+  onSort: () => void;
+  help: { label: string; description: string };
+};
+
+function DomainSortableHeader({ label, sort, onSort, help }: DomainSortableHeaderProps) {
+  const icon =
+    sort === "asc" ? (
+      <ChevronUp className="size-3 shrink-0" aria-hidden />
+    ) : sort === "desc" ? (
+      <ChevronDown className="size-3 shrink-0" aria-hidden />
+    ) : (
+      <ChevronsUpDown className="size-3 shrink-0" aria-hidden />
+    );
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      <button
+        type="button"
+        className={cn(
+          "inline-flex items-center gap-0.5 transition-colors",
+          sort ? "text-primary" : "text-muted-foreground",
+        )}
+        aria-label={`按${label}排序`}
+        aria-sort={sort === "asc" ? "ascending" : sort === "desc" ? "descending" : "none"}
+        onClick={onSort}
+      >
+        {label}
+        {icon}
+      </button>
+      <ColumnHelp label={help.label} description={help.description} />
+    </span>
+  );
+}
+
 type CitationDomainTableProps = {
-  rows: CitationDomainRow[];
-  loading?: boolean;
+  subjectId: string;
+  filters: AnalysisFilters;
+  citationSearch?: string;
 };
 
 function SkeletonRows() {
@@ -44,12 +100,28 @@ function SkeletonRows() {
   );
 }
 
-export function CitationDomainTable({ rows, loading = false }: CitationDomainTableProps) {
+export function CitationDomainTable({
+  subjectId,
+  filters,
+  citationSearch = "",
+}: CitationDomainTableProps) {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
+  const [sort, setSort] = useState<DomainSortState>(null);
+  const { sortBy, order } = domainSortParams(sort);
 
-  const pageRows = useMemo(() => paginateRows(rows, page, pageSize), [rows, page, pageSize]);
+  const { isLoading, rows, total } = useCitationDomains(subjectId, filters, {
+    page,
+    pageSize,
+    sortBy,
+    order,
+    search: citationSearch,
+  });
+
+  useEffect(() => {
+    setPage(1);
+  }, [sort, pageSize, filters, citationSearch]);
 
   const handlePageSizeChange = (nextPageSize: number) => {
     setPageSize(nextPageSize);
@@ -59,9 +131,9 @@ export function CitationDomainTable({ rows, loading = false }: CitationDomainTab
   return (
     <div
       className="border-border overflow-hidden rounded-lg border bg-white"
-      aria-busy={loading}
+      aria-busy={isLoading}
     >
-      <div className="overflow-x-auto" style={{ minHeight: TABLE_MIN_HEIGHT }}>
+      <div className="overflow-x-auto">
         <table className="w-full min-w-[720px] table-fixed text-sm">
           <colgroup>
             <col style={{ width: COL_DOMAIN_WIDTH }} />
@@ -82,29 +154,27 @@ export function CitationDomainTable({ rows, loading = false }: CitationDomainTab
                 </span>
               </th>
               <th>
-                <span className="inline-flex items-center gap-1">
-                  数量
-                  <ColumnHelp label="数量" description="该此域名被引用为来源的 AI 生成答案总数。" />
-                </span>
+                <DomainSortableHeader
+                  label="数量"
+                  sort={sort}
+                  onSort={() => setSort((prev) => cycleDomainSort(prev))}
+                  help={{ label: "数量", description: "该此域名被引用为来源的 AI 生成答案总数。" }}
+                />
               </th>
               <th>引用率</th>
             </tr>
           </thead>
           <tbody className="border-border border-t">
-            {loading ? (
+            {isLoading ? (
               <SkeletonRows />
             ) : rows.length === 0 ? (
               <tr>
-                <td
-                  colSpan={COLUMN_COUNT}
-                  className="text-muted-foreground px-4 text-center align-middle"
-                  style={{ height: TABLE_MIN_HEIGHT - 40 }}
-                >
+                <td colSpan={COLUMN_COUNT} className="text-muted-foreground px-5 py-10 text-center text-sm">
                   暂无域名数据
                 </td>
               </tr>
             ) : (
-              pageRows.map((row) => (
+              rows.map((row) => (
                 <tr
                   key={row.host}
                   className="border-border hover:bg-muted/40 cursor-pointer border-t [&>td]:py-3"
@@ -120,7 +190,7 @@ export function CitationDomainTable({ rows, loading = false }: CitationDomainTab
                 >
                   <td className="max-w-0 pl-5">
                     <div className="flex min-w-0 items-center gap-2">
-                      <FaviconImage domain={row.host} size={20} className="size-5 shrink-0 rounded-sm" />
+                      <FaviconImage url={faviconUrlFromHost(row.host)} size={20} className="size-5 shrink-0 rounded-sm" />
                       <span
                         className="truncate font-medium hover:text-primary hover:underline"
                         title={row.host}
@@ -130,9 +200,9 @@ export function CitationDomainTable({ rows, loading = false }: CitationDomainTab
                     </div>
                   </td>
                   <td className="px-4">
-                    <Badge variant="grayBlack" className="px-2 py-1 font-semibold">
+                    <TextBadge variant="gray" className="bg-background px-2 py-1 font-semibold text-foreground">
                       {row.domain_type ?? "其它类型"}
-                    </Badge>
+                    </TextBadge>
                   </td>
                   <td className="px-4 tabular-nums">{row.count}</td>
                   <td className="px-4 font-medium tabular-nums">
@@ -145,9 +215,9 @@ export function CitationDomainTable({ rows, loading = false }: CitationDomainTab
         </table>
       </div>
 
-      {!loading && rows.length > 0 ? (
+      {!isLoading && total > 0 ? (
         <TablePagination
-          total={rows.length}
+          total={total}
           page={page}
           pageSize={pageSize}
           pageSizeOptions={TABLE_PAGE_SIZE_OPTIONS}

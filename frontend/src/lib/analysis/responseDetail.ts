@@ -7,6 +7,7 @@ export type ResponseMentionBrand = {
   iconLabel: string;
   mentioned: boolean;
   scoreLabel: string;
+  sentimentLabel: string | null;
 };
 
 export type ResponseSource = {
@@ -42,6 +43,7 @@ export function responseMentionBrands(
       mentioned: true,
       scoreLabel:
         signal.sentiment_score != null ? formatSentimentScore(signal.sentiment_score) : "-",
+      sentimentLabel: signal.sentiment_label ?? null,
       sortKey: signal.mention_rank ?? Number.MAX_SAFE_INTEGER,
     }),
   );

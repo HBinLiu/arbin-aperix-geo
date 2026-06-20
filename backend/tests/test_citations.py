@@ -106,6 +106,7 @@ def test_replace_citations_for_response_inserts_url_and_domain_rows() -> None:
     )
     assert count == 2
     assert db.execute.call_count == 2
+    db.flush.assert_called_once()
 
     added = [call.args[0] for call in db.add.call_args_list]
     url_rows = [row for row in added if isinstance(row, CitationUrl)]
@@ -194,6 +195,48 @@ def test_aggregate_citation_urls_groups_metadata() -> None:
     assert row["citing_prompts"] == [
         {"prompt_text": "订购大模型品牌能见度监测系统", "topic_name": "AI品牌能见度监测"},
     ]
+
+
+def test_aggregate_citation_urls_skips_template_page_title() -> None:
+    subject = Subject(
+        id=uuid.uuid4(),
+        tenant_id=uuid.uuid4(),
+        type=SubjectType.brand,
+        brand="Aperix",
+        website_url="https://aperix.com",
+    )
+    response_id = uuid.uuid4()
+    prompt_id = uuid.uuid4()
+    rows = [
+        MagicMock(
+            id=response_id,
+            parsed={"urls": ["https://example.com/article"]},
+            prompt_id=prompt_id,
+        ),
+    ]
+    records = [
+        CitationUrl(
+            response_id=response_id,
+            prompt_id=prompt_id,
+            url="https://example.com/article",
+            page_title="{{content.leadTitle}}",
+        ),
+    ]
+
+    def _execute(stmt):
+        entity = stmt.column_descriptions[0]["entity"]
+        result = MagicMock()
+        if entity is CitationUrl:
+            result.scalars.return_value.all.return_value = records
+        else:
+            result.scalars.return_value.all.return_value = []
+        return result
+
+    db = MagicMock()
+    db.execute.side_effect = _execute
+
+    aggregated = aggregate_citation_urls(db, rows, subject=subject)
+    assert aggregated[0]["title"] == "https://example.com/article"
 
 
 def test_fetch_citation_pages_parallel_preserves_order() -> None:

@@ -78,7 +78,7 @@ export function AddCompetitorDialog({
         toast.error("该竞品域名已存在。");
         return;
       }
-      onSubmit(domain);
+      onSubmit(raw);
       return;
     }
 

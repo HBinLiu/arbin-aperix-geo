@@ -67,7 +67,13 @@ def test_backfill_updates_signal_and_brand(mock_resolve: MagicMock) -> None:
     execute_result.scalars.return_value.all.return_value = [signal]
     db.execute.return_value = execute_result
 
-    brand_row = Brand(id=signal.brand_id, tenant_id=subject.tenant_id, brand="Stripe", domain="stripe.com")
+    brand_row = Brand(
+        id=signal.brand_id,
+        subject_id=subject.id,
+        entity_kind="other",
+        brand="Stripe",
+        domain="stripe.com",
+    )
     with patch(
         "aperix_geo.services.brand.backfill.BrandSyncContext.load",
         return_value=MagicMock(catalog=MagicMock()),

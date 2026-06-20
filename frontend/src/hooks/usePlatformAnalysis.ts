@@ -1,47 +1,53 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { fetchPlatformMatrix } from "@/api/analysis";
-import { fetchSamplingPlatforms } from "@/api/brand";
-import { dateRangeDays, toAnalysisQueryFilters } from "@/lib/analysis";
+import { fetchPlatformAnalysis } from "@/api/analysis";
+import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
+import { platformFilterKey, topicFilterKey, toAnalysisQueryFilters } from "@/lib/analysis";
+
 import {
   buildPlatformMatrixRows,
   buildPlatformMetricBundles,
   platformMatrixMetric,
 } from "@/lib/analysis/platform";
 import { queryKeys } from "@/lib/queries";
-import type { AnalysisFilters, PlatformMatrixMetricId, PlatformMatrixRowDimension } from "@/types";
+import type { AnalysisFilters, PlatformMatrixMetricId, PlatformMatrixRowDimension, SamplingPlatform } from "@/types";
 
 export function usePlatformAnalysis(
   subjectId: string,
   filters: AnalysisFilters,
   rowDimension: PlatformMatrixRowDimension,
   metricId: PlatformMatrixMetricId,
-  selectedPlatformId: string | null,
+  chartPlatformIds: string[],
+  platformsMeta: SamplingPlatform[],
 ) {
-  const queryFilters = toAnalysisQueryFilters(filters);
-  const { from, to } = dateRangeDays(Number(filters.days));
-  const { entityId, platformId, topicId } = queryFilters;
+  const queryFilters = useMemo(() => toAnalysisQueryFilters(filters), [filters]);
+  const { from, to, entityId, platformIds, topicIds } = queryFilters;
+  const topicKey = topicFilterKey(topicIds);
+  const platformKey = platformFilterKey(platformIds);
   const metric = platformMatrixMetric(metricId);
+  const { entities, topics, isLoading: catalogLoading } = useAnalysisFilter();
 
-  const matrixQuery = useQuery({
-    queryKey: queryKeys.platformMatrix(subjectId, entityId, platformId, topicId, from, to),
-    queryFn: () => fetchPlatformMatrix(subjectId, queryFilters, from, to),
+  const analysisQuery = useQuery({
+    queryKey: queryKeys.platformAnalysis(
+      subjectId,
+      entityId,
+      platformKey,
+      topicKey,
+      from,
+      to,
+      rowDimension,
+    ),
+    queryFn: () => fetchPlatformAnalysis(subjectId, queryFilters, rowDimension),
   });
 
-  const platformsMetaQuery = useQuery({
-    queryKey: queryKeys.samplingPlatforms,
-    queryFn: fetchSamplingPlatforms,
-  });
-
-  const data = matrixQuery.data;
-  const platformsMeta = platformsMetaQuery.data ?? [];
+  const data = analysisQuery.data;
 
   return {
-    isLoading: matrixQuery.isLoading || platformsMetaQuery.isLoading,
+    isLoading: analysisQuery.isLoading || catalogLoading,
     data,
-    platformsMeta,
     metric,
-    matrixRows: data ? buildPlatformMatrixRows(data, rowDimension, metricId) : [],
-    platformMetrics: buildPlatformMetricBundles(data, selectedPlatformId, platformsMeta),
+    matrixRows: data ? buildPlatformMatrixRows(data, rowDimension, metricId, entities, topics) : [],
+    platformMetrics: buildPlatformMetricBundles(data, chartPlatformIds, platformsMeta),
   };
 }

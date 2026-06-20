@@ -43,3 +43,14 @@ export function hostnameFromWebsiteInput(raw: string): string {
       .toLowerCase() ?? "";
   }
 }
+
+/** 将用户输入的 URL / 域名规范为可访问地址（保留路径，与 favicon 解析一致）。 */
+export function websiteUrlFromInput(raw: string): string {
+  const s = raw.trim();
+  if (!s) return "";
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.includes("/")) return `https://${s.replace(/^\/\//, "")}`;
+  const host = hostnameFromWebsiteInput(s);
+  if (!host) return "";
+  return `https://${host}/`;
+}

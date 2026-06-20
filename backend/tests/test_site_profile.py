@@ -1,10 +1,12 @@
 """Tests for micro-niche profile normalization and search query."""
 
 from aperix_geo.services.competitor.profile import (
+    MAX_MONITORING_TOPICS,
     _split_tags,
     build_search_query,
     merge_profile_updates,
-    micro_keywords_list,
+    keywords_list,
+    monitoring_topics_from_llm,
     normalize_niche_profile,
     profile_from_dict,
 )
@@ -13,37 +15,36 @@ from aperix_geo.services.competitor.summary import (
     merge_competitors_into_summary,
     replace_summary_section,
 )
-from aperix_geo.services.crawl.metadata import extract_page_metadata, homepage_metadata_dict
-from aperix_geo.utils.text import headings_from_markdown
+from aperix_geo.services.setup.helpers import company_from_session
 
 
 def test_normalize_profile_micro_niche() -> None:
     profile = normalize_niche_profile(
         {
             "industry": "医疗影像AI诊断与辅助决策系统",
-            "core_features": ["AI辅助结节检测", "云端PACS工作流集成", "多余"],
-            "target_customers": "三甲医院放射科、医学影像中心",
-            "micro_keywords": ["医疗影像AI诊断", "肺结节AI筛查", "云PACS影像系统", "DICOM智能阅片"],
+            "features": ["AI辅助结节检测", "云端PACS工作流集成", "多余"],
+            "customers": "三甲医院放射科、医学影像中心",
+            "keywords": ["医疗影像AI诊断", "肺结节AI筛查", "云PACS影像系统", "DICOM智能阅片"],
         },
         entity="deepwise.com",
     )
     assert profile["industry"] == "医疗影像AI诊断与辅助决策系统"
-    assert "AI辅助结节检测" in profile["core_features"]
-    assert profile["core_features"].count("、") <= 2
-    assert "肺结节AI筛查" in profile["micro_keywords"]
+    assert "AI辅助结节检测" in profile["features"]
+    assert profile["features"].count("、") <= 2
+    assert "肺结节AI筛查" in profile["keywords"]
 
 
-def test_micro_keywords_list() -> None:
+def test_keywords_list() -> None:
     profile = normalize_niche_profile(
         {
             "industry": "跨境支付",
-            "core_features": ["收款"],
-            "target_customers": "企业",
-            "micro_keywords": ["跨境B2B", "多币种", "企业全球", "国际汇款"],
+            "features": ["收款"],
+            "customers": "企业",
+            "keywords": ["跨境B2B", "多币种", "企业全球", "国际汇款"],
         },
         entity="example.com",
     )
-    assert micro_keywords_list(profile) == ["跨境B2B", "多币种", "企业全球", "国际汇款"]
+    assert keywords_list(profile) == ["跨境B2B", "多币种", "企业全球", "国际汇款"]
 
 
 def test_merge_profile_updates_keywords() -> None:
@@ -51,38 +52,38 @@ def test_merge_profile_updates_keywords() -> None:
         {
             "company": "Acme",
             "industry": "SaaS",
-            "core_features": "支付",
-            "target_customers": "企业",
-            "micro_keywords": "旧词一、旧词二",
+            "features": "支付",
+            "customers": "企业",
+            "keywords": "旧词一、旧词二",
         },
     )
-    merged = merge_profile_updates(base, micro_keywords=["跨境支付", "多币种账户", "企业钱包", "国际汇款"])
-    assert "跨境支付" in merged["micro_keywords"]
-    assert "旧词一" not in merged["micro_keywords"]
+    merged = merge_profile_updates(base, keywords=["跨境支付", "多币种账户", "企业钱包", "国际汇款"])
+    assert "跨境支付" in merged["keywords"]
+    assert "旧词一" not in merged["keywords"]
 
 
-def test_micro_keywords_accepts_five() -> None:
+def test_keywords_accepts_five() -> None:
     base = profile_from_dict(
         {
             "company": "Acme",
             "industry": "SaaS",
-            "core_features": "支付",
-            "target_customers": "企业",
-            "micro_keywords": "旧词",
+            "features": "支付",
+            "customers": "企业",
+            "keywords": "旧词",
         },
     )
     keywords = ["主题一", "主题二", "主题三", "主题四", "主题五"]
-    merged = merge_profile_updates(base, micro_keywords=keywords)
-    assert _split_tags(merged["micro_keywords"]) == keywords
+    merged = merge_profile_updates(base, keywords=keywords)
+    assert _split_tags(merged["keywords"]) == keywords
 
 
-def test_micro_keywords_not_truncated() -> None:
+def test_keywords_not_truncated() -> None:
     profile = normalize_niche_profile(
         {
             "industry": "跨境支付",
-            "core_features": ["收款"],
-            "target_customers": "企业",
-            "micro_keywords": [
+            "features": ["收款"],
+            "customers": "企业",
+            "keywords": [
                 "跨境B2B收款平台",
                 "多币种",
                 "企业全球账户系统",
@@ -91,7 +92,7 @@ def test_micro_keywords_not_truncated() -> None:
         },
         entity="example.com",
     )
-    parts = _split_tags(profile["micro_keywords"])
+    parts = _split_tags(profile["keywords"])
     assert parts == [
         "跨境B2B收款平台",
         "多币种",
@@ -100,13 +101,13 @@ def test_micro_keywords_not_truncated() -> None:
     ]
 
 
-def test_search_query_prefers_micro_keywords() -> None:
+def test_search_query_prefers_keywords() -> None:
     profile = normalize_niche_profile(
         {
             "industry": "医疗影像AI诊断与辅助决策系统",
-            "core_features": ["AI辅助结节检测"],
-            "target_customers": "三甲医院放射科",
-            "micro_keywords": ["医疗影像AI诊断", "肺结节AI筛查", "云PACS影像系统", "DICOM智能阅片"],
+            "features": ["AI辅助结节检测"],
+            "customers": "三甲医院放射科",
+            "keywords": ["医疗影像AI诊断", "肺结节AI筛查", "云PACS影像系统", "DICOM智能阅片"],
         },
         entity="deepwise.com",
     )
@@ -116,14 +117,11 @@ def test_search_query_prefers_micro_keywords() -> None:
     assert "肺结节AI筛查" in q
 
 
-def test_metadata_from_crawl() -> None:
-    html = "<head><title>深睿医疗</title><meta name=description content='AI辅助诊断'></head>"
-    markdown = "# 用AI赋能\n\n## 改变未来"
-
-    parsed = extract_page_metadata(html=html, markdown=markdown)
-    meta = homepage_metadata_dict(parsed)
-    assert meta["title"] == "深睿医疗"
-    assert headings_from_markdown(markdown) == "用AI赋能 | 改变未来"
+def test_monitoring_topics_from_llm_parses_list() -> None:
+    topics = monitoring_topics_from_llm(
+        {"monitoring_topics": ["A", "B", "C", "D", "E"]},
+    )
+    assert topics == ["A", "B", "C", "D", "E"]
 
 
 def test_fallback_profile_summary_sections() -> None:
@@ -131,9 +129,9 @@ def test_fallback_profile_summary_sections() -> None:
         {
             "company": "示例品牌",
             "industry": "跨境 B2B 支付",
-            "core_features": "多币种收款、合规结汇",
-            "target_customers": "出海中小企业",
-            "micro_keywords": "跨境收款、多币种账户",
+            "features": "多币种收款、合规结汇",
+            "customers": "出海中小企业",
+            "keywords": "跨境收款、多币种账户",
         },
     )
     summary = fallback_profile_summary(profile, entity="示例品牌", region_label="中国大陆")
@@ -194,8 +192,30 @@ def test_replace_summary_section() -> None:
     assert "旧定位" not in updated
 
 
-def test_company_from_session() -> None:
-    from aperix_geo.services.setup.helpers import company_from_session
+def test_monitoring_topics_from_llm_truncates_to_max() -> None:
+    topics = monitoring_topics_from_llm(
+        {"monitoring_topics": ["1", "2", "3", "4", "5", "6"]},
+    )
+    assert topics == ["1", "2", "3", "4", "5"]
+    assert len(topics) == MAX_MONITORING_TOPICS
 
+
+def test_monitoring_topics_from_llm_parses_delimited_string() -> None:
+    topics = monitoring_topics_from_llm({"monitoring_topics": "A、B、C"})
+    assert topics == ["A", "B", "C"]
+
+
+def test_monitoring_topics_from_llm_skips_empty_entries() -> None:
+    topics = monitoring_topics_from_llm(
+        {"monitoring_topics": ["  ", "有效主题", "", "另一条"]},
+    )
+    assert topics == ["有效主题", "另一条"]
+
+
+def test_monitoring_topics_from_llm_empty_payload() -> None:
+    assert monitoring_topics_from_llm({}) == []
+
+
+def test_company_from_session() -> None:
     assert company_from_session({"profile": {"company": "深睿医疗"}}) == "深睿医疗"
     assert company_from_session(None) is None
