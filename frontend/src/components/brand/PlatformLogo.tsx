@@ -61,7 +61,7 @@ export function PlatformLogoGroup({
   let content: ReactNode;
 
   if (providers.length === 0) {
-    content = <span className="text-muted-foreground text-sm">—</span>;
+    content = "-";
   } else {
     const resolved = providers.map((provider) => resolvePlatformMeta(provider, platforms));
     const visible = resolved.slice(0, maxVisible);
@@ -74,7 +74,7 @@ export function PlatformLogoGroup({
             key={meta.platform}
             provider={meta.platform}
             label={meta.label}
-            className={cn("ring-2 ring-white", logoClassName)}
+            className={logoClassName}
           />
         ))}
         {overflow > 0 ? (

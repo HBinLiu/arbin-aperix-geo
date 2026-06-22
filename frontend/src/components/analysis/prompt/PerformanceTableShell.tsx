@@ -1,3 +1,4 @@
+import { TableScrollOverlay } from "@/components/analysis/common/TableScrollOverlay";
 import { cn } from "@/lib/utils";
 
 type PerformanceTableShellProps = {
@@ -5,6 +6,7 @@ type PerformanceTableShellProps = {
   className?: string;
   footer?: React.ReactNode;
   loading?: boolean;
+  fetching?: boolean;
   /** 表格内容区最小宽度；超出父容器时在内部横向滚动，不撑宽页面 */
   scrollMinWidth?: number;
 };
@@ -18,6 +20,7 @@ export function PerformanceTableShell({
   className,
   footer,
   loading = false,
+  fetching = false,
   scrollMinWidth,
 }: PerformanceTableShellProps) {
   return (
@@ -26,16 +29,16 @@ export function PerformanceTableShell({
         "border-border w-full max-w-full min-w-0 overflow-hidden rounded-lg border bg-white",
         className,
       )}
-      aria-busy={loading}
+      aria-busy={loading || fetching}
     >
-      <div className="w-full max-w-full min-w-0 overflow-x-auto">
+      <TableScrollOverlay fetching={fetching} className="w-full max-w-full min-w-0">
         <div
           className="w-full"
           style={scrollMinWidth ? { minWidth: scrollMinWidth } : undefined}
         >
           {children}
         </div>
-      </div>
+      </TableScrollOverlay>
       {footer}
     </section>
   );

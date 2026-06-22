@@ -52,6 +52,8 @@ def is_valid_citation_host(host: str | None) -> bool:
     h = strip_hostname(host or "")
     if not h or is_placeholder_citation_host(h):
         return False
+    if "." not in h:
+        return False
     if _NUMERIC_ONLY_HOST_RE.fullmatch(h):
         return False
     if not re.search(r"[a-z]", h):
@@ -124,7 +126,7 @@ def normalize_page_url(url: str) -> str | None:
     return urlunparse((parsed.scheme, parsed.netloc.lower(), path, "", parsed.query, ""))
 
 
-_TRACKING_QUERY_KEYS = frozenset({"fbclid", "gclid", "mc_cid", "mc_eid", "ref", "source", "spm"})
+_TRACKING_QUERY_KEYS = frozenset({"fbclid", "gclid", "mc_cid", "mc_eid", "ref", "source", "spm", "utm"})
 
 
 def normalize_crawl_cache_url(url: str) -> str:
@@ -157,6 +159,42 @@ def host_resolves(host: str, *, timeout_s: float = 3.0) -> bool:
         return _lookup_dns(host, timeout_s=timeout_s)
 
     return host_resolves_cached(host, timeout_s=timeout_s, ttl_s=ttl_s)
+
+
+def host_resolves_to_public_addresses(host: str, *, timeout_s: float = 3.0) -> bool:
+    """True when DNS resolves and every A/AAAA address is a public routable IP."""
+    import ipaddress
+    import socket
+
+    key = (host or "").strip().lower()
+    if not key:
+        return False
+    try:
+        prev = socket.getdefaulttimeout()
+        socket.setdefaulttimeout(timeout_s)
+        try:
+            infos = socket.getaddrinfo(key, 443, type=socket.SOCK_STREAM)
+        finally:
+            socket.setdefaulttimeout(prev)
+    except OSError:
+        return False
+    if not infos:
+        return False
+    for info in infos:
+        addr = info[4][0]
+        try:
+            ip = ipaddress.ip_address(addr)
+        except ValueError:
+            return False
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_reserved
+            or ip.is_multicast
+        ):
+            return False
+    return True
 
 
 def _homepage_https_urls(domain: str, *, prefer_www: bool) -> list[str]:

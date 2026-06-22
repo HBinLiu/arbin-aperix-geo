@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 PROMPT_PER_TOPIC = 10
 PROMPT_MAX_PER_TOPIC = 20
+PROMPT_QUOTA_LIMIT = 50
 
 
 def _exclude_set(exclude_prompts: list[str] | None) -> set[str]:

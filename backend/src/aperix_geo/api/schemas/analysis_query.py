@@ -104,7 +104,15 @@ class CitationUrlsParams(AnalysisWindowParams):
     order: Literal["asc", "desc"] = "desc"
 
 
-ContentOpportunitySortField = Literal["priority", "brand_gap_rate", "source_gap_rate"]
+ContentOpportunitySortField = Literal[
+    "priority",
+    "brand_gap_rate",
+    "source_gap_rate",
+    "mention_rate",
+]
+
+
+BacklinkOpportunitySortField = Literal["priority", "prompt_count", "chat_count", "citation_count"]
 
 
 class OpportunityWindowParams(BaseModel):
@@ -116,22 +124,6 @@ class OpportunityWindowParams(BaseModel):
     search: str | None = None
     start_date: str
     end_date: str
-
-
-class ContentOpportunityParams(OpportunityWindowParams):
-    page: int = Field(default=1, ge=1)
-    page_size: int = Field(default=10, ge=1, le=100)
-    sort_by: ContentOpportunitySortField | None = None
-    order: Literal["asc", "desc"] = "asc"
-
-
-class ContentOpportunityDetailParams(OpportunityWindowParams):
-    """Drill-down for a single content opportunity row (requires prompt_id)."""
-
-    platforms: list[str] | None = None
-
-
-BacklinkOpportunitySortField = Literal["priority", "prompt_count", "chat_count", "citation_count"]
 
 
 class BacklinkOpportunityParams(OpportunityWindowParams):

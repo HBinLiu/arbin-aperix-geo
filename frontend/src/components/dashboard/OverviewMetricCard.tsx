@@ -214,6 +214,16 @@ export function OverviewMetricCard({
             </p>
           ) : null
         }
+        bottomRight={
+          !loading && bottomRight ? (
+            <TextBadge
+              variant={bottomRight.variant ?? "gray"}
+              className="h-5 shrink-0 rounded-md px-1.5 py-0 text-xs font-semibold leading-none"
+            >
+              {bottomRight.text}
+            </TextBadge>
+          ) : null
+        }
       />
     );
   }

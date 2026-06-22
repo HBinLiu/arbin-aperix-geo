@@ -20,7 +20,7 @@ from aperix_geo.services.competitor.persist import apply_competitors
 from aperix_geo.services.prompts.taxonomy import normalize_funnel_stage, normalize_search_intent
 from aperix_geo.services.brand.sync import sync_subject_brands_from_setup
 from aperix_geo.services.sampling.platforms import resolve_subject_sampling_platforms
-from aperix_geo.services.sampling.workflow import create_and_enqueue_sampling_job
+from aperix_geo.services.sampling.workflow.jobs import create_and_enqueue_sampling_job
 from aperix_geo.services.setup.cache import delete_session, get_session
 from aperix_geo.services.competitor.enrich import enrich_confirmed_competitors
 from aperix_geo.services.setup.helpers import (

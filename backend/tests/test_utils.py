@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC
+from unittest.mock import patch
 
 import pytest
 
@@ -21,6 +22,7 @@ from aperix_geo.utils.url import (
     extract_urls,
     filter_citation_urls,
     host_matches_root,
+    host_resolves_to_public_addresses,
     hostname_from_url,
     is_placeholder_citation_host,
     is_valid_citation_host,
@@ -112,6 +114,8 @@ def test_is_valid_citation_host_rejects_numeric_scores() -> None:
     assert not is_valid_citation_host("3.0.0.1")
     assert is_valid_citation_host("wise.com")
     assert is_valid_citation_host("11467.com")
+    assert not is_valid_citation_host("jiqiz")
+    assert not is_valid_citation_host("localhost")
 
 
 def test_is_llm_numeric_fake_url() -> None:
@@ -136,6 +140,19 @@ def test_filter_citation_urls() -> None:
         ]
     )
     assert urls == ["https://wise.com/b"]
+
+
+def test_host_resolves_to_public_addresses_rejects_private() -> None:
+    import socket
+
+    def _addrinfo(host: str, port: int, *args, **kwargs):
+        if host == "internal.example":
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.1", port))]
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port))]
+
+    with patch("socket.getaddrinfo", side_effect=_addrinfo):
+        assert host_resolves_to_public_addresses("internal.example") is False
+        assert host_resolves_to_public_addresses("wise.com") is True
 
 
 # --- contact ---

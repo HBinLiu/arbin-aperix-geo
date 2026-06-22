@@ -1,100 +1,130 @@
 import { useEffect, useMemo, useState } from "react";
-import { MessageSquare, MessagesSquare } from "lucide-react";
+import { Link2, MessagesSquare, TrendingDown } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
+import { DEFAULT_TABLE_PAGE_SIZE } from "@/components/analysis/common/TablePagination";
 import { DiagnosisDimensionCard } from "@/components/diagnosis/DiagnosisDimensionCard";
-import { DiagnosisMentionTable } from "@/components/diagnosis/DiagnosisMentionTable";
-import { DiagnosisPrioritySelect } from "@/components/diagnosis/DiagnosisPrioritySelect";
-import { DiagnosisPromptTable } from "@/components/diagnosis/DiagnosisPromptTable";
-import { DiagnosisScoreGauge } from "@/components/diagnosis/DiagnosisScoreGauge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
-import { useDiagnosis } from "@/hooks/useDiagnosis";
-import { useDashboardContext } from "@/hooks/useDashboardContext";
-import { DEFAULT_ANALYSIS_FILTERS } from "@/lib/analysis";
 import {
-  DIAGNOSIS_TABS,
-  filterDiagnosisByPriority,
-  type DiagnosisPriorityFilter,
-  type DiagnosisTab,
-} from "@/lib/diagnosis";
+  DEFAULT_DIAGNOSIS_CONTENT_SORT,
+  DiagnosisContentTable,
+  type DiagnosisContentSortState,
+} from "@/components/diagnosis/DiagnosisContentTable";
+import { DiagnosisScoreGauge } from "@/components/diagnosis/DiagnosisScoreGauge";
+import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
+import { useDiagnosisContent } from "@/hooks/useDiagnosisContent";
+import { useDiagnosisContentSummary } from "@/hooks/useDiagnosisContentSummary";
+import { useDashboardContext } from "@/hooks/useDashboardContext";
+import { diagnosisContentSortToApiField } from "@/lib/diagnosis/content";
+import { diagnosisContentDetailPath } from "@/lib/diagnosis/nav";
 
 type DiagnosisContentProps = {
   subjectId: string;
 };
 
-/** 诊断中心：得分概览、维度摘要与诊断明细表 */
+/** 诊断中心：得分概览、维度摘要与提示词诊断明细表 */
 export function DiagnosisContent({ subjectId }: DiagnosisContentProps) {
   const { subject } = useDashboardContext();
   const { platforms } = useAnalysisFilter();
-  const [activeTab, setActiveTab] = useState<DiagnosisTab>("mention");
-  const [priorityFilter, setPriorityFilter] = useState<DiagnosisPriorityFilter>("all");
+  const navigate = useNavigate();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
+  const [contentSort, setContentSort] = useState<DiagnosisContentSortState>(
+    DEFAULT_DIAGNOSIS_CONTENT_SORT,
+  );
 
   useEffect(() => {
-    setPriorityFilter("all");
+    setPage(1);
+    setContentSort(DEFAULT_DIAGNOSIS_CONTENT_SORT);
   }, [subject.id]);
 
-  const { isLoading, overview, mentionRows, promptRows } = useDiagnosis(
-    subjectId,
-    DEFAULT_ANALYSIS_FILTERS,
-  );
+  useEffect(() => {
+    setPage(1);
+  }, [contentSort, pageSize]);
 
-  const filteredMentionRows = useMemo(
-    () => filterDiagnosisByPriority(mentionRows, priorityFilter),
-    [mentionRows, priorityFilter],
-  );
-  const filteredPromptRows = useMemo(
-    () => filterDiagnosisByPriority(promptRows, priorityFilter),
-    [promptRows, priorityFilter],
-  );
+  const contentListRequest = useMemo(() => {
+    const apiSort =
+      contentSort.dir === "default"
+        ? null
+        : diagnosisContentSortToApiField(contentSort.column, contentSort.dir);
+    return {
+      page,
+      pageSize,
+      sortBy: apiSort?.sortBy ?? null,
+      order: apiSort?.order,
+    };
+  }, [page, pageSize, contentSort]);
+
+  const {
+    isLoading: summaryLoading,
+    overview,
+  } = useDiagnosisContentSummary(subjectId);
+
+  const {
+    loading: listLoading,
+    fetching: listFetching,
+    rows,
+    total,
+    page: currentPage,
+    pageSize: currentPageSize,
+  } = useDiagnosisContent(subjectId, contentListRequest);
 
   return (
     <div className="flex w-full max-w-full min-w-0 flex-col">
       <div className="flex flex-col gap-4 px-4 py-4 sm:px-6">
-        <div className="grid gap-4 xl:grid-cols-[minmax(240px,0.9fr)_1.1fr_1.1fr]">
+        <div className="grid gap-4 xl:grid-cols-4">
           <DiagnosisScoreGauge
+            className="xl:col-span-1"
             score={overview.overallScore}
             status={overview.overallStatus}
-            loading={isLoading}
+            loading={summaryLoading}
           />
-          <DiagnosisDimensionCard
-            title="AI提及与平均排名"
-            description="当向 AI 提出相关问题时，品牌被提及的频率及其在回答中的排名"
-            icon={MessagesSquare}
-            healthScore={overview.mention.health_score}
-            priorityCounts={overview.mention.priority_counts}
-            active={activeTab === "mention"}
-            loading={isLoading}
-          />
-          <DiagnosisDimensionCard
-            title="提示词"
-            description="提示词在 AI 回复中的可见度与问题类型分布"
-            icon={MessageSquare}
-            healthScore={overview.prompt.health_score}
-            priorityCounts={overview.prompt.priority_counts}
-            active={activeTab === "prompt"}
-            loading={isLoading}
-          />
+          <div className="border-border flex min-h-[220px] min-w-0 flex-col divide-y divide-border overflow-hidden rounded-lg border bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] xl:col-span-3 xl:flex-row xl:divide-x xl:divide-y-0">
+            <DiagnosisDimensionCard
+              embedded
+              title="AI 提及"
+              description="当向 AI 提出相关问题时，品牌被提及的频率及其在回答中的排名。"
+              icon={MessagesSquare}
+              healthScore={overview.mention.health_score}
+              priorityCounts={overview.mention.priority_counts}
+              loading={summaryLoading}
+            />
+            <DiagnosisDimensionCard
+              embedded
+              title="品牌差距"
+              description="在提及竞品的 AI 回答中你的品牌差距；直接反映了竞争对手在该话题下的统治力。"
+              icon={TrendingDown}
+              healthScore={overview.brandGap.health_score}
+              priorityCounts={overview.brandGap.priority_counts}
+              loading={summaryLoading}
+            />
+            <DiagnosisDimensionCard
+              embedded
+              title="来源差距"
+              description="在竞品链接被引用的 AI 回答中你的网站差距，说明竞品的内容垄断了 AI 的参考信源。"
+              icon={Link2}
+              healthScore={overview.sourceGap.health_score}
+              priorityCounts={overview.sourceGap.priority_counts}
+              loading={summaryLoading}
+            />
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as DiagnosisTab)}>
-            <TabsList>
-              {DIAGNOSIS_TABS.map((tab) => (
-                <TabsTrigger key={tab.id} value={tab.id}>
-                  {tab.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-
-          <DiagnosisPrioritySelect value={priorityFilter} onChange={setPriorityFilter} />
-        </div>
-
-        {activeTab === "mention" ? (
-          <DiagnosisMentionTable rows={filteredMentionRows} platformsMeta={platforms} loading={isLoading} />
-        ) : (
-          <DiagnosisPromptTable rows={filteredPromptRows} loading={isLoading} />
-        )}
+        <DiagnosisContentTable
+          rows={rows}
+          platformsMeta={platforms}
+          loading={listLoading}
+          fetching={listFetching}
+          total={total}
+          page={currentPage}
+          pageSize={currentPageSize}
+          sort={contentSort}
+          onSortChange={setContentSort}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          onRowClick={(row) => {
+            navigate(diagnosisContentDetailPath(row.promptId));
+          }}
+        />
       </div>
     </div>
   );

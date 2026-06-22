@@ -34,14 +34,3 @@ class SamplingJobOut(BaseModel):
     finished_at: datetime
 
     model_config = ConfigDict(from_attributes=True, use_enum_values=True)
-
-
-class SamplingJobRetryFailedOut(BaseModel):
-    job_id: UUID
-    retried_count: int
-
-
-class SampleSyncRequest(BaseModel):
-    prompt_id: UUID
-    platform: str | None = Field(default=None, description="指定平台；默认取首个已配置平台")
-    persist: bool = False

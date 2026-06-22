@@ -14,7 +14,6 @@ import {
 } from "@/lib/analysis";
 import { ANALYSIS_DIMENSIONS } from "@/lib/analysis/nav";
 import { brandRankBadge, brandRankSubtitle } from "@/lib/dashboard/overview";
-import { sentimentDisplayLabel } from "@/lib/analysis/sentiment";
 
 const VISIBILITY_DEF = VISIBILITY_METRICS.find((m) => m.id === "visibility")!;
 const SHARE_VOICE_DEF = VISIBILITY_METRICS.find((m) => m.id === "shareVoice")!;
@@ -83,7 +82,8 @@ export function OverviewContent({ subjectId }: OverviewContentProps) {
             deltaCurrent={sentiment.current}
             deltaPrevious={sentiment.previous}
             deltaFormat="sentiment"
-            bottomLeft={sentimentDisplayLabel(sentiment.label)}
+            bottomLeft={brandRankSubtitle(sentiment.rank)}
+            bottomRight={brandRankBadge(sentiment.rank)}
             loading={isLoading}
           />
         </div>

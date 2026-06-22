@@ -1,42 +1,14 @@
-"""Sampling jobs and synchronous smoke test."""
+"""Sampling job status and pipeline API (read-only for product UI)."""
 
-from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import select
+from fastapi import APIRouter, HTTPException
 
 from aperix_geo.api.deps import CurrentUser, DbSession, get_subject_for_user
-from aperix_geo.db.models import (
-    LLMResponse,
-    LLMResponseStatus,
-    Prompt,
-    SamplingJob,
-    SamplingJobStatus,
-)
-from aperix_geo.schemas.sampling import (
-    SamplingJobCreate,
-    SamplingJobOut,
-    SamplingJobRetryFailedOut,
-    SamplingPlatformOut,
-    SampleSyncRequest,
-)
-from aperix_geo.services.sampling.workflow import (
-    SamplingJobError,
-    build_pipeline_status,
-    chat_prompt_on_platform,
-    enqueue_subject_sampling,
-    mark_response_failed,
-    resolve_platforms_for_sampling,
-    retry_failed_responses_for_job,
-    run_sample,
-)
-from aperix_geo.services.sampling.llm import (
-    SamplingLLMError,
-    list_sampling_platforms,
-    resolve_sampling_platform,
-)
-from aperix_geo.services.sampling.signals import parsed_api_dict
+from aperix_geo.db.models import SamplingJob
+from aperix_geo.schemas.sampling import SamplingJobOut, SamplingPlatformOut
+from aperix_geo.services.sampling.workflow.status import build_pipeline_status
+from aperix_geo.services.sampling.llm import list_sampling_platforms
 
 router = APIRouter(tags=["sampling"])
 
@@ -53,180 +25,9 @@ def pipeline_status(subject_id: UUID, db: DbSession, current: CurrentUser) -> di
     return build_pipeline_status(db, subject_id=subject_id)
 
 
-@router.post(
-    "/subjects/{subject_id}/sampling-jobs",
-    response_model=SamplingJobOut,
-    status_code=status.HTTP_202_ACCEPTED,
-)
-def create_sampling_job(
-    subject_id: UUID,
-    body: SamplingJobCreate,
-    db: DbSession,
-    current: CurrentUser,
-) -> SamplingJob:
-    subject = get_subject_for_user(db, current, subject_id, with_competitors=True)
-    try:
-        return enqueue_subject_sampling(
-            db,
-            subject=subject,
-            tenant_id=current.tenant_id,
-            prompt_ids=body.prompt_ids,
-            platforms=body.platforms,
-        )
-    except SamplingJobError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
-
-
 @router.get("/sampling-jobs/{job_id}", response_model=SamplingJobOut)
 def get_sampling_job(job_id: UUID, db: DbSession, current: CurrentUser) -> SamplingJob:
     job = db.get(SamplingJob, job_id)
     if not job or job.tenant_id != current.tenant_id:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
-
-
-@router.post(
-    "/sampling-jobs/{job_id}/retry-failed",
-    response_model=SamplingJobRetryFailedOut,
-    status_code=status.HTTP_202_ACCEPTED,
-)
-def retry_failed_sampling_job(job_id: UUID, db: DbSession, current: CurrentUser) -> SamplingJobRetryFailedOut:
-    job = db.get(SamplingJob, job_id)
-    if not job or job.tenant_id != current.tenant_id:
-        raise HTTPException(status_code=404, detail="Job not found")
-    try:
-        retried_count = retry_failed_responses_for_job(db, job_id)
-    except SamplingJobError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
-    return SamplingJobRetryFailedOut(job_id=job_id, retried_count=retried_count)
-
-
-@router.get("/sampling-jobs/{job_id}/responses")
-def list_job_responses(
-    job_id: UUID,
-    db: DbSession,
-    current: CurrentUser,
-    limit: Annotated[int, Query(ge=1, le=500)] = 100,
-    offset: Annotated[int, Query(ge=0)] = 0,
-) -> dict:
-    job = db.get(SamplingJob, job_id)
-    if not job or job.tenant_id != current.tenant_id:
-        raise HTTPException(status_code=404, detail="Job not found")
-    rows = list(
-        db.execute(
-            select(LLMResponse)
-            .where(LLMResponse.sampling_job_id == job_id)
-            .order_by(LLMResponse.created_at.asc())
-            .offset(offset)
-            .limit(limit)
-        )
-        .scalars()
-        .all()
-    )
-    return {
-        "items": [
-            {
-                "id": str(r.id),
-                "prompt_id": str(r.prompt_id),
-                "platform": r.platform,
-                "status": r.status.value,
-                "error_text": r.error_text,
-                "latency_ms": r.latency_ms,
-                "created_at": r.created_at.isoformat(),
-            }
-            for r in rows
-        ],
-        "limit": limit,
-        "offset": offset,
-    }
-
-
-@router.post("/subjects/{subject_id}/sample-sync")
-def sample_sync(
-    subject_id: UUID,
-    body: SampleSyncRequest,
-    db: DbSession,
-    current: CurrentUser,
-) -> dict:
-    """Call LLM once for a prompt. When persist=True, writes raw_text + parsed."""
-    subject = get_subject_for_user(db, current, subject_id, with_competitors=True)
-    prompt = db.get(Prompt, body.prompt_id)
-    if not prompt or prompt.subject_id != subject_id:
-        raise HTTPException(status_code=404, detail="Prompt not found")
-
-    try:
-        platforms = resolve_platforms_for_sampling(
-            subject,
-            [body.platform] if body.platform else None,
-        )
-    except SamplingJobError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-    platform = platforms[0]
-    try:
-        resolve_sampling_platform(platform)
-    except SamplingLLMError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-    if not body.persist:
-        try:
-            result = chat_prompt_on_platform(platform, prompt.text)
-        except SamplingLLMError as e:
-            raise HTTPException(status_code=502, detail=str(e)) from e
-        return {
-            "platform": platform,
-            "raw_text": result.text,
-            "usage": result.usage,
-            "latency_ms": result.latency_ms,
-            "source_urls": list(result.source_urls),
-            "web_search_mode": result.web_search_mode,
-            "persisted": False,
-        }
-
-    job = SamplingJob(
-        tenant_id=current.tenant_id,
-        subject_id=subject_id,
-        status=SamplingJobStatus.running,
-        total_items=1,
-        completed_items=0,
-        failed_items=0,
-    )
-    db.add(job)
-    db.flush()
-    row = LLMResponse(
-        sampling_job_id=job.id,
-        prompt_id=prompt.id,
-        platform=platform,
-        status=LLMResponseStatus.pending,
-    )
-    db.add(row)
-    db.flush()
-    try:
-        result = run_sample(db, row=row, subject=subject, prompt_text=prompt.text)
-    except SamplingLLMError as e:
-        mark_response_failed(db, row=row, error_text=str(e))
-        job.failed_items = 1
-        job.status = SamplingJobStatus.failed
-        db.commit()
-        raise HTTPException(status_code=502, detail=str(e)) from e
-
-    job.completed_items = 1
-    job.status = SamplingJobStatus.succeed
-    db.commit()
-    db.refresh(job)
-    db.refresh(row)
-    from aperix_geo.services.brand.backfill import maybe_enqueue_brand_domain_backfill
-
-    maybe_enqueue_brand_domain_backfill(row.id)
-    return {
-        "platform": platform,
-        "raw_text": row.raw_text or "",
-        "usage": row.usage,
-        "latency_ms": row.latency_ms,
-        "source_urls": list(result.source_urls),
-        "web_search_mode": result.web_search_mode,
-        "persisted": True,
-        "job_id": str(job.id),
-        "response_id": str(row.id),
-        "parsed": parsed_api_dict(db, row=row, subject=subject),
-    }

@@ -17,19 +17,35 @@ import { useDashboardContext } from "@/hooks/useDashboardContext";
 import { usePromptManagement } from "@/hooks/usePromptManagement";
 import {
   filterPrompts,
-  PROMPT_MAX_PER_TOPIC,
+  PROMPT_QUOTA_LIMIT,
   PROMPT_TOPIC_ALL,
-  topicPromptRemaining,
+  subjectPromptRemaining,
   type PromptEnabledFilter,
   type PromptTableRow,
 } from "@/lib/prompt";
 import { parsePromptCsv } from "@/lib/prompt/upload";
 import { toast } from "@/lib/toast";
+import type { GeneratedPromptItem } from "@/types";
 
 type DialogMode =
   | { type: "add-topic" }
   | { type: "add-prompt" }
   | { type: "edit-prompt"; row: PromptTableRow };
+
+type DeleteConfirmState =
+  | { type: "single"; row: PromptTableRow }
+  | { type: "batch"; count: number };
+
+function truncatePromptText(text: string, max = 24): string {
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+function deleteConfirmDescription(state: DeleteConfirmState): string {
+  if (state.type === "single") {
+    return `确定删除「${truncatePromptText(state.row.text)}」吗？此操作不可撤销。`;
+  }
+  return `确定删除选中的 ${state.count} 条提示词吗？此操作不可撤销。`;
+}
 
 /** 提示词管理页 */
 export function PromptContent() {
@@ -43,7 +59,8 @@ export function PromptContent() {
     createPrompt,
     updatePrompt,
     removePrompt,
-    generatePrompts,
+    previewPrompts,
+    batchCreatePrompts,
   } = usePromptManagement(subject.id);
 
   const [selectedTopicId, setSelectedTopicId] = useState<string>(PROMPT_TOPIC_ALL);
@@ -62,6 +79,7 @@ export function PromptContent() {
   const [generateTopicId, setGenerateTopicId] = useState("");
   const [generateCount, setGenerateCount] = useState(1);
   const [toggleConfirmRow, setToggleConfirmRow] = useState<PromptTableRow | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState | null>(null);
 
   useEffect(() => {
     setSelectedTopicId(PROMPT_TOPIC_ALL);
@@ -91,10 +109,7 @@ export function PromptContent() {
     [topics],
   );
 
-  const generateRemaining = useMemo(
-    () => (generateTopicId ? topicPromptRemaining(generateTopicId, prompts) : 0),
-    [generateTopicId, prompts],
-  );
+  const generateRemaining = useMemo(() => subjectPromptRemaining(prompts), [prompts]);
 
   useEffect(() => {
     if (!generateOpen || !generateTopicId) return;
@@ -173,28 +188,33 @@ export function PromptContent() {
     }
   };
 
-  const handleDeletePrompt = async (row: PromptTableRow) => {
-    if (!window.confirm(`确定删除提示词「${row.text.length > 24 ? `${row.text.slice(0, 24)}…` : row.text}」吗？`)) return;
-    try {
-      await removePrompt.mutateAsync(row.id);
-      setSelectedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(row.id);
-        return next;
-      });
-      toast.success("提示词已删除。");
-    } catch {
-      // handled by API
-    }
+  const handleDeletePrompt = (row: PromptTableRow) => {
+    setDeleteConfirm({ type: "single", row });
   };
 
-  const handleBatchDelete = async () => {
+  const handleBatchDelete = () => {
     if (selectedIds.size === 0) return;
-    if (!window.confirm(`确定删除选中的 ${selectedIds.size} 条提示词吗？`)) return;
+    setDeleteConfirm({ type: "batch", count: selectedIds.size });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirm) return;
+
     try {
-      await Promise.all([...selectedIds].map((id) => removePrompt.mutateAsync(id)));
-      toast.success(`已删除 ${selectedIds.size} 条提示词。`);
-      setSelectedIds(new Set());
+      if (deleteConfirm.type === "single") {
+        await removePrompt.mutateAsync(deleteConfirm.row.id);
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(deleteConfirm.row.id);
+          return next;
+        });
+        toast.success("提示词已删除。");
+      } else {
+        await Promise.all([...selectedIds].map((id) => removePrompt.mutateAsync(id)));
+        toast.success(`已删除 ${deleteConfirm.count} 条提示词。`);
+        setSelectedIds(new Set());
+      }
+      setDeleteConfirm(null);
     } catch {
       // handled by API
     }
@@ -210,8 +230,8 @@ export function PromptContent() {
       toast.error("请选择主题。");
       return;
     }
-    if (topicPromptRemaining(promptTopicId, prompts) <= 0) {
-      toast.error(`每个主题最多可创建 ${PROMPT_MAX_PER_TOPIC} 个提示词。`);
+    if (subjectPromptRemaining(prompts) <= 0) {
+      toast.error(`提示词额度已用完（最多 ${PROMPT_QUOTA_LIMIT} 条）。`);
       return;
     }
 
@@ -235,20 +255,43 @@ export function PromptContent() {
     }
     const topicId =
       selectedTopicId === PROMPT_TOPIC_ALL ? (topics[0]?.id ?? "") : selectedTopicId;
-    const remaining = topicPromptRemaining(topicId, prompts);
+    const remaining = subjectPromptRemaining(prompts);
     setGenerateTopicId(topicId);
     setGenerateCount(remaining > 0 ? Math.min(9, remaining) : 0);
     setGenerateOpen(true);
   };
 
-  const handleGenerateSubmit = async () => {
-    if (!generateTopicId || generateCount <= 0) return;
+  const handleGeneratePreview = async (input: { topicId: string; count: number }) => {
+    return previewPrompts.mutateAsync({
+      topic_id: input.topicId,
+      count: input.count,
+    });
+  };
+
+  const handleGenerateConfirm = async (input: {
+    topicId: string;
+    items: GeneratedPromptItem[];
+  }) => {
+    if (!input.topicId || input.items.length === 0) return;
+
     try {
-      const created = await generatePrompts.mutateAsync({
-        topic_id: generateTopicId,
-        count: generateCount,
+      const created = await batchCreatePrompts.mutateAsync({
+        topic_id: input.topicId,
+        items: input.items.map((item) => ({
+          text: item.text,
+          funnel_stage: item.funnel_stage,
+          search_intent: item.search_intent,
+        })),
       });
-      toast.success(`成功生成 ${created.length} 条提示词。`);
+
+      if (created.length === 0) {
+        toast.error("未能添加任何提示词，可能已存在重复内容。");
+        return;
+      }
+
+      const skipped = input.items.length - created.length;
+      const suffix = skipped > 0 ? `，跳过 ${skipped} 条` : "";
+      toast.success(`成功添加 ${created.length} 条提示词${suffix}。`);
       setGenerateOpen(false);
     } catch {
       // handled by API
@@ -371,9 +414,13 @@ export function PromptContent() {
         count={generateCount}
         onCountChange={setGenerateCount}
         remaining={generateRemaining}
-        submitting={generatePrompts.isPending}
-        onOpenChange={(open) => !open && !generatePrompts.isPending && setGenerateOpen(false)}
-        onSubmit={() => void handleGenerateSubmit()}
+        previewLoading={previewPrompts.isPending}
+        confirmLoading={batchCreatePrompts.isPending}
+        onOpenChange={(open) =>
+          !open && !previewPrompts.isPending && !batchCreatePrompts.isPending && setGenerateOpen(false)
+        }
+        onPreview={handleGeneratePreview}
+        onConfirm={handleGenerateConfirm}
       />
 
       <PromptUploadDialog
@@ -388,6 +435,16 @@ export function PromptContent() {
           }
         }}
         onImport={() => void handleUploadImport()}
+      />
+
+      <PromptConfirmDialog
+        open={deleteConfirm !== null}
+        title="删除提示词"
+        description={deleteConfirm ? deleteConfirmDescription(deleteConfirm) : ""}
+        confirmLabel="删除"
+        submitting={removePrompt.isPending}
+        onOpenChange={(open) => !open && !removePrompt.isPending && setDeleteConfirm(null)}
+        onConfirm={() => void handleConfirmDelete()}
       />
 
       <PromptConfirmDialog

@@ -12,7 +12,7 @@ type OpportunityTabsProps = {
   embedded?: boolean;
 };
 
-/** 机会页 Tab：内容 / 反向链接 / 社交媒体 */
+/** 机会页 Tab：反向链接 / 社交媒体 */
 export function OpportunityTabs({ value, className, embedded = false }: OpportunityTabsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef(new Map<OpportunityTab, HTMLAnchorElement>());

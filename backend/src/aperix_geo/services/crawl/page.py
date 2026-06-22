@@ -15,11 +15,19 @@ from aperix_geo.services.crawl._cache import (
 )
 from aperix_geo.services.crawl._crawl4ai import fetch_url_crawl4ai
 from aperix_geo.services.crawl._httpx import get_httpx_client
+from aperix_geo.services.crawl.limits import CrawlRateLimitError, page_crawl_slot
 from aperix_geo.services.crawl.settings import PageCrawlSettings, page_crawl_settings
 from aperix_geo.services.crawl.types import FetchSource, PageFetchResult
-from aperix_geo.utils.cache import run_single_flight
+from aperix_geo.utils.cache import SingleFlightWaitTimeout, run_single_flight
 from aperix_geo.utils.text import truncate_text
-from aperix_geo.utils.url import is_llm_numeric_fake_url, normalize_crawl_cache_url
+from aperix_geo.utils.url import (
+    host_resolves,
+    host_resolves_to_public_addresses,
+    hostname_from_url,
+    is_llm_numeric_fake_url,
+    is_valid_citation_host,
+    normalize_crawl_cache_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -76,12 +84,15 @@ class _PageCache:
             ttl_s=self.crawl.cache_ttl_s,
         )
 
-    def store_negative(self) -> None:
+    def store_negative(self, *, negative_ttl_s: int | None = None) -> None:
+        ttl = self.crawl.negative_cache_ttl_s if negative_ttl_s is None else negative_ttl_s
+        if ttl <= 0:
+            return
         set_negative_cached_page(
             self.cache_url,
             max_chars=self.max_chars,
             crawl_fallback=self.crawl.crawl_fallback,
-            negative_ttl_s=self.crawl.negative_cache_ttl_s,
+            negative_ttl_s=ttl,
         )
 
 
@@ -154,7 +165,40 @@ def fetch_page(
         logger.debug("页面抓取缓存命中 %s", key)
         return cached
 
+    host = hostname_from_url(key)
+    if host and not is_valid_citation_host(host):
+        logger.debug("页面抓取跳过无效 host %s", key)
+        if settings.negative_cache_ttl_s > 0:
+            cache.store_negative()
+        return PageFetchResult(url=key)
+    if host and not host_resolves(host, timeout_s=2.0):
+        logger.debug("页面抓取 DNS 不可解析 %s", key)
+        if settings.negative_cache_ttl_s > 0:
+            cache.store_negative()
+        return PageFetchResult(url=key)
+    if host and not host_resolves_to_public_addresses(host, timeout_s=2.0):
+        logger.debug("页面抓取跳过非公开地址 %s", key)
+        if settings.negative_cache_ttl_s > 0:
+            cache.store_negative()
+        return PageFetchResult(url=key)
+
     def _fetch_uncached() -> PageFetchResult:
+        crawl_host = host or key
+        try:
+            with page_crawl_slot(crawl_host):
+                return _fetch_uncached_inner()
+        except CrawlRateLimitError:
+            soft_ttl = settings.rate_limit_negative_ttl_s
+            logger.warning(
+                "页面抓取域名限流跳过 %s soft_negative_ttl_s=%d",
+                crawl_host,
+                soft_ttl,
+            )
+            if soft_ttl > 0:
+                cache.store_negative(negative_ttl_s=soft_ttl)
+            return PageFetchResult(url=key, final_url=key, source="none")
+
+    def _fetch_uncached_inner() -> PageFetchResult:
         result = _httpx_fetch(key, timeout_s=settings.fetch_timeout_s, max_chars=limit)
         if result.fetch_ok or not settings.crawl_fallback:
             if result.fetch_ok:
@@ -202,10 +246,14 @@ def fetch_page(
         crawl_fallback=settings.crawl_fallback,
     )
     wait_s = settings.fetch_timeout_s + settings.crawl_timeout_s + 15.0
-    return run_single_flight(
-        digest,
-        wait_s=wait_s,
-        read_cache=_read_cache,
-        fetch=_fetch_uncached,
-        lock_prefix="aperix:page_crawl:lock:",
-    )
+    try:
+        return run_single_flight(
+            digest,
+            wait_s=wait_s,
+            read_cache=_read_cache,
+            fetch=_fetch_uncached,
+            lock_prefix="aperix:page_crawl:lock:",
+        )
+    except SingleFlightWaitTimeout:
+        logger.info("页面抓取 single-flight 超时，直接抓取 %s", key)
+        return _fetch_uncached()

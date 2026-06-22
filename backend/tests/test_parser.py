@@ -67,13 +67,8 @@ def _default_response_absa(*, own_brand: str, competitors: list[str], ai_mention
     }
 
 
-def _default_page_geo(*, page_mentioned: list[str]):
-    return {
-        "domain_classification": {"type": "企业/品牌官网", "reason": "test"},
-        "url_classification": {"type": "产品详情页", "reason": "test"},
-        "page_mentioned_brands": page_mentioned,
-        "analysis_source": "llm",
-    }
+def _default_page_mentioned(*, page_mentioned: list[str]):
+    return page_mentioned
 
 
 @pytest.fixture(autouse=True)
@@ -94,8 +89,8 @@ def _patch_citation_fetch_by_default():
             ai_mentioned=ai_mentioned,
         )
 
-    def _pages_geo(pages, *, own_brand, page_brand_scope=None, **kwargs):
-        return [_default_page_geo(page_mentioned=[]) for _ in pages]
+    def _snippet_brands(page, *, page_brand_scope=None, match_terms_by_brand=None, **kwargs):
+        return _default_page_mentioned(page_mentioned=[])
 
     mock_settings = MagicMock()
     mock_settings.deepseek_api_key = "sk-test"
@@ -107,10 +102,7 @@ def _patch_citation_fetch_by_default():
     mock_settings.page_crawl_cache_ttl_s = 3600
     mock_settings.page_crawl_negative_cache_ttl_s = 300
     mock_settings.citation_text_snippet_chars = 5000
-    mock_settings.citation_page_geo_llm_enabled = True
-    mock_settings.citation_page_geo_cache_ttl_s = 3600
     mock_settings.citation_response_absa_cache_ttl_s = 3600
-    mock_settings.citation_page_geo_batch_size = 8
     mock_settings.deepseek_chat_timeout_s = 120.0
 
     with (
@@ -121,8 +113,8 @@ def _patch_citation_fetch_by_default():
             side_effect=_response_absa,
         ),
         patch(
-            "aperix_geo.services.sampling.citation.resolve.analyze_citation_pages_geo",
-            side_effect=_pages_geo,
+            "aperix_geo.services.sampling.citation.resolve.page_mentioned_brands_from_snippet",
+            side_effect=_snippet_brands,
         ),
     ):
         yield
@@ -150,8 +142,8 @@ def _mock_fetch_page(*, text: str = "Aperix product documentation and guides.", 
             ai_mentioned=ai_mentioned,
         )
 
-    def _pages_geo(pages, *, own_brand, page_brand_scope=None, **kwargs):
-        return [_default_page_geo(page_mentioned=brands_on_page) for _ in pages]
+    def _snippet_brands(page, *, page_brand_scope=None, match_terms_by_brand=None, **kwargs):
+        return _default_page_mentioned(page_mentioned=brands_on_page)
 
     with (
         patch("aperix_geo.services.sampling.citation.page.fetch_citation_page_meta", side_effect=_fetch),
@@ -160,8 +152,8 @@ def _mock_fetch_page(*, text: str = "Aperix product documentation and guides.", 
             side_effect=_response_absa,
         ),
         patch(
-            "aperix_geo.services.sampling.citation.resolve.analyze_citation_pages_geo",
-            side_effect=_pages_geo,
+            "aperix_geo.services.sampling.citation.resolve.page_mentioned_brands_from_snippet",
+            side_effect=_snippet_brands,
         ),
     ):
         yield
@@ -336,10 +328,7 @@ def test_parse_llm_output_overlaps_absa_with_page_fetch() -> None:
     mock_settings.page_crawl_negative_cache_ttl_s = 300
     mock_settings.page_crawl_dns_cache_ttl_s = 3600
     mock_settings.citation_text_snippet_chars = 4000
-    mock_settings.citation_page_geo_llm_enabled = True
-    mock_settings.citation_page_geo_cache_ttl_s = 3600
     mock_settings.citation_response_absa_cache_ttl_s = 3600
-    mock_settings.citation_page_geo_batch_size = 8
     mock_settings.deepseek_chat_timeout_s = 120.0
 
     started = time.monotonic()

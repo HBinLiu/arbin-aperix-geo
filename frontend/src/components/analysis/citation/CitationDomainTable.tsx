@@ -2,28 +2,29 @@ import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { PaginatedTableCard } from "@/components/analysis/common/PaginatedTableCard";
 import {
   DEFAULT_TABLE_PAGE_SIZE,
   TABLE_PAGE_SIZE_OPTIONS,
   TablePagination,
 } from "@/components/analysis/common/TablePagination";
 import { ColumnHelp } from "@/components/analysis/prompt/PerformanceMetricCells";
+import { PlatformLogoGroup } from "@/components/brand/PlatformLogo";
 import { FaviconImage } from "@/components/common/FaviconImage";
 import { faviconUrlFromHost } from "@/lib/favicon";
-import { TextBadge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCitationDomains } from "@/hooks/useCitationList";
 import { formatRate } from "@/lib/analysis/format";
 import { citationDomainDetailPath } from "@/lib/analysis/nav";
 import { cn } from "@/lib/utils";
-import type { AnalysisFilters, CitationDomainSortField } from "@/types";
+import type { AnalysisFilters, CitationDomainSortField, SamplingPlatform } from "@/types";
 
 const SKELETON_ROWS = 8;
 const COLUMN_COUNT = 4;
-const COL_DOMAIN_WIDTH = "32%";
-const COL_TYPE_WIDTH = "28%";
-const COL_COUNT_WIDTH = "20%";
-const COL_RATE_WIDTH = "20%";
+const COL_DOMAIN_WIDTH = "40%";
+const COL_PLATFORM_WIDTH = "24%";
+const COL_COUNT_WIDTH = "18%";
+const COL_RATE_WIDTH = "18%";
 
 type DomainSortDir = "asc" | "desc";
 type DomainSortState = DomainSortDir | null;
@@ -82,28 +83,14 @@ type CitationDomainTableProps = {
   subjectId: string;
   filters: AnalysisFilters;
   citationSearch?: string;
+  platformsMeta?: SamplingPlatform[];
 };
-
-function SkeletonRows() {
-  return (
-    <>
-      {Array.from({ length: SKELETON_ROWS }).map((_, rowIndex) => (
-        <tr key={rowIndex} className="border-border border-t [&>td]:py-3" aria-hidden>
-          {Array.from({ length: COLUMN_COUNT }).map((__, cellIndex) => (
-            <td key={cellIndex} className={cellIndex === 0 ? "pl-5" : "px-4"}>
-              <Skeleton className="h-4 w-4/5" />
-            </td>
-          ))}
-        </tr>
-      ))}
-    </>
-  );
-}
 
 export function CitationDomainTable({
   subjectId,
   filters,
   citationSearch = "",
+  platformsMeta = [],
 }: CitationDomainTableProps) {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
@@ -111,7 +98,7 @@ export function CitationDomainTable({
   const [sort, setSort] = useState<DomainSortState>(null);
   const { sortBy, order } = domainSortParams(sort);
 
-  const { isLoading, rows, total } = useCitationDomains(subjectId, filters, {
+  const { loading, fetching, rows, total } = useCitationDomains(subjectId, filters, {
     page,
     pageSize,
     sortBy,
@@ -129,30 +116,33 @@ export function CitationDomainTable({
   };
 
   return (
-    <div
-      className="border-border overflow-hidden rounded-lg border bg-white"
-      aria-busy={isLoading}
+    <PaginatedTableCard
+      loading={loading}
+      fetching={fetching}
+      footer={
+        total > 0 ? (
+          <TablePagination
+            total={total}
+            page={page}
+            pageSize={pageSize}
+            pageSizeOptions={TABLE_PAGE_SIZE_OPTIONS}
+            onPageChange={setPage}
+            onPageSizeChange={handlePageSizeChange}
+          />
+        ) : null
+      }
     >
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] table-fixed text-sm">
+      <table className="w-full min-w-[800px] table-fixed text-sm">
           <colgroup>
             <col style={{ width: COL_DOMAIN_WIDTH }} />
-            <col style={{ width: COL_TYPE_WIDTH }} />
+            <col style={{ width: COL_PLATFORM_WIDTH }} />
             <col style={{ width: COL_COUNT_WIDTH }} />
             <col style={{ width: COL_RATE_WIDTH }} />
           </colgroup>
           <thead className="text-muted-foreground bg-muted/80 text-left">
             <tr className="[&>th]:whitespace-nowrap [&>th]:px-4 [&>th]:py-2.5 [&>th]:font-medium">
               <th className="pl-5">域名</th>
-              <th>
-                <span className="inline-flex items-center gap-1">
-                  域名类型
-                  <ColumnHelp
-                    label="域名类型"
-                    description="对 AI 引用的域名来源类型进行分类。帮助识别 AI 算法中不同渠道的权威性差异，从而有针对性地优化您的反向链接策略。"
-                  />
-                </span>
-              </th>
+              <th>平台</th>
               <th>
                 <DomainSortableHeader
                   label="数量"
@@ -165,7 +155,7 @@ export function CitationDomainTable({
             </tr>
           </thead>
           <tbody className="border-border border-t">
-            {isLoading ? (
+            {loading && rows.length === 0 ? (
               <SkeletonRows />
             ) : rows.length === 0 ? (
               <tr>
@@ -199,10 +189,12 @@ export function CitationDomainTable({
                       </span>
                     </div>
                   </td>
-                  <td className="px-4">
-                    <TextBadge variant="gray" className="bg-background px-2 py-1 font-semibold text-foreground">
-                      {row.domain_type ?? "其它类型"}
-                    </TextBadge>
+                  <td className="px-4" onClick={(event) => event.stopPropagation()}>
+                    <PlatformLogoGroup
+                      providers={row.platforms ?? []}
+                      platforms={platformsMeta}
+                      logoClassName="size-5"
+                    />
                   </td>
                   <td className="px-4 tabular-nums">{row.count}</td>
                   <td className="px-4 font-medium tabular-nums">
@@ -213,18 +205,22 @@ export function CitationDomainTable({
             )}
           </tbody>
         </table>
-      </div>
+    </PaginatedTableCard>
+  );
+}
 
-      {!isLoading && total > 0 ? (
-        <TablePagination
-          total={total}
-          page={page}
-          pageSize={pageSize}
-          pageSizeOptions={TABLE_PAGE_SIZE_OPTIONS}
-          onPageChange={setPage}
-          onPageSizeChange={handlePageSizeChange}
-        />
-      ) : null}
-    </div>
+function SkeletonRows() {
+  return (
+    <>
+      {Array.from({ length: SKELETON_ROWS }).map((_, rowIndex) => (
+        <tr key={rowIndex} className="border-border border-t [&>td]:py-3" aria-hidden>
+          {Array.from({ length: COLUMN_COUNT }).map((__, cellIndex) => (
+            <td key={cellIndex} className={cellIndex === 0 ? "pl-5" : "px-4"}>
+              <Skeleton className="h-4 w-4/5" />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
   );
 }

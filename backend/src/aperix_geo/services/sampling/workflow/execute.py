@@ -1,7 +1,8 @@
-"""Shared single-response sampling: LLM call, parse, persist."""
+"""Shared single-response sampling: LLM, crawl, parse, and persist."""
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from uuid import UUID
 
 from sqlalchemy import select
@@ -9,30 +10,49 @@ from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import LLMResponse, LLMResponseStatus, Subject
 from aperix_geo.services.providers.result import SamplingChatResult
+from aperix_geo.services.sampling.cache.llm_result import (
+    load_cached_llm_result,
+    save_cached_llm_result,
+)
 from aperix_geo.services.sampling.llm import chat_for_platform
+from aperix_geo.services.sampling.llm_limits import llm_sampling_slot
 from aperix_geo.services.sampling.parse import parse_llm_output
 from aperix_geo.services.sampling.parsed import ParsedSamplingResult
-from aperix_geo.services.sampling.persist import persist_successful_response, refresh_parsed_artifacts
+from aperix_geo.services.sampling.persist import persist_llm_result, persist_successful_response, refresh_parsed_artifacts
 
 
-def chat_prompt_on_platform(platform: str, prompt_text: str) -> SamplingChatResult:
-    return chat_for_platform(platform, [{"role": "user", "content": prompt_text}])
-
-
-def parse_chat_result(
-    result: SamplingChatResult,
+def prepare_sample_chat_result(
     *,
-    subject: Subject,
-    sampling_job_id: UUID | None = None,
-    db: Session | None = None,
-) -> ParsedSamplingResult:
-    return parse_llm_output(
-        result.text,
-        subject=subject,
-        source_urls=list(result.source_urls),
-        web_search_mode=result.web_search_mode,
-        sampling_job_id=sampling_job_id,
-        db=db,
+    platform: str,
+    prompt_text: str,
+    response_id: UUID | None = None,
+    cache: bool = False,
+) -> SamplingChatResult:
+    """Call platform LLM once; optionally read/write Redis cache keyed by response_id."""
+    if cache and response_id is not None:
+        cached = load_cached_llm_result(response_id)
+        if cached is not None:
+            return cached
+    with llm_sampling_slot(platform):
+        result = chat_for_platform(platform, [{"role": "user", "content": prompt_text}])
+    if cache and response_id is not None:
+        save_cached_llm_result(response_id, result)
+    return result
+
+
+def chat_result_from_row(row: LLMResponse) -> SamplingChatResult:
+    """Rebuild SamplingChatResult from a row after the LLM phase."""
+    prior = row.parsed if isinstance(row.parsed, dict) else {}
+    return SamplingChatResult(
+        text=row.raw_text or "",
+        usage=dict(row.usage or {}),
+        latency_ms=int(row.latency_ms or 0),
+        source_urls=tuple(
+            str(url)
+            for url in (prior.get("source_urls_from_api") or [])
+            if str(url).strip()
+        ),
+        web_search_mode=str(prior.get("web_search_mode") or "none"),
     )
 
 
@@ -62,70 +82,105 @@ def mark_response_failed(db: Session, *, row: LLMResponse, error_text: str) -> N
     row.error_text = error_text[:4000]
 
 
-def mark_response_failed_if_pending(db: Session, *, response_id: UUID, error_text: str) -> bool:
-    """Mark failed only when the row is still pending (caller commits)."""
-    row = db.execute(
-        select(LLMResponse).where(LLMResponse.id == response_id).with_for_update()
-    ).scalar_one_or_none()
-    if row is None or row.status != LLMResponseStatus.pending:
-        db.commit()
-        return False
-    mark_response_failed(db, row=row, error_text=error_text)
-    db.commit()
-    return True
-
-
-def execute_sample_without_row_lock(
-    *,
-    platform: str,
-    prompt_text: str,
-    subject: Subject,
-    sampling_job_id: UUID | None,
-    db: Session,
-) -> tuple[SamplingChatResult, ParsedSamplingResult]:
-    """LLM + parse without holding a row lock (parse may write open-set brands)."""
-    result = chat_prompt_on_platform(platform, prompt_text)
-    parsed = parse_chat_result(
-        result,
-        subject=subject,
-        sampling_job_id=sampling_job_id,
-        db=db,
-    )
-    return result, parsed
-
-
-def persist_sample_if_pending(
+def _with_locked_response(
     db: Session,
     *,
     response_id: UUID,
-    result: SamplingChatResult,
-    parsed: ParsedSamplingResult,
-    subject: Subject,
+    expected_status: LLMResponseStatus,
+    mutate: Callable[[LLMResponse], None],
 ) -> bool:
-    """Persist success only when the row is still pending (caller commits)."""
     row = db.execute(
         select(LLMResponse).where(LLMResponse.id == response_id).with_for_update()
     ).scalar_one_or_none()
-    if row is None or row.status != LLMResponseStatus.pending:
+    if row is None or row.status != expected_status:
         db.commit()
         return False
-    persist_successful_response(db, row=row, result=result, parsed=parsed, subject=subject)
+    mutate(row)
     db.commit()
     return True
 
 
-def run_sample(
+def mark_response_failed_if_pending(db: Session, *, response_id: UUID, error_text: str) -> bool:
+    """Mark failed only when the row is still pending (caller commits)."""
+    return _with_locked_response(
+        db,
+        response_id=response_id,
+        expected_status=LLMResponseStatus.pending,
+        mutate=lambda row: mark_response_failed(db, row=row, error_text=error_text),
+    )
+
+
+def mark_response_failed_if_llm_ready(db: Session, *, response_id: UUID, error_text: str) -> bool:
+    """Mark failed only when the row is still awaiting crawl (caller commits)."""
+    return _with_locked_response(
+        db,
+        response_id=response_id,
+        expected_status=LLMResponseStatus.llm_ready,
+        mutate=lambda row: mark_response_failed(db, row=row, error_text=error_text),
+    )
+
+
+def mark_response_failed_if_crawl_ready(db: Session, *, response_id: UUID, error_text: str) -> bool:
+    """Mark failed only when the row is still awaiting parse (caller commits)."""
+    return _with_locked_response(
+        db,
+        response_id=response_id,
+        expected_status=LLMResponseStatus.crawl_ready,
+        mutate=lambda row: mark_response_failed(db, row=row, error_text=error_text),
+    )
+
+
+def persist_llm_sample(
     db: Session,
     *,
-    row: LLMResponse,
+    response_id: UUID,
+    chat_result: SamplingChatResult,
+) -> bool:
+    """Persist LLM output when the row is still pending."""
+    return _with_locked_response(
+        db,
+        response_id=response_id,
+        expected_status=LLMResponseStatus.pending,
+        mutate=lambda row: persist_llm_result(db, row=row, result=chat_result),
+    )
+
+
+def persist_crawl_sample(db: Session, *, response_id: UUID) -> bool:
+    """Mark citation crawl complete when the row is still llm_ready."""
+
+    def _mark_crawl_ready(row: LLMResponse) -> None:
+        row.status = LLMResponseStatus.crawl_ready
+        row.error_text = ""
+
+    return _with_locked_response(
+        db,
+        response_id=response_id,
+        expected_status=LLMResponseStatus.llm_ready,
+        mutate=_mark_crawl_ready,
+    )
+
+
+def persist_parsed_sample(
+    db: Session,
+    *,
+    response_id: UUID,
     subject: Subject,
-    prompt_text: str,
-) -> SamplingChatResult:
-    """Call LLM, parse, and persist citations on one response row (caller commits)."""
-    result = chat_prompt_on_platform(row.platform, prompt_text)
-    parsed = parse_chat_result(result, subject=subject, sampling_job_id=row.sampling_job_id, db=db)
-    persist_successful_response(db, row=row, result=result, parsed=parsed, subject=subject)
-    return result
+    chat_result: SamplingChatResult,
+    parsed: ParsedSamplingResult,
+) -> bool:
+    """Persist citation/ABSA artifacts when the row awaits parse."""
+    return _with_locked_response(
+        db,
+        response_id=response_id,
+        expected_status=LLMResponseStatus.crawl_ready,
+        mutate=lambda row: persist_successful_response(
+            db,
+            row=row,
+            result=chat_result,
+            parsed=parsed,
+            subject=subject,
+        ),
+    )
 
 
 def reparse_response_row(

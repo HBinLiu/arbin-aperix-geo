@@ -1,4 +1,4 @@
-"""Content and backlink opportunity analysis."""
+"""Backlink opportunity analysis."""
 
 from __future__ import annotations
 
@@ -6,862 +6,21 @@ from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, not_, or_, select
 from sqlalchemy.orm import Session
 
-from aperix_geo.db.models import CitationDomain, CitationUrl, EntityKind, LLMResponse, LLMResponseSignal, LLMResponseStatus, Prompt, SamplingJob, Subject
-from aperix_geo.services.analysis.entity import list_analysis_entities, own_entity
-from aperix_geo.services.analysis.signal_load import LLMResponseSignalRow, load_llm_response_signals
-from aperix_geo.services.sampling.citation.geo_classify import DOMAIN_TYPE_ENTERPRISE, DOMAIN_TYPE_OTHER
-from aperix_geo.utils.url import host_matches_root, hostname_from_url, normalize_domain
-
-
-def _has_domain_link_in_citations(row: LLMResponseSignalRow) -> bool:
-    """Reply citation list contains a link to the entity's domain."""
-    return row.has_domain_link
-
-
-def competitive_gap_metrics(
-    *,
-    focus_entity_id: str,
-    response_ids: set[UUID],
-    all_signals: list[LLMResponseSignalRow],
-    subject: Subject,
-) -> dict[str, Any]:
-    """Relative gap vs configured competitors on the same reply pool."""
-    total = len(response_ids)
-    if total == 0:
-        return {
-            "brand_gap_rate": 0.0,
-            "brand_gap_priority": "low",
-            "source_gap_rate": 0.0,
-            "source_gap_priority": "low",
-            "competitors": [],
-            "brand_own_count": 0,
-            "brand_total_count": 0,
-            "source_own_count": 0,
-            "source_total_count": 0,
-        }
-
-    entities = list_analysis_entities(subject)
-    label_by_id = {entity.id: entity.label for entity in entities}
-    catalog_order = {entity.label: index for index, entity in enumerate(entities)}
-
-    focus_rows = [
-        row
-        for row in all_signals
-        if row.response_id in response_ids and row.entity_id == focus_entity_id
-    ]
-    brand_own = sum(1 for row in focus_rows if row.mentioned)
-    source_own = sum(1 for row in focus_rows if _has_domain_link_in_citations(row))
-    own_brand_rate = brand_own / total
-    own_source_rate = source_own / total
-
-    best_brand_rate = 0.0
-    best_source_rate = 0.0
-    brand_leaders: list[str] = []
-    source_leaders: list[str] = []
-
-    for entity in entities:
-        if entity.id == focus_entity_id:
-            continue
-        comp_rows = [
-            row
-            for row in all_signals
-            if row.response_id in response_ids and row.entity_id == entity.id
-        ]
-        comp_brand_rate = sum(1 for row in comp_rows if row.mentioned) / total
-        comp_source_rate = sum(1 for row in comp_rows if _has_domain_link_in_citations(row)) / total
-
-        if comp_brand_rate > best_brand_rate:
-            best_brand_rate = comp_brand_rate
-            brand_leaders = [label_by_id[entity.id]]
-        elif comp_brand_rate == best_brand_rate and comp_brand_rate > 0:
-            brand_leaders.append(label_by_id[entity.id])
-
-        if comp_source_rate > best_source_rate:
-            best_source_rate = comp_source_rate
-            source_leaders = [label_by_id[entity.id]]
-        elif comp_source_rate == best_source_rate and comp_source_rate > 0:
-            source_leaders.append(label_by_id[entity.id])
-
-    competitors: list[str] = []
-    seen: set[str] = set()
-    for label in sorted(
-        {*brand_leaders, *source_leaders},
-        key=lambda item: catalog_order.get(item, 10_000),
-    ):
-        if label not in seen:
-            seen.add(label)
-            competitors.append(label)
-
-    brand_gap_rate = round(max(0.0, best_brand_rate - own_brand_rate), 4)
-    source_gap_rate = round(max(0.0, best_source_rate - own_source_rate), 4)
-
-    return {
-        "brand_gap_rate": brand_gap_rate,
-        "brand_gap_priority": gap_priority(brand_gap_rate),
-        "source_gap_rate": source_gap_rate,
-        "source_gap_priority": gap_priority(source_gap_rate),
-        "competitors": competitors,
-        "brand_own_count": brand_own,
-        "brand_total_count": total,
-        "source_own_count": source_own,
-        "source_total_count": total,
-    }
-
-
-def gap_priority(gap_rate: float) -> str:
-    if gap_rate >= 0.8:
-        return "high"
-    if gap_rate >= 0.5:
-        return "medium"
-    return "low"
-
-
-def opportunity_priority(brand_gap: float, source_gap: float) -> str:
-    return gap_priority(max(brand_gap, source_gap))
-
-
-_MAX_PAGE_SIZE = 100
-_PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
-
-
-def _normalize_pagination(page: int, page_size: int) -> tuple[int, int]:
-    safe_page = max(1, page)
-    safe_page_size = max(1, min(page_size, _MAX_PAGE_SIZE))
-    return safe_page, safe_page_size
-
-
-def _paginate(items: list[Any], *, page: int, page_size: int) -> tuple[list[Any], int, int, int]:
-    safe_page, safe_page_size = _normalize_pagination(page, page_size)
-    total = len(items)
-    start = (safe_page - 1) * safe_page_size
-    return items[start : start + safe_page_size], total, safe_page, safe_page_size
-
-
-def _filter_content_by_search(items: list[dict[str, Any]], search: str | None) -> list[dict[str, Any]]:
-    query = (search or "").strip().lower()
-    if not query:
-        return items
-    return [item for item in items if query in item["prompt_text"].lower()]
-
-
-def _content_row_rank_key(row: dict[str, Any]) -> tuple[int, float, float]:
-    """默认排序：优先级 → 品牌差距 → 来源差距（均为高/大者优先）。"""
-    return (
-        _PRIORITY_ORDER.get(row["priority"], 9),
-        -row["brand_gap_rate"],
-        -row["source_gap_rate"],
-    )
-
-
-def _sort_content_items(
-    items: list[dict[str, Any]],
-    *,
-    sort_by: str | None,
-    order: str,
-) -> list[dict[str, Any]]:
-    if not sort_by:
-        return sorted(items, key=_content_row_rank_key)
-
-    reverse = order == "desc"
-
-    if sort_by == "brand_gap_rate":
-        return sorted(items, key=lambda row: row["brand_gap_rate"], reverse=reverse)
-    if sort_by == "source_gap_rate":
-        return sorted(items, key=lambda row: row["source_gap_rate"], reverse=reverse)
-
-    return sorted(items, key=_content_row_rank_key, reverse=reverse)
-
-
-def build_content_opportunities(
-    db: Session,
-    *,
-    subject: Subject,
-    dt_from: datetime,
-    dt_to: datetime,
-    platform: list[str] | None = None,
-    topic_id: list[UUID] | None = None,
-    prompt_id: UUID | None = None,
-    search: str | None = None,
-    sort_by: str | None = None,
-    order: str = "asc",
-    page: int = 1,
-    page_size: int = 10,
-) -> dict[str, Any]:
-    """按提示词 × 平台聚合内容机会：品牌提及差距与引用差距（始终以自有品牌为焦点）。"""
-    entity = own_entity(subject)
-    all_signals = load_llm_response_signals(
-        db,
-        subject=subject,
-        dt_from=dt_from,
-        dt_to=dt_to,
-        platform=platform,
-        topic_id=topic_id,
-        prompt_id=prompt_id,
-    )
-    entity_signals = [row for row in all_signals if row.entity_id == entity.id]
-    prompts = {
-        p.id: p for p in db.execute(select(Prompt).where(Prompt.subject_id == subject.id)).scalars().all()
-    }
-
-    grouped: dict[tuple[UUID, str], list[LLMResponseSignalRow]] = defaultdict(list)
-    for row in entity_signals:
-        grouped[(row.prompt_id, row.platform)].append(row)
-
-    items: list[dict[str, Any]] = []
-    for (prompt_id, platform), subset in grouped.items():
-        prompt = prompts.get(prompt_id)
-        if not prompt:
-            continue
-
-        response_ids = {row.response_id for row in subset}
-        gap = competitive_gap_metrics(
-            focus_entity_id=entity.id,
-            response_ids=response_ids,
-            all_signals=all_signals,
-            subject=subject,
-        )
-        if gap["brand_gap_rate"] <= 0 and gap["source_gap_rate"] <= 0:
-            continue
-
-        items.append(
-            {
-                "id": f"{prompt_id}:{platform}",
-                "prompt_id": str(prompt_id),
-                "prompt_text": prompt.text,
-                "platform": platform,
-                "priority": opportunity_priority(gap["brand_gap_rate"], gap["source_gap_rate"]),
-                "competitors": gap["competitors"],
-                "brand_gap_rate": gap["brand_gap_rate"],
-                "brand_gap_priority": gap["brand_gap_priority"],
-                "source_gap_rate": gap["source_gap_rate"],
-                "source_gap_priority": gap["source_gap_priority"],
-                "brand_own_count": gap["brand_own_count"],
-                "brand_total_count": gap["brand_total_count"],
-                "source_own_count": gap["source_own_count"],
-                "source_total_count": gap["source_total_count"],
-            }
-        )
-
-    merged = _merge_content_opportunity_items(items)
-    filtered = _filter_content_by_search(merged, search)
-    sorted_items = _sort_content_items(filtered, sort_by=sort_by, order=order)
-    page_items, total, safe_page, safe_page_size = _paginate(
-        sorted_items,
-        page=page,
-        page_size=page_size,
-    )
-    return {
-        "entity_id": entity.id,
-        "entity_label": entity.label,
-        "items": page_items,
-        "total": total,
-        "page": safe_page,
-        "page_size": safe_page_size,
-    }
-
-
-def _merge_gap_counts(
-    existing: dict[str, Any],
-    item: dict[str, Any],
-    *,
-    gap_key: str,
-    own_key: str,
-    total_key: str,
-) -> None:
-    if item[gap_key] > existing[gap_key]:
-        existing[gap_key] = item[gap_key]
-        existing[own_key] = item[own_key]
-        existing[total_key] = item[total_key]
-
-
-def _merge_content_opportunity_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Aggregate prompt × platform rows into one row per prompt with platforms[]."""
-    by_prompt: dict[str, dict[str, Any]] = {}
-
-    for item in items:
-        prompt_id = item["prompt_id"]
-        existing = by_prompt.get(prompt_id)
-        if existing is None:
-            by_prompt[prompt_id] = {
-                "id": prompt_id,
-                "prompt_id": prompt_id,
-                "prompt_text": item["prompt_text"],
-                "platforms": [item["platform"]],
-                "priority": item["priority"],
-                "competitors": list(item["competitors"]),
-                "brand_gap_rate": item["brand_gap_rate"],
-                "brand_gap_priority": item["brand_gap_priority"],
-                "source_gap_rate": item["source_gap_rate"],
-                "source_gap_priority": item["source_gap_priority"],
-                "brand_own_count": item["brand_own_count"],
-                "brand_total_count": item["brand_total_count"],
-                "source_own_count": item["source_own_count"],
-                "source_total_count": item["source_total_count"],
-            }
-            continue
-
-        if item["platform"] not in existing["platforms"]:
-            existing["platforms"].append(item["platform"])
-
-        _merge_gap_counts(
-            existing,
-            item,
-            gap_key="brand_gap_rate",
-            own_key="brand_own_count",
-            total_key="brand_total_count",
-        )
-        _merge_gap_counts(
-            existing,
-            item,
-            gap_key="source_gap_rate",
-            own_key="source_own_count",
-            total_key="source_total_count",
-        )
-        existing["brand_gap_priority"] = gap_priority(existing["brand_gap_rate"])
-        existing["source_gap_priority"] = gap_priority(existing["source_gap_rate"])
-        existing["priority"] = opportunity_priority(
-            existing["brand_gap_rate"],
-            existing["source_gap_rate"],
-        )
-
-        for label in item["competitors"]:
-            if label not in existing["competitors"]:
-                existing["competitors"].append(label)
-
-    merged = list(by_prompt.values())
-    return merged
-
-
-def _merged_competitive_gap_metrics(
-    *,
-    focus_entity_id: str,
-    entity_signals: list[LLMResponseSignalRow],
-    response_ids: set[UUID],
-    all_signals: list[LLMResponseSignalRow],
-    subject: Subject,
-) -> dict[str, Any]:
-    """Match list row merge: per-platform gap, then take max gap and its reply counts."""
-    by_platform: dict[str, set[UUID]] = defaultdict(set)
-    for row in entity_signals:
-        if row.response_id in response_ids:
-            by_platform[row.platform].add(row.response_id)
-
-    if not by_platform:
-        return {
-            **competitive_gap_metrics(
-                focus_entity_id=focus_entity_id,
-                response_ids=set(),
-                all_signals=all_signals,
-                subject=subject,
-            ),
-            "platforms": [],
-        }
-
-    merged: dict[str, Any] | None = None
-    for platform in sorted(by_platform.keys()):
-        gap = competitive_gap_metrics(
-            focus_entity_id=focus_entity_id,
-            response_ids=by_platform[platform],
-            all_signals=all_signals,
-            subject=subject,
-        )
-        if gap["brand_gap_rate"] <= 0 and gap["source_gap_rate"] <= 0:
-            continue
-        if merged is None:
-            merged = {**gap, "platforms": [platform]}
-            continue
-        if platform not in merged["platforms"]:
-            merged["platforms"].append(platform)
-        _merge_gap_counts(
-            merged,
-            gap,
-            gap_key="brand_gap_rate",
-            own_key="brand_own_count",
-            total_key="brand_total_count",
-        )
-        _merge_gap_counts(
-            merged,
-            gap,
-            gap_key="source_gap_rate",
-            own_key="source_own_count",
-            total_key="source_total_count",
-        )
-        merged["brand_gap_priority"] = gap_priority(merged["brand_gap_rate"])
-        merged["source_gap_priority"] = gap_priority(merged["source_gap_rate"])
-
-    if merged is not None:
-        return merged
-
-    gap = competitive_gap_metrics(
-        focus_entity_id=focus_entity_id,
-        response_ids=response_ids,
-        all_signals=all_signals,
-        subject=subject,
-    )
-    return {**gap, "platforms": sorted(by_platform.keys())}
-
-
-def _response_ids_by_platform(
-    entity_signals: list[LLMResponseSignalRow],
-    response_ids: set[UUID],
-) -> dict[str, set[UUID]]:
-    by_platform: dict[str, set[UUID]] = defaultdict(set)
-    for row in entity_signals:
-        if row.response_id in response_ids:
-            by_platform[row.platform].add(row.response_id)
-    return by_platform
-
-
-def _platforms_with_gap(
-    *,
-    focus_entity_id: str,
-    entity_signals: list[LLMResponseSignalRow],
-    response_ids: set[UUID],
-    all_signals: list[LLMResponseSignalRow],
-    subject: Subject,
-    metric: Literal["brand", "source"],
-) -> set[str]:
-    """Platforms where own brand has a positive gap for the given metric."""
-    gap_key = "brand_gap_rate" if metric == "brand" else "source_gap_rate"
-    by_platform = _response_ids_by_platform(entity_signals, response_ids)
-    return {
-        platform
-        for platform, pool in by_platform.items()
-        if competitive_gap_metrics(
-            focus_entity_id=focus_entity_id,
-            response_ids=pool,
-            all_signals=all_signals,
-            subject=subject,
-        )[gap_key]
-        > 0
-    }
-
-
-def _scoped_response_ids(
-    entity_signals: list[LLMResponseSignalRow],
-    *,
-    platforms: list[str] | None,
-) -> set[UUID]:
-    scoped = entity_signals
-    if platforms:
-        allowed = set(platforms)
-        scoped = [row for row in scoped if row.platform in allowed]
-    return {row.response_id for row in scoped}
-
-
-def _competitor_entity_ids(catalog_ids: set[str], focus_entity_id: str) -> set[str]:
-    return {entity_id for entity_id in catalog_ids if entity_id != focus_entity_id}
-
-
-def _distinct_competitors_with_signal(
-    all_signals: list[LLMResponseSignalRow],
-    *,
-    response_ids: set[UUID],
-    competitor_ids: set[str],
-    signal_present,
-) -> int:
-    seen: set[str] = set()
-    for row in all_signals:
-        if row.response_id not in response_ids or row.entity_id not in competitor_ids:
-            continue
-        if signal_present(row):
-            seen.add(row.entity_id)
-    return len(seen)
-
-
-def _total_mention_count(
-    all_signals: list[LLMResponseSignalRow],
-    *,
-    response_ids: set[UUID],
-    catalog_ids: set[str],
-) -> int:
-    total = 0
-    for row in all_signals:
-        if row.response_id not in response_ids or row.entity_id not in catalog_ids:
-            continue
-        total += row.mention_count
-    return total
-
-
-def _total_domain_link_count(
-    all_signals: list[LLMResponseSignalRow],
-    *,
-    response_ids: set[UUID],
-    catalog_ids: set[str],
-) -> int:
-    return sum(
-        1
-        for row in all_signals
-        if row.response_id in response_ids
-        and row.entity_id in catalog_ids
-        and _has_domain_link_in_citations(row)
-    )
-
-
-def _distinct_competitor_domains_with_link(
-    all_signals: list[LLMResponseSignalRow],
-    *,
-    response_ids: set[UUID],
-    competitor_ids: set[str],
-    domain_key_by_entity: dict[str, str],
-) -> int:
-    seen: set[str] = set()
-    for row in all_signals:
-        if row.response_id not in response_ids or row.entity_id not in competitor_ids:
-            continue
-        if not _has_domain_link_in_citations(row):
-            continue
-        key = domain_key_by_entity.get(row.entity_id, "")
-        if key:
-            seen.add(key)
-    return len(seen)
-
-
-def _lookup_entity_citation_urls(
-    db: Session,
-    *,
-    response_ids: set[UUID],
-    domain: str | None,
-    label: str,
-) -> list[str]:
-    if not response_ids:
-        return []
-    root = (domain or label or "").strip().lower()
-    if not root:
-        return []
-    execute = getattr(db, "execute", None)
-    if execute is None:
-        return []
-    rows = execute(
-        select(CitationUrl.url)
-        .where(CitationUrl.response_id.in_(response_ids))
-        .order_by(CitationUrl.url.asc())
-    ).scalars().all()
-    seen: set[str] = set()
-    urls: list[str] = []
-    for url in rows:
-        text = str(url or "").strip()
-        if not text or text in seen:
-            continue
-        host = hostname_from_url(text)
-        if host and host_matches_root(host, root):
-            seen.add(text)
-            urls.append(text)
-    return urls
-
-
-def _competitor_breakdown_rows(
-    db: Session,
-    all_signals: list[LLMResponseSignalRow],
-    *,
-    subject: Subject,
-    focus_entity_id: str,
-    response_ids: set[UUID],
-    gap_platforms: set[str],
-    metric: Literal["brand", "source"],
-) -> list[dict[str, Any]]:
-    from aperix_geo.services.analysis.aggregate import metrics_from_signals
-
-    if not gap_platforms:
-        return []
-
-    entities = [entity for entity in list_analysis_entities(subject) if entity.id != focus_entity_id]
-    platform_values = sorted(gap_platforms)
-    allowed_platforms = gap_platforms
-    gap_response_ids = {
-        row.response_id
-        for row in all_signals
-        if row.response_id in response_ids and row.platform in allowed_platforms
-    }
-    if not gap_response_ids:
-        return []
-
-    pool_signals = [row for row in all_signals if row.response_id in gap_response_ids]
-
-    rows: list[dict[str, Any]] = []
-    for entity in entities:
-        subset = [
-            row
-            for row in all_signals
-            if row.entity_id == entity.id
-            and row.response_id in gap_response_ids
-            and row.platform in allowed_platforms
-        ]
-        if not subset:
-            continue
-
-        if metric == "brand":
-            metrics = metrics_from_signals(subset, subject=subject, all_signals_for_voice=pool_signals)
-            contribution_rate = metrics.visibility_rate
-            average_rank = metrics.average_rank
-        else:
-            linked_rows = sum(1 for row in subset if _has_domain_link_in_citations(row))
-            n = len({row.response_id for row in subset})
-            contribution_rate = round(linked_rows / n, 4) if n else 0.0
-            average_rank = None
-
-        if not contribution_rate or contribution_rate <= 0:
-            continue
-
-        entity_platforms: list[str] = []
-        for platform in platform_values:
-            platform_subset = [row for row in subset if row.platform == platform]
-            if not platform_subset:
-                continue
-            if metric == "brand":
-                platform_metrics = metrics_from_signals(
-                    platform_subset,
-                    subject=subject,
-                    all_signals_for_voice=pool_signals,
-                )
-                if platform_metrics.visibility_rate and platform_metrics.visibility_rate > 0:
-                    entity_platforms.append(platform)
-            elif any(_has_domain_link_in_citations(row) for row in platform_subset):
-                entity_platforms.append(platform)
-
-        if not entity_platforms:
-            continue
-
-        row_payload: dict[str, Any] = {
-            "entity_id": entity.id,
-            "label": entity.label,
-            "display_name": entity.display_name,
-            "domain": entity.domain or None,
-            "platforms": entity_platforms,
-            "contribution_rate": contribution_rate,
-            "average_rank": average_rank,
-        }
-        if metric == "source":
-            linked_response_ids = {
-                row.response_id for row in subset if _has_domain_link_in_citations(row)
-            }
-            row_payload["citation_urls"] = _lookup_entity_citation_urls(
-                db,
-                response_ids=linked_response_ids,
-                domain=entity.domain,
-                label=entity.label,
-            )
-
-        rows.append(row_payload)
-
-    rows.sort(
-        key=lambda row: (
-            row["average_rank"] if row["average_rank"] is not None else 999,
-            -(row["contribution_rate"] or 0),
-            row["label"],
-        )
-    )
-    return rows
-
-
-def build_content_opportunity_detail(
-    db: Session,
-    *,
-    subject: Subject,
-    dt_from: datetime,
-    dt_to: datetime,
-    prompt_id: UUID,
-    platform: list[str] | None = None,
-    topic_id: list[UUID] | None = None,
-    platforms: list[str] | None = None,
-) -> dict[str, Any]:
-    """Single prompt content-opportunity drill-down: gap summary + competitor breakdown."""
-    from fastapi import HTTPException, status
-
-    entity = own_entity(subject)
-    prompt = db.get(Prompt, prompt_id)
-    if not prompt or prompt.subject_id != subject.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prompt not found")
-
-    all_signals = load_llm_response_signals(
-        db,
-        subject=subject,
-        dt_from=dt_from,
-        dt_to=dt_to,
-        platform=platform,
-        topic_id=topic_id,
-        prompt_id=prompt_id,
-    )
-    entity_signals = [row for row in all_signals if row.entity_id == entity.id]
-    response_ids = _scoped_response_ids(entity_signals, platforms=platforms)
-    if not response_ids:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No responses for prompt")
-
-    catalog_ids = {item.id for item in list_analysis_entities(subject)}
-    competitor_ids = _competitor_entity_ids(catalog_ids, entity.id)
-    entities = list_analysis_entities(subject)
-    domain_key_by_entity = {
-        item.id: (item.domain or item.label).strip().lower()
-        for item in entities
-        if item.id in competitor_ids
-    }
-
-    gap_metrics = _merged_competitive_gap_metrics(
-        focus_entity_id=entity.id,
-        entity_signals=entity_signals,
-        response_ids=response_ids,
-        all_signals=all_signals,
-        subject=subject,
-    )
-    brand_gap_rate = gap_metrics["brand_gap_rate"]
-    source_gap_rate = gap_metrics["source_gap_rate"]
-    chat_mention_own = gap_metrics["brand_own_count"]
-    chat_mention_total = gap_metrics["brand_total_count"]
-    chat_source_own = gap_metrics["source_own_count"]
-    chat_source_total = gap_metrics["source_total_count"]
-    active_platforms = gap_metrics["platforms"]
-    competitor_brand_count = _distinct_competitors_with_signal(
-        all_signals,
-        response_ids=response_ids,
-        competitor_ids=competitor_ids,
-        signal_present=lambda row: row.mentioned,
-    )
-    competitor_source_count = _distinct_competitor_domains_with_link(
-        all_signals,
-        response_ids=response_ids,
-        competitor_ids=competitor_ids,
-        domain_key_by_entity=domain_key_by_entity,
-    )
-    total_mention_count = _total_mention_count(
-        all_signals,
-        response_ids=response_ids,
-        catalog_ids=catalog_ids,
-    )
-    total_source_count = _total_domain_link_count(
-        all_signals,
-        response_ids=response_ids,
-        catalog_ids=catalog_ids,
-    )
-
-    brand_gap_platforms = _platforms_with_gap(
-        focus_entity_id=entity.id,
-        entity_signals=entity_signals,
-        response_ids=response_ids,
-        all_signals=all_signals,
-        subject=subject,
-        metric="brand",
-    )
-    source_gap_platforms = _platforms_with_gap(
-        focus_entity_id=entity.id,
-        entity_signals=entity_signals,
-        response_ids=response_ids,
-        all_signals=all_signals,
-        subject=subject,
-        metric="source",
-    )
-
-    brand_rows = _competitor_breakdown_rows(
-        db,
-        all_signals,
-        subject=subject,
-        focus_entity_id=entity.id,
-        response_ids=response_ids,
-        gap_platforms=brand_gap_platforms,
-        metric="brand",
-    )
-    source_rows = _competitor_breakdown_rows(
-        db,
-        all_signals,
-        subject=subject,
-        focus_entity_id=entity.id,
-        response_ids=response_ids,
-        gap_platforms=source_gap_platforms,
-        metric="source",
-    )
-
-    return {
-        "prompt_id": str(prompt_id),
-        "prompt_text": prompt.text,
-        "entity_id": entity.id,
-        "entity_label": entity.label,
-        "platforms": platforms or active_platforms or sorted(
-            {row.platform for row in entity_signals if row.response_id in response_ids}
-        ),
-        "brand": {
-            "gap_rate": brand_gap_rate,
-            "gap_priority": gap_priority(brand_gap_rate),
-            "chat_mention_own": chat_mention_own,
-            "chat_mention_total": chat_mention_total,
-            "competitor_brand_count": competitor_brand_count,
-            "total_mention_count": total_mention_count,
-            "rows": brand_rows,
-        },
-        "source": {
-            "gap_rate": source_gap_rate,
-            "gap_priority": gap_priority(source_gap_rate),
-            "chat_source_own": chat_source_own,
-            "chat_source_total": chat_source_total,
-            "competitor_source_count": competitor_source_count,
-            "total_source_count": total_source_count,
-            "rows": source_rows,
-        },
-    }
+from aperix_geo.db.models import CitationDomain, CitationUrl, EntityKind, LLMResponse, LLMResponseSignal, Prompt, Subject
+from aperix_geo.services.analysis.entity import own_entity
+from aperix_geo.utils.url import host_matches_root
 
 
 def citation_root_for_subject(subject: Subject) -> str | None:
     from aperix_geo.services.sampling.citation import citation_root
 
     return citation_root(subject)
-
-
-def enterprise_domain_roots(subject: Subject) -> set[str]:
-    roots: set[str] = set()
-    own_root = citation_root_for_subject(subject)
-    if own_root:
-        roots.add(own_root)
-    if subject.domain:
-        root = normalize_domain(subject.domain)
-        if root:
-            roots.add(root)
-    for competitor in subject.competitors or []:
-        if not competitor.domain:
-            continue
-        root = normalize_domain(competitor.domain)
-        if root:
-            roots.add(root)
-    return roots
-
-
-def _fallback_domain_type(host: str, enterprise_roots: set[str]) -> str:
-    for root in enterprise_roots:
-        if host_matches_root(host, root):
-            return DOMAIN_TYPE_ENTERPRISE
-    return DOMAIN_TYPE_OTHER
-
-
-def _lookup_citation_domain_types(
-    db: Session,
-    *,
-    response_ids: list[UUID],
-    hosts: set[str],
-) -> dict[str, str]:
-    if not response_ids or not hosts:
-        return {}
-    execute = getattr(db, "execute", None)
-    if execute is None:
-        return {}
-    rows = execute(
-        select(
-            CitationDomain.domain,
-            func.max(CitationDomain.domain_type),
-        )
-        .where(
-            CitationDomain.response_id.in_(response_ids),
-            CitationDomain.domain.in_(hosts),
-        )
-        .group_by(CitationDomain.domain)
-    ).all()
-    return {
-        str(domain).strip().lower(): str(domain_type or "").strip()
-        for domain, domain_type in rows
-        if domain and str(domain_type or "").strip()
-    }
 
 
 def backlink_priority(prompt_count: int, chat_count: int) -> str:
@@ -917,49 +76,114 @@ def _sort_backlink_items(
 
 
 @dataclass(frozen=True)
-class _BacklinkResponseRow:
-    response_id: UUID
-    platform: str
-    prompt_id: UUID
-    parsed: dict[str, Any]
-    own_cited_on_source: bool
+class _BacklinkHostContext:
+    host: str
+    response_ids: frozenset[UUID]
+    citation_count: int
+    chat_count: int
+    prompt_ids: frozenset[UUID]
+    platforms: list[str]
 
 
-class _BacklinkResponseLoader:
-    """Patchable loader (tests assign to `.override`)."""
+def _normalize_backlink_host(host: str) -> str:
+    return (host or "").strip().lower()
 
-    override: Callable[..., list[_BacklinkResponseRow]] | None = None
 
-    def __call__(
-        self,
-    db: Session,
+def _backlink_window_subquery(
     *,
-    subject: Subject,
+    subject_id: UUID,
     dt_from: datetime,
     dt_to: datetime,
-    platform: list[str] | None = None,
-    topic_id: list[UUID] | None = None,
-    ) -> list[_BacklinkResponseRow]:
-        if self.override is not None:
-            return self.override(
-                db,
-                subject=subject,
+    platform: list[str] | None,
+    topic_id: list[UUID] | None,
+):
+    return _backlink_eligible_response_ids_stmt(
+        subject_id=subject_id,
+        dt_from=dt_from,
+        dt_to=dt_to,
+        platform=platform,
+        topic_id=topic_id,
+    ).subquery()
+
+
+def _backlink_host_domain_filter(host: str, eligible_subq) -> Any:
+    return and_(
+        CitationDomain.response_id.in_(select(eligible_subq.c.id)),
+        CitationDomain.domain == host,
+    )
+
+
+def _backlink_host_response_ids_stmt(
+    *,
+    subject_id: UUID,
+    host: str,
+    dt_from: datetime,
+    dt_to: datetime,
+    platform: list[str] | None,
+    topic_id: list[UUID] | None,
+):
+    host_key = _normalize_backlink_host(host)
+    eligible = _backlink_window_subquery(
+        subject_id=subject_id,
         dt_from=dt_from,
         dt_to=dt_to,
         platform=platform,
         topic_id=topic_id,
     )
-        return self._load(
-        db,
-        subject=subject,
+    return select(CitationDomain.response_id).where(_backlink_host_domain_filter(host_key, eligible)).distinct()
+
+
+def _exclude_own_domain(domain_column, own_root: str | None):
+    if not own_root:
+        return True
+    root = own_root.lower().replace("www.", "")
+    return not_(
+        or_(
+            domain_column == root,
+            domain_column == f"www.{root}",
+            domain_column.like(f"%.{root}"),
+        )
+    )
+
+
+def _backlink_eligible_response_ids_stmt(
+    *,
+    subject_id: UUID,
+    dt_from: datetime,
+    dt_to: datetime,
+    platform: list[str] | None = None,
+    topic_id: list[UUID] | None = None,
+):
+    from aperix_geo.services.analysis._query import response_ids_in_window_stmt
+
+    own_kind = EntityKind.own.value
+    cited_on_source_ids = (
+        select(LLMResponseSignal.response_id)
+        .where(
+            LLMResponseSignal.subject_id == subject_id,
+            LLMResponseSignal.entity_kind == own_kind,
+            LLMResponseSignal.cited_on_source.is_(True),
+        )
+        .distinct()
+    )
+    window = response_ids_in_window_stmt(
+        subject_id=subject_id,
         dt_from=dt_from,
         dt_to=dt_to,
         platform=platform,
         topic_id=topic_id,
-        )
+        prompt_id=None,
+    )
+    return window.where(LLMResponse.id.not_in(cited_on_source_ids))
 
-    @staticmethod
-    def _load(
+
+class _BacklinkHostStatsQuery:
+    """Patchable host stats query (tests assign to `.override`)."""
+
+    override: Callable[..., list[dict[str, Any]]] | None = None
+
+    def __call__(
+        self,
         db: Session,
         *,
         subject: Subject,
@@ -967,112 +191,220 @@ class _BacklinkResponseLoader:
         dt_to: datetime,
         platform: list[str] | None = None,
         topic_id: list[UUID] | None = None,
-    ) -> list[_BacklinkResponseRow]:
-        own_kind = EntityKind.own.value
-        stmt = (
-            select(
-                LLMResponse.id,
-                LLMResponse.platform,
-                LLMResponse.prompt_id,
-                LLMResponse.parsed,
-                LLMResponseSignal.cited_on_source,
+    ) -> list[dict[str, Any]]:
+        if self.override is not None:
+            return self.override(
+                db,
+                subject=subject,
+                dt_from=dt_from,
+                dt_to=dt_to,
+                platform=platform,
+                topic_id=topic_id,
             )
-            .join(SamplingJob, LLMResponse.sampling_job_id == SamplingJob.id)
-            .outerjoin(
-                LLMResponseSignal,
-                and_(
-                    LLMResponseSignal.response_id == LLMResponse.id,
-                    LLMResponseSignal.subject_id == subject.id,
-                    LLMResponseSignal.entity_kind == own_kind,
-                ),
+        return self._load_sql(
+            db,
+            subject=subject,
+            dt_from=dt_from,
+            dt_to=dt_to,
+            platform=platform,
+            topic_id=topic_id,
+        )
+
+    @staticmethod
+    def _load_sql(
+        db: Session,
+        *,
+        subject: Subject,
+        dt_from: datetime,
+        dt_to: datetime,
+        platform: list[str] | None = None,
+        topic_id: list[UUID] | None = None,
+    ) -> list[dict[str, Any]]:
+        eligible = _backlink_eligible_response_ids_stmt(
+            subject_id=subject.id,
+            dt_from=dt_from,
+            dt_to=dt_to,
+            platform=platform,
+            topic_id=topic_id,
+        ).subquery()
+        own_root = citation_root_for_subject(subject)
+        grouped = (
+            select(
+                CitationDomain.domain.label("host"),
+                func.sum(CitationDomain.cite_count).label("citation_count"),
+                func.count(func.distinct(CitationDomain.response_id)).label("chat_count"),
+                func.count(func.distinct(CitationDomain.prompt_id)).label("prompt_count"),
             )
             .where(
-                SamplingJob.subject_id == subject.id,
-                LLMResponse.created_at >= dt_from,
-                LLMResponse.created_at <= dt_to,
-                LLMResponse.status == LLMResponseStatus.success,
+                CitationDomain.response_id.in_(select(eligible.c.id)),
+                _exclude_own_domain(CitationDomain.domain, own_root),
             )
-        )
-        if platform:
-            stmt = stmt.where(LLMResponse.platform.in_(platform))
-        if topic_id:
-            stmt = stmt.join(Prompt, LLMResponse.prompt_id == Prompt.id).where(
-                Prompt.topic_id.in_(topic_id)
+            .group_by(CitationDomain.domain)
+        ).subquery()
+
+        rows = db.execute(
+            select(
+                grouped.c.host,
+                grouped.c.citation_count,
+                grouped.c.chat_count,
+                grouped.c.prompt_count,
+            ).where(grouped.c.chat_count > 0)
+        ).all()
+
+        items: list[dict[str, Any]] = []
+        for host, citation_count, chat_count, prompt_count in rows:
+            host_key = str(host or "").strip().lower()
+            if not host_key:
+                continue
+            chat = int(chat_count or 0)
+            prompts = int(prompt_count or 0)
+            items.append(
+                {
+                    "id": host_key,
+                    "host": host_key,
+                    "platforms": [],
+                    "priority": backlink_priority(prompts, chat),
+                    "citation_count": int(citation_count or 0),
+                    "prompt_count": prompts,
+                    "chat_count": chat,
+                }
             )
-
-        rows: list[_BacklinkResponseRow] = []
-        for response_id, platform_value, prompt_id, parsed, cited_on_source in db.execute(stmt).all():
-            rows.append(
-                _BacklinkResponseRow(
-                    response_id=response_id,
-                    platform=platform_value,
-                    prompt_id=prompt_id,
-                    parsed=parsed or {},
-                    own_cited_on_source=bool(cited_on_source),
-                )
-            )
-        return rows
+        return items
 
 
-_load_backlink_responses = _BacklinkResponseLoader()
+_query_backlink_host_stats = _BacklinkHostStatsQuery()
 
 
-def _aggregate_backlink_items(
-    response_rows: list[_BacklinkResponseRow],
-    *,
-    subject: Subject,
+def _attach_backlink_platforms(
     db: Session,
-) -> list[dict[str, Any]]:
-    own_root = citation_root_for_subject(subject)
-    enterprise_roots = enterprise_domain_roots(subject)
-    grouped: dict[str, dict[str, Any]] = defaultdict(
-        lambda: {"chat_count": 0, "citation_count": 0, "prompt_ids": set(), "platforms": set()}
-    )
-
-    for row in response_rows:
-        if row.own_cited_on_source:
-            continue
-        seen_hosts_in_row: set[str] = set()
-        for raw_host in row.parsed.get("url_hosts") or []:
-            host = str(raw_host).lower()
-            if not host:
-                continue
-            if own_root and host_matches_root(host, own_root):
-                continue
-            bucket = grouped[host]
-            bucket["citation_count"] += 1
-            if host in seen_hosts_in_row:
-                continue
-            seen_hosts_in_row.add(host)
-            bucket["chat_count"] += 1
-            bucket["prompt_ids"].add(row.prompt_id)
-            bucket["platforms"].add(row.platform)
-
-    domain_types = _lookup_citation_domain_types(
-        db,
-        response_ids=[row.response_id for row in response_rows],
-        hosts=set(grouped.keys()),
-    )
-
-    items: list[dict[str, Any]] = []
-    for host, data in grouped.items():
-        chat_count = data["chat_count"]
-        prompt_count = len(data["prompt_ids"])
-        if chat_count == 0:
-            continue
-        items.append(
-            {
-                "id": host,
-                "host": host,
-                "platforms": sorted(data["platforms"]),
-                "priority": backlink_priority(prompt_count, chat_count),
-                "domain_type": domain_types.get(host) or _fallback_domain_type(host, enterprise_roots),
-                "citation_count": data["citation_count"],
-                "prompt_count": prompt_count,
-                "chat_count": chat_count,
-            }
+    *,
+    items: list[dict[str, Any]],
+    subject_id: UUID,
+    dt_from: datetime,
+    dt_to: datetime,
+    platform: list[str] | None,
+    topic_id: list[UUID] | None,
+) -> None:
+    if not items:
+        return
+    page_hosts = [item["host"] for item in items]
+    eligible = _backlink_eligible_response_ids_stmt(
+        subject_id=subject_id,
+        dt_from=dt_from,
+        dt_to=dt_to,
+        platform=platform,
+        topic_id=topic_id,
+    ).subquery()
+    platform_rows = db.execute(
+        select(CitationDomain.domain, LLMResponse.platform)
+        .join(LLMResponse, CitationDomain.response_id == LLMResponse.id)
+        .where(
+            CitationDomain.response_id.in_(select(eligible.c.id)),
+            CitationDomain.domain.in_(page_hosts),
         )
-    return items
+    ).all()
+    platforms_by_host: dict[str, set[str]] = defaultdict(set)
+    for domain, platform_value in platform_rows:
+        host_key = str(domain or "").strip().lower()
+        if host_key and platform_value:
+            platforms_by_host[host_key].add(str(platform_value))
+    for item in items:
+        item["platforms"] = sorted(platforms_by_host.get(item["host"], set()))
+
+
+class _BacklinkHostContextQuery:
+    """Patchable single-host context query (tests assign to `.override`)."""
+
+    override: Callable[..., _BacklinkHostContext | None] | None = None
+
+    def __call__(
+        self,
+        db: Session,
+        *,
+        subject: Subject,
+        host: str,
+        dt_from: datetime,
+        dt_to: datetime,
+        platform: list[str] | None = None,
+        topic_id: list[UUID] | None = None,
+    ) -> _BacklinkHostContext | None:
+        if self.override is not None:
+            return self.override(
+                db,
+                subject=subject,
+                host=host,
+                dt_from=dt_from,
+                dt_to=dt_to,
+                platform=platform,
+                topic_id=topic_id,
+            )
+        return self._load_sql(
+            db,
+            subject=subject,
+            host=host,
+            dt_from=dt_from,
+            dt_to=dt_to,
+            platform=platform,
+            topic_id=topic_id,
+        )
+
+    @staticmethod
+    def _load_sql(
+        db: Session,
+        *,
+        subject: Subject,
+        host: str,
+        dt_from: datetime,
+        dt_to: datetime,
+        platform: list[str] | None = None,
+        topic_id: list[UUID] | None = None,
+    ) -> _BacklinkHostContext | None:
+        host_key = _normalize_backlink_host(host)
+        if not host_key:
+            return None
+        own_root = citation_root_for_subject(subject)
+        if own_root and host_matches_root(host_key, own_root):
+            return None
+
+        eligible = _backlink_window_subquery(
+            subject_id=subject.id,
+            dt_from=dt_from,
+            dt_to=dt_to,
+            platform=platform,
+            topic_id=topic_id,
+        )
+        domain_filter = _backlink_host_domain_filter(host_key, eligible)
+        citation_count, chat_count = db.execute(
+            select(
+                func.coalesce(func.sum(CitationDomain.cite_count), 0),
+                func.count(func.distinct(CitationDomain.response_id)),
+            ).where(domain_filter)
+        ).one()
+        chat = int(chat_count or 0)
+        if chat == 0:
+            return None
+
+        response_ids = frozenset(db.scalars(select(CitationDomain.response_id).where(domain_filter)).all())
+        prompt_ids = frozenset(db.scalars(select(CitationDomain.prompt_id).where(domain_filter)).all())
+        platform_rows = db.execute(
+            select(LLMResponse.platform)
+            .join(CitationDomain, CitationDomain.response_id == LLMResponse.id)
+            .where(domain_filter)
+            .distinct()
+        ).all()
+        platforms = sorted({str(row[0]) for row in platform_rows if row[0]})
+
+        return _BacklinkHostContext(
+            host=host_key,
+            response_ids=response_ids,
+            citation_count=int(citation_count or 0),
+            chat_count=chat,
+            prompt_ids=prompt_ids,
+            platforms=platforms,
+        )
+
+
+_query_backlink_host_context = _BacklinkHostContextQuery()
 
 
 def build_backlink_opportunities(
@@ -1090,7 +422,7 @@ def build_backlink_opportunities(
     page_size: int = 10,
 ) -> dict[str, Any]:
     """Aggregate external citation hosts where own brand is not cited on source."""
-    response_rows = _load_backlink_responses(
+    items = _query_backlink_host_stats(
         db,
         subject=subject,
         dt_from=dt_from,
@@ -1098,14 +430,23 @@ def build_backlink_opportunities(
         platform=platform,
         topic_id=topic_id,
     )
-    items = _aggregate_backlink_items(response_rows, subject=subject, db=db)
     filtered = _filter_backlink_by_search(items, search)
     sorted_items = _sort_backlink_items(filtered, sort_by=sort_by, order=order)
-    page_items, total, safe_page, safe_page_size = _paginate(
-        sorted_items,
-        page=page,
-        page_size=page_size,
-    )
+    safe_page = max(1, page)
+    safe_page_size = max(1, page_size)
+    total = len(sorted_items)
+    start = (safe_page - 1) * safe_page_size
+    page_items = sorted_items[start : start + safe_page_size]
+    if page_items and _query_backlink_host_stats.override is None:
+        _attach_backlink_platforms(
+            db,
+            items=page_items,
+            subject_id=subject.id,
+            dt_from=dt_from,
+            dt_to=dt_to,
+            platform=platform,
+            topic_id=topic_id,
+        )
     return {
         "items": page_items,
         "total": total,
@@ -1114,70 +455,16 @@ def build_backlink_opportunities(
     }
 
 
-@dataclass(frozen=True)
-class _BacklinkHostContext:
-    host: str
-    response_ids: frozenset[UUID]
-    citation_count: int
-    chat_count: int
-    prompt_ids: frozenset[UUID]
-    platforms: list[str]
-
-
-def _backlink_host_context(
-    response_rows: list[_BacklinkResponseRow],
-    *,
-    host: str,
-    subject: Subject,
-) -> _BacklinkHostContext | None:
-    host = (host or "").strip().lower()
-    if not host:
-        return None
-    own_root = citation_root_for_subject(subject)
-    citation_count = 0
-    chat_count = 0
-    prompt_ids: set[UUID] = set()
-    platforms: set[str] = set()
-    response_ids: set[UUID] = set()
-
-    for row in response_rows:
-        if row.own_cited_on_source:
-            continue
-        seen_in_row = False
-        for raw_host in row.parsed.get("url_hosts") or []:
-            h = str(raw_host).lower()
-            if not h or h != host:
-                continue
-            if own_root and host_matches_root(h, own_root):
-                continue
-            citation_count += 1
-            if seen_in_row:
-                continue
-            seen_in_row = True
-            chat_count += 1
-            response_ids.add(row.response_id)
-            prompt_ids.add(row.prompt_id)
-            platforms.add(row.platform)
-
-    if chat_count == 0:
-        return None
-
-    return _BacklinkHostContext(
-        host=host,
-        response_ids=frozenset(response_ids),
-        citation_count=citation_count,
-        chat_count=chat_count,
-        prompt_ids=frozenset(prompt_ids),
-        platforms=sorted(platforms),
-    )
-
-
 def _backlink_mentioned_competitors(
     db: Session,
     *,
     subject: Subject,
-    response_ids: frozenset[UUID],
     host: str,
+    subject_id: UUID,
+    dt_from: datetime,
+    dt_to: datetime,
+    platform: list[str] | None,
+    topic_id: list[UUID] | None,
 ) -> list[dict[str, str | None]]:
     from aperix_geo.services.sampling.citation.aggregate import (
         _competitor_domain_map,
@@ -1185,8 +472,15 @@ def _backlink_mentioned_competitors(
     )
     from aperix_geo.services.sampling.citation.labels import page_mentioned_brand_names
 
-    if not response_ids:
-        return []
+    host_key = _normalize_backlink_host(host)
+    response_ids_stmt = _backlink_host_response_ids_stmt(
+        subject_id=subject_id,
+        host=host_key,
+        dt_from=dt_from,
+        dt_to=dt_to,
+        platform=platform,
+        topic_id=topic_id,
+    )
 
     own = own_entity(subject)
     own_keys = {own.label.lower()}
@@ -1195,8 +489,8 @@ def _backlink_mentioned_competitors(
 
     records = db.execute(
         select(CitationUrl).where(
-            CitationUrl.response_id.in_(list(response_ids)),
-            _url_matches_host(CitationUrl.url, host),
+            CitationUrl.response_id.in_(response_ids_stmt),
+            _url_matches_host(CitationUrl.url, host_key),
         )
     ).scalars().all()
     competitor_domains = _competitor_domain_map(subject)
@@ -1216,7 +510,6 @@ def _backlink_mentioned_competitors(
 def _empty_backlink_detail(host: str) -> dict[str, Any]:
     return {
         "host": host,
-        "domain_type": None,
         "priority": "low",
         "platforms": [],
         "citation_count": 0,
@@ -1237,26 +530,19 @@ def build_backlink_opportunity_detail(
     platform: list[str] | None = None,
     topic_id: list[UUID] | None = None,
 ) -> dict[str, Any]:
-    host = (host or "").strip().lower()
-    response_rows = _load_backlink_responses(
+    host = _normalize_backlink_host(host)
+    ctx = _query_backlink_host_context(
         db,
         subject=subject,
+        host=host,
         dt_from=dt_from,
         dt_to=dt_to,
         platform=platform,
         topic_id=topic_id,
     )
-    ctx = _backlink_host_context(response_rows, host=host, subject=subject)
     if ctx is None:
         return _empty_backlink_detail(host)
 
-    domain_types = _lookup_citation_domain_types(
-        db,
-        response_ids=list(ctx.response_ids),
-        hosts={host},
-    )
-    enterprise_roots = enterprise_domain_roots(subject)
-    domain_type = domain_types.get(host) or _fallback_domain_type(host, enterprise_roots)
     prompt_count = len(ctx.prompt_ids)
 
     from aperix_geo.services.analysis._query import count_responses_in_window
@@ -1273,7 +559,6 @@ def build_backlink_opportunity_detail(
 
     return {
         "host": host,
-        "domain_type": domain_type,
         "priority": backlink_priority(prompt_count, ctx.chat_count),
         "platforms": ctx.platforms,
         "citation_count": ctx.citation_count,
@@ -1283,8 +568,12 @@ def build_backlink_opportunity_detail(
         "mentioned_competitors": _backlink_mentioned_competitors(
             db,
             subject=subject,
-            response_ids=ctx.response_ids,
             host=host,
+            subject_id=subject.id,
+            dt_from=dt_from,
+            dt_to=dt_to,
+            platform=platform,
+            topic_id=topic_id,
         ),
     }
 
@@ -1311,16 +600,16 @@ def build_backlink_opportunity_urls_page(
         _url_matches_host,
     )
 
-    host = (host or "").strip().lower()
-    response_rows = _load_backlink_responses(
+    host = _normalize_backlink_host(host)
+    ctx = _query_backlink_host_context(
         db,
         subject=subject,
+        host=host,
         dt_from=dt_from,
         dt_to=dt_to,
         platform=platform,
         topic_id=topic_id,
     )
-    ctx = _backlink_host_context(response_rows, host=host, subject=subject)
     safe_page, safe_page_size = _normalize_pagination(page, page_size)
     if ctx is None:
         return {
@@ -1331,7 +620,14 @@ def build_backlink_opportunity_urls_page(
             "response_total": 0,
         }
 
-    response_ids = list(ctx.response_ids)
+    response_ids_stmt = _backlink_host_response_ids_stmt(
+        subject_id=subject.id,
+        host=host,
+        dt_from=dt_from,
+        dt_to=dt_to,
+        platform=platform,
+        topic_id=topic_id,
+    )
     response_total = ctx.chat_count
     count_expr = func.count(CitationUrl.id)
     grouped = (
@@ -1340,7 +636,7 @@ def build_backlink_opportunity_urls_page(
             count_expr.label("count"),
         )
         .where(
-            CitationUrl.response_id.in_(response_ids),
+            CitationUrl.response_id.in_(response_ids_stmt),
             _url_matches_host(CitationUrl.url, host),
         )
         .group_by(CitationUrl.url)
@@ -1372,7 +668,7 @@ def build_backlink_opportunity_urls_page(
         .join(LLMResponse, CitationUrl.response_id == LLMResponse.id)
         .where(
             CitationUrl.url.in_(page_urls),
-            CitationUrl.response_id.in_(response_ids),
+            CitationUrl.response_id.in_(response_ids_stmt),
         )
     ).all()
 
@@ -1425,16 +721,16 @@ def build_backlink_opportunity_prompts_page(
 ) -> dict[str, Any]:
     from aperix_geo.services.sampling.citation.aggregate import _normalize_pagination, _url_matches_host
 
-    host = (host or "").strip().lower()
-    response_rows = _load_backlink_responses(
+    host = _normalize_backlink_host(host)
+    ctx = _query_backlink_host_context(
         db,
         subject=subject,
+        host=host,
         dt_from=dt_from,
         dt_to=dt_to,
         platform=platform,
         topic_id=topic_id,
     )
-    ctx = _backlink_host_context(response_rows, host=host, subject=subject)
     safe_page, safe_page_size = _normalize_pagination(page, page_size)
     if ctx is None:
         return {
@@ -1445,7 +741,14 @@ def build_backlink_opportunity_prompts_page(
             "response_total": 0,
         }
 
-    response_ids = list(ctx.response_ids)
+    response_ids_stmt = _backlink_host_response_ids_stmt(
+        subject_id=subject.id,
+        host=host,
+        dt_from=dt_from,
+        dt_to=dt_to,
+        platform=platform,
+        topic_id=topic_id,
+    )
     response_total = ctx.chat_count
     count_expr = func.count(CitationUrl.id)
     grouped = (
@@ -1454,7 +757,7 @@ def build_backlink_opportunity_prompts_page(
             count_expr.label("count"),
         )
         .where(
-            CitationUrl.response_id.in_(response_ids),
+            CitationUrl.response_id.in_(response_ids_stmt),
             _url_matches_host(CitationUrl.url, host),
         )
         .group_by(CitationUrl.prompt_id)
@@ -1498,7 +801,7 @@ def build_backlink_opportunity_prompts_page(
         select(CitationUrl.prompt_id, LLMResponse.platform)
         .join(LLMResponse, CitationUrl.response_id == LLMResponse.id)
         .where(
-            CitationUrl.response_id.in_(response_ids),
+            CitationUrl.response_id.in_(response_ids_stmt),
             CitationUrl.prompt_id.in_(page_prompt_ids),
             _url_matches_host(CitationUrl.url, host),
         )

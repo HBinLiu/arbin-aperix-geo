@@ -3,7 +3,7 @@
 入口：``GET /api/v1/favicon?url=...`` → ``resolve_favicon``。
 
 读取：内存（24h）→ 磁盘 favicon.{ext}（FileResponse 直出）→ 网络抓取（静态路径 → HTML link/meta → Crawl4AI 渲染兜底）。
-未命中结果 negative cache 6h；并发同域请求 single-flight 合并。采样 job 完成后 Celery 后台预热 citation 域名 favicon。
+未命中结果 negative cache 6h；并发同域请求 single-flight 合并。采样引用页抓取成功时会顺带从 HTML 解析并缓存 favicon。
 
 磁盘：``{FAVICON_STORAGE_DIR}/{domain}/favicon.{ext}`` + ``index.json``（按 domain 键，不按 URL path）；磁盘命中时 API 走 FileResponse。
 

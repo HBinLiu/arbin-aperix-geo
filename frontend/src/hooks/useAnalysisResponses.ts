@@ -1,9 +1,9 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 
 import { fetchAnalysisResponses } from "@/api/analysis";
 import type { FetchAnalysisResponsesOptions } from "@/api/analysis";
 import { platformFilterKey, topicFilterKey, toAnalysisQueryFilters } from "@/lib/analysis";
+import { paginatedListResult, usePaginatedQuery } from "@/hooks/usePaginatedQuery";
 import { queryKeys } from "@/lib/queries";
 import type { AnalysisFilters, AnalysisResponseSortField, SentimentTab } from "@/types";
 
@@ -23,7 +23,7 @@ export function useAnalysisResponses(
   const sortBy = requestOptions.sortBy ?? null;
   const order = requestOptions.order ?? "desc";
 
-  const responsesQuery = useQuery({
+  const query = usePaginatedQuery({
     queryKey: queryKeys.analysisResponses(
       subjectId,
       entityId,
@@ -49,12 +49,11 @@ export function useAnalysisResponses(
     enabled,
   });
 
+  const list = paginatedListResult(query, { page, pageSize });
+
   return {
-    isLoading: responsesQuery.isLoading,
-    responses: responsesQuery.data?.items ?? [],
-    total: responsesQuery.data?.total ?? 0,
-    page: responsesQuery.data?.page ?? page,
-    pageSize: responsesQuery.data?.page_size ?? pageSize,
+    ...list,
+    responses: list.rows,
   };
 }
 

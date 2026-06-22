@@ -261,9 +261,9 @@ export type CitationUrlSortField = "count" | "citation_rate";
 export type CitationDomainRow = {
   host: string;
   count: number;
+  platforms?: string[];
   citation_rate: number;
   monthly_visits: number | null;
-  domain_type: string | null;
 };
 
 export type CitationMentionedBrand = {
@@ -280,8 +280,8 @@ export type CitationUrlRow = {
   url: string;
   host: string;
   title: string;
-  url_type: string | null;
   count: number;
+  platforms?: string[];
   citation_rate: number;
   has_brand_analysis?: boolean;
   mentioned_brands: CitationMentionedBrand[];
@@ -309,7 +309,6 @@ export type CitationDomainAnalysisData = {
   host: string;
   count: number;
   citation_rate: number;
-  domain_type: string | null;
   prev_count: number;
   response_total: number;
   series: CitationDomainSeriesPoint[];
@@ -392,7 +391,7 @@ export type SentimentTab = "positive" | "neutral" | "negative";
 
 export type OpportunityPriority = "high" | "medium" | "low";
 
-export type OpportunityTab = "content" | "backlink" | "social";
+export type OpportunityTab = "backlink" | "social";
 
 export type ContentOpportunityItem = {
   id: string;
@@ -400,6 +399,12 @@ export type ContentOpportunityItem = {
   prompt_text: string;
   platforms: string[];
   priority: OpportunityPriority;
+  mention_priority: OpportunityPriority;
+  mention_rate: number;
+  mention_own_count: number;
+  mention_total_count: number;
+  average_rank: number | null;
+  mention_issue_type: DiagnosisIssueType;
   competitors: string[];
   brand_gap_rate: number;
   brand_gap_priority: OpportunityPriority;
@@ -411,14 +416,39 @@ export type ContentOpportunityItem = {
   source_total_count: number;
 };
 
-export type ContentOpportunityData = {
+export type ContentOpportunitySummary = {
+  overall_score: number;
+  overall_status: DiagnosisStatus;
+  mention: DiagnosisDimensionSummary;
+  brand_gap: DiagnosisDimensionSummary;
+  source_gap: DiagnosisDimensionSummary;
+};
+
+export type DiagnosisContentListData = {
+  entity_id: string;
+  entity_label: string;
   items: ContentOpportunityItem[];
   total: number;
   page: number;
   page_size: number;
 };
 
-export type ContentOpportunitySortField = "priority" | "brand_gap_rate" | "source_gap_rate";
+export type DiagnosisContentSummaryData = {
+  entity_id: string;
+  entity_label: string;
+  summary: ContentOpportunitySummary;
+};
+
+/** @deprecated use DiagnosisContentListData */
+export type ContentOpportunityData = DiagnosisContentListData & {
+  summary?: ContentOpportunitySummary;
+};
+
+export type ContentOpportunitySortField =
+  | "priority"
+  | "brand_gap_rate"
+  | "source_gap_rate"
+  | "mention_rate";
 
 export type ContentOpportunityDetailRow = {
   entity_id: string;
@@ -461,9 +491,6 @@ export type ContentOpportunityDetailSource = {
 export type ContentOpportunityDetailData = {
   prompt_id: string;
   prompt_text: string;
-  entity_id: string;
-  entity_label: string;
-  platforms: string[];
   brand: ContentOpportunityDetailBrand;
   source: ContentOpportunityDetailSource;
 };
@@ -475,7 +502,6 @@ export type BacklinkOpportunityItem = {
   host: string;
   platforms: string[];
   priority: OpportunityPriority;
-  domain_type: string | null;
   citation_count: number;
   prompt_count: number;
   chat_count: number;
@@ -492,7 +518,6 @@ export type BacklinkOpportunitySortField = "priority" | "prompt_count" | "chat_c
 
 export type BacklinkOpportunityDetailData = {
   host: string;
-  domain_type: string | null;
   priority: OpportunityPriority;
   platforms: string[];
   citation_count: number;
@@ -508,7 +533,7 @@ export type BacklinkOpportunityUrlRow = CitationUrlRow & {
 
 export type BacklinkOpportunityDetailTab = "pages" | "prompt";
 
-export type DiagnosisStatus = "excellent" | "good" | "needs_improvement" | "critical";
+export type DiagnosisStatus = "excellent" | "good" | "improvement" | "critical";
 
 export type DiagnosisIssueType = "not_mentioned" | "low_mention" | "poor_rank" | "healthy";
 
@@ -526,18 +551,6 @@ export type DiagnosisMentionItem = {
   competitors: string[];
 };
 
-export type DiagnosisPromptItem = {
-  id: string;
-  prompt_id: string;
-  prompt_text: string;
-  priority: OpportunityPriority;
-  mention_rate: number;
-  mention_own_count: number;
-  mention_total_count: number;
-  average_rank: number | null;
-  issue_type: DiagnosisIssueType;
-};
-
 export type DiagnosisDimensionSummary = {
   health_score: number;
   priority_counts: Record<OpportunityPriority, number>;
@@ -548,10 +561,8 @@ export type DiagnosisData = {
   overall_status: DiagnosisStatus;
   dimensions: {
     mention: DiagnosisDimensionSummary;
-    prompt: DiagnosisDimensionSummary;
   };
   mention_items: DiagnosisMentionItem[];
-  prompt_items: DiagnosisPromptItem[];
 };
 
 export type AnalysisQueryFilters = {
@@ -605,6 +616,7 @@ export type PromptDetailOpportunityPayload = {
   brand_gap_priority: OpportunityPriority;
   source_gap_rate: number;
   source_gap_priority: OpportunityPriority;
+  mention_priority: OpportunityPriority;
   priority: OpportunityPriority;
 };
 

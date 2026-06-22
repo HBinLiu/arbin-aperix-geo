@@ -19,6 +19,7 @@ class PageCrawlSettings:
     crawl4ai_concurrency: int
     cache_ttl_s: int
     negative_cache_ttl_s: int
+    rate_limit_negative_ttl_s: int
     dns_cache_ttl_s: int
 
 
@@ -35,6 +36,7 @@ def page_crawl_settings(settings: Settings | None = None) -> PageCrawlSettings:
         crawl4ai_concurrency=s.page_crawl_crawl4ai_concurrency,
         cache_ttl_s=s.page_crawl_cache_ttl_s,
         negative_cache_ttl_s=s.page_crawl_negative_cache_ttl_s,
+        rate_limit_negative_ttl_s=s.page_crawl_rate_limit_negative_ttl_s,
         dns_cache_ttl_s=s.page_crawl_dns_cache_ttl_s,
     )
 

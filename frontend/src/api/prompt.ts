@@ -1,9 +1,11 @@
 import { api } from "@/api/client";
-import type { SubjectPrompt, SubjectTopic } from "@/types";
+import type { GeneratedPromptItem, SubjectPrompt, SubjectTopic } from "@/types";
 
 export type PromptCreateBody = {
   topic_id: string;
   text: string;
+  funnel_stage?: string;
+  search_intent?: string;
   enabled?: boolean;
 };
 
@@ -62,17 +64,34 @@ export async function deleteSubjectPrompt(subjectId: string, promptId: string): 
   await api.delete(`/subjects/${subjectId}/prompts/${promptId}`);
 }
 
+export type PromptBatchCreateBody = {
+  topic_id: string;
+  items: Array<{
+    text: string;
+    funnel_stage?: string;
+    search_intent?: string;
+  }>;
+};
+
+export async function batchCreateSubjectPrompts(
+  subjectId: string,
+  body: PromptBatchCreateBody,
+): Promise<SubjectPrompt[]> {
+  const { data } = await api.post<SubjectPrompt[]>(`/subjects/${subjectId}/prompts/batch`, body);
+  return data;
+}
+
 export type GenerateSubjectPromptsBody = {
   topic_id: string;
   count: number;
 };
 
-export async function generateSubjectPrompts(
+export async function previewSubjectPrompts(
   subjectId: string,
   body: GenerateSubjectPromptsBody,
-): Promise<SubjectPrompt[]> {
-  const { data } = await api.post<SubjectPrompt[]>(
-    `/subjects/${subjectId}/prompts/generate`,
+): Promise<GeneratedPromptItem[]> {
+  const { data } = await api.post<GeneratedPromptItem[]>(
+    `/subjects/${subjectId}/prompts/generate/preview`,
     body,
     { timeout: 120_000 },
   );

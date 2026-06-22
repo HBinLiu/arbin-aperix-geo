@@ -1,4 +1,4 @@
-"""Closed brand scope for citation page GEO (response-mentioned cross-validated brands)."""
+"""Closed brand scope for citation source-page mention checks."""
 
 from __future__ import annotations
 
@@ -8,20 +8,20 @@ from aperix_geo.services.sampling.mentions import CompetitorEntry, collect_match
 from aperix_geo.services.sampling.signal_draft import EntitySignalDraft
 
 
-def cross_validated_other_brand_labels(response_absa: dict[str, Any]) -> list[str]:
-    """Open-set ABSA brand labels (expected already cross-validated in parse analysis)."""
+def open_brand_labels_from_absa(response_absa: dict[str, Any]) -> list[str]:
+    """Open-set brand labels from ABSA output."""
     others = dict(response_absa.get("other_brands_sentiment_absa") or {})
     return [label for label in others if str(label or "").strip()]
 
 
-def page_geo_brand_scope(
+def citation_brand_scope(
     entity_signals: list[EntitySignalDraft],
     *,
     own_brand: str,
     competitors: list[CompetitorEntry],
-    cross_validated_other_brands: list[str] | None = None,
+    open_brand_labels: list[str] | None = None,
 ) -> list[str]:
-    """Brands to check on citation pages: response-mentioned monitored competitors + cross-validated others."""
+    """Brands to check on citation pages: response-mentioned monitored competitors + ABSA open-set."""
     mentioned_labels = {
         draft.entity_label
         for draft in entity_signals
@@ -37,7 +37,7 @@ def page_geo_brand_scope(
         if name and key not in seen:
             seen.add(key)
             scope.append(name)
-    for label in cross_validated_other_brands or []:
+    for label in open_brand_labels or []:
         name = str(label or "").strip()
         key = name.lower()
         if name and key not in seen:
@@ -54,7 +54,7 @@ def page_geo_brand_scope(
     return scope
 
 
-def page_geo_match_terms_by_brand(
+def citation_match_terms_by_brand(
     page_brand_scope: list[str],
     *,
     own_brand: str,

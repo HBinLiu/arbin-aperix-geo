@@ -66,7 +66,7 @@ export function PromptPage() {
     [page, pageSize, debouncedSearch, selectedTopicId, sort],
   );
 
-  const { isLoading, topicRows, promptRows, promptTotal } = usePromptAnalysis(
+  const { topicsLoading, promptsLoading, promptsFetching, topicRows, promptRows, promptTotal } = usePromptAnalysis(
     subjectId,
     filters,
     listRequest,
@@ -116,11 +116,12 @@ export function PromptPage() {
           rows={topicRows}
           selectedTopicId={selectedTopicId}
           onTopicSelect={setSelectedTopicId}
-          loading={isLoading}
+          loading={topicsLoading}
         />
         <PromptPerformanceTable
           rows={promptRows}
-          loading={isLoading}
+          loading={promptsLoading}
+          fetching={promptsFetching}
           total={promptTotal}
           page={page}
           pageSize={pageSize}

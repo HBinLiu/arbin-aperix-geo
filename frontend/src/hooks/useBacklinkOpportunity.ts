@@ -1,10 +1,9 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 
 import { fetchBacklinkOpportunities } from "@/api/analysis";
 import { platformFilterKey, topicFilterKey, toAnalysisQueryFilters } from "@/lib/analysis";
-
 import { buildBacklinkOpportunityRows } from "@/lib/opportunity/backlink";
+import { paginatedListResult, usePaginatedQuery } from "@/hooks/usePaginatedQuery";
 import { queryKeys } from "@/lib/queries";
 import type { AnalysisFilters, BacklinkOpportunitySortField } from "@/types";
 
@@ -30,7 +29,7 @@ export function useBacklinkOpportunity(
   const searchKey = search.trim();
   const sortKey = sortBy ?? "";
 
-  const query = useQuery({
+  const query = usePaginatedQuery({
     queryKey: queryKeys.backlinkOpportunities(
       subjectId,
       entityId,
@@ -55,16 +54,11 @@ export function useBacklinkOpportunity(
     enabled,
   });
 
+  const list = paginatedListResult(query, { page, pageSize });
   const rows = useMemo(
     () => buildBacklinkOpportunityRows(query.data?.items ?? []),
     [query.data?.items],
   );
 
-  return {
-    isLoading: query.isLoading,
-    rows,
-    total: query.data?.total ?? 0,
-    page: query.data?.page ?? page,
-    pageSize: query.data?.page_size ?? pageSize,
-  };
+  return { ...list, rows };
 }

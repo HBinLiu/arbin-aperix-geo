@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from aperix_geo.db.models import LLMResponse, LLMResponseStatus, SamplingJob
 from aperix_geo.db.session import SessionLocal
-from aperix_geo.services.sampling.workflow import reparse_response_row
+from aperix_geo.services.sampling.workflow.execute import reparse_response_row
 from aperix_geo.services.subject.loader import load_subject_with_competitors
 
 

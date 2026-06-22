@@ -8,10 +8,15 @@ export type PromptCsvParseResult = {
   errors: string[];
 };
 
-const REQUIRED_HEADERS = ["topic", "prompt"] as const;
+const COLUMN_ALIASES = {
+  topic: ["主题", "topic"],
+  prompt: ["提示词", "prompt"],
+} as const;
+
+const REQUIRED_HEADER_LABELS = ["主题", "提示词"] as const;
 
 export function buildPromptCsvTemplate(): string {
-  return ["topic,prompt", 'Brand visibility,What is the best CRM for startups?'].join("\n");
+  return ["主题,提示词", "品牌可见度,初创公司适合用什么CRM？"].join("\n");
 }
 
 export function downloadPromptCsvTemplate() {
@@ -19,7 +24,7 @@ export function downloadPromptCsvTemplate() {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = "prompt-upload-template.csv";
+  anchor.download = "提示词模版.csv";
   anchor.click();
   URL.revokeObjectURL(url);
 }
@@ -31,12 +36,13 @@ export function parsePromptCsv(content: string): PromptCsvParseResult {
   }
 
   const header = table[0].map((cell) => cell.trim().toLowerCase());
-  const headerIndex = new Map<string, number>();
-  for (const [index, name] of header.entries()) {
-    if (name) headerIndex.set(name, index);
-  }
+  const topicIndex = findColumnIndex(header, "topic");
+  const promptIndex = findColumnIndex(header, "prompt");
 
-  const missing = REQUIRED_HEADERS.filter((key) => !headerIndex.has(key));
+  const missing: string[] = [];
+  if (topicIndex == null) missing.push(REQUIRED_HEADER_LABELS[0]);
+  if (promptIndex == null) missing.push(REQUIRED_HEADER_LABELS[1]);
+
   if (missing.length > 0) {
     return { rows: [], errors: [`缺少必填列：${missing.join("、")}。`] };
   }
@@ -46,8 +52,8 @@ export function parsePromptCsv(content: string): PromptCsvParseResult {
 
   for (let line = 1; line < table.length; line += 1) {
     const cells = table[line];
-    const topic = (cells[headerIndex.get("topic")!] ?? "").trim();
-    const prompt = (cells[headerIndex.get("prompt")!] ?? "").trim();
+    const topic = (cells[topicIndex!] ?? "").trim();
+    const prompt = (cells[promptIndex!] ?? "").trim();
 
     if (!topic && !prompt) continue;
 
@@ -65,6 +71,19 @@ export function parsePromptCsv(content: string): PromptCsvParseResult {
   }
 
   return { rows, errors };
+}
+
+function findColumnIndex(
+  header: string[],
+  field: keyof typeof COLUMN_ALIASES,
+): number | undefined {
+  for (const [index, raw] of header.entries()) {
+    const name = raw.trim().toLowerCase();
+    if (COLUMN_ALIASES[field].some((alias) => name === alias.toLowerCase())) {
+      return index;
+    }
+  }
+  return undefined;
 }
 
 function parseCsvTable(content: string): string[][] {

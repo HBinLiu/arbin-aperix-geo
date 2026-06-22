@@ -49,7 +49,7 @@ export function PromptDetailResponsesSection({
 
   const { sortBy, order } = rankSortParams(rankSort);
 
-  const { isLoading: chatLoading, responses: chatRaw, total: chatTotal } = usePromptDetailChatResponses(
+  const { loading: chatLoading, fetching: chatFetching, responses: chatRaw, total: chatTotal } = usePromptDetailChatResponses(
     subjectId,
     promptId,
     filters,
@@ -72,6 +72,7 @@ export function PromptDetailResponsesSection({
   }, [activeTab]);
 
   const loading = detailLoading || (activeTab === "chat" && chatLoading);
+  const fetching = activeTab === "chat" && chatFetching;
 
   return (
     <div className="flex flex-col gap-3">
@@ -120,6 +121,7 @@ export function PromptDetailResponsesSection({
           platformsMeta={platformsMeta}
           promptText={data?.prompt_text ?? ""}
           loading={loading}
+          fetching={fetching}
         />
       </section>
     </div>

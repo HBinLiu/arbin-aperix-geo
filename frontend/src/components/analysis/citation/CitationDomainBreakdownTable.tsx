@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { PaginatedTableCard } from "@/components/analysis/common/PaginatedTableCard";
 import {
   DEFAULT_TABLE_PAGE_SIZE,
   paginateRows,
@@ -175,7 +176,8 @@ export function CitationDomainBreakdownTable(props: CitationDomainBreakdownTable
     [sortedRows, page, pageSize],
   );
 
-  const isLoading = staticMode ? (props.loading ?? false) : remoteQuery.isLoading;
+  const loading = staticMode ? (props.loading ?? false) : remoteQuery.loading;
+  const fetching = staticMode ? false : remoteQuery.fetching;
   const rows = staticMode ? staticPageRows : remoteQuery.rows;
   const total = staticMode ? sortedRows.length : remoteQuery.total;
 
@@ -189,11 +191,22 @@ export function CitationDomainBreakdownTable(props: CitationDomainBreakdownTable
   };
 
   return (
-    <div
-      className="border-border overflow-hidden rounded-lg border bg-white"
-      aria-busy={isLoading}
+    <PaginatedTableCard
+      loading={loading}
+      fetching={fetching}
+      footer={
+        total > 0 ? (
+          <TablePagination
+            total={total}
+            page={page}
+            pageSize={pageSize}
+            pageSizeOptions={TABLE_PAGE_SIZE_OPTIONS}
+            onPageChange={setPage}
+            onPageSizeChange={handlePageSizeChange}
+          />
+        ) : null
+      }
     >
-      <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] table-fixed text-sm">
           <colgroup>
             {showTopicColumn ? (
@@ -236,7 +249,7 @@ export function CitationDomainBreakdownTable(props: CitationDomainBreakdownTable
             </tr>
           </thead>
           <tbody className="border-border border-t">
-            {isLoading ? (
+            {loading && rows.length === 0 ? (
               <SkeletonRows columnCount={columnCount} />
             ) : rows.length === 0 ? (
               <tr>
@@ -288,18 +301,6 @@ export function CitationDomainBreakdownTable(props: CitationDomainBreakdownTable
             )}
           </tbody>
         </table>
-      </div>
-
-      {!isLoading && total > 0 ? (
-        <TablePagination
-          total={total}
-          page={page}
-          pageSize={pageSize}
-          pageSizeOptions={TABLE_PAGE_SIZE_OPTIONS}
-          onPageChange={setPage}
-          onPageSizeChange={handlePageSizeChange}
-        />
-      ) : null}
-    </div>
+    </PaginatedTableCard>
   );
 }

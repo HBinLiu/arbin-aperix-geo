@@ -1,9 +1,9 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 
 import { fetchCitationDomains, fetchCitationDomainPrompts, fetchCitationDomainUrls, fetchCitationUrls } from "@/api/analysis";
 import type { FetchCitationListOptions } from "@/api/analysis";
 import { platformFilterKey, topicFilterKey, toAnalysisQueryFilters } from "@/lib/analysis";
+import { paginatedListResult, usePaginatedQuery } from "@/hooks/usePaginatedQuery";
 import { queryKeys } from "@/lib/queries";
 import type {
   AnalysisFilters,
@@ -34,7 +34,7 @@ export function useCitationDomains(
   const platformKey = platformFilterKey(platformIds);
   const { page, pageSize, sortBy, order, search } = listOptionsKey(requestOptions);
 
-  const query = useQuery({
+  const query = usePaginatedQuery({
     queryKey: queryKeys.citationDomains(
       subjectId,
       entityId,
@@ -59,13 +59,7 @@ export function useCitationDomains(
     enabled,
   });
 
-  return {
-    isLoading: query.isLoading,
-    rows: query.data?.items ?? [],
-    total: query.data?.total ?? 0,
-    page: query.data?.page ?? page,
-    pageSize: query.data?.page_size ?? pageSize,
-  };
+  return paginatedListResult(query, { page, pageSize });
 }
 
 export function useCitationUrls(
@@ -80,7 +74,7 @@ export function useCitationUrls(
   const platformKey = platformFilterKey(platformIds);
   const { page, pageSize, sortBy, order, search } = listOptionsKey(requestOptions);
 
-  const query = useQuery({
+  const query = usePaginatedQuery({
     queryKey: queryKeys.citationUrls(
       subjectId,
       entityId,
@@ -105,13 +99,7 @@ export function useCitationUrls(
     enabled,
   });
 
-  return {
-    isLoading: query.isLoading,
-    rows: query.data?.items ?? [],
-    total: query.data?.total ?? 0,
-    page: query.data?.page ?? page,
-    pageSize: query.data?.page_size ?? pageSize,
-  };
+  return paginatedListResult(query, { page, pageSize });
 }
 
 type CitationDomainListOptions = FetchCitationListOptions & {
@@ -131,7 +119,7 @@ export function useCitationDomainUrls(
   const platformKey = platformFilterKey(platformIds);
   const { page, pageSize, sortBy, order } = listOptionsKey(requestOptions);
 
-  const query = useQuery({
+  const query = usePaginatedQuery({
     queryKey: queryKeys.citationDomainUrls(
       subjectId,
       entityId,
@@ -156,13 +144,7 @@ export function useCitationDomainUrls(
     enabled: enabled && Boolean(host),
   });
 
-  return {
-    isLoading: query.isLoading,
-    rows: query.data?.items ?? [],
-    total: query.data?.total ?? 0,
-    page: query.data?.page ?? page,
-    pageSize: query.data?.page_size ?? pageSize,
-  };
+  return paginatedListResult(query, { page, pageSize });
 }
 
 export function useCitationDomainPrompts(
@@ -177,7 +159,7 @@ export function useCitationDomainPrompts(
   const platformKey = platformFilterKey(platformIds);
   const { page, pageSize, sortBy, order } = listOptionsKey(requestOptions);
 
-  const query = useQuery({
+  const query = usePaginatedQuery({
     queryKey: queryKeys.citationDomainPrompts(
       subjectId,
       entityId,
@@ -202,11 +184,5 @@ export function useCitationDomainPrompts(
     enabled: enabled && Boolean(host),
   });
 
-  return {
-    isLoading: query.isLoading,
-    rows: query.data?.items ?? [],
-    total: query.data?.total ?? 0,
-    page: query.data?.page ?? page,
-    pageSize: query.data?.page_size ?? pageSize,
-  };
+  return paginatedListResult(query, { page, pageSize });
 }

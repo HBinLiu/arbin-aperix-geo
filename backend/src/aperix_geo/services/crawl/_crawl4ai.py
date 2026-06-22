@@ -6,6 +6,7 @@ import asyncio
 import logging
 import re
 import threading
+import time
 from typing import Any, Literal
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,7 @@ class _Crawl4AIWorker:
         max_chars: int,
         max_concurrent: int = 5,
     ) -> tuple[str, str, str, Literal["crawl4ai", "none"]]:
+        started = time.monotonic()
         loop = self._ensure_started()
         future = asyncio.run_coroutine_threadsafe(
             self._fetch_async(
@@ -93,7 +95,24 @@ class _Crawl4AIWorker:
             ),
             loop,
         )
-        return future.result(timeout=max(timeout_s + 15.0, 20.0))
+        try:
+            final_url, html, markdown, source = future.result(timeout=max(timeout_s + 15.0, 20.0))
+        except Exception:
+            elapsed_ms = int((time.monotonic() - started) * 1000)
+            logger.warning("Crawl4AI 抓取异常 url=%s elapsed_ms=%d", url, elapsed_ms, exc_info=True)
+            raise
+        elapsed_ms = int((time.monotonic() - started) * 1000)
+        if source == "crawl4ai":
+            logger.info(
+                "Crawl4AI 抓取成功 url=%s elapsed_ms=%d html_chars=%d markdown_chars=%d",
+                url,
+                elapsed_ms,
+                len(html),
+                len(markdown),
+            )
+        else:
+            logger.warning("Crawl4AI 抓取无有效内容 url=%s elapsed_ms=%d", url, elapsed_ms)
+        return final_url, html, markdown, source
 
     async def _fetch_async(
         self,
@@ -138,7 +157,7 @@ class _Crawl4AIWorker:
                     timeout=timeout_s,
                 )
             except asyncio.TimeoutError:
-                logger.warning("Crawl4AI 抓取超时 %s", key)
+                logger.warning("Crawl4AI 抓取超时 %s timeout_s=%.1f", key, timeout_s)
                 return key, "", "", "none"
             except Exception:
                 logger.warning("Crawl4AI 抓取失败 %s", key, exc_info=True)

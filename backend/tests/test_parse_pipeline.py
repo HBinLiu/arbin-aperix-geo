@@ -53,7 +53,7 @@ def test_run_parse_pipeline_wires_three_phases(
     parsed = run_parse_pipeline("推荐 Aperix", subject=subject)
 
     mock_extract.assert_called_once()
-    mock_enrich.assert_called_once_with(ctx)
+    mock_enrich.assert_called_once_with(ctx, fetch_pages=True)
     mock_merge.assert_called_once_with(ctx, enrichment=enrichment)
     assert parsed.own_brand == "Aperix"
     assert parsed.sentiment_source == "llm"

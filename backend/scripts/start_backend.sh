@@ -9,20 +9,27 @@ export PYTHONPATH=src
 WITH_BEAT=1
 WITH_RELOAD=0
 LOGLEVEL="${CELERY_LOGLEVEL:-INFO}"
-WORKER_CONCURRENCY="${CELERY_WORKER_CONCURRENCY:-}"
+# 1=三队列分池（默认）；0=单 worker 消费全部队列（本地轻量调试）
+CELERY_SPLIT_WORKERS="${CELERY_SPLIT_WORKERS:-1}"
 
 usage() {
   cat <<'EOF'
 Usage: bash scripts/start_backend.sh [options]
 
   同时启动 uvicorn、Celery worker，以及（默认）Celery beat。
+  默认 CELERY_SPLIT_WORKERS=1：单机起编排 / LLM / Crawl / Parse 四个 worker 进程。
+  Beat 仅在每日采样窗口内（默认北京时间 02:00–05:00）按间隔扫描到期 subject。
   读取环境变量 API_HOST、API_PORT（或 .env）；Celery 使用 CELERY_BROKER_URL 等。
 
+  分机部署：本机只起 API+Beat，另用 scripts/start_celery_worker.sh
+  并设 CELERY_WORKER_ROLE=orch|llm|crawl|parse。
+
 Options:
-  --no-beat       不启动 Beat（仅 API + Worker）
-  --reload        API 启用 uvicorn --reload（仅本地改代码时用）
-  --loglevel LVL  Celery 日志级别（默认 INFO）
-  -h, --help      显示帮助
+  --no-beat         不启动 Beat（仅 API + Worker）
+  --reload          API 启用 uvicorn --reload（仅本地改代码时用）
+  --unified-worker  单 worker 消费全部队列（等同 CELERY_SPLIT_WORKERS=0）
+  --loglevel LVL    Celery 日志级别（默认 INFO）
+  -h, --help        显示帮助
 EOF
 }
 
@@ -30,6 +37,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-beat) WITH_BEAT=0; shift ;;
     --reload) WITH_RELOAD=1; shift ;;
+    --unified-worker) CELERY_SPLIT_WORKERS=0; shift ;;
     --loglevel) LOGLEVEL="${2:?missing level}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage; exit 1 ;;
@@ -38,6 +46,37 @@ done
 
 API_HOST="${API_HOST:-0.0.0.0}"
 API_PORT="${API_PORT:-8000}"
+ORCH_CONCURRENCY="${CELERY_ORCH_WORKER_CONCURRENCY:-4}"
+LLM_CONCURRENCY="${CELERY_LLM_WORKER_CONCURRENCY:-16}"
+CRAWL_CONCURRENCY="${CELERY_CRAWL_WORKER_CONCURRENCY:-16}"
+PARSE_CONCURRENCY="${CELERY_PARSE_WORKER_CONCURRENCY:-16}"
+UNIFIED_CONCURRENCY="${CELERY_WORKER_CONCURRENCY:-8}"
+
+ALL_QUEUES="$(python3 - <<'PY'
+from aperix_geo.celery_queues import celery_worker_queues_for_role
+print(celery_worker_queues_for_role("all"))
+PY
+)"
+ORCH_QUEUE="$(python3 - <<'PY'
+from aperix_geo.celery_queues import celery_worker_queues_for_role
+print(celery_worker_queues_for_role("orch"))
+PY
+)"
+LLM_QUEUE="$(python3 - <<'PY'
+from aperix_geo.celery_queues import celery_worker_queues_for_role
+print(celery_worker_queues_for_role("llm"))
+PY
+)"
+CRAWL_QUEUE="$(python3 - <<'PY'
+from aperix_geo.celery_queues import celery_worker_queues_for_role
+print(celery_worker_queues_for_role("crawl"))
+PY
+)"
+PARSE_QUEUE="$(python3 - <<'PY'
+from aperix_geo.celery_queues import celery_worker_queues_for_role
+print(celery_worker_queues_for_role("parse"))
+PY
+)"
 
 PIDS=()
 cleanup() {
@@ -59,17 +98,30 @@ echo "Starting API (uvicorn) on ${API_HOST}:${API_PORT}..."
 uvicorn "${UVICORN_ARGS[@]}" &
 PIDS+=($!)
 
-WORKER_ARGS=(-A aperix_geo.celery_app.celery_app worker --loglevel="$LOGLEVEL")
-if [[ -n "$WORKER_CONCURRENCY" ]]; then
-  WORKER_ARGS+=(--concurrency="$WORKER_CONCURRENCY")
+start_worker() {
+  local role="$1"
+  local queues="$2"
+  local concurrency="$3"
+  echo "Starting Celery worker role=$role queues=$queues concurrency=$concurrency..."
+  env CELERY_WORKER_ROLE="$role" \
+    celery -A aperix_geo.celery_app.celery_app worker \
+    --loglevel="$LOGLEVEL" \
+    -Q "$queues" \
+    --concurrency="$concurrency" &
+  PIDS+=($!)
+}
+
+if [[ "$CELERY_SPLIT_WORKERS" == "1" ]]; then
+  start_worker orch "$ORCH_QUEUE" "$ORCH_CONCURRENCY"
+  start_worker llm "$LLM_QUEUE" "$LLM_CONCURRENCY"
+  start_worker crawl "$CRAWL_QUEUE" "$CRAWL_CONCURRENCY"
+  start_worker parse "$PARSE_QUEUE" "$PARSE_CONCURRENCY"
+else
+  start_worker all "$ALL_QUEUES" "$UNIFIED_CONCURRENCY"
 fi
 
-echo "Starting Celery worker..."
-celery "${WORKER_ARGS[@]}" &
-PIDS+=($!)
-
 if [[ "$WITH_BEAT" -eq 1 ]]; then
-  echo "Starting Celery beat..."
+  echo "Starting Celery beat (sampling window only)..."
   celery -A aperix_geo.celery_app.celery_app beat --loglevel="$LOGLEVEL" &
   PIDS+=($!)
 fi
@@ -77,9 +129,13 @@ fi
 echo ""
 echo "Backend stack running. Ctrl+C to stop all."
 echo "  API:    http://127.0.0.1:${API_PORT}/docs"
-echo "  Worker: sampling execution"
+if [[ "$CELERY_SPLIT_WORKERS" == "1" ]]; then
+  echo "  Workers: orch($ORCH_CONCURRENCY) + llm($LLM_CONCURRENCY) + crawl($CRAWL_CONCURRENCY) + parse($PARSE_CONCURRENCY)"
+else
+  echo "  Worker: unified ($UNIFIED_CONCURRENCY) on $ALL_QUEUES"
+fi
 if [[ "$WITH_BEAT" -eq 1 ]]; then
-  echo "  Beat:   scheduled sampling tick"
+  echo "  Beat:   scheduled sampling (02:00–05:00 CST by default)"
 fi
 echo ""
 

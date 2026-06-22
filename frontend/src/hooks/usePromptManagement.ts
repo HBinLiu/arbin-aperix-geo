@@ -2,14 +2,16 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { fetchSubjectPrompts, fetchSubjectTopics } from "@/api/brand";
 import {
+  batchCreateSubjectPrompts,
   createSubjectPrompt,
   createSubjectTopic,
   deleteSubjectPrompt,
   deleteSubjectTopic,
-  generateSubjectPrompts,
+  previewSubjectPrompts,
   updateSubjectPrompt,
   updateSubjectTopic,
   type GenerateSubjectPromptsBody,
+  type PromptBatchCreateBody,
   type PromptCreateBody,
   type PromptUpdateBody,
   type TopicCreateBody,
@@ -64,8 +66,12 @@ export function usePromptManagement(subjectId: string) {
     onSuccess: refresh,
   });
 
-  const generatePrompts = useMutation({
-    mutationFn: (body: GenerateSubjectPromptsBody) => generateSubjectPrompts(subjectId, body),
+  const previewPrompts = useMutation({
+    mutationFn: (body: GenerateSubjectPromptsBody) => previewSubjectPrompts(subjectId, body),
+  });
+
+  const batchCreatePrompts = useMutation({
+    mutationFn: (body: PromptBatchCreateBody) => batchCreateSubjectPrompts(subjectId, body),
     onSuccess: refresh,
   });
 
@@ -76,7 +82,8 @@ export function usePromptManagement(subjectId: string) {
     createPrompt.isPending ||
     updatePrompt.isPending ||
     removePrompt.isPending ||
-    generatePrompts.isPending;
+    previewPrompts.isPending ||
+    batchCreatePrompts.isPending;
 
   return {
     topics: topicsQuery.data ?? [],
@@ -89,7 +96,8 @@ export function usePromptManagement(subjectId: string) {
     createPrompt,
     updatePrompt,
     removePrompt,
-    generatePrompts,
+    previewPrompts,
+    batchCreatePrompts,
     refresh,
   };
 }

@@ -24,9 +24,6 @@ class CitationParseParams:
     entity_signals: list[EntitySignalDraft]
     crawl: PageCrawlSettings
     snippet_chars: int
-    llm_enabled: bool
-    geo_cache_ttl_s: int
-    geo_batch_size: int
     sampling_job_id: UUID | None = None
 
 

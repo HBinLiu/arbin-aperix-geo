@@ -4,7 +4,7 @@ import { CitationDomainTable } from "@/components/analysis/citation/CitationDoma
 import { CitationUrlTable } from "@/components/analysis/citation/CitationUrlTable";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CITATION_DETAIL_TABS } from "@/lib/analysis/citation";
-import type { AnalysisFilters, CitationDetailTab } from "@/types";
+import type { AnalysisFilters, CitationDetailTab, SamplingPlatform } from "@/types";
 
 type CitationDetailSectionProps = {
   subjectId: string;
@@ -12,6 +12,7 @@ type CitationDetailSectionProps = {
   ownLabel: string;
   ownBrand?: string | null;
   citationSearch?: string;
+  platformsMeta?: SamplingPlatform[];
 };
 
 export function CitationDetailSection({
@@ -20,6 +21,7 @@ export function CitationDetailSection({
   ownLabel,
   ownBrand,
   citationSearch = "",
+  platformsMeta = [],
 }: CitationDetailSectionProps) {
   const [activeTab, setActiveTab] = useState<CitationDetailTab>("domain");
 
@@ -43,6 +45,7 @@ export function CitationDetailSection({
           subjectId={subjectId}
           filters={filters}
           citationSearch={citationSearch}
+          platformsMeta={platformsMeta}
         />
       ) : (
         <CitationUrlTable
@@ -51,6 +54,7 @@ export function CitationDetailSection({
           ownLabel={ownLabel}
           ownBrand={ownBrand}
           citationSearch={citationSearch}
+          platformsMeta={platformsMeta}
         />
       )}
     </div>

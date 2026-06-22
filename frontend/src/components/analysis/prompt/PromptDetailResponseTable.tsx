@@ -7,6 +7,7 @@ import {
   TABLE_PAGE_SIZE_OPTIONS,
   TablePagination,
 } from "@/components/analysis/common/TablePagination";
+import { TableScrollOverlay } from "@/components/analysis/common/TableScrollOverlay";
 import { MentionedBrandsCell } from "@/components/analysis/common/MentionedBrandsCell";
 import {
   ColumnHelp,
@@ -115,6 +116,7 @@ type PromptDetailResponseTableProps = {
   platformsMeta: SamplingPlatform[];
   promptText: string;
   loading?: boolean;
+  fetching?: boolean;
 };
 
 function MentionStatusCell({ mentioned }: { mentioned: boolean }) {
@@ -216,6 +218,7 @@ export function PromptDetailResponseTable({
   platformsMeta,
   promptText,
   loading = false,
+  fetching = false,
 }: PromptDetailResponseTableProps) {
   const [citationPage, setCitationPage] = useState(1);
   const [citationPageSize, setCitationPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
@@ -251,11 +254,12 @@ export function PromptDetailResponseTable({
     PROMPT_DETAIL_RESPONSE_TABS.find((tab) => tab.id === activeTab)?.label ?? "数据";
 
   return (
-    <div className="overflow-x-auto">
-      <table
-        className={performanceTableClasses.topicTable}
-        style={{ minWidth: PROMPT_DETAIL_RESPONSE_TABLE_MIN_WIDTH }}
-      >
+    <>
+      <TableScrollOverlay fetching={fetching}>
+        <table
+          className={performanceTableClasses.topicTable}
+          style={{ minWidth: PROMPT_DETAIL_RESPONSE_TABLE_MIN_WIDTH }}
+        >
         <colgroup>
           {PROMPT_DETAIL_RESPONSE_TABLE_COLUMNS.map((column) => (
             <col key={column.id} style={promptDetailResponseColumnColStyle(column)} />
@@ -298,7 +302,7 @@ export function PromptDetailResponseTable({
           </tr>
         </thead>
         <tbody className={performanceTableClasses.row}>
-          {loading ? (
+          {loading && displayRows.length === 0 ? (
             <SkeletonRows />
           ) : activeTab === "queryExpansion" ? (
             <tr>
@@ -326,7 +330,8 @@ export function PromptDetailResponseTable({
             ))
           )}
         </tbody>
-      </table>
+        </table>
+      </TableScrollOverlay>
 
       <PromptDetailResponseDialog
         row={selectedRow}
@@ -336,7 +341,7 @@ export function PromptDetailResponseTable({
         platformsMeta={platformsMeta}
       />
 
-      {!loading && activeTab !== "queryExpansion" && paginationTotal > 0 ? (
+      {activeTab !== "queryExpansion" && paginationTotal > 0 ? (
         <TablePagination
           total={paginationTotal}
           page={paginationPage}
@@ -359,6 +364,6 @@ export function PromptDetailResponseTable({
           }}
         />
       ) : null}
-    </div>
+    </>
   );
 }

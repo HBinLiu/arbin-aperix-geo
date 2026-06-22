@@ -21,6 +21,7 @@ def run_parse_pipeline(
     web_search_mode: str = "none",
     sampling_job_id: UUID | None = None,
     db: Session | None = None,
+    fetch_pages: bool = True,
 ) -> ParsedSamplingResult:
     ctx = extract_parse_context(
         raw_text,
@@ -30,7 +31,7 @@ def run_parse_pipeline(
         sampling_job_id=sampling_job_id,
         db=db,
     )
-    enrichment = enrich_parse_context(ctx)
+    enrichment = enrich_parse_context(ctx, fetch_pages=fetch_pages)
     merged = merge_parse_results(ctx, enrichment=enrichment)
     return ParsedSamplingResult(
         urls=ctx.urls,

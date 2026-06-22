@@ -14,7 +14,7 @@ from aperix_geo.services.brand.domain import resolve_brand_domain
 from aperix_geo.services.brand.resolve import primary_domain_for_brand, resolve_or_create_brand
 
 
-def backfill_brand_domains_for_response(db: Session, response_id: UUID) -> int:
+def backfill_brand_domain_for_response(db: Session, response_id: UUID) -> int:
     """Resolve missing other-brand domains via SearXNG; update tb_brands and signals."""
     row = db.get(LLMResponse, response_id)
     if row is None:
@@ -87,6 +87,6 @@ def maybe_enqueue_brand_domain_backfill(response_id: UUID) -> None:
     if not redis_set_nx(f"aperix:brand:backfill:{response_id}", ttl_s=3600):
         return
 
-    from aperix_geo.tasks.brand import backfill_response_brand_domains
+    from aperix_geo.tasks.brand import backfill_brand_domain
 
-    backfill_response_brand_domains.delay(str(response_id))
+    backfill_brand_domain.delay(str(response_id))

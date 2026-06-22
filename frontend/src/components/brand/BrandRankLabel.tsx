@@ -3,6 +3,7 @@ import { CompetitorHoverCard } from "@/components/brand/CompetitorHoverCard";
 import { LabelHoverPortal } from "@/components/brand/LabelHoverPortal";
 import { TextBadge } from "@/components/ui/badge";
 import { useBrandHoverRow } from "@/hooks/useBrandHoverRow";
+import type { BrandGeoMetrics } from "@/lib/brand/geoMetrics";
 import { cn } from "@/lib/utils";
 import type { CompetitorItem } from "@/types";
 
@@ -22,6 +23,8 @@ type BrandRankLabelProps = {
   hoverRow?: CompetitorItem;
   /** 悬停展示详情卡，默认 true */
   showHover?: boolean;
+  /** 页面已有 rank 行数据时可传入，悬停卡直接展示 */
+  geoMetrics?: BrandGeoMetrics;
   className?: string;
 };
 
@@ -38,6 +41,7 @@ export function BrandRankLabel({
   isFocus,
   hoverRow,
   showHover = true,
+  geoMetrics,
   className,
 }: BrandRankLabelProps) {
   const resolvedHoverRow = useBrandHoverRow(label, hoverRow);
@@ -48,7 +52,7 @@ export function BrandRankLabel({
       {showHover ? (
         <LabelHoverPortal
           label={label}
-          content={<CompetitorHoverCard row={resolvedHoverRow} />}
+          content={<CompetitorHoverCard row={resolvedHoverRow} geoMetrics={geoMetrics} />}
           contentClassName={HOVER_CARD_ANIMATION}
         />
       ) : (

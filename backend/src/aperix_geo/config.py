@@ -26,11 +26,12 @@ class Settings(BaseSettings):
     celery_broker_url: str = "redis://localhost:6379/1"
     celery_result_backend: str = "redis://localhost:6379/2"
 
-    sampling_scheduler_tick_seconds: int = Field(default=900, ge=60, le=3600)
-    # 每日定时采样（北京时间）：从 sampling_daily_hour 起，在 window 分钟内按 subject 分散
+    # 每日定时采样（北京时间）：从 sampling_daily_hour 起，在 window 分钟内按 subject 分散；默认 02:00–05:00
     sampling_daily_hour: int = Field(default=2, ge=0, le=23)
-    sampling_daily_window_minutes: int = Field(default=120, ge=15, le=360)
-    sampling_scheduler_max_enqueue_per_tick: int = Field(default=50, ge=1, le=500)
+    sampling_daily_window_minutes: int = Field(default=180, ge=15, le=360)
+    # Celery Beat 在每日窗口内的扫描间隔（分钟）；subject 仍按 id hash 在窗口内错开 slot
+    sampling_scheduler_interval_minutes: int = Field(default=15, ge=5, le=60)
+    sampling_scheduler_max_enqueue_per_run: int = Field(default=50, ge=1, le=500)
     # 重启后 queued/running 且无 worker 推进时，超过该秒数视为 stale 并重新入队
     sampling_stale_job_seconds: int = Field(default=90, ge=30, le=600)
     sampling_resume_debounce_seconds: int = Field(default=90, ge=30, le=600)
@@ -38,6 +39,25 @@ class Settings(BaseSettings):
     sampling_retry_base_s: int = Field(default=20, ge=1, le=300)
     sampling_retry_cap_s: int = Field(default=120, ge=1, le=600)
     sampling_retry_max: int = Field(default=8, ge=0, le=20)
+    sampling_db_retry_max: int = Field(default=3, ge=1, le=10)
+    sampling_llm_result_cache_ttl_s: int = Field(default=3600, ge=60, le=86_400)
+    sampling_response_claim_ttl_s: int = Field(default=2700, ge=300, le=7200)
+    # 每个 sampling job 的 Celery chord 一次最多派发的 pending response 数
+    sampling_chord_batch_size: int = Field(default=10, ge=1, le=500)
+    # 各平台同时进行中的 LLM HTTP 请求上限（与每分钟 quota 互补）
+    sampling_llm_max_inflight: int = Field(default=15, ge=1, le=256)
+    sampling_llm_inflight_ttl_s: int = Field(default=600, ge=60, le=7200)
+    # Celery 队列：编排 / LLM / Parse 分池（分机部署时各机器只消费对应 -Q）
+    celery_default_queue: str = "aperix"
+    celery_sampling_llm_queue: str = "sampling.llm"
+    celery_sampling_crawl_queue: str = "sampling.crawl"
+    celery_sampling_parse_queue: str = "sampling.parse"
+    celery_orch_worker_concurrency: int = Field(default=4, ge=1, le=64)
+    celery_llm_worker_concurrency: int = Field(default=16, ge=1, le=128)
+    celery_crawl_worker_concurrency: int = Field(default=16, ge=1, le=128)
+    celery_parse_worker_concurrency: int = Field(default=16, ge=1, le=128)
+    celery_redis_socket_timeout_s: float = Field(default=30.0, ge=5.0, le=120.0)
+    celery_redis_connect_timeout_s: float = Field(default=10.0, ge=1.0, le=60.0)
     # 开发调试入口：curl 手动触发采样（须同时设 SAMPLING_DEBUG_ENABLED 与 SAMPLING_DEBUG_SECRET）
     sampling_debug_enabled: bool = False
     sampling_debug_secret: str = ""
@@ -58,24 +78,27 @@ class Settings(BaseSettings):
     sampling_searxng_max_results: int = Field(default=8, ge=1, le=28)
 
     # --- 页面抓取（httpx → Crawl4AI，全局共用）---
-    page_crawl_fetch_timeout_s: float = Field(default=8.0, ge=1.0, le=120.0)
-    page_crawl_crawl_timeout_s: float = Field(default=45.0, ge=5.0, le=120.0)
-    page_crawl_max_chars: int = Field(default=120_000, ge=5000, le=500_000)
+    page_crawl_fetch_timeout_s: float = Field(default=3.0, ge=1.0, le=120.0)
+    page_crawl_crawl_timeout_s: float = Field(default=10.0, ge=5.0, le=120.0)
+    page_crawl_max_chars: int = Field(default=32_000, ge=5000, le=500_000)
     page_crawl_seo_max_chars: int = Field(default=64_000, ge=5000, le=500_000)
     page_crawl_fallback_enabled: bool = True
     page_crawl_seo_fallback_enabled: bool = False
-    page_crawl_concurrency: int = Field(default=10, ge=1, le=100)
+    page_crawl_concurrency: int = Field(default=5, ge=1, le=100)
     page_crawl_crawl4ai_concurrency: int = Field(default=5, ge=1, le=20)
-    page_crawl_cache_ttl_s: int = Field(default=3600, ge=0, le=86_400)
-    page_crawl_negative_cache_ttl_s: int = Field(default=300, ge=0, le=3600)
+    page_crawl_cache_ttl_s: int = Field(default=86_400, ge=0, le=86_400)
+    page_crawl_negative_cache_ttl_s: int = Field(default=3600, ge=0, le=3600)
+    page_crawl_rate_limit_negative_ttl_s: int = Field(default=60, ge=0, le=600)
     page_crawl_dns_cache_ttl_s: int = Field(default=3600, ge=0, le=86_400)
+    page_crawl_domain_limit_per_minute: int = Field(default=30, ge=0, le=1000)
+    page_crawl_domain_max_inflight: int = Field(default=3, ge=0, le=100)
+    page_crawl_domain_limit_wait_s: float = Field(default=15.0, ge=0.0, le=120.0)
+    page_crawl_domain_inflight_ttl_s: int = Field(default=600, ge=60, le=7200)
 
-    # --- 引用来源 · Page GEO / ABSA 分析（不含抓取）---
-    citation_text_snippet_chars: int = Field(default=4_000, ge=500, le=50_000)
-    citation_page_geo_llm_enabled: bool = True
-    citation_page_geo_batch_size: int = Field(default=8, ge=1, le=20)
-    citation_page_geo_cache_ttl_s: int = Field(default=3600, ge=0, le=86_400)
-    citation_response_absa_cache_ttl_s: int = Field(default=3600, ge=0, le=86_400)
+    # --- 引用来源 · 抓取与 ABSA ---
+    citation_text_snippet_chars: int = Field(default=2_000, ge=500, le=50_000)
+    citation_response_absa_cache_ttl_s: int = Field(default=86_400, ge=0, le=86_400)
+    citation_favicon_inline: bool = False
 
     # --- 目录接口 Redis 缓存（entities、subject topics）---
     catalog_cache_ttl_s: int = Field(default=86_400, ge=0, le=604_800)
@@ -179,7 +202,6 @@ class Settings(BaseSettings):
 
     # favicon 本地持久化目录（按域名子目录保存全部成功抓取的图标）
     favicon_storage_dir: str = Field(default=str(_BACKEND_DIR / "data" / "favicons"))
-    favicon_warm_concurrency: int = Field(default=6, ge=1, le=32)
 
 
 @lru_cache

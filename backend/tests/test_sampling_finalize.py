@@ -3,10 +3,55 @@
 from __future__ import annotations
 
 import uuid
+from collections import Counter
 from datetime import UTC, datetime
 
 from aperix_geo.db.models import LLMResponse, LLMResponseStatus, SamplingJob, SamplingJobStatus
 from aperix_geo.services.sampling.workflow.finalize import finalize_sampling_job_db
+
+
+def test_finalize_keeps_running_when_crawl_ready_remain() -> None:
+    db = _FakeSession(
+        job=SamplingJob(
+            id=uuid.uuid4(),
+            tenant_id=uuid.uuid4(),
+            subject_id=uuid.uuid4(),
+            status=SamplingJobStatus.running,
+            total_items=2,
+        ),
+        rows=[
+            _row(status=LLMResponseStatus.success),
+            _row(status=LLMResponseStatus.crawl_ready),
+        ],
+    )
+
+    job = finalize_sampling_job_db(db, db.job.id)
+    assert job is not None
+    assert job.status == SamplingJobStatus.running
+    assert job.completed_items == 1
+    assert job.finished_at is None
+
+
+def test_finalize_keeps_running_when_llm_ready_remain() -> None:
+    db = _FakeSession(
+        job=SamplingJob(
+            id=uuid.uuid4(),
+            tenant_id=uuid.uuid4(),
+            subject_id=uuid.uuid4(),
+            status=SamplingJobStatus.running,
+            total_items=2,
+        ),
+        rows=[
+            _row(status=LLMResponseStatus.success),
+            _row(status=LLMResponseStatus.llm_ready),
+        ],
+    )
+
+    job = finalize_sampling_job_db(db, db.job.id)
+    assert job is not None
+    assert job.status == SamplingJobStatus.running
+    assert job.completed_items == 1
+    assert job.finished_at is None
 
 
 def test_finalize_keeps_running_when_pending_remain() -> None:
@@ -76,10 +121,14 @@ class _FakeSession:
         self._execute_calls += 1
         if self._execute_calls == 1:
             return _JobResult(self.job)
-        return _ScalarResult(self.rows)
+        counts = Counter(row.status for row in self.rows)
+        return _CountResult(list(counts.items()))
 
     def commit(self) -> None:
         self.committed = True
+
+    def get(self, _model, _pk):  # noqa: ANN001
+        return None
 
     def refresh(self, obj) -> None:  # noqa: ANN001
         if isinstance(obj, SamplingJob):
@@ -94,12 +143,9 @@ class _JobResult:
         return self._job
 
 
-class _ScalarResult:
-    def __init__(self, rows: list[LLMResponse]) -> None:
+class _CountResult:
+    def __init__(self, rows: list[tuple[LLMResponseStatus, int]]) -> None:
         self._rows = rows
 
-    def scalars(self) -> _ScalarResult:
-        return self
-
-    def all(self) -> list[LLMResponse]:
+    def all(self) -> list[tuple[LLMResponseStatus, int]]:
         return self._rows

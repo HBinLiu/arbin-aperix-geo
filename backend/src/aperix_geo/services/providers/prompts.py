@@ -413,7 +413,7 @@ SEARXNG_WEB_SEARCH_SYSTEM = """你是 AI 个人助手，负责解答用户的各
 # =============================================================================
 
 CITATION_RESPONSE_ABSA_SYSTEM = """# 任务
-你是 ABSA（基于属性/实体的观点挖掘）专家。请**仅**根据【AI原始回答文本】，对监测范围内的品牌与回答中出现的其它商业品牌做情感分析，并严格以 JSON 输出。
+你是 ABSA（基于属性/实体的观点挖掘）专家。请**仅**根据【AI原始回答文本】，对监测范围内的品牌与正文中讨论的同赛道潜在竞品做情感分析，并严格以 JSON 输出。
 
 # 评分标准 (1 到 100，50 为完全中立)
 - 100 (强烈推荐)：AI将其作为首选推荐，且几乎全是赞美。
@@ -437,16 +437,29 @@ CITATION_RESPONSE_ABSA_SYSTEM = """# 任务
 - 即使某品牌在 AI 原文未出现，也必须输出该键，并设 `mentioned=false`。
 - **禁止**将本品牌或任一竞品写入 `other_brands_sentiment_absa`。
 
-## other_brands_sentiment_absa — 开集（其它商业品牌，宽召回）
-- **仅**收录 AI 原文中出现、且**不在**闭集名单内的商业品牌/产品/公司/服务名称。
+## other_brands_sentiment_absa — 开集（同赛道潜在竞品，精准收录）
+- **仅**收录 AI **正文**中明确讨论、对比或推荐的、与闭集品牌**同赛道可替代**的商业品牌/产品/公司。
+- 必须同时满足：
+  1. 在正文（非仅参考资料列表、脚注、URL 域名）中被当作**独立品牌主体**提及；
+  2. AI 对其有评价、对比、推荐或取舍语境（可给出 `score` / `evidence`）；
+  3. 与闭集本品牌/竞品属于同一产品或服务赛道，用户可能在其间做选择。
+- **宁可漏收，不可误收**；无法确认是同赛道商业品牌时，一律不写入。
 - 闭集品牌无论以全称、简称、别名、域名形式出现，**一律只写入** `brands_sentiment_absa`，**不得**重复写入此处。
-- **禁止**写入以下非品牌主体（即使被提及）：媒体/新闻站、内容平台、搜索引擎、社交平台、政府机构、上下游供应商、合作伙伴、纯行业品类词、目录导航/测评聚合站。
-- 若 AI 原文未出现任何额外商业品牌，必须输出空对象 `{}`。
+- **禁止**写入以下非开集主体（即使被提及）：
+  - 媒体/新闻站、内容平台、搜索引擎、社交平台、论坛社区
+  - 政府机构、行业标准/协议/认证名称
+  - 上下游供应商、渠道商、合作伙伴、客户案例公司
+  - 纯行业品类词、泛化技术名词、无法对应独立商业品牌的产品型号/系列名
+  - 目录导航、测评聚合站、百科/问答站点
+  - 仅在参考资料列表或 URL 中出现、正文未讨论的品牌名
+- 若 AI 原文未出现符合条件的额外商业品牌，必须输出空对象 `{}`。
 
 # 归类示例
 - 闭集：本品牌=Aperix，竞品=Beta → `brands_sentiment_absa` 的键只能是 `Aperix`、`Beta`。
-- AI 原文提到「Aperix 与 Stripe 都不错，Beta 略贵」→ `Stripe` 仅出现在 `other_brands_sentiment_absa`；`Aperix`、`Beta` 仅在 `brands_sentiment_absa`。
-- AI 原文只提到「推荐 Aperix」→ `other_brands_sentiment_absa` 为 `{}`。
+- AI 正文提到「Aperix 与 Stripe 都不错，Beta 略贵」→ `Stripe` 仅出现在 `other_brands_sentiment_absa`；`Aperix`、`Beta` 仅在 `brands_sentiment_absa`。
+- AI 正文只提到「推荐 Aperix」→ `other_brands_sentiment_absa` 为 `{}`。
+- 参考资料列表含 `stripe.com` 但正文未讨论 Stripe → **不**写入 `other_brands_sentiment_absa`。
+- 正文提到「TechCrunch 报道」「符合 PCI DSS」→ 媒体/标准名，**不**写入开集。
 
 # 输入数据（user 消息按以下结构提供）
 - 本品牌、竞品列表（闭集完整名单）
@@ -474,39 +487,7 @@ CITATION_RESPONSE_ABSA_SYSTEM = """# 任务
     }
   }
 }
-- 输出前自检：闭集键是否与 user 名单完全一致；闭集与开集是否无重复键；开集是否均为 AI 原文真实出现的、不在闭集内的商业品牌。禁止 Markdown 或其它说明。"""
-
-CITATION_RESPONSE_ABSA_SYSTEM_CLOSED = """# 任务
-你是 ABSA（基于属性/实体的观点挖掘）专家。请**仅**根据【AI原始回答文本】，对监测范围内的品牌做情感分析，并严格以 JSON 输出。
-
-# 评分标准 (1 到 100，50 为完全中立)
-- 100 (强烈推荐)：AI将其作为首选推荐，且几乎全是赞美。
-- 75 (正面提及)：AI肯定了其部分优势，或将其列入推荐清单。
-- 50 (完全中立)：纯客观数据或事实陈述，无明显偏向。
-- 25 (负面提及)：明确指出了产品、服务或技术上的缺陷或局限性。
-- 1 (强烈踩贬)：明确建议不要选择，或在对比中垫底。
-
-# 核心约束
-1. 必须严格以 JSON 格式输出，不要包含任何前后解释文字。
-2. `mentioned`：品牌是否在【AI原始回答文本】中被提及或讨论。
-3. `score` / `evidence`：**必须且只能**来自【AI原始回答文本】。
-4. 未在 AI 原文出现的品牌：`mentioned=false`，`score=null`，`evidence=""`。
-5. **键必须且仅能**来自 user 消息中的「本品牌」与「竞品列表」。
-
-# 输出 JSON 格式
-{
-  "brands_sentiment_absa": {
-    "[闭集-本品牌名称]": {"mentioned": true, "score": 90, "evidence": "证据"},
-    "[闭集-竞品名称]": {"mentioned": false, "score": null, "evidence": ""}
-  }
-}
-禁止 Markdown 或其它说明。"""
-
-
-def citation_response_absa_system(*, open_set_enabled: bool = True) -> str:
-    if open_set_enabled:
-        return CITATION_RESPONSE_ABSA_SYSTEM
-    return CITATION_RESPONSE_ABSA_SYSTEM_CLOSED
+- 输出前自检：闭集键是否与 user 名单完全一致；闭集与开集是否无重复键；开集条目是否均为正文讨论过的、同赛道可替代商业品牌。禁止 Markdown 或其它说明。"""
 
 
 def citation_response_absa_user_content(
@@ -514,7 +495,6 @@ def citation_response_absa_user_content(
     raw_text: str,
     own_brand: str,
     competitors: list[str],
-    open_set_enabled: bool = True,
 ) -> str:
     comp_lines = "\n".join(f"  - {name}" for name in competitors if str(name).strip()) or "  - （无）"
     closed_keys = [name for name in [own_brand, *competitors] if str(name).strip()]
@@ -525,71 +505,15 @@ def citation_response_absa_user_content(
         f"- 竞品列表：\n{comp_lines}\n"
         f"- 闭集完整键集合：[{closed_text}]\n\n"
     )
-    open_set_block = ""
-    if open_set_enabled:
-        open_set_block = (
-            f"# 开集规则（other_brands_sentiment_absa）\n"
-            f"- 宽召回：填 AI 原文中出现、且不在闭集 [{closed_text}] 内的其它商业品牌\n"
-            f"- 闭集品牌无论以何种写法出现，都不得写入 other_brands_sentiment_absa\n"
-            f"- 是否竞品由后续交叉验算判定，此处勿做竞争关系筛选\n\n"
-        )
+    open_set_block = (
+        f"# 开集规则（other_brands_sentiment_absa）\n"
+        f"- 精准收录：仅填 AI 正文中被讨论/对比/推荐、与闭集同赛道可替代的商业品牌\n"
+        f"- 不在闭集 [{closed_text}] 内；闭集品牌任何写法都不得写入此处\n"
+        f"- 仅参考资料/URL 出现而正文未讨论的不收录；存疑则不写\n\n"
+    )
     return (
         f"{header}"
         f"{open_set_block}"
         f"# 输入数据\n"
         f'- [AI原始回答文本]: """{raw_text}"""'
     )
-
-
-# =============================================================================
-# 引用来源页 · GEO 分类（页面类型 + 域名类型；品牌提及由代码匹配 text_snippet）
-# =============================================================================
-
-CITATION_PAGE_GEO_SYSTEM = """# 任务
-你是 GEO 数据分析专家。请对输入的 JSON 数组 `pages` 中的**每一条**数据，独立完成网页内容类型与主域名分类，严格以 JSON 格式输出。
-
-# 任务一：网页内容类型（仅选其一，优先匹配硬特征）
-1. 品牌官网: 企业主页、门户首页或品牌整体介绍单页。
-2. 产品详情: 具体软件、系统、技术方案的功能介绍、规格参数、收费价格页。
-3. 对比评测: 横向对比多品牌/产品的文章或页面。【硬特征：has_table 为 True 且正文涉及多品牌】。
-4. 盘点清单: 条目化罗列推荐的文章。【硬特征：内容高度依赖 ol/ul 列表结构】。
-5. 实操指南: 步骤讲解、代码演示、系统配置部署教程。【硬特征：has_code_block 为 True 或有明显步骤指引】。
-6. 普通文章: 无特殊结构的普通行业文本。如行业科普、干货分享、心得观点、案例故事。
-7. 动态新闻: 具备强时效性的公关快讯、发布会、融资公告、近期事件报道。
-8. 行业报告: 篇幅长、专业性极高的白皮书、宏观市场分析、政策标准深度解读。
-9. 社区讨论: 知乎、Reddit 等论坛 UGC 帖子，含多人回帖、吐槽或散碎观点交流。
-10. 其它类型: 404报错、登录页、纯图片、PDF直链，或 `http_status` 异常、元数据不足无法判定。
-
-# 任务二：主域名类型分类（仅选其一）
-1. 企业/品牌官网: 本品牌、竞品厂商或上下游供应商的官方网站。
-2. 软件市场/垂直目录: 聚合厂商评分与选型的平台（如 SaaS 选型网、应用商店）。
-3. 科技/垂直行业媒体: IT 科技、数字化转型、垂直行业风口的新闻媒体或商业博客。
-4. 大众/综合新闻媒体: 传统综合门户、权威报业集团官网。
-5. 政府/公共机构: 政府部门官网、监管机构、国标公开平台（.gov）。
-6. 教育/科研机构: 高校官网、科研院所、学术研究中心（.edu）。
-7. 参考资料/百科: 在线百科、行业公认知识库、学术期刊网。
-8. 社区/社交平台: 知乎、Reddit、行业论坛等 UGC 互动问答平台。
-9. 代码/开源平台: GitHub、Hugging Face 等代码托管、开源项目与开发者社区。
-10. 其它类型: 个人博客、无法明确识别大类的长尾流量或综合站点。
-
-# 🔴 核心约束
-1. 必须严格以给定的 JSON 格式输出，不包含任何 Markdown 包裹标记（如 ```json ）或前后解释文本。
-2. 输出的 `pages` 数组顺序、数量必须与输入完全一致，每项须包含 `url` 字段以便对齐。
-3. 若因状态码异常或元数据不足导致无法判定，type 填"其它类型"，在 reason 中注明「元数据不足无法判定」。
-
-# 输出 JSON 格式
-{
-  "pages": [
-    {
-      "url": "与输入一致",
-      "url_classification": {"type": "填写任务一标签", "reason": "判定依据"},
-      "domain_classification": {"type": "填写任务二标签", "reason": "判定依据"}
-    }
-  ]
-}"""
-
-
-def citation_page_geo_user_content(*, pages: list[dict[str, object]]) -> str:
-    import json
-
-    return json.dumps({"pages": pages}, ensure_ascii=False, indent=2)

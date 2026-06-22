@@ -76,7 +76,7 @@ function PlatformFilterTriggerIcons({
           key={platform.platform}
           provider={platform.platform}
           label={platform.label}
-          className="size-4 shrink-0 rounded-sm ring-2 ring-white"
+          className="size-4 shrink-0 rounded-sm"
         />
       ))}
       {overflow > 0 ? (

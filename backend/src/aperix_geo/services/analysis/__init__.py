@@ -15,7 +15,11 @@ from aperix_geo.services.analysis.citation import (
     build_citation_urls_page,
 )
 from aperix_geo.services.analysis.dashboard import build_dashboard_overview
-from aperix_geo.services.analysis.diagnosis import build_diagnosis
+from aperix_geo.services.analysis.diagnosis import (
+    build_diagnosis_content,
+    build_diagnosis_content_detail,
+    build_diagnosis_content_summary,
+)
 from aperix_geo.services.analysis.entity import list_analysis_entities, resolve_analysis_entity
 from aperix_geo.services.analysis.metrics import MetricsBundle, build_analysis_entities
 from aperix_geo.services.analysis.opportunity import (
@@ -23,8 +27,6 @@ from aperix_geo.services.analysis.opportunity import (
     build_backlink_opportunity_detail,
     build_backlink_opportunity_prompts_page,
     build_backlink_opportunity_urls_page,
-    build_content_opportunities,
-    build_content_opportunity_detail,
 )
 from aperix_geo.services.analysis.overview import build_overview
 from aperix_geo.services.analysis.performance import (
@@ -69,13 +71,13 @@ __all__ = [
     "build_citation_urls_page",
     "build_sentiment_analysis",
     "build_analysis_responses",
-    "build_content_opportunities",
-    "build_content_opportunity_detail",
+    "build_diagnosis_content",
+    "build_diagnosis_content_summary",
+    "build_diagnosis_content_detail",
     "build_backlink_opportunities",
     "build_backlink_opportunity_detail",
     "build_backlink_opportunity_prompts_page",
     "build_backlink_opportunity_urls_page",
-    "build_diagnosis",
     "list_analysis_entities",
     "resolve_analysis_entity",
     "build_analysis_entities",

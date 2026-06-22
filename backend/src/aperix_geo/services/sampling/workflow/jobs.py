@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -19,7 +18,6 @@ from aperix_geo.db.models import (
 )
 from aperix_geo.services.sampling.platforms import (
     SamplingPlatformError,
-    resolve_default_sampling_platforms as _resolve_default_sampling_platforms,
     resolve_platforms_for_sampling as _resolve_platforms_for_sampling,
 )
 from aperix_geo.services.sampling.workflow.schedule import subject_has_active_sampling_job
@@ -38,13 +36,6 @@ def resolve_platforms_for_sampling(
 ) -> list[str]:
     try:
         return _resolve_platforms_for_sampling(subject, requested, settings=settings)
-    except SamplingPlatformError as e:
-        raise SamplingJobError(str(e)) from e
-
-
-def resolve_default_sampling_platforms(*, settings: Settings | None = None) -> list[str]:
-    try:
-        return _resolve_default_sampling_platforms(settings=settings)
     except SamplingPlatformError as e:
         raise SamplingJobError(str(e)) from e
 
@@ -98,7 +89,9 @@ def create_and_enqueue_sampling_job(
             )
 
     if update_schedule_anchor:
-        locked_subject.last_sampled_at = datetime.now(UTC)
+        from aperix_geo.services.sampling.workflow.schedule import remember_schedule_anchor_for_job
+
+        remember_schedule_anchor_for_job(job.id, subject_id=subject.id)
 
     db.commit()
     db.refresh(job)

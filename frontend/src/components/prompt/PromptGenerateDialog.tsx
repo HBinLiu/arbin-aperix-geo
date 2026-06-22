@@ -1,7 +1,11 @@
+import * as React from "react";
 import { Sparkles } from "lucide-react";
 
+import { PromptFunnelBadge } from "@/components/analysis/prompt/PromptFunnelBadge";
+import { PromptIntentBadge } from "@/components/analysis/prompt/PromptIntentBadge";
 import { SetupSelect } from "@/components/setup/SetupField";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogClose,
@@ -10,6 +14,13 @@ import {
   useDialog,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import type { GeneratedPromptItem } from "@/types";
+import { cn } from "@/lib/utils";
+
+type CandidateRow = GeneratedPromptItem & {
+  id: string;
+  selected: boolean;
+};
 
 type PromptGenerateDialogProps = {
   open: boolean;
@@ -19,38 +30,27 @@ type PromptGenerateDialogProps = {
   count: number;
   onCountChange: (value: number) => void;
   remaining: number;
-  submitting?: boolean;
+  previewLoading?: boolean;
+  confirmLoading?: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: () => void;
+  onPreview: (input: { topicId: string; count: number }) => Promise<GeneratedPromptItem[]>;
+  onConfirm: (input: {
+    topicId: string;
+    items: GeneratedPromptItem[];
+  }) => Promise<void>;
 };
 
-function PromptGenerateDialogFooter({
-  submitting,
-  canSubmit,
-  onSubmit,
-}: {
-  submitting: boolean;
-  canSubmit: boolean;
-  onSubmit: () => void;
-}) {
-  const { requestClose } = useDialog();
+const promptCheckboxClass =
+  "size-[18px] shrink-0 rounded-[4px] data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground [&_svg]:size-3";
 
-  return (
-    <div className="border-border flex shrink-0 items-center justify-between gap-3 border-t px-5 py-4">
-      <p className="text-muted-foreground text-xs">选择一个主题以生成用于 AI 监控的提示词。</p>
-      <div className="flex shrink-0 gap-2">
-        <Button type="button" variant="outline" disabled={submitting} onClick={requestClose}>
-          取消
-        </Button>
-        <Button type="button" disabled={submitting || !canSubmit} onClick={onSubmit}>
-          {submitting ? "生成中…" : "生成提示词"}
-        </Button>
-      </div>
-    </div>
-  );
-}
+const selectListGrid = cn(
+  "grid w-full items-start gap-x-3 gap-y-2",
+  "grid-cols-[auto_minmax(0,1fr)_5rem_4rem]",
+);
 
-/** 提示词管理 · 生成提示词对话框 */
+const funnelIntentCellClass = "flex min-h-9 items-center justify-center";
+
+/** 提示词管理 · 生成提示词对话框（左侧配置，右侧预览多选） */
 export function PromptGenerateDialog({
   open,
   topicId,
@@ -59,16 +59,66 @@ export function PromptGenerateDialog({
   count,
   onCountChange,
   remaining,
-  submitting = false,
+  previewLoading = false,
+  confirmLoading = false,
   onOpenChange,
-  onSubmit,
+  onPreview,
+  onConfirm,
 }: PromptGenerateDialogProps) {
-  const canSubmit = Boolean(topicId && count > 0 && remaining > 0);
+  const [candidates, setCandidates] = React.useState<CandidateRow[]>([]);
+
+  React.useEffect(() => {
+    if (!open) {
+      setCandidates([]);
+    }
+  }, [open]);
+
+  const canPreview = Boolean(topicId && count > 0 && remaining > 0);
+  const hasCandidates = candidates.length > 0;
+  const selectedCount = candidates.filter((row) => row.selected).length;
+  const allSelected = hasCandidates && candidates.every((row) => row.selected);
+  const busy = previewLoading || confirmLoading;
+
+  const handlePreview = async () => {
+    if (!canPreview) return;
+    try {
+      const items = await onPreview({ topicId, count });
+      setCandidates(
+        items.map((item) => ({
+          ...item,
+          id: crypto.randomUUID(),
+          selected: true,
+        })),
+      );
+    } catch {
+      // handled by API
+    }
+  };
+
+  const handleConfirm = async () => {
+    const selected = candidates.filter((row) => row.selected);
+    if (selected.length === 0) return;
+    try {
+      await onConfirm({ topicId, items: selected });
+    } catch {
+      // handled by API
+    }
+  };
+
+  const toggleAll = (checked: boolean) => {
+    setCandidates((rows) => rows.map((row) => ({ ...row, selected: checked })));
+  };
+
+  const toggleRow = (id: string, checked: boolean) => {
+    setCandidates((rows) =>
+      rows.map((row) => (row.id === id ? { ...row, selected: checked } : row)),
+    );
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} closeDisabled={submitting}>
+    <Dialog open={open} onOpenChange={onOpenChange} closeDisabled={busy}>
       <DialogContent
-        className="flex max-h-[90vh] max-w-3xl flex-col overflow-hidden"
+        className="flex h-[min(72vh,38rem)] max-h-[80vh] max-w-4xl flex-col overflow-hidden"
         aria-labelledby="prompt-generate-dialog-title"
       >
         <div className="border-border flex shrink-0 items-center justify-between border-b px-5 py-4">
@@ -79,59 +129,166 @@ export function PromptGenerateDialog({
           <DialogClose />
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
-          <div className="flex flex-col gap-6 md:flex-row md:gap-8">
-            <div className="md:w-[220px] md:shrink-0">
-              <p className="text-sm font-semibold">配置提示词生成</p>
-              <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
-                选择主题后由 AI 生成监测提示词。地区与语言取自主体监测范围。每个主题最多可创建
-                20 个提示词。
-              </p>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-5">
+          <div className="flex min-h-0 flex-1 gap-6 md:flex-row md:items-stretch md:gap-8">
+            <div className="md:w-[240px] md:shrink-0">
+              <div className="space-y-4">
+                <Field label="主题" required>
+                  <SetupSelect
+                    id="generate-topic"
+                    value={topicId}
+                    onChange={onTopicIdChange}
+                    options={topicOptions}
+                  />
+                </Field>
+
+                <Field label="要生成的提示词数量" required>
+                  <div className="relative">
+                    <Input
+                      id="generate-count"
+                      type="number"
+                      min={1}
+                      max={Math.max(remaining, 1)}
+                      value={count}
+                      disabled={busy || remaining <= 0}
+                      onChange={(event) => {
+                        const next = Number.parseInt(event.target.value, 10);
+                        if (Number.isNaN(next)) return;
+                        onCountChange(Math.min(Math.max(next, 1), remaining));
+                      }}
+                      controlSize="sm"
+                      className="border-border h-9 rounded-lg pr-28 shadow-none"
+                    />
+                    <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs whitespace-nowrap">
+                      剩余{remaining}个额度
+                    </span>
+                  </div>
+                </Field>
+
+                <Button
+                  type="button"
+                  variant="default"
+                  className="w-full"
+                  disabled={busy || !canPreview}
+                  onClick={() => void handlePreview()}
+                >
+                  {previewLoading ? "生成中…" : hasCandidates ? "重新生成" : "生成"}
+                </Button>
+              </div>
             </div>
 
-            <div className="min-w-0 flex-1 space-y-4">
-              <Field label="主题" required>
-                <SetupSelect
-                  id="generate-topic"
-                  value={topicId}
-                  onChange={onTopicIdChange}
-                  options={topicOptions}
-                />
-              </Field>
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+              <div className="shrink-0">
+                <p className="text-sm font-semibold">配置提示词生成</p>
+                <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
+                  第一步：点击左侧「生成」预览候选提示词；第二步：勾选后点击底部「添加」写入。
+                </p>
+              </div>
 
-              <Field label="要生成的提示词数量" required>
-                <div className="relative">
-                  <Input
-                    id="generate-count"
-                    type="number"
-                    min={1}
-                    max={Math.max(remaining, 1)}
-                    value={count}
-                    disabled={submitting || remaining <= 0}
-                    onChange={(event) => {
-                      const next = Number.parseInt(event.target.value, 10);
-                      if (Number.isNaN(next)) return;
-                      onCountChange(Math.min(Math.max(next, 1), remaining));
-                    }}
-                    controlSize="sm"
-                    className="border-border h-9 rounded-lg pr-28 shadow-none"
-                  />
-                  <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs whitespace-nowrap">
-                    仅剩{remaining}个提示词
-                  </span>
-                </div>
-              </Field>
+              <div className="border-border flex min-h-0 flex-1 flex-col rounded-lg border">
+                {hasCandidates ? (
+                  <div className="flex min-h-0 flex-1 flex-col p-3">
+                    <div className={cn(selectListGrid, "shrink-0")}>
+                      <div className="col-span-full grid grid-cols-subgrid items-center px-1">
+                        <div className="flex h-9 items-center">
+                          <Checkbox
+                            checked={allSelected}
+                            onCheckedChange={(value) => toggleAll(value === true)}
+                            aria-label="全选提示词"
+                            className={promptCheckboxClass}
+                          />
+                        </div>
+                        <span className="text-foreground text-sm font-semibold">
+                          提示词
+                        </span>
+                        <span className={cn(funnelIntentCellClass, "text-foreground text-sm font-semibold")}>
+                          漏斗
+                        </span>
+                        <span className={cn(funnelIntentCellClass, "text-foreground text-sm font-semibold")}>
+                          意图
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 py-1">
+                      <div className={selectListGrid}>
+                        {candidates.map((row) => (
+                          <div
+                            key={row.id}
+                            className="col-span-full grid grid-cols-subgrid items-start"
+                          >
+                            <div className="flex min-h-9 items-start pt-1.5">
+                              <Checkbox
+                                checked={row.selected}
+                                onCheckedChange={(value) => toggleRow(row.id, value === true)}
+                                aria-label={`选择 ${row.text}`}
+                                className={promptCheckboxClass}
+                              />
+                            </div>
+                            <p className="text-foreground min-h-9 py-1.5 text-sm leading-relaxed">
+                              {row.text}
+                            </p>
+                            <div className={cn(funnelIntentCellClass, "pl-2")}>
+                              <PromptFunnelBadge stage={row.funnel_stage} />
+                            </div>
+                            <div className={cn(funnelIntentCellClass, "pl-1")}>
+                              <PromptIntentBadge intent={row.search_intent} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-muted-foreground flex flex-1 items-center justify-center px-4 py-8 text-center text-sm">
+                    点击左侧「生成」后，预览结果将显示在此处。
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
         <PromptGenerateDialogFooter
-          submitting={submitting}
-          canSubmit={canSubmit}
-          onSubmit={onSubmit}
+          busy={busy}
+          hasCandidates={hasCandidates}
+          selectedCount={selectedCount}
+          confirmLoading={confirmLoading}
+          onConfirm={() => void handleConfirm()}
         />
       </DialogContent>
     </Dialog>
+  );
+}
+
+function PromptGenerateDialogFooter({
+  busy,
+  hasCandidates,
+  selectedCount,
+  confirmLoading,
+  onConfirm,
+}: {
+  busy: boolean;
+  hasCandidates: boolean;
+  selectedCount: number;
+  confirmLoading: boolean;
+  onConfirm: () => void;
+}) {
+  const { requestClose } = useDialog();
+
+  return (
+    <div className="border-border flex shrink-0 justify-end gap-2 border-t px-5 py-4">
+      <Button type="button" variant="outline" disabled={busy} onClick={requestClose}>
+        取消
+      </Button>
+      <Button
+        type="button"
+        disabled={busy || !hasCandidates || selectedCount <= 0}
+        onClick={onConfirm}
+      >
+        {confirmLoading ? "添加中…" : `添加选中（${selectedCount}）`}
+      </Button>
+    </div>
   );
 }
 

@@ -68,7 +68,7 @@ export function dashboardNavToPath(id: DashboardNavId): string {
     return `${DASHBOARD_APP_BASE}/analysis/visibility`;
   }
   if (id === "opportunity") {
-    return `${DASHBOARD_APP_BASE}/opportunity/content`;
+    return `${DASHBOARD_APP_BASE}/opportunity/backlink`;
   }
   return `${DASHBOARD_APP_BASE}/${DASHBOARD_NAV_SEGMENT[id]}`;
 }

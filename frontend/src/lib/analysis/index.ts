@@ -78,7 +78,6 @@ export {
   buildChartModel,
   buildChartTooltipRows,
   buildChartYAxis,
-  buildChartYAxisForScore,
   chartColorAtIndex,
   chartColorForKey,
   chartColorFromLookup,

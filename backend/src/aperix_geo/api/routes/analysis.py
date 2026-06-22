@@ -1,6 +1,5 @@
 """Analysis aggregates (read-only)."""
 
-from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -10,6 +9,10 @@ from aperix_geo.api.schemas.analysis_query import (
     AnalysisPromptsParams,
     AnalysisRankWindowParams,
     AnalysisWindowParams,
+    BacklinkOpportunityDetailParams,
+    BacklinkOpportunityParams,
+    BacklinkOpportunityPromptsParams,
+    BacklinkOpportunityUrlsParams,
     CitationDomainAnalysisParams,
     CitationDomainPromptsParams,
     CitationDomainUrlsParams,
@@ -392,23 +395,98 @@ def rank(
     )
 
 
-#诊断中心页面接口
-@router.get("/subjects/{subject_id}/diagnosis")
-def diagnosis(
+# 潜在机会 · 反向链接
+@router.post("/subjects/{subject_id}/opportunity/backlink")
+def backlink_opportunity(
     subject_id: UUID,
-    params: Annotated[AnalysisWindowParams, Query()],
+    params: BacklinkOpportunityParams,
     db: DbSession,
     current: CurrentUser,
 ) -> dict:
     s = get_subject_for_user(db, current, subject_id, with_competitors=True)
     f = parse_iso_datetime(params.start_date)
     t = parse_iso_datetime(params.end_date)
-    return analysis_svc.build_diagnosis(
+    return analysis_svc.build_backlink_opportunities(
         db,
         subject=s,
-        entity_id=params.entity_id,
+        platform=params.platform,
+        topic_id=params.topic_id,
+        search=params.search,
+        sort_by=params.sort_by,
+        order=params.order,
+        dt_from=f,
+        dt_to=t,
+        page=params.page,
+        page_size=params.page_size,
+    )
+
+
+@router.post("/subjects/{subject_id}/opportunity/backlink/detail")
+def backlink_opportunity_detail(
+    subject_id: UUID,
+    params: BacklinkOpportunityDetailParams,
+    db: DbSession,
+    current: CurrentUser,
+) -> dict:
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
+    f = parse_iso_datetime(params.start_date)
+    t = parse_iso_datetime(params.end_date)
+    return analysis_svc.build_backlink_opportunity_detail(
+        db,
+        subject=s,
+        host=params.host,
         platform=params.platform,
         topic_id=params.topic_id,
         dt_from=f,
         dt_to=t,
+    )
+
+
+@router.post("/subjects/{subject_id}/opportunity/backlink/detail/urls")
+def backlink_opportunity_urls(
+    subject_id: UUID,
+    params: BacklinkOpportunityUrlsParams,
+    db: DbSession,
+    current: CurrentUser,
+) -> dict:
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
+    f = parse_iso_datetime(params.start_date)
+    t = parse_iso_datetime(params.end_date)
+    return analysis_svc.build_backlink_opportunity_urls_page(
+        db,
+        subject=s,
+        host=params.host,
+        platform=params.platform,
+        topic_id=params.topic_id,
+        dt_from=f,
+        dt_to=t,
+        page=params.page,
+        page_size=params.page_size,
+        sort_by=params.sort_by,
+        order=params.order,
+    )
+
+
+@router.post("/subjects/{subject_id}/opportunity/backlink/detail/prompts")
+def backlink_opportunity_prompts(
+    subject_id: UUID,
+    params: BacklinkOpportunityPromptsParams,
+    db: DbSession,
+    current: CurrentUser,
+) -> dict:
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
+    f = parse_iso_datetime(params.start_date)
+    t = parse_iso_datetime(params.end_date)
+    return analysis_svc.build_backlink_opportunity_prompts_page(
+        db,
+        subject=s,
+        host=params.host,
+        platform=params.platform,
+        topic_id=params.topic_id,
+        dt_from=f,
+        dt_to=t,
+        page=params.page,
+        page_size=params.page_size,
+        sort_by=params.sort_by,
+        order=params.order,
     )

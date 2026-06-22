@@ -150,7 +150,13 @@ def warm_sampling_job_context(
         db.execute(
             select(LLMResponse.prompt_id).where(
                 LLMResponse.sampling_job_id == job_id,
-                LLMResponse.status == LLMResponseStatus.pending,
+                LLMResponse.status.in_(
+                    (
+                        LLMResponseStatus.pending,
+                        LLMResponseStatus.llm_ready,
+                        LLMResponseStatus.crawl_ready,
+                    ),
+                ),
             )
         ).scalars().all()
     )

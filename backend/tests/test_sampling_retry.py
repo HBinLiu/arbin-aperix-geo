@@ -4,8 +4,27 @@ from __future__ import annotations
 
 from aperix_geo.services.providers.errors import DoubaoProviderError
 from aperix_geo.services.sampling.llm import SamplingLLMError, sampling_llm_error_from
-from aperix_geo.services.sampling.rate_limit import SamplingRateLimitError
+from aperix_geo.services.sampling.llm_limits import SamplingRateLimitError
 from aperix_geo.services.sampling.retry_policy import is_retryable_sampling_error, retry_countdown_seconds
+from aperix_geo.utils.db_retry import is_retryable_db_error
+from sqlalchemy.exc import DBAPIError
+
+
+class _FakeOrig:
+    def __init__(self, sqlstate: str) -> None:
+        self.sqlstate = sqlstate
+
+
+def test_is_retryable_db_deadlock() -> None:
+    exc = DBAPIError("stmt", {}, _FakeOrig("40P01"))
+    assert is_retryable_db_error(exc)
+    assert is_retryable_sampling_error(exc)
+
+
+def test_is_not_retryable_db_data_error() -> None:
+    exc = DBAPIError("stmt", {}, _FakeOrig("22021"))
+    assert not is_retryable_db_error(exc)
+    assert not is_retryable_sampling_error(exc)
 
 
 def test_is_retryable_timeout_and_http_status() -> None:

@@ -19,7 +19,7 @@ def test_domain_cite_stats_empty_window() -> None:
         "aperix_geo.services.analysis._query.count_responses_in_window",
         return_value=0,
     ):
-        count, domain_type, response_total = domain_cite_stats(
+        count, response_total = domain_cite_stats(
             db,
             subject_id=uuid.uuid4(),
             dt_from=datetime(2026, 1, 1, tzinfo=UTC),
@@ -27,7 +27,6 @@ def test_domain_cite_stats_empty_window() -> None:
             host="example.com",
         )
     assert count == 0
-    assert domain_type is None
     assert response_total == 0
     db.execute.assert_not_called()
 

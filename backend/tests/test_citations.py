@@ -3,18 +3,17 @@
 from __future__ import annotations
 
 import threading
-import uuid
 from unittest.mock import MagicMock, patch
-from aperix_geo.db.models import CitationDomain, CitationUrl, Prompt, Subject, SubjectType, Topic
+from aperix_geo.db.models import CitationDomain, CitationUrl
 
 from aperix_geo.services.sampling.citation import (
     CitationPageMeta,
-    aggregate_citation_urls,
     citations_from_parsed,
     domain_counts_from_url_rows,
     fetch_citation_pages_parallel,
     replace_citations_for_response,
 )
+from aperix_geo.services.sampling.citation.page import sort_citation_urls_for_fetch
 
 
 def test_citations_from_parsed_dedupes_and_maps_source_metadata() -> None:
@@ -30,8 +29,6 @@ def test_citations_from_parsed_dedupes_and_maps_source_metadata() -> None:
                 "url": "https://blog.acme-brand.com/a",
                 "fetch_ok": True,
                 "page_title": "Acme Blog Post",
-                "url_type": "盘点清单文",
-                "domain_type": "企业与品牌官网",
                 "http_status": 200,
                 "description": "desc",
                 "headings": ["H1"],
@@ -50,8 +47,6 @@ def test_citations_from_parsed_dedupes_and_maps_source_metadata() -> None:
     by_url = {row["url"]: row for row in rows}
     assert by_url["https://blog.acme-brand.com/a"]["domain"] == "blog.acme-brand.com"
     assert by_url["https://blog.acme-brand.com/a"]["page_title"] == "Acme Blog Post"
-    assert by_url["https://blog.acme-brand.com/a"]["url_type"] == "盘点清单文"
-    assert by_url["https://blog.acme-brand.com/a"]["domain_type"] == "企业与品牌官网"
     assert by_url["https://docs.acme-brand.com/b"]["from_api"] is True
 
 
@@ -119,126 +114,6 @@ def test_replace_citations_for_response_inserts_url_and_domain_rows() -> None:
     assert url_rows[0].from_api is True
 
 
-def test_aggregate_citation_urls_groups_metadata() -> None:
-    subject = Subject(
-        id=uuid.uuid4(),
-        tenant_id=uuid.uuid4(),
-        type=SubjectType.brand,
-        brand="Aperix",
-        website_url="https://aperix.com",
-    )
-    response_id = uuid.uuid4()
-    prompt_id = uuid.uuid4()
-    topic_id = uuid.uuid4()
-    rows = [
-        MagicMock(id=response_id, parsed={"urls": ["https://stripe.com/blog/a"]}, prompt_id=prompt_id),
-        MagicMock(id=uuid.uuid4(), parsed={"urls": ["https://stripe.com/blog/a"]}, prompt_id=prompt_id),
-    ]
-    records = [
-        CitationUrl(
-            response_id=response_id,
-            prompt_id=prompt_id,
-            url="https://stripe.com/blog/a",
-            page_title="Stripe Blog",
-            url_type="Article",
-            llm_analysis={
-                "analysis_source": "llm",
-                "page_mentioned_brands": ["Beta"],
-            },
-        ),
-        CitationUrl(
-            response_id=rows[1].id,
-            prompt_id=prompt_id,
-            url="https://stripe.com/blog/a",
-            page_title="Stripe Blog",
-            url_type="Article",
-            llm_analysis={
-                "analysis_source": "llm",
-                "page_mentioned_brands": ["Beta"],
-            },
-        ),
-    ]
-    prompt = Prompt(
-        id=prompt_id,
-        subject_id=subject.id,
-        topic_id=topic_id,
-        text="订购大模型品牌能见度监测系统",
-        text_hash="abc",
-    )
-    topic = Topic(id=topic_id, subject_id=subject.id, name="AI品牌能见度监测")
-
-    def _execute(stmt):
-        entity = stmt.column_descriptions[0]["entity"]
-        result = MagicMock()
-        if entity is CitationUrl:
-            result.scalars.return_value.all.return_value = records
-        elif entity is Prompt:
-            result.scalars.return_value.all.return_value = [prompt]
-        elif entity is Topic:
-            result.scalars.return_value.all.return_value = [topic]
-        else:
-            result.scalars.return_value.all.return_value = []
-        return result
-
-    db = MagicMock()
-    db.execute.side_effect = _execute
-
-    aggregated = aggregate_citation_urls(db, rows, subject=subject)
-    assert len(aggregated) == 1
-    row = aggregated[0]
-    assert row["url"] == "https://stripe.com/blog/a"
-    assert row["title"] == "Stripe Blog"
-    assert row["url_type"] == "Article"
-    assert row["count"] == 2
-    assert row["has_brand_analysis"] is True
-    assert row["mentioned_brands"] == [{"label": "Beta", "domain": None}]
-    assert row["citing_prompts"] == [
-        {"prompt_text": "订购大模型品牌能见度监测系统", "topic_name": "AI品牌能见度监测"},
-    ]
-
-
-def test_aggregate_citation_urls_skips_template_page_title() -> None:
-    subject = Subject(
-        id=uuid.uuid4(),
-        tenant_id=uuid.uuid4(),
-        type=SubjectType.brand,
-        brand="Aperix",
-        website_url="https://aperix.com",
-    )
-    response_id = uuid.uuid4()
-    prompt_id = uuid.uuid4()
-    rows = [
-        MagicMock(
-            id=response_id,
-            parsed={"urls": ["https://example.com/article"]},
-            prompt_id=prompt_id,
-        ),
-    ]
-    records = [
-        CitationUrl(
-            response_id=response_id,
-            prompt_id=prompt_id,
-            url="https://example.com/article",
-            page_title="{{content.leadTitle}}",
-        ),
-    ]
-
-    def _execute(stmt):
-        entity = stmt.column_descriptions[0]["entity"]
-        result = MagicMock()
-        if entity is CitationUrl:
-            result.scalars.return_value.all.return_value = records
-        else:
-            result.scalars.return_value.all.return_value = []
-        return result
-
-    db = MagicMock()
-    db.execute.side_effect = _execute
-
-    aggregated = aggregate_citation_urls(db, rows, subject=subject)
-    assert aggregated[0]["title"] == "https://example.com/article"
-
-
 def test_fetch_citation_pages_parallel_preserves_order() -> None:
     urls = ["https://a.test/1", "https://b.test/2", "https://c.test/3"]
     active = {"n": 0}
@@ -263,3 +138,23 @@ def test_fetch_citation_pages_parallel_preserves_order() -> None:
 
     assert [p.url for p in pages] == urls
     assert [p.title for p in pages] == ["a.test", "b.test", "c.test"]
+
+
+def test_sort_citation_urls_for_fetch_prioritizes_own_and_competitors() -> None:
+    urls = [
+        "https://other.com/x",
+        "https://aperix.com/a",
+        "https://rival.com/b",
+        "https://aperix.com/b",
+    ]
+    ordered = sort_citation_urls_for_fetch(
+        urls,
+        own_root="aperix.com",
+        competitor_roots={"rival.com"},
+    )
+    assert ordered == [
+        "https://aperix.com/a",
+        "https://aperix.com/b",
+        "https://rival.com/b",
+        "https://other.com/x",
+    ]

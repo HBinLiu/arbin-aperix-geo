@@ -6,41 +6,42 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from aperix_geo.config import get_settings
-from aperix_geo.db.models import LLMResponse, LLMResponseStatus, SamplingJob, SamplingJobStatus
+from aperix_geo.db.models import SamplingJob, SamplingJobStatus
 from aperix_geo.services.sampling.workflow.finalize import finalize_sampling_job_db
-from aperix_geo.utils.cache.redis_kv import redis_set_nx
+from aperix_geo.services.sampling.workflow.queues import response_work_queues
+from aperix_geo.utils.cache.redis_kv import redis_set_nx_strict
+from aperix_geo.utils.datetime import ensure_utc
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 
-def count_pending_responses(db: Session, job_id: UUID) -> int:
-    return len(pending_response_ids(db, job_id))
-
-
 def pending_response_ids(db: Session, job_id: UUID) -> list[UUID]:
-    return list(
-        db.execute(
-            select(LLMResponse.id).where(
-                LLMResponse.sampling_job_id == job_id,
-                LLMResponse.status == LLMResponseStatus.pending,
-            )
-        ).scalars().all()
-    )
+    return list(response_work_queues(db, job_id).pending)
+
+
+def llm_ready_response_ids(db: Session, job_id: UUID) -> list[UUID]:
+    return list(response_work_queues(db, job_id).llm_ready)
+
+
+def crawl_ready_response_ids(db: Session, job_id: UUID) -> list[UUID]:
+    return list(response_work_queues(db, job_id).crawl_ready)
+
+
+def crawl_ready_response_id_strs(db: Session, job_id: UUID) -> list[str]:
+    return response_work_queues(db, job_id).crawl_ready_strs
+
+
+def llm_ready_response_id_strs(db: Session, job_id: UUID) -> list[str]:
+    return response_work_queues(db, job_id).llm_ready_strs
 
 
 def pending_response_id_strs(db: Session, job_id: UUID) -> list[str]:
-    return [str(response_id) for response_id in pending_response_ids(db, job_id)]
-
-
-def _ensure_utc(dt: datetime) -> datetime:
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=UTC)
-    return dt
+    return response_work_queues(db, job_id).pending_strs
 
 
 def sampling_job_activity_at(job: SamplingJob) -> datetime:
     """Last known activity timestamp used for stale detection."""
-    return _ensure_utc(job.updated_at or job.started_at or job.created_at)
+    return ensure_utc(job.updated_at or job.started_at or job.created_at)
 
 
 def is_sampling_job_stale(job: SamplingJob, *, now: datetime | None = None, stale_seconds: int | None = None) -> bool:
@@ -59,7 +60,7 @@ def _resume_debounce_key(job_id: UUID) -> str:
 def try_schedule_sampling_resume(job_id: UUID) -> bool:
     """Return True when a resume task was newly scheduled (Redis debounce)."""
     settings = get_settings()
-    return redis_set_nx(
+    return redis_set_nx_strict(
         _resume_debounce_key(job_id),
         ttl_s=settings.sampling_resume_debounce_seconds,
     )
@@ -76,8 +77,8 @@ def reconcile_active_sampling_job(
     if job.status not in (SamplingJobStatus.queued, SamplingJobStatus.running):
         return False
 
-    pending_ids = pending_response_ids(db, job.id)
-    if not pending_ids:
+    queues = response_work_queues(db, job.id)
+    if not queues.has_work:
         finalize_sampling_job_db(db, job.id)
         return True
 
@@ -87,9 +88,9 @@ def reconcile_active_sampling_job(
     if not try_schedule_sampling_resume(job.id):
         return False
 
-    from aperix_geo.services.sampling.workflow.orchestrate import enqueue_sampling_resume
+    from aperix_geo.services.sampling.workflow.orchestrate import enqueue_sampling_continue
 
-    enqueue_sampling_resume(job.id, pending_ids)
+    enqueue_sampling_continue(job.id)
     return True
 
 

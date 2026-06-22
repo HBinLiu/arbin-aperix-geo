@@ -91,7 +91,6 @@ def extract_parse_context(
         llm_configured=bool(llm_key),
         text=text,
         entity_signals=entity_signals,
-        urls=urls,
     )
 
     citation_params = CitationParseParams(
@@ -103,9 +102,6 @@ def extract_parse_context(
         entity_signals=entity_signals,
         crawl=crawl,
         snippet_chars=settings.citation_text_snippet_chars,
-        llm_enabled=settings.citation_page_geo_llm_enabled and bool(llm_key),
-        geo_cache_ttl_s=settings.citation_page_geo_cache_ttl_s,
-        geo_batch_size=settings.citation_page_geo_batch_size,
         sampling_job_id=sampling_job_id,
     )
 
@@ -125,25 +121,5 @@ def extract_parse_context(
         web_search_mode=web_search_mode,
         source_urls=source_urls,
         subject=subject,
-        db=db,
-    )
-
-
-def build_parse_context(
-    raw_text: str,
-    *,
-    subject: Subject,
-    source_urls: list[str] | None,
-    web_search_mode: str,
-    sampling_job_id: UUID | None,
-    db: Session | None = None,
-) -> ParseContext:
-    """Alias for :func:`extract_parse_context` (legacy name)."""
-    return extract_parse_context(
-        raw_text,
-        subject=subject,
-        source_urls=source_urls,
-        web_search_mode=web_search_mode,
-        sampling_job_id=sampling_job_id,
         db=db,
     )

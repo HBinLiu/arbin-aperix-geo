@@ -81,7 +81,7 @@ export function PromptUploadDialog({
               <div>
                 <p className="text-sm font-semibold">CSV 文件格式</p>
                 <p className="text-muted-foreground mt-1 text-xs">
-                  必填列（需包含表头行，不区分大小写）：
+                  必填列（需包含表头行）：主题、提示词
                 </p>
               </div>
               <Button
@@ -99,13 +99,13 @@ export function PromptUploadDialog({
 
             <div className="space-y-3 text-sm">
               <div className="border-border border-b pb-3">
-                <p className="font-medium">topic</p>
+                <p className="font-medium">主题</p>
                 <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
                   您希望跟踪的关键概念或关注领域。
                 </p>
               </div>
               <div>
-                <p className="font-medium">prompt</p>
+                <p className="font-medium">提示词</p>
                 <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
                   将发送至 AI 答案引擎的独立查询。
                 </p>

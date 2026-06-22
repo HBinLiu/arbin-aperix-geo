@@ -12,7 +12,7 @@ from aperix_geo.services.favicon._storage import (
     negative_cache_set,
     read_cached_favicon,
 )
-from aperix_geo.utils.cache import run_single_flight
+from aperix_geo.utils.cache import SingleFlightWaitTimeout, run_single_flight
 
 
 class _FaviconMiss:
@@ -52,11 +52,18 @@ def resolve_favicon_coalesced(
         cache_set(domain, body, media)
         return result
 
-    out = run_single_flight(
-        digest,
-        wait_s=max(_COALESCE_WAIT_S, timeout_s * 4 + 30.0),
-        read_cache=lambda: _read_cached(domain, page_url=page_url),
-        fetch=fetch,
-        lock_prefix="aperix:favicon:lock:",
-    )
+    try:
+        out = run_single_flight(
+            digest,
+            wait_s=max(_COALESCE_WAIT_S, timeout_s * 4 + 30.0),
+            read_cache=lambda: _read_cached(domain, page_url=page_url),
+            fetch=fetch,
+            lock_prefix="aperix:favicon:lock:",
+        )
+    except SingleFlightWaitTimeout:
+        cached = _read_cached(domain, page_url=page_url)
+        if cached is not None:
+            out = cached
+        else:
+            out = fetch()
     return None if out is MISS else out

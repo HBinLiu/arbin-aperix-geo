@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import uuid
+from contextlib import contextmanager
 from datetime import UTC, datetime
+from unittest.mock import patch
 
 from aperix_geo.db.models import Competitor, LLMResponse, LLMResponseStatus, Subject, SubjectType
 from aperix_geo.services.analysis.aggregate import aggregate_metrics, mentioned_brands_for_response, metrics_from_signals
@@ -22,6 +24,15 @@ def _subject() -> Subject:
         brand="Aperix",
         website_url="https://aperix.com",
     )
+
+
+@contextmanager
+def _patch_diagnosis_response_window(dt_from: datetime, dt_to: datetime):
+    with patch(
+        "aperix_geo.services.analysis.diagnosis.subject_response_window",
+        return_value=(dt_from, dt_to),
+    ):
+        yield
 
 
 def _row(parsed: dict) -> LLMResponse:
@@ -87,21 +98,38 @@ def test_citation_rate_mention_with_domain_link_ratio():
 
 
 def test_gap_priority():
-    from aperix_geo.services.analysis.opportunity import gap_priority
+    from aperix_geo.services.analysis.diagnosis import gap_action_priority
 
-    assert gap_priority(0.0) == "low"
-    assert gap_priority(0.49) == "low"
-    assert gap_priority(0.5) == "medium"
-    assert gap_priority(0.79) == "medium"
-    assert gap_priority(0.8) == "high"
-    assert gap_priority(1.0) == "high"
+    assert gap_action_priority(0.0) == "low"
+    assert gap_action_priority(0.49) == "low"
+    assert gap_action_priority(0.5) == "medium"
+    assert gap_action_priority(0.79) == "medium"
+    assert gap_action_priority(0.8) == "high"
+    assert gap_action_priority(1.0) == "high"
 
 
-def test_competitive_gap_metrics():
+def test_action_priority_standards():
+    from aperix_geo.services.analysis.diagnosis import (
+        gap_action_priority,
+        mention_action_priority,
+        overall_action_priority,
+    )
+
+    assert mention_action_priority(0.0, None) == "high"
+    assert mention_action_priority(0.3, None) == "medium"
+    assert mention_action_priority(0.6, 4.0) == "medium"
+    assert mention_action_priority(0.6, 2.0) == "low"
+
+    assert overall_action_priority("low", "medium", "low") == "medium"
+    assert overall_action_priority("high", "medium", "low") == "high"
+    assert gap_action_priority(0.75) == "medium"
+
+
+def test_diagnosis_gap_metrics():
     from uuid import uuid4
 
     from aperix_geo.db.models import Competitor
-    from aperix_geo.services.analysis.opportunity import competitive_gap_metrics
+    from aperix_geo.services.analysis.diagnosis import diagnosis_gap_metrics
 
     subject = _subject()
     comp_id = uuid4()
@@ -119,21 +147,25 @@ def test_competitive_gap_metrics():
         _signal(r3, str(comp_id), mentioned=False),
     ]
 
-    gap = competitive_gap_metrics(
+    gap = diagnosis_gap_metrics(
         focus_entity_id="own",
         response_ids={r1, r2, r3},
         all_signals=signals,
         subject=subject,
     )
-    assert gap["brand_gap_rate"] == 0.0
+    assert gap["brand_gap_rate"] == 0.5
+    assert gap["brand_own_count"] == 1
+    assert gap["brand_total_count"] == 2
 
-    gap_behind = competitive_gap_metrics(
+    gap_behind = diagnosis_gap_metrics(
         focus_entity_id="own",
         response_ids={r1, r2},
         all_signals=signals,
         subject=subject,
     )
     assert gap_behind["brand_gap_rate"] == 0.5
+    assert gap_behind["brand_own_count"] == 1
+    assert gap_behind["brand_total_count"] == 2
     assert gap_behind["brand_gap_priority"] == "medium"
     assert gap_behind["competitors"] == ["beta.com"]
 
@@ -167,11 +199,11 @@ def _signal(
     )
 
 
-def test_competitive_gap_metrics_source_domain_link():
+def test_diagnosis_gap_metrics_source_domain_link():
     from uuid import uuid4
 
     from aperix_geo.db.models import Competitor
-    from aperix_geo.services.analysis.opportunity import competitive_gap_metrics
+    from aperix_geo.services.analysis.diagnosis import diagnosis_gap_metrics
 
     subject = _subject()
     comp_id = uuid4()
@@ -187,7 +219,7 @@ def test_competitive_gap_metrics_source_domain_link():
         _signal(r2, str(comp_id), mentioned=False, has_domain_link=True),
     ]
 
-    gap = competitive_gap_metrics(
+    gap = diagnosis_gap_metrics(
         focus_entity_id="own",
         response_ids={r1, r2},
         all_signals=signals,
@@ -198,11 +230,10 @@ def test_competitive_gap_metrics_source_domain_link():
     assert gap["source_total_count"] == 2
 
 
-def test_build_content_opportunities():
+def test_build_diagnosis_content():
     from uuid import uuid4
 
     from aperix_geo.db.models import Competitor, Prompt
-    from aperix_geo.services.analysis import build_content_opportunities
 
     subject = _subject()
     subject.competitors = [
@@ -243,15 +274,21 @@ def test_build_content_opportunities():
 
     from aperix_geo.services.analysis.signal_load import load_llm_response_signals
 
+    from aperix_geo.services.analysis import build_diagnosis_content, build_diagnosis_content_summary
+
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
     signals = _signals_for_rows(rows, subject, payloads)
     original = load_llm_response_signals.override
     load_llm_response_signals.override = lambda *args, **kwargs: signals
     try:
-        out = build_content_opportunities(
-            FakeDb(), subject=subject, dt_from=dt_from, dt_to=dt_to
-        )
+        with _patch_diagnosis_response_window(dt_from, dt_to):
+            out = build_diagnosis_content(
+                FakeDb(), subject=subject
+            )
+            summary_out = build_diagnosis_content_summary(
+                FakeDb(), subject=subject
+            )
     finally:
         load_llm_response_signals.override = original
 
@@ -263,19 +300,282 @@ def test_build_content_opportunities():
     assert out["page_size"] == 10
     assert item["brand_own_count"] == 0
     assert item["brand_total_count"] == 2
-    assert item["source_own_count"] == 0
-    assert item["source_total_count"] == 2
     assert item["brand_gap_rate"] == 1.0
     assert item["brand_gap_priority"] == "high"
+    assert item["mention_priority"] == "high"
     assert item["priority"] == "high"
+    assert item["mention_rate"] == 0.0
+    assert item["mention_own_count"] == 0
+    assert item["mention_total_count"] == 2
+    assert item["mention_issue_type"] == "not_mentioned"
     assert "Beta" in item["competitors"]
+    assert "summary" not in out
+    assert summary_out["summary"]["overall_score"] >= 0
+    assert summary_out["summary"]["mention"]["health_score"] == 0.0
+    assert summary_out["summary"]["brand_gap"]["health_score"] == 0.0
+    assert summary_out["summary"]["mention"]["priority_counts"]["high"] == 1
+    assert summary_out["summary"]["brand_gap"]["priority_counts"]["high"] == 1
 
 
-def test_build_content_opportunity_detail():
+def test_diagnosis_summary_mention_priority_counts_match_table_rows():
+    """Mention priority_counts in summary should match diagnosis table rows."""
     from uuid import uuid4
 
     from aperix_geo.db.models import Competitor, Prompt
-    from aperix_geo.services.analysis import build_content_opportunity_detail
+
+    subject = _subject()
+    comp_id = uuid4()
+    subject.competitors = [
+        Competitor(id=comp_id, subject_id=subject.id, brand="Beta", domain="")
+    ]
+    gap_prompt_id = uuid4()
+    healthy_prompt_id = uuid4()
+    gap_prompt = Prompt(
+        id=gap_prompt_id,
+        subject_id=subject.id,
+        topic_id=uuid4(),
+        text="gap prompt",
+    )
+    healthy_prompt = Prompt(
+        id=healthy_prompt_id,
+        subject_id=subject.id,
+        topic_id=uuid4(),
+        text="healthy prompt",
+    )
+
+    class FakeDb:
+        def execute(self, stmt):
+            class R:
+                def scalars(self):
+                    class S:
+                        def all(self):
+                            sql = str(stmt)
+                            if "tb_prompts" in sql:
+                                return [gap_prompt, healthy_prompt]
+                            return []
+
+                    return S()
+
+            return R()
+
+        def get(self, _model, _id):
+            return subject
+
+    gap_payload = parsed_payload(
+        entity_signal(mentioned=False),
+        competitor_signal(mentioned=True),
+    )
+    healthy_payload = parsed_payload(
+        entity_signal(mentioned=True, mention_count=1, mention_rank=1),
+        competitor_signal(mentioned=False),
+    )
+    gap_rows = [_row(gap_payload)]
+    healthy_rows = [_row(healthy_payload)]
+    gap_rows[0].prompt_id = gap_prompt_id
+    healthy_rows[0].prompt_id = healthy_prompt_id
+    signals = _signals_for_rows(gap_rows + healthy_rows, subject, [gap_payload, healthy_payload])
+
+    from datetime import UTC, datetime, timedelta
+
+    from aperix_geo.services.analysis import build_diagnosis_content, build_diagnosis_content_summary
+    from aperix_geo.services.analysis.signal_load import load_llm_response_signals
+
+    dt_to = datetime.now(UTC)
+    dt_from = dt_to - timedelta(days=7)
+    original = load_llm_response_signals.override
+    load_llm_response_signals.override = lambda *args, **kwargs: signals
+    try:
+        with _patch_diagnosis_response_window(dt_from, dt_to):
+            list_out = build_diagnosis_content(FakeDb(), subject=subject)
+            summary_out = build_diagnosis_content_summary(FakeDb(), subject=subject)
+    finally:
+        load_llm_response_signals.override = original
+
+    assert list_out["total"] == 1
+    assert list_out["items"][0]["mention_priority"] == "high"
+
+    mention_counts = summary_out["summary"]["mention"]["priority_counts"]
+    assert mention_counts["high"] == 1
+    assert mention_counts["medium"] == 0
+    assert mention_counts["low"] == 0
+    assert mention_counts["high"] == sum(
+        1 for item in list_out["items"] if item["mention_priority"] == "high"
+    )
+
+
+def test_diagnosis_content_includes_mention_only_prompt():
+    """Prompts with mention issues but no brand/source gap should appear in the table."""
+    from uuid import uuid4
+
+    from aperix_geo.db.models import Prompt
+
+    subject = _subject()
+    subject.competitors = []
+    mention_prompt_id = uuid4()
+    healthy_prompt_id = uuid4()
+    mention_prompt = Prompt(
+        id=mention_prompt_id,
+        subject_id=subject.id,
+        topic_id=uuid4(),
+        text="not mentioned prompt",
+    )
+    healthy_prompt = Prompt(
+        id=healthy_prompt_id,
+        subject_id=subject.id,
+        topic_id=uuid4(),
+        text="healthy prompt",
+    )
+
+    class FakeDb:
+        def execute(self, stmt):
+            class R:
+                def scalars(self):
+                    class S:
+                        def all(self):
+                            sql = str(stmt)
+                            if "tb_prompts" in sql:
+                                return [mention_prompt, healthy_prompt]
+                            return []
+
+                    return S()
+
+            return R()
+
+        def get(self, _model, _id):
+            return subject
+
+    mention_payload = parsed_payload(entity_signal(mentioned=False))
+    healthy_payload = parsed_payload(entity_signal(mentioned=True, mention_count=1, mention_rank=1))
+    mention_rows = [_row(mention_payload)]
+    healthy_rows = [_row(healthy_payload)]
+    mention_rows[0].prompt_id = mention_prompt_id
+    healthy_rows[0].prompt_id = healthy_prompt_id
+    signals = _signals_for_rows(mention_rows + healthy_rows, subject, [mention_payload, healthy_payload])
+
+    from datetime import UTC, datetime, timedelta
+
+    from aperix_geo.services.analysis import build_diagnosis_content, build_diagnosis_content_summary
+    from aperix_geo.services.analysis.signal_load import load_llm_response_signals
+
+    dt_to = datetime.now(UTC)
+    dt_from = dt_to - timedelta(days=7)
+    original = load_llm_response_signals.override
+    load_llm_response_signals.override = lambda *args, **kwargs: signals
+    try:
+        with _patch_diagnosis_response_window(dt_from, dt_to):
+            list_out = build_diagnosis_content(FakeDb(), subject=subject)
+            summary_out = build_diagnosis_content_summary(FakeDb(), subject=subject)
+    finally:
+        load_llm_response_signals.override = original
+
+    assert list_out["total"] == 1
+    item = list_out["items"][0]
+    assert item["prompt_id"] == str(mention_prompt_id)
+    assert item["mention_priority"] == "high"
+    assert item["brand_gap_rate"] == 0.0
+    assert item["source_gap_rate"] == 0.0
+    assert item["priority"] == "high"
+    assert item["platforms"] == []
+
+    mention_counts = summary_out["summary"]["mention"]["priority_counts"]
+    assert mention_counts["high"] == 1
+    assert summary_out["summary"]["brand_gap"]["priority_counts"] == {"high": 0, "medium": 0, "low": 0}
+    assert summary_out["summary"]["source_gap"]["priority_counts"] == {"high": 0, "medium": 0, "low": 0}
+
+
+def test_diagnosis_summary_gap_health_uses_gap_prompts_only():
+    """Brand/source health scores average only prompts with positive gap, not all table rows."""
+    from aperix_geo.services.analysis.diagnosis import _build_diagnosis_content_summary
+
+    summary = _build_diagnosis_content_summary(
+        mention_snapshots=[{"mention_rate": 0.0}, {"mention_rate": 1.0}],
+        gap_items=[
+            {
+                "mention_priority": "high",
+                "brand_gap_rate": 0.0,
+                "source_gap_rate": 0.0,
+                "brand_gap_priority": "low",
+                "source_gap_priority": "low",
+            },
+            {
+                "mention_priority": "low",
+                "brand_gap_rate": 0.8,
+                "source_gap_rate": 0.6,
+                "brand_gap_priority": "high",
+                "source_gap_priority": "medium",
+            },
+        ],
+    )
+
+    assert summary["brand_gap"]["health_score"] == 20.0
+    assert summary["source_gap"]["health_score"] == 40.0
+
+
+def test_diagnosis_mention_rate_matches_mentioned_response_share():
+    """Diagnosis mention_rate is mentioned replies / total replies, not avg mention_count."""
+    from uuid import uuid4
+
+    from aperix_geo.db.models import Prompt
+    from aperix_geo.services.analysis import build_diagnosis_content
+    from aperix_geo.services.analysis.signal_load import load_llm_response_signals
+
+    subject = _subject()
+    subject.competitors = []
+    prompt_id = uuid4()
+    prompt = Prompt(id=prompt_id, subject_id=subject.id, topic_id=uuid4(), text="multi mention")
+
+    class FakeDb:
+        def execute(self, stmt):
+            class R:
+                def scalars(self):
+                    class S:
+                        def all(self):
+                            sql = str(stmt)
+                            if "tb_prompts" in sql:
+                                return [prompt]
+                            return []
+
+                    return S()
+
+            return R()
+
+        def get(self, _model, _id):
+            return subject
+
+    payloads = [
+        parsed_payload(entity_signal(mentioned=True, mention_count=5, mention_rank=1)),
+        parsed_payload(entity_signal(mentioned=False)),
+        parsed_payload(entity_signal(mentioned=False)),
+    ]
+    rows = [_row(payload) for payload in payloads]
+    for row in rows:
+        row.prompt_id = prompt_id
+
+    from datetime import UTC, datetime, timedelta
+
+    dt_to = datetime.now(UTC)
+    dt_from = dt_to - timedelta(days=7)
+    signals = _signals_for_rows(rows, subject, payloads)
+    original = load_llm_response_signals.override
+    load_llm_response_signals.override = lambda *args, **kwargs: signals
+    try:
+        with _patch_diagnosis_response_window(dt_from, dt_to):
+            out = build_diagnosis_content(FakeDb(), subject=subject)
+    finally:
+        load_llm_response_signals.override = original
+
+    assert out["total"] == 1
+    item = out["items"][0]
+    assert item["mention_own_count"] == 1
+    assert item["mention_total_count"] == 3
+    assert item["mention_rate"] == round(1 / 3, 4)
+
+
+def test_build_diagnosis_content_detail():
+    from uuid import uuid4
+
+    from aperix_geo.db.models import Competitor, Prompt
+    from aperix_geo.services.analysis import build_diagnosis_content_detail
 
     subject = _subject()
     comp_id = uuid4()
@@ -321,13 +621,12 @@ def test_build_content_opportunity_detail():
     original = load_llm_response_signals.override
     load_llm_response_signals.override = lambda *args, **kwargs: signals
     try:
-        out = build_content_opportunity_detail(
-            FakeDb(),
-            subject=subject,
-            dt_from=dt_from,
-            dt_to=dt_to,
-            prompt_id=prompt_id,
-        )
+        with _patch_diagnosis_response_window(dt_from, dt_to):
+            out = build_diagnosis_content_detail(
+                FakeDb(),
+                subject=subject,
+                prompt_id=prompt_id,
+            )
     finally:
         load_llm_response_signals.override = original
 
@@ -349,7 +648,7 @@ def test_content_opportunity_detail_competitor_platform_aggregation():
     from uuid import uuid4
 
     from aperix_geo.db.models import Competitor, Prompt
-    from aperix_geo.services.analysis import build_content_opportunity_detail
+    from aperix_geo.services.analysis import build_diagnosis_content_detail
 
     subject = _subject()
     comp_id = uuid4()
@@ -393,13 +692,12 @@ def test_content_opportunity_detail_competitor_platform_aggregation():
     original = load_llm_response_signals.override
     load_llm_response_signals.override = lambda *args, **kwargs: signals
     try:
-        out = build_content_opportunity_detail(
-            FakeDb(),
-            subject=subject,
-            dt_from=dt_from,
-            dt_to=dt_to,
-            prompt_id=prompt_id,
-        )
+        with _patch_diagnosis_response_window(dt_from, dt_to):
+            out = build_diagnosis_content_detail(
+                FakeDb(),
+                subject=subject,
+                prompt_id=prompt_id,
+            )
     finally:
         load_llm_response_signals.override = original
 
@@ -414,7 +712,7 @@ def test_competitor_breakdown_excludes_no_gap_platforms():
     from uuid import uuid4
 
     from aperix_geo.db.models import Competitor, Prompt
-    from aperix_geo.services.analysis import build_content_opportunity_detail
+    from aperix_geo.services.analysis import build_diagnosis_content_detail
 
     subject = _subject()
     comp_id = uuid4()
@@ -462,17 +760,15 @@ def test_competitor_breakdown_excludes_no_gap_platforms():
     original = load_llm_response_signals.override
     load_llm_response_signals.override = lambda *args, **kwargs: signals
     try:
-        out = build_content_opportunity_detail(
-            FakeDb(),
-            subject=subject,
-            dt_from=dt_from,
-            dt_to=dt_to,
-            prompt_id=prompt_id,
-        )
+        with _patch_diagnosis_response_window(dt_from, dt_to):
+            out = build_diagnosis_content_detail(
+                FakeDb(),
+                subject=subject,
+                prompt_id=prompt_id,
+            )
     finally:
         load_llm_response_signals.override = original
 
-    assert set(out["platforms"]) == {"deepseek"}
     assert len(out["brand"]["rows"]) == 1
     assert out["brand"]["rows"][0]["platforms"] == ["deepseek"]
     assert out["brand"]["rows"][0]["contribution_rate"] == 1.0
@@ -483,7 +779,7 @@ def test_content_opportunity_detail_matches_list_gap_merge():
     from uuid import uuid4
 
     from aperix_geo.db.models import Competitor, Prompt
-    from aperix_geo.services.analysis import build_content_opportunities, build_content_opportunity_detail
+    from aperix_geo.services.analysis import build_diagnosis_content, build_diagnosis_content_detail
 
     subject = _subject()
     comp_id = uuid4()
@@ -531,19 +827,16 @@ def test_content_opportunity_detail_matches_list_gap_merge():
     original = load_llm_response_signals.override
     load_llm_response_signals.override = lambda *args, **kwargs: signals
     try:
-        list_out = build_content_opportunities(
-            FakeDb(),
-            subject=subject,
-            dt_from=dt_from,
-            dt_to=dt_to,
-        )
-        detail_out = build_content_opportunity_detail(
-            FakeDb(),
-            subject=subject,
-            dt_from=dt_from,
-            dt_to=dt_to,
-            prompt_id=prompt_id,
-        )
+        with _patch_diagnosis_response_window(dt_from, dt_to):
+            list_out = build_diagnosis_content(
+                FakeDb(),
+                subject=subject,
+            )
+            detail_out = build_diagnosis_content_detail(
+                FakeDb(),
+                subject=subject,
+                prompt_id=prompt_id,
+            )
     finally:
         load_llm_response_signals.override = original
 
@@ -554,9 +847,11 @@ def test_content_opportunity_detail_matches_list_gap_merge():
     assert set(list_row["platforms"]) == {"deepseek", "doubao"}
 
     assert detail_out["brand"]["gap_rate"] == list_row["brand_gap_rate"]
-    assert detail_out["brand"]["chat_mention_own"] == list_row["brand_own_count"]
-    assert detail_out["brand"]["chat_mention_total"] == list_row["brand_total_count"]
-    assert set(detail_out["platforms"]) == set(list_row["platforms"])
+    assert detail_out["brand"]["chat_mention_own"] == 1
+    assert detail_out["brand"]["chat_mention_total"] == 4
+    assert detail_out["source"]["chat_source_own"] == list_row["source_own_count"]
+    assert detail_out["source"]["chat_source_total"] == list_row["source_total_count"]
+    assert detail_out["source"]["gap_rate"] == list_row["source_gap_rate"]
 
 
 def test_content_opportunity_detail_competitive_gap():
@@ -564,7 +859,7 @@ def test_content_opportunity_detail_competitive_gap():
     from uuid import uuid4
 
     from aperix_geo.db.models import Competitor, Prompt
-    from aperix_geo.services.analysis import build_content_opportunity_detail
+    from aperix_geo.services.analysis import build_diagnosis_content_detail
 
     subject = _subject()
     comp_id = uuid4()
@@ -608,18 +903,18 @@ def test_content_opportunity_detail_competitive_gap():
     original = load_llm_response_signals.override
     load_llm_response_signals.override = lambda *args, **kwargs: signals
     try:
-        out = build_content_opportunity_detail(
-            FakeDb(),
-            subject=subject,
-            dt_from=dt_from,
-            dt_to=dt_to,
-            prompt_id=prompt_id,
-        )
+        with _patch_diagnosis_response_window(dt_from, dt_to):
+            out = build_diagnosis_content_detail(
+                FakeDb(),
+                subject=subject,
+                prompt_id=prompt_id,
+            )
     finally:
         load_llm_response_signals.override = original
 
     assert out["brand"]["gap_rate"] == 0.5
     assert out["brand"]["chat_mention_own"] == 1
+    assert out["brand"]["chat_mention_total"] == 2
     assert out["brand"]["competitor_brand_count"] == 1
     assert out["brand"]["total_mention_count"] == 6
 
@@ -629,7 +924,7 @@ def test_content_opportunity_detail_source_domain_link():
     from uuid import uuid4
 
     from aperix_geo.db.models import Competitor, Prompt
-    from aperix_geo.services.analysis import build_content_opportunity_detail
+    from aperix_geo.services.analysis import build_diagnosis_content_detail
 
     subject = _subject()
     comp_id = uuid4()
@@ -673,13 +968,12 @@ def test_content_opportunity_detail_source_domain_link():
     original = load_llm_response_signals.override
     load_llm_response_signals.override = lambda *args, **kwargs: signals
     try:
-        out = build_content_opportunity_detail(
-            FakeDb(),
-            subject=subject,
-            dt_from=dt_from,
-            dt_to=dt_to,
-            prompt_id=prompt_id,
-        )
+        with _patch_diagnosis_response_window(dt_from, dt_to):
+            out = build_diagnosis_content_detail(
+                FakeDb(),
+                subject=subject,
+                prompt_id=prompt_id,
+            )
     finally:
         load_llm_response_signals.override = original
 
@@ -695,7 +989,7 @@ def test_build_backlink_opportunities():
 
     from aperix_geo.db.models import Competitor
     from aperix_geo.services.analysis import build_backlink_opportunities
-    from aperix_geo.services.analysis.opportunity import _BacklinkResponseRow, _load_backlink_responses
+    from aperix_geo.services.analysis.opportunity import _query_backlink_host_stats
 
     subject = _subject()
     subject.competitors = [
@@ -710,42 +1004,28 @@ def test_build_backlink_opportunities():
     class FakeDb:
         pass
 
-    payloads = [
-        parsed_payload(entity_signal(cited_on_source=False), url_hosts=["support.google.com", "aperix.com"]),
-        parsed_payload(entity_signal(cited_on_source=False), url_hosts=["support.google.com"]),
-    ]
-    rows = [_row(payload) for payload in payloads]
-    rows[0].platform = "deepseek"
-    rows[1].platform = "deepseek"
-    rows[0].prompt_id = rows[1].prompt_id
-
-    response_rows = [
-        _BacklinkResponseRow(
-            response_id=rows[0].id,
-            platform=rows[0].platform,
-            prompt_id=rows[0].prompt_id,
-            parsed=rows[0].parsed or {},
-            own_cited_on_source=False,
-        ),
-        _BacklinkResponseRow(
-            response_id=rows[1].id,
-            platform=rows[1].platform,
-            prompt_id=rows[1].prompt_id,
-            parsed=rows[1].parsed or {},
-            own_cited_on_source=False,
-        ),
+    stats_items = [
+        {
+            "id": "support.google.com",
+            "host": "support.google.com",
+            "platforms": ["deepseek"],
+            "priority": "medium",
+            "citation_count": 2,
+            "prompt_count": 1,
+            "chat_count": 2,
+        }
     ]
 
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
-    original = _load_backlink_responses.override
-    _load_backlink_responses.override = lambda *args, **kwargs: response_rows
+    original = _query_backlink_host_stats.override
+    _query_backlink_host_stats.override = lambda *args, **kwargs: stats_items
     try:
         out = build_backlink_opportunities(
             FakeDb(), subject=subject, dt_from=dt_from, dt_to=dt_to
         )
     finally:
-        _load_backlink_responses.override = original
+        _query_backlink_host_stats.override = original
 
     assert out["total"] == 1
     assert out["page"] == 1
@@ -757,38 +1037,31 @@ def test_build_backlink_opportunities():
     assert item["citation_count"] == 2
     assert item["chat_count"] == 2
     assert item["prompt_count"] == 1
-    assert item["domain_type"] == "其它类型"
 
 
 def test_build_backlink_opportunities_groups_by_host():
     from datetime import UTC, datetime, timedelta
 
     from aperix_geo.services.analysis import build_backlink_opportunities
-    from aperix_geo.services.analysis.opportunity import _BacklinkResponseRow, _load_backlink_responses
+    from aperix_geo.services.analysis.opportunity import _query_backlink_host_stats
 
     subject = _subject()
-    prompt_id = uuid.uuid4()
-    response_rows = [
-        _BacklinkResponseRow(
-            response_id=uuid.uuid4(),
-            platform="deepseek",
-            prompt_id=prompt_id,
-            parsed={"url_hosts": ["support.google.com"]},
-            own_cited_on_source=False,
-        ),
-        _BacklinkResponseRow(
-            response_id=uuid.uuid4(),
-            platform="chatgpt",
-            prompt_id=prompt_id,
-            parsed={"url_hosts": ["support.google.com"]},
-            own_cited_on_source=False,
-        ),
+    stats_items = [
+        {
+            "id": "support.google.com",
+            "host": "support.google.com",
+            "platforms": ["chatgpt", "deepseek"],
+            "priority": "medium",
+            "citation_count": 2,
+            "prompt_count": 1,
+            "chat_count": 2,
+        }
     ]
 
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
-    original = _load_backlink_responses.override
-    _load_backlink_responses.override = lambda *args, **kwargs: response_rows
+    original = _query_backlink_host_stats.override
+    _query_backlink_host_stats.override = lambda *args, **kwargs: stats_items
     try:
         out = build_backlink_opportunities(
             object(),
@@ -797,7 +1070,7 @@ def test_build_backlink_opportunities_groups_by_host():
             dt_to=dt_to,
         )
     finally:
-        _load_backlink_responses.override = original
+        _query_backlink_host_stats.override = original
 
     assert out["total"] == 1
     item = out["items"][0]
@@ -811,31 +1084,34 @@ def test_build_backlink_opportunities_search_and_pagination():
     from datetime import UTC, datetime, timedelta
 
     from aperix_geo.services.analysis import build_backlink_opportunities
-    from aperix_geo.services.analysis.opportunity import _BacklinkResponseRow, _load_backlink_responses
+    from aperix_geo.services.analysis.opportunity import _query_backlink_host_stats
 
     subject = _subject()
-    prompt_id = uuid.uuid4()
-    response_rows = [
-        _BacklinkResponseRow(
-            response_id=uuid.uuid4(),
-            platform="deepseek",
-            prompt_id=prompt_id,
-            parsed={"url_hosts": ["alpha.example.com"]},
-            own_cited_on_source=False,
-        ),
-        _BacklinkResponseRow(
-            response_id=uuid.uuid4(),
-            platform="deepseek",
-            prompt_id=uuid.uuid4(),
-            parsed={"url_hosts": ["beta.example.com"]},
-            own_cited_on_source=False,
-        ),
+    stats_items = [
+        {
+            "id": "alpha.example.com",
+            "host": "alpha.example.com",
+            "platforms": ["deepseek"],
+            "priority": "low",
+            "citation_count": 1,
+            "prompt_count": 1,
+            "chat_count": 1,
+        },
+        {
+            "id": "beta.example.com",
+            "host": "beta.example.com",
+            "platforms": ["deepseek"],
+            "priority": "low",
+            "citation_count": 1,
+            "prompt_count": 1,
+            "chat_count": 1,
+        },
     ]
 
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
-    original = _load_backlink_responses.override
-    _load_backlink_responses.override = lambda *args, **kwargs: response_rows
+    original = _query_backlink_host_stats.override
+    _query_backlink_host_stats.override = lambda *args, **kwargs: stats_items
     try:
         filtered = build_backlink_opportunities(
             object(),
@@ -855,7 +1131,7 @@ def test_build_backlink_opportunities_search_and_pagination():
             order="desc",
         )
     finally:
-        _load_backlink_responses.override = original
+        _query_backlink_host_stats.override = original
 
     assert filtered["total"] == 1
     assert filtered["items"][0]["host"] == "alpha.example.com"
@@ -867,26 +1143,19 @@ def test_build_backlink_opportunity_detail():
     from datetime import UTC, datetime, timedelta
 
     from aperix_geo.services.analysis import build_backlink_opportunity_detail
-    from aperix_geo.services.analysis.opportunity import _BacklinkResponseRow, _load_backlink_responses
+    from aperix_geo.services.analysis.opportunity import _BacklinkHostContext, _query_backlink_host_context
 
     subject = _subject()
     prompt_id = uuid.uuid4()
-    response_rows = [
-        _BacklinkResponseRow(
-            response_id=uuid.uuid4(),
-            platform="chatgpt",
-            prompt_id=prompt_id,
-            parsed={"url_hosts": ["yahoo.com", "yahoo.com"]},
-            own_cited_on_source=False,
-        ),
-        _BacklinkResponseRow(
-            response_id=uuid.uuid4(),
-            platform="deepseek",
-            prompt_id=uuid.uuid4(),
-            parsed={"url_hosts": ["yahoo.com"]},
-            own_cited_on_source=False,
-        ),
-    ]
+    other_prompt_id = uuid.uuid4()
+    ctx = _BacklinkHostContext(
+        host="yahoo.com",
+        response_ids=frozenset({uuid.uuid4(), uuid.uuid4()}),
+        citation_count=3,
+        chat_count=2,
+        prompt_ids=frozenset({prompt_id, other_prompt_id}),
+        platforms=["chatgpt", "deepseek"],
+    )
 
     class FakeDb:
         def execute(self, _stmt):
@@ -908,8 +1177,8 @@ def test_build_backlink_opportunity_detail():
 
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
-    original = _load_backlink_responses.override
-    _load_backlink_responses.override = lambda *args, **kwargs: response_rows
+    original = _query_backlink_host_context.override
+    _query_backlink_host_context.override = lambda *args, **kwargs: ctx
     try:
         out = build_backlink_opportunity_detail(
             FakeDb(),
@@ -919,7 +1188,7 @@ def test_build_backlink_opportunity_detail():
             dt_to=dt_to,
         )
     finally:
-        _load_backlink_responses.override = original
+        _query_backlink_host_context.override = original
 
     assert out["host"] == "yahoo.com"
     assert out["citation_count"] == 3
@@ -927,77 +1196,6 @@ def test_build_backlink_opportunity_detail():
     assert out["prompt_count"] == 2
     assert out["platforms"] == ["chatgpt", "deepseek"]
     assert out["citation_rate"] == 0.02
-
-
-def test_build_diagnosis():
-    from datetime import timedelta
-    from uuid import uuid4
-
-    from aperix_geo.db.models import Competitor, Prompt
-    from aperix_geo.services.analysis import build_diagnosis
-    from aperix_geo.services.analysis.signal_load import load_llm_response_signals
-
-    subject = _subject()
-    subject.competitors = [
-        Competitor(id=uuid.uuid4(), subject_id=subject.id, brand="Beta", domain="")
-    ]
-    prompt_id = uuid4()
-    prompt = Prompt(id=prompt_id, subject_id=subject.id, topic_id=uuid4(), text="追踪AI搜索推荐流量的工具推荐")
-
-    class FakeDb:
-        def execute(self, stmt):
-            class R:
-                def scalars(self):
-                    class S:
-                        def all(self):
-                            sql = str(stmt)
-                            if "tb_prompts" in sql:
-                                return [prompt]
-                            return []
-
-                    return S()
-
-            return R()
-
-    payloads = [
-        parsed_payload(entity_signal(mentioned=False), competitor_signal(mentioned=True)),
-        parsed_payload(entity_signal(mentioned=False), competitor_signal(mentioned=True)),
-    ]
-    rows = [_row(payload) for payload in payloads]
-    for row in rows:
-        row.prompt_id = prompt_id
-        row.platform = "deepseek"
-
-    dt_to = datetime.now(UTC)
-    dt_from = dt_to - timedelta(days=7)
-    signals = _signals_for_rows(rows, subject, payloads)
-    original = load_llm_response_signals.override
-    load_llm_response_signals.override = lambda *args, **kwargs: signals
-    try:
-        out = build_diagnosis(FakeDb(), subject=subject, dt_from=dt_from, dt_to=dt_to)
-    finally:
-        load_llm_response_signals.override = original
-
-    assert "overall_score" in out
-    assert out["overall_status"] in {"excellent", "good", "needs_improvement", "critical"}
-    assert out["dimensions"]["mention"]["health_score"] >= 0
-    assert out["dimensions"]["prompt"]["health_score"] >= 0
-    assert len(out["mention_items"]) == 1
-    assert len(out["prompt_items"]) == 1
-
-    mention = out["mention_items"][0]
-    assert mention["prompt_text"] == prompt.text
-    assert mention["platform"] == "deepseek"
-    assert mention["mention_rate"] == 0
-    assert mention["mention_own_count"] == 0
-    assert mention["mention_total_count"] == 2
-    assert mention["issue_type"] == "not_mentioned"
-    assert "Beta" in mention["competitors"]
-
-    prompt_item = out["prompt_items"][0]
-    assert prompt_item["prompt_id"] == str(prompt_id)
-    assert prompt_item["priority"] == "high"
-    assert "search_volume" not in prompt_item
 
 
 def test_top_visibility_labels_keeps_own_brand():

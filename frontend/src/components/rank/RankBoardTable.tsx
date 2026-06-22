@@ -9,6 +9,7 @@ import {
 import { PerformanceTableShell } from "@/components/analysis/prompt/PerformanceTableShell";
 import { performanceTableClasses } from "@/components/analysis/prompt/performanceTableLayout";
 import { Skeleton } from "@/components/ui/skeleton";
+import { rankBoardRowToBrandGeoMetrics } from "@/lib/brand/geoMetrics";
 import {
   RANK_BOARD_BRAND_COL_WIDTH,
   RANK_BOARD_COLUMNS,
@@ -167,7 +168,12 @@ export function RankBoardTable({ rows, loading = false, className }: RankBoardTa
               <tr key={row.id} className={performanceTableClasses.row}>
                 <td className="text-foreground pl-5 tabular-nums">#{index + 1}</td>
                 <td className="min-w-0 overflow-hidden px-4 whitespace-normal">
-                  <BrandRankLabel label={row.label} icon={row.icon} isOwn={row.isOwn} />
+                  <BrandRankLabel
+                    label={row.label}
+                    icon={row.icon}
+                    isOwn={row.isOwn}
+                    geoMetrics={rankBoardRowToBrandGeoMetrics(row)}
+                  />
                 </td>
                 <td className={metricCellClass(activeColumn === "visibility")}>{row.visibility}</td>
                 <td className={metricCellClass(activeColumn === "shareVoice")}>

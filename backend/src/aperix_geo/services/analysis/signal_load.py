@@ -65,6 +65,7 @@ def _load_llm_response_signals(
     platform: list[str] | None = None,
     topic_id: list[UUID] | None = None,
     prompt_id: UUID | None = None,
+    prompt_ids: list[UUID] | None = None,
     entity_id: str | None = None,
     brand_id: UUID | None = None,
 ) -> list[LLMResponseSignalRow]:
@@ -88,6 +89,8 @@ def _load_llm_response_signals(
         stmt = stmt.where(Prompt.topic_id.in_(topic_id))
     if prompt_id is not None:
         stmt = stmt.where(LLMResponseSignal.prompt_id == prompt_id)
+    elif prompt_ids:
+        stmt = stmt.where(LLMResponseSignal.prompt_id.in_(prompt_ids))
     if brand_id is not None:
         stmt = stmt.where(LLMResponseSignal.brand_id == brand_id)
     elif entity_id is not None:
@@ -152,6 +155,7 @@ class _LoadLLMResponseSignals:
         platform: list[str] | None = None,
         topic_id: list[UUID] | None = None,
         prompt_id: UUID | None = None,
+        prompt_ids: list[UUID] | None = None,
         entity_id: str | None = None,
         brand_id: UUID | None = None,
     ) -> list[LLMResponseSignalRow]:
@@ -164,6 +168,7 @@ class _LoadLLMResponseSignals:
                 platform=platform,
                 topic_id=topic_id,
                 prompt_id=prompt_id,
+                prompt_ids=prompt_ids,
                 entity_id=entity_id,
                 brand_id=brand_id,
             )
@@ -175,6 +180,7 @@ class _LoadLLMResponseSignals:
             platform=platform,
             topic_id=topic_id,
             prompt_id=prompt_id,
+            prompt_ids=prompt_ids,
             entity_id=entity_id,
             brand_id=brand_id,
         )

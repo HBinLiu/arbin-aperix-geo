@@ -4,8 +4,8 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { AnalysisDimensionTabs } from "@/components/analysis/common/AnalysisDimensionTabs";
 import { PromptAnalysisHeader } from "@/components/analysis/prompt/PromptAnalysisHeader";
 import { CitationDomainHeader } from "@/components/analysis/citation/CitationDomainHeader";
-import { OpportunityContentHeader } from "@/components/opportunity/OpportunityContentHeader";
 import { OpportunityBacklinkHeader } from "@/components/opportunity/OpportunityBacklinkHeader";
+import { DiagnosisContentHeader } from "@/components/diagnosis/DiagnosisContentHeader";
 import { OpportunityTabs } from "@/components/opportunity/OpportunityTabs";
 import { SidebarSection } from "@/components/dashboard/SidebarSection";
 import { SubjectSwitcher } from "@/components/dashboard/SubjectSwitcher";
@@ -13,7 +13,8 @@ import { AppShell } from "@/components/layouts/AppShell";
 import { useDashboardSidebar } from "@/hooks/useDashboardSidebar";
 import { AnalysisFiltersProvider } from "@/hooks/useAnalysisFiltersState";
 import { analysisDimensionFromPathname, citationDomainFromPathname, promptIdFromPathname } from "@/lib/analysis";
-import { opportunityTabFromPathname, contentOpportunityPromptIdFromPathname, backlinkOpportunityHostFromPathname } from "@/lib/opportunity/nav";
+import { opportunityTabFromPathname, backlinkOpportunityHostFromPathname } from "@/lib/opportunity/nav";
+import { diagnosisContentPromptIdFromPathname } from "@/lib/diagnosis/nav";
 import {
   DASHBOARD_NAV_SECTIONS,
   dashboardNavIdFromPath,
@@ -30,11 +31,12 @@ export function DashboardLayout() {
   const SidebarToggleIcon = sidebarCollapsed ? PanelLeftOpen : PanelLeftClose;
   const isAnalysisPage = activeNav.id === "analysis";
   const isOpportunityPage = activeNav.id === "opportunity";
+  const isDiagnosisPage = activeNav.id === "diagnosis";
   const analysisDimension = analysisDimensionFromPathname(pathname);
   const citationDomain = citationDomainFromPathname(pathname);
   const promptDetailId = promptIdFromPathname(pathname);
   const opportunityTab = opportunityTabFromPathname(pathname);
-  const contentOpportunityPromptId = contentOpportunityPromptIdFromPathname(pathname);
+  const diagnosisContentPromptId = diagnosisContentPromptIdFromPathname(pathname);
   const backlinkOpportunityHost = backlinkOpportunityHostFromPathname(pathname);
 
   return (
@@ -88,10 +90,10 @@ export function DashboardLayout() {
               <AnalysisDimensionTabs embedded value={analysisDimension} />
             ) : isOpportunityPage && backlinkOpportunityHost ? (
               <OpportunityBacklinkHeader host={backlinkOpportunityHost} />
-            ) : isOpportunityPage && contentOpportunityPromptId ? (
-              <OpportunityContentHeader promptId={contentOpportunityPromptId} />
             ) : isOpportunityPage ? (
               <OpportunityTabs embedded value={opportunityTab} />
+            ) : isDiagnosisPage && diagnosisContentPromptId ? (
+              <DiagnosisContentHeader promptId={diagnosisContentPromptId} />
             ) : (
               <div className="flex min-w-0 flex-1 items-center">
                 <h1 className="text-base font-semibold">{activeNav.label}</h1>

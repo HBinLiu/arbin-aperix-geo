@@ -75,6 +75,7 @@ def test_normalize_crawl_cache_url() -> None:
         "https://example.com/page?a=1"
     )
     assert normalize_crawl_cache_url("https://example.com/page/?fbclid=abc") == "https://example.com/page"
+    assert normalize_crawl_cache_url("https://example.com/page/?utm=1") == "https://example.com/page"
 
 
 def test_result_markdown_from_object() -> None:

@@ -129,13 +129,13 @@ def _enqueue_alert(
         "kind": kind,
     }
     try:
-        from aperix_geo.tasks.alerts import send_provider_billing_alert
+        from aperix_geo.tasks.alert import send_provider_billing
 
-        send_provider_billing_alert.delay(payload)
+        send_provider_billing.delay(payload)
     except Exception:
         logger.warning("Failed to enqueue provider billing alert; sending inline", exc_info=True)
         try:
-            from aperix_geo.tasks.alerts import deliver_provider_billing_alert
+            from aperix_geo.tasks.alert import deliver_provider_billing_alert
 
             deliver_provider_billing_alert(payload)
         except Exception:

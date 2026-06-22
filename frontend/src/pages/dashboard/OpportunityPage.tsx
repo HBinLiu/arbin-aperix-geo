@@ -5,11 +5,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { AnalysisFilterBar } from "@/components/analysis/common/AnalysisFilterBar";
 import { DEFAULT_TABLE_PAGE_SIZE } from "@/components/analysis/common/TablePagination";
 import {
-  DEFAULT_CONTENT_OPPORTUNITY_SORT,
-  OpportunityContentTable,
-  type ContentOpportunitySortState,
-} from "@/components/opportunity/OpportunityContentTable";
-import {
   DEFAULT_BACKLINK_OPPORTUNITY_SORT,
   OpportunityBacklinkTable,
   type BacklinkOpportunitySortState,
@@ -18,35 +13,21 @@ import { Input } from "@/components/ui/input";
 import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
 import { useAnalysisFiltersState } from "@/hooks/useAnalysisFiltersState";
 import { useBacklinkOpportunity } from "@/hooks/useBacklinkOpportunity";
-import { useContentOpportunity } from "@/hooks/useContentOpportunity";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
-import { contentOpportunitySortToApiField } from "@/lib/opportunity/content";
 import { backlinkOpportunitySortToApiField } from "@/lib/opportunity/backlink";
 import {
   BACKLINK_OPPORTUNITY_DESCRIPTION,
   BACKLINK_OPPORTUNITY_TITLE,
-  CONTENT_OPPORTUNITY_DESCRIPTION,
-  CONTENT_OPPORTUNITY_TITLE,
   SOCIAL_OPPORTUNITY_DESCRIPTION,
   SOCIAL_OPPORTUNITY_TITLE,
-} from "@/lib/opportunity/content";
-import {
-  backlinkOpportunityDetailPath,
-  contentOpportunityDetailPath,
-  opportunityTabFromPathname,
-} from "@/lib/opportunity/nav";
+} from "@/lib/opportunity/meta";
+import { backlinkOpportunityDetailPath, opportunityTabFromPathname } from "@/lib/opportunity/nav";
 import type { OpportunityTab } from "@/types";
 
 const TAB_META: Record<
   OpportunityTab,
   { title: string; description: string; empty: string; searchPlaceholder?: string }
 > = {
-  content: {
-    title: CONTENT_OPPORTUNITY_TITLE,
-    description: CONTENT_OPPORTUNITY_DESCRIPTION,
-    empty: "暂无内容机会",
-    searchPlaceholder: "搜索提示词...",
-  },
   backlink: {
     title: BACKLINK_OPPORTUNITY_TITLE,
     description: BACKLINK_OPPORTUNITY_DESCRIPTION,
@@ -64,7 +45,7 @@ type OpportunityContentProps = {
   subjectId: string;
 };
 
-/** 机会页：内容 / 反向链接 / 社交媒体 Tab */
+/** 机会页：反向链接 / 社交媒体 Tab */
 export function OpportunityContent({ subjectId }: OpportunityContentProps) {
   const { subject } = useDashboardContext();
   const { platforms } = useAnalysisFilter();
@@ -76,9 +57,6 @@ export function OpportunityContent({ subjectId }: OpportunityContentProps) {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
-  const [contentSort, setContentSort] = useState<ContentOpportunitySortState>(
-    DEFAULT_CONTENT_OPPORTUNITY_SORT,
-  );
   const [backlinkSort, setBacklinkSort] = useState<BacklinkOpportunitySortState>(
     DEFAULT_BACKLINK_OPPORTUNITY_SORT,
   );
@@ -87,7 +65,6 @@ export function OpportunityContent({ subjectId }: OpportunityContentProps) {
     setSearch("");
     setDebouncedSearch("");
     setPage(1);
-    setContentSort(DEFAULT_CONTENT_OPPORTUNITY_SORT);
     setBacklinkSort(DEFAULT_BACKLINK_OPPORTUNITY_SORT);
   }, [subject.id, activeTab]);
 
@@ -98,21 +75,7 @@ export function OpportunityContent({ subjectId }: OpportunityContentProps) {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, filters, contentSort, backlinkSort, pageSize]);
-
-  const contentListRequest = useMemo(() => {
-    const apiSort =
-      contentSort.dir === "default"
-        ? null
-        : contentOpportunitySortToApiField(contentSort.column, contentSort.dir);
-    return {
-      page,
-      pageSize,
-      search: debouncedSearch,
-      sortBy: apiSort?.sortBy ?? null,
-      order: apiSort?.order,
-    };
-  }, [page, pageSize, debouncedSearch, contentSort]);
+  }, [debouncedSearch, filters, backlinkSort, pageSize]);
 
   const backlinkListRequest = useMemo(() => {
     const apiSort =
@@ -129,19 +92,8 @@ export function OpportunityContent({ subjectId }: OpportunityContentProps) {
   }, [page, pageSize, debouncedSearch, backlinkSort]);
 
   const {
-    isLoading: isContentLoading,
-    rows: contentRows,
-    total: contentTotal,
-    page: contentPage,
-    pageSize: contentPageSize,
-  } = useContentOpportunity(
-    subjectId,
-    filters,
-    contentListRequest,
-    activeTab === "content",
-  );
-  const {
-    isLoading: isBacklinkLoading,
+    loading: isBacklinkLoading,
+    fetching: isBacklinkFetching,
     rows: backlinkRows,
     total: backlinkTotal,
     page: backlinkPage,
@@ -189,27 +141,12 @@ export function OpportunityContent({ subjectId }: OpportunityContentProps) {
           </p>
         </header>
 
-        {activeTab === "content" ? (
-          <OpportunityContentTable
-            rows={contentRows}
-            platformsMeta={platforms}
-            loading={isContentLoading}
-            total={contentTotal}
-            page={contentPage}
-            pageSize={contentPageSize}
-            sort={contentSort}
-            onSortChange={setContentSort}
-            onPageChange={setPage}
-            onPageSizeChange={setPageSize}
-            onRowClick={(row) => {
-              navigate(contentOpportunityDetailPath(row.promptId));
-            }}
-          />
-        ) : activeTab === "backlink" ? (
+        {activeTab === "backlink" ? (
           <OpportunityBacklinkTable
             rows={backlinkRows}
             platformsMeta={platforms}
             loading={isBacklinkLoading}
+            fetching={isBacklinkFetching}
             total={backlinkTotal}
             page={backlinkPage}
             pageSize={backlinkPageSize}

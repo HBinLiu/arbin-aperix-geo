@@ -1,18 +1,15 @@
 import { api } from "@/api/client";
-import {
-  ANALYSIS_PARAMS_SERIALIZER,
-  buildAnalysisParams,
-} from "@/lib/analysis/filters";
+import { buildAnalysisParams } from "@/lib/analysis/filters";
 import type { AnalysisEntitiesData, AnalysisQueryFilters, PlatformMatrixRowDimension } from "@/types";
 import type {
   BacklinkOpportunityData,
   BacklinkOpportunityDetailData,
   BacklinkOpportunitySortField,
   BacklinkOpportunityUrlRow,
-  ContentOpportunityData,
   ContentOpportunityDetailData,
   ContentOpportunitySortField,
-  DiagnosisData,
+  DiagnosisContentListData,
+  DiagnosisContentSummaryData,
   CitationAnalysisData,
   CitationDomainAnalysisData,
   CitationDomainBreakdownRow,
@@ -376,55 +373,49 @@ export async function fetchPromptDetail(
   return data;
 }
 
-export async function fetchContentOpportunities(
+export async function fetchDiagnosisContentSummary(
   subjectId: string,
-  filters: AnalysisQueryFilters,
+): Promise<DiagnosisContentSummaryData> {
+  const { data } = await api.post<DiagnosisContentSummaryData>(
+    `/subjects/${subjectId}/diagnosis/summary`,
+    {},
+  );
+  return data;
+}
+
+export async function fetchDiagnosisContent(
+  subjectId: string,
   options: {
     page?: number;
     pageSize?: number;
-    search?: string;
     sortBy?: ContentOpportunitySortField | null;
     order?: "asc" | "desc";
-    promptId?: string | null;
   } = {},
-): Promise<ContentOpportunityData> {
-  const params = buildAnalysisParams(filters, options.promptId);
-  const body: Record<string, string | number | string[] | undefined> = { ...params };
-  if (typeof body.platform === "string") {
-    body.platform = [body.platform];
-  }
-  body.page = options.page ?? 1;
-  body.page_size = options.pageSize ?? 10;
-  const search = options.search?.trim();
-  if (search) {
-    body.search = search;
-  }
+): Promise<DiagnosisContentListData> {
+  const body: Record<string, string | number | undefined> = {
+    page: options.page ?? 1,
+    page_size: options.pageSize ?? 10,
+  };
   if (options.sortBy) {
     body.sort_by = options.sortBy;
     body.order = options.order ?? "asc";
   }
-  const { data } = await api.post<ContentOpportunityData>(
-    `/subjects/${subjectId}/opportunity/content`,
+  const { data } = await api.post<DiagnosisContentListData>(
+    `/subjects/${subjectId}/diagnosis`,
     body,
   );
   return data;
 }
 
-export async function fetchContentOpportunityDetail(
+export async function fetchDiagnosisContentDetail(
   subjectId: string,
-  filters: AnalysisQueryFilters,
   options: {
     promptId: string;
   },
 ): Promise<ContentOpportunityDetailData> {
-  const params = buildAnalysisParams(filters, options.promptId);
-  const body: Record<string, string | number | string[] | undefined> = { ...params };
-  if (typeof body.platform === "string") {
-    body.platform = [body.platform];
-  }
   const { data } = await api.post<ContentOpportunityDetailData>(
-    `/subjects/${subjectId}/opportunity/content/detail`,
-    body,
+    `/subjects/${subjectId}/diagnosis/detail`,
+    { prompt_id: options.promptId },
   );
   return data;
 }
@@ -546,16 +537,5 @@ export async function fetchBacklinkOpportunityPrompts(
       order: options.order ?? "desc",
     }),
   );
-  return data;
-}
-
-export async function fetchDiagnosis(
-  subjectId: string,
-  filters: AnalysisQueryFilters,
-): Promise<DiagnosisData> {
-  const { data } = await api.get<DiagnosisData>(`/subjects/${subjectId}/diagnosis`, {
-    params: buildAnalysisParams(filters),
-    paramsSerializer: ANALYSIS_PARAMS_SERIALIZER,
-  });
   return data;
 }

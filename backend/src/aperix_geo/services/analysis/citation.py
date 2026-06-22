@@ -227,10 +227,10 @@ def build_citation_domain_analysis(
         "prompt_id": prompt_id,
     }
 
-    count, domain_type, response_total = domain_cite_stats(
+    count, response_total = domain_cite_stats(
         db, dt_from=dt_from, dt_to=dt_to, host=host, **window
     )
-    prev_count, _, _ = domain_cite_stats(
+    prev_count, _ = domain_cite_stats(
         db, dt_from=prev_from, dt_to=prev_to, host=host, **window
     )
 
@@ -245,7 +245,6 @@ def build_citation_domain_analysis(
         "host": host,
         "count": count,
         "citation_rate": round(count / response_total, 4) if response_total else 0,
-        "domain_type": domain_type,
         "prev_count": prev_count,
         "response_total": response_total,
         "series": series,

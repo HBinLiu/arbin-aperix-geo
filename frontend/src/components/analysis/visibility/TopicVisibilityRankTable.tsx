@@ -25,7 +25,7 @@ function TopicRankBrandIcon({ label }: { label: string }) {
     <LabelHoverPortal
       label={label}
       className="inline-flex shrink-0"
-      trigger={<BrandRankIcon label={label} size="lg" />}
+      trigger={<BrandRankIcon label={label} />}
       content={<CompetitorHoverCard row={resolvedHoverRow} />}
       contentClassName={HOVER_CARD_ANIMATION}
     />
@@ -137,7 +137,7 @@ export function TopicVisibilityRankTable({
                         {row.ranks[index] ? (
                           <TopicRankBrandIcon label={row.ranks[index]!} />
                         ) : (
-                          <BrandRankIcon label={null} size="lg" />
+                          <BrandRankIcon label={null} />
                         )}
                       </div>
                     </td>

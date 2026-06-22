@@ -12,7 +12,7 @@ def test_backfill_skips_when_debounce_active(mock_settings: MagicMock, mock_set_
     mock_settings.return_value.searxng_base_url = "http://searxng"
     response_id = uuid4()
 
-    with patch("aperix_geo.tasks.brand.backfill_response_brand_domains") as mock_task:
+    with patch("aperix_geo.tasks.brand.backfill_brand_domain") as mock_task:
         maybe_enqueue_brand_domain_backfill(response_id)
 
     mock_set_nx.assert_called_once()
@@ -25,7 +25,7 @@ def test_backfill_enqueues_when_debounce_acquired(mock_settings: MagicMock, mock
     mock_settings.return_value.searxng_base_url = "http://searxng"
     response_id = uuid4()
 
-    with patch("aperix_geo.tasks.brand.backfill_response_brand_domains") as mock_task:
+    with patch("aperix_geo.tasks.brand.backfill_brand_domain") as mock_task:
         maybe_enqueue_brand_domain_backfill(response_id)
 
     mock_task.delay.assert_called_once_with(str(response_id))

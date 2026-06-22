@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useQueries } from "@tanstack/react-query";
 
 import {
   fetchPromptsPerformance,
@@ -11,9 +12,9 @@ import {
   buildPromptPerformanceRows,
   buildTopicPerformanceRows,
 } from "@/lib/analysis/prompt";
+import { usePaginatedQuery } from "@/hooks/usePaginatedQuery";
 import { queryKeys } from "@/lib/queries";
 import type { AnalysisFilters } from "@/types";
-import { useQueries } from "@tanstack/react-query";
 
 export type PromptListRequest = {
   page: number;
@@ -60,7 +61,7 @@ export function usePromptAnalysis(
     [page, pageSize, searchKey, listTopicId, sortBy, order],
   );
 
-  const [topicsCurrent, topicsPrevious, promptsCurrent, promptsPrevious] = useQueries({
+  const [topicsCurrent, topicsPrevious] = useQueries({
     queries: [
       {
         queryKey: queryKeys.analysisTopics(subjectId, entityId, platformKey, topicKey, from, to),
@@ -70,53 +71,53 @@ export function usePromptAnalysis(
         queryKey: queryKeys.analysisTopics(
           subjectId,
           entityId,
-          platformKey, topicKey, prevQueryFilters.from,
-          prevQueryFilters.to,
-        ),
-        queryFn: () => fetchTopicsPerformance(subjectId, prevQueryFilters),
-      },
-      {
-        queryKey: queryKeys.analysisPrompts(
-          subjectId,
-          entityId,
-          platformKey,
-          topicKey,
-          from,
-          to,
-          page,
-          pageSize,
-          searchKey,
-          listTopicKey,
-          sortKey,
-          order,
-        ),
-        queryFn: () => fetchPromptsPerformance(subjectId, queryFilters, promptFetchOptions),
-      },
-      {
-        queryKey: queryKeys.analysisPrompts(
-          subjectId,
-          entityId,
           platformKey,
           topicKey,
           prevQueryFilters.from,
           prevQueryFilters.to,
-          page,
-          pageSize,
-          searchKey,
-          listTopicKey,
-          sortKey,
-          order,
         ),
-        queryFn: () => fetchPromptsPerformance(subjectId, prevQueryFilters, promptFetchOptions),
+        queryFn: () => fetchTopicsPerformance(subjectId, prevQueryFilters),
       },
     ],
   });
 
-  const isLoading =
-    topicsCurrent.isLoading ||
-    topicsPrevious.isLoading ||
-    promptsCurrent.isLoading ||
-    promptsPrevious.isLoading;
+  const promptsCurrent = usePaginatedQuery({
+    queryKey: queryKeys.analysisPrompts(
+      subjectId,
+      entityId,
+      platformKey,
+      topicKey,
+      from,
+      to,
+      page,
+      pageSize,
+      searchKey,
+      listTopicKey,
+      sortKey,
+      order,
+    ),
+    queryFn: () => fetchPromptsPerformance(subjectId, queryFilters, promptFetchOptions),
+  });
+
+  const promptsPrevious = usePaginatedQuery({
+    queryKey: queryKeys.analysisPrompts(
+      subjectId,
+      entityId,
+      platformKey,
+      topicKey,
+      prevQueryFilters.from,
+      prevQueryFilters.to,
+      page,
+      pageSize,
+      searchKey,
+      listTopicKey,
+      sortKey,
+      order,
+    ),
+    queryFn: () => fetchPromptsPerformance(subjectId, prevQueryFilters, promptFetchOptions),
+  });
+
+  const topicsLoading = topicsCurrent.isLoading || topicsPrevious.isLoading;
 
   const topicRows = useMemo(
     () => buildTopicPerformanceRows(topicsCurrent.data ?? [], topicsPrevious.data ?? []),
@@ -133,7 +134,9 @@ export function usePromptAnalysis(
   );
 
   return {
-    isLoading,
+    topicsLoading,
+    promptsLoading: promptsCurrent.loading,
+    promptsFetching: promptsCurrent.fetching,
     topicRows,
     promptRows,
     promptTotal: promptsCurrent.data?.total ?? 0,

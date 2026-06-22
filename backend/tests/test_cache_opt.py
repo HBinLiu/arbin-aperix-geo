@@ -10,11 +10,6 @@ from aperix_geo.services.crawl._cache import (
     _pack_redis_fields,
     _unpack_redis_fields,
 )
-from aperix_geo.services.sampling.citation.cache.page_geo import (
-    clear_page_geo_cache,
-    get_page_geo_cached,
-    set_page_geo_cached,
-)
 from aperix_geo.utils.cache import BoundedTTLCache
 
 
@@ -47,25 +42,3 @@ def test_bounded_ttl_cache_evicts_oldest() -> None:
     assert cache.get("b") == 2
     assert cache.get("c") == 3
 
-
-def test_page_geo_cache_normalizes_url() -> None:
-    clear_page_geo_cache()
-    result = {
-        "domain_classification": {"type": "blog", "reason": "r"},
-        "url_classification": {"type": "article", "reason": "r"},
-        "page_mentioned_brands": ["Brand"],
-        "analysis_source": "llm",
-    }
-    set_page_geo_cached(
-        url="https://example.com/p/?utm_source=x",
-        text_snippet="snippet",
-        result=result,
-        ttl_s=3600,
-    )
-    hit = get_page_geo_cached(
-        url="https://Example.com/p",
-        text_snippet="snippet",
-        ttl_s=3600,
-    )
-    assert hit is not None
-    assert hit["analysis_source"] == "llm"

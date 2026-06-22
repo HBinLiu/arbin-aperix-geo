@@ -5,220 +5,246 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
-from celery import chord, group
-from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from aperix_geo.celery_app import celery_app
 from aperix_geo.config import get_settings
-from aperix_geo.db.models import (
-    LLMResponse,
-    LLMResponseStatus,
-    SamplingJob,
-    SamplingJobStatus,
-)
+from aperix_geo.db.models import LLMResponse, LLMResponseStatus
 from aperix_geo.db.session import SessionLocal
-from aperix_geo.services.sampling.llm import SamplingLLMError
-from aperix_geo.services.sampling.rate_limit import SamplingRateLimitError, check_llm_rate_limit
-from aperix_geo.services.sampling.retry_policy import is_retryable_sampling_error, retry_countdown_seconds
-from aperix_geo.services.sampling.workflow import (
-    SamplingJobError,
-    enqueue_subject_sampling,
-    finalize_sampling_job_db,
-    find_subjects_due_for_scheduled_sampling,
-    mark_response_failed,
-    pending_response_id_strs,
-    reconcile_stale_sampling_jobs,
-)
-from aperix_geo.services.sampling.workflow.claim import release_response_claim, try_claim_response
-from aperix_geo.services.sampling.workflow.dispatch import try_schedule_sampling_chord_dispatch
-from aperix_geo.services.sampling.workflow.execute import (
-    execute_sample_without_row_lock,
-    mark_response_failed_if_pending,
-    persist_sample_if_pending,
-)
 from aperix_geo.services.sampling.cache import (
+    clear_cached_llm_result,
     load_prompt_text_cached,
     load_subject_with_competitors_cached,
-    warm_sampling_job_context,
 )
+from aperix_geo.services.sampling.llm import SamplingLLMError
+from aperix_geo.services.sampling.llm_limits import SamplingRateLimitError
+from aperix_geo.services.sampling.parse import parse_llm_output
+from aperix_geo.services.sampling.workflow.chord import (
+    dispatch_next_chord,
+    log_finalize_batch,
+    run_active_job,
+)
+from aperix_geo.services.sampling.workflow.crawl import crawl_response_citations
+from aperix_geo.services.sampling.workflow.execute import (
+    chat_result_from_row,
+    mark_response_failed,
+    mark_response_failed_if_crawl_ready,
+    mark_response_failed_if_llm_ready,
+    mark_response_failed_if_pending,
+    persist_crawl_sample,
+    persist_llm_sample,
+    persist_parsed_sample,
+    prepare_sample_chat_result,
+)
+from aperix_geo.services.sampling.workflow.finalize import finalize_sampling_job_db
+from aperix_geo.services.sampling.workflow.jobs import SamplingJobError, enqueue_subject_sampling
+from aperix_geo.services.sampling.workflow.phase import SamplingPhaseSpec, run_sampling_phase
+from aperix_geo.services.sampling.workflow.recovery import reconcile_stale_sampling_jobs
+from aperix_geo.services.sampling.workflow.schedule import find_subjects_due_for_scheduled_sampling
+from aperix_geo.services.sampling.workflow.types import SamplingTaskResult
 
 
-def _retry_if_transient(task, exc: BaseException) -> None:
-    max_retries = get_settings().sampling_retry_max
-    if task.request.retries < max_retries and is_retryable_sampling_error(exc):
-        raise task.retry(
-            exc=exc,
-            countdown=retry_countdown_seconds(task.request.retries),
-        ) from exc
+def _fail_pending_response(db: Session, *, response_id: UUID, error: str) -> SamplingTaskResult:
+    mark_response_failed_if_pending(db, response_id=response_id, error_text=error)
+    clear_cached_llm_result(response_id)
+    return {"ok": False, "error": error}
 
 
-def _dispatch_response_chord(job_id: str, response_ids: list[str]) -> None:
-    if not response_ids:
-        sampling_finalize_job.apply(args=[[], job_id])
-        return
-    if not try_schedule_sampling_chord_dispatch(UUID(job_id), response_ids):
-        return
-    header = group(sample_one_prompt.s(response_id) for response_id in response_ids)
-    chord(header)(sampling_finalize_job.s(job_id))
+def _fail_llm_ready_response(db: Session, *, response_id: UUID, error: str) -> SamplingTaskResult:
+    mark_response_failed_if_llm_ready(db, response_id=response_id, error_text=error)
+    return {"ok": False, "error": error}
+
+
+def _fail_crawl_ready_response(db: Session, *, response_id: UUID, error: str) -> SamplingTaskResult:
+    mark_response_failed_if_crawl_ready(db, response_id=response_id, error_text=error)
+    return {"ok": False, "error": error}
 
 
 @celery_app.task(bind=True, max_retries=get_settings().sampling_retry_max)
-def sample_one_prompt(self, response_id: str) -> dict:
-    """Fetch one LLMResponse row, call LLM, parse, persist."""
+def sampling_llm(self, response_id: str) -> SamplingTaskResult:
+    """Phase 1: call platform LLM and persist raw output."""
     rid = UUID(response_id)
-    db = SessionLocal()
-    platform = ""
-    prompt_text = ""
-    subject = None
-    sampling_job_id: UUID | None = None
-    try:
-        row = db.execute(
-            select(LLMResponse).where(LLMResponse.id == rid).with_for_update()
-        ).scalar_one_or_none()
-        if not row:
-            return {"ok": False, "error": "missing response row"}
-        if row.status != LLMResponseStatus.pending:
-            db.commit()
-            return {"ok": True, "skipped": True}
+    ctx: dict[str, object] = {"response_id": rid}
 
-        try:
-            check_llm_rate_limit(row.platform)
-        except SamplingRateLimitError as e:
-            _retry_if_transient(self, e)
-            mark_response_failed(db, row=row, error_text=str(e))
-            db.commit()
-            return {"ok": False, "error": str(e)}
-
-        job = db.get(SamplingJob, row.sampling_job_id)
-        if not job:
-            mark_response_failed(db, row=row, error_text="missing job or prompt")
-            db.commit()
-            return {"ok": False}
-
+    def prepare(db: Session, row: LLMResponse, job) -> SamplingTaskResult | None:
         prompt_text = load_prompt_text_cached(db, row.prompt_id)
         if not prompt_text:
             mark_response_failed(db, row=row, error_text="missing job or prompt")
-            db.commit()
-            return {"ok": False}
+            return {"ok": False, "error": "missing prompt"}
+        if load_subject_with_competitors_cached(db, job.subject_id) is None:
+            mark_response_failed(db, row=row, error_text="missing subject")
+            return {"ok": False, "error": "missing subject"}
+        ctx["platform"] = row.platform
+        ctx["prompt_text"] = prompt_text
+        return None
 
+    def work():
+        return prepare_sample_chat_result(
+            platform=str(ctx["platform"]),
+            prompt_text=str(ctx["prompt_text"]),
+            response_id=rid,
+            cache=True,
+        )
+
+    def on_work_error(db: Session, response_id: UUID, exc: BaseException) -> SamplingTaskResult:
+        if isinstance(exc, SamplingRateLimitError):
+            return {"ok": False, "error": str(exc), "rate_limited": True}
+        if isinstance(exc, SamplingLLMError):
+            mark_response_failed_if_pending(db, response_id=response_id, error_text=str(exc))
+        return {"ok": False, "error": str(exc)}
+
+    spec = SamplingPhaseSpec(
+        phase="llm",
+        expected_status=LLMResponseStatus.pending,
+        prepare=prepare,
+        work=work,
+        persist=lambda db, response_id, chat_result: persist_llm_sample(
+            db,
+            response_id=response_id,
+            chat_result=chat_result,
+        ),
+        fail=_fail_pending_response,
+        on_skipped=lambda: (clear_cached_llm_result(rid), {"ok": True, "skipped": True, "reason": "no_longer_pending"})[1],
+        on_success=lambda: (clear_cached_llm_result(rid), {"ok": True, "phase": "llm"})[1],
+        on_work_error=on_work_error,
+    )
+    return run_sampling_phase(self, response_id, spec)
+
+
+@celery_app.task(bind=True, max_retries=get_settings().sampling_retry_max)
+def sampling_crawl(self, response_id: str) -> SamplingTaskResult:
+    """Phase 2a: fetch citation source pages (IO-bound crawl workers)."""
+    ctx: dict[str, object] = {}
+
+    def prepare(db: Session, row: LLMResponse, job) -> SamplingTaskResult | None:
         subject = load_subject_with_competitors_cached(db, job.subject_id)
         if not subject:
             mark_response_failed(db, row=row, error_text="missing subject")
-            db.commit()
-            return {"ok": False}
+            return {"ok": False, "error": "missing subject"}
+        ctx["row"] = row
+        ctx["subject"] = subject
+        return None
 
-        platform = row.platform
-        sampling_job_id = row.sampling_job_id
-        db.commit()
+    def work():
+        crawl_response_citations(
+            row=ctx["row"],
+            subject=ctx["subject"],
+            db=None,
+        )
 
-        if not try_claim_response(rid):
-            return {"ok": True, "skipped": True, "reason": "claimed"}
+    def on_work_error(db: Session, response_id: UUID, exc: BaseException) -> SamplingTaskResult:
+        mark_response_failed_if_llm_ready(db, response_id=response_id, error_text=str(exc))
+        return {"ok": False, "error": str(exc)}
 
-        try:
-            try:
-                result, parsed = execute_sample_without_row_lock(
-                    platform=platform,
-                    prompt_text=prompt_text,
-                    subject=subject,
-                    sampling_job_id=sampling_job_id,
-                    db=db,
-                )
-            except SamplingLLMError as e:
-                _retry_if_transient(self, e)
-                mark_response_failed_if_pending(db, response_id=rid, error_text=str(e))
-                return {"ok": False, "error": str(e)}
-            except Exception as e:
-                db.rollback()
-                mark_response_failed_if_pending(db, response_id=rid, error_text=str(e))
-                return {"ok": False, "error": str(e)}
+    spec = SamplingPhaseSpec(
+        phase="crawl",
+        expected_status=LLMResponseStatus.llm_ready,
+        prepare=prepare,
+        work=work,
+        persist=lambda db, response_id, _work_result: persist_crawl_sample(db, response_id=response_id),
+        fail=_fail_llm_ready_response,
+        on_skipped=lambda: {"ok": True, "skipped": True, "reason": "no_longer_llm_ready"},
+        on_success=lambda: {"ok": True, "phase": "crawl"},
+        on_work_error=on_work_error,
+    )
+    return run_sampling_phase(self, response_id, spec)
 
-            if not persist_sample_if_pending(
-                db,
-                response_id=rid,
-                result=result,
-                parsed=parsed,
-                subject=subject,
-            ):
-                return {"ok": True, "skipped": True, "reason": "no_longer_pending"}
 
-            from aperix_geo.services.brand.backfill import maybe_enqueue_brand_domain_backfill
+@celery_app.task(bind=True, max_retries=get_settings().sampling_retry_max)
+def sampling_parse(self, response_id: str) -> SamplingTaskResult:
+    """Phase 2b: ABSA + citation merge from cached pages (parse workers)."""
+    ctx: dict[str, object] = {}
 
-            maybe_enqueue_brand_domain_backfill(rid)
-            return {"ok": True}
-        finally:
-            release_response_claim(rid)
-    finally:
-        db.close()
+    def prepare(db: Session, row: LLMResponse, job) -> SamplingTaskResult | None:
+        subject = load_subject_with_competitors_cached(db, job.subject_id)
+        if not subject:
+            mark_response_failed(db, row=row, error_text="missing subject")
+            return {"ok": False, "error": "missing subject"}
+        ctx["row"] = row
+        ctx["subject"] = subject
+        ctx["sampling_job_id"] = row.sampling_job_id
+        return None
+
+    def work():
+        row = ctx["row"]
+        subject = ctx["subject"]
+        chat_result = chat_result_from_row(row)
+        parsed = parse_llm_output(
+            chat_result.text,
+            subject=subject,
+            source_urls=list(chat_result.source_urls),
+            web_search_mode=chat_result.web_search_mode,
+            sampling_job_id=ctx["sampling_job_id"],
+            db=None,
+            fetch_pages=False,
+        )
+        return chat_result, parsed
+
+    def persist(db: Session, response_id: UUID, work_result) -> bool:
+        chat_result, parsed = work_result
+        return persist_parsed_sample(
+            db,
+            response_id=response_id,
+            subject=ctx["subject"],
+            chat_result=chat_result,
+            parsed=parsed,
+        )
+
+    def on_success() -> SamplingTaskResult:
+        from aperix_geo.services.brand.backfill import maybe_enqueue_brand_domain_backfill
+
+        maybe_enqueue_brand_domain_backfill(ctx["row"].id)
+        return {"ok": True, "phase": "parse"}
+
+    def on_work_error(db: Session, response_id: UUID, exc: BaseException) -> SamplingTaskResult:
+        mark_response_failed_if_crawl_ready(db, response_id=response_id, error_text=str(exc))
+        return {"ok": False, "error": str(exc)}
+
+    spec = SamplingPhaseSpec(
+        phase="parse",
+        expected_status=LLMResponseStatus.crawl_ready,
+        prepare=prepare,
+        work=work,
+        persist=persist,
+        fail=_fail_crawl_ready_response,
+        on_skipped=lambda: {"ok": True, "skipped": True, "reason": "no_longer_crawl_ready"},
+        on_success=on_success,
+        on_work_error=on_work_error,
+    )
+    return run_sampling_phase(self, response_id, spec)
 
 
 @celery_app.task
-def sampling_finalize_job(results: list, job_id: str) -> None:
-    """Reconcile job counters and terminal status (results from chord ignored)."""
-    db = SessionLocal()
-    try:
-        finalize_sampling_job_db(db, UUID(job_id))
-    finally:
-        db.close()
+def sampling_finalize(results: list, job_id: str) -> None:
+    """Reconcile job counters and dispatch the next chord batch when applicable."""
+    from aperix_geo.services.sampling.workflow.dispatch import release_sampling_chord_dispatch
 
-    from aperix_geo.tasks.favicon import warm_favicons_for_job
-
-    warm_favicons_for_job.delay(job_id)
-
-
-@celery_app.task
-def sampling_orchestrate_job(job_id: str) -> None:
-    """Mark running and dispatch chord of per-prompt samples."""
+    log_finalize_batch(job_id, results)
     jid = UUID(job_id)
     db = SessionLocal()
     try:
-        job = db.get(SamplingJob, jid)
-        if not job:
-            return
-        job.status = SamplingJobStatus.running
-        job.started_at = datetime.now(UTC)
-        db.commit()
-        response_ids = pending_response_id_strs(db, jid)
-        warm_sampling_job_context(db, job_id=jid)
+        finalize_sampling_job_db(db, jid)
     finally:
         db.close()
-    _dispatch_response_chord(job_id, response_ids)
+
+    release_sampling_chord_dispatch(jid)
+    dispatch_next_chord(job_id)
 
 
 @celery_app.task
-def sampling_resume_pending(job_id: str, response_ids: list[str]) -> None:
-    """Recovery: dispatch chord only for still-pending rows in response_ids."""
-    jid = UUID(job_id)
-    db = SessionLocal()
-    verified: list[str] = []
-    try:
-        job = db.get(SamplingJob, jid)
-        if not job or job.status not in (SamplingJobStatus.queued, SamplingJobStatus.running):
-            return
-        if job.status == SamplingJobStatus.queued:
-            job.status = SamplingJobStatus.running
-            if job.started_at is None:
-                job.started_at = datetime.now(UTC)
-            db.commit()
-        requested = {UUID(response_id) for response_id in response_ids}
-        verified = [
-            str(response_id)
-            for response_id in db.execute(
-                select(LLMResponse.id).where(
-                    LLMResponse.sampling_job_id == jid,
-                    LLMResponse.id.in_(requested),
-                    LLMResponse.status == LLMResponseStatus.pending,
-                )
-            ).scalars().all()
-        ]
-        if verified:
-            warm_sampling_job_context(db, job_id=jid)
-    finally:
-        db.close()
-    _dispatch_response_chord(job_id, verified)
+def sampling_orchestrate(job_id: str) -> None:
+    """Mark running and dispatch the first LLM chord batch."""
+    run_active_job(job_id, ensure_running=True)
 
 
 @celery_app.task
-def sampling_recover_stale_jobs(*, force: bool = False) -> dict:
+def sampling_continue(job_id: str) -> None:
+    """Recovery: dispatch the next LLM, crawl, or parse chord batch for an active job."""
+    run_active_job(job_id, ensure_running=False)
+
+
+@celery_app.task
+def sampling_recover(*, force: bool = False) -> dict:
     """Re-enqueue or finalize sampling jobs stuck in queued/running."""
     db = SessionLocal()
     try:
@@ -229,15 +255,17 @@ def sampling_recover_stale_jobs(*, force: bool = False) -> dict:
 
 
 @celery_app.task
-def sampling_scheduled_tick() -> dict:
-    """Enqueue daily sampling jobs for subjects past today's slot and not yet sampled."""
+def sampling_tick() -> dict:
+    """Enqueue subjects whose hash slot has passed (only scheduled during daily window via Beat)."""
     db = SessionLocal()
-    enqueued = 0
-    skipped = 0
-    errors: list[str] = []
     try:
+        settings = get_settings()
+        now = datetime.now(UTC)
         reconcile_stale_sampling_jobs(db)
-        due_subjects = find_subjects_due_for_scheduled_sampling(db)
+        due_subjects = find_subjects_due_for_scheduled_sampling(db, now=now, settings=settings)
+        enqueued = 0
+        skipped = 0
+        errors: list[str] = []
         for subject in due_subjects:
             try:
                 enqueue_subject_sampling(

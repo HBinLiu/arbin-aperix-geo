@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import {
@@ -7,6 +6,7 @@ import {
   fetchBacklinkOpportunityUrls,
 } from "@/api/analysis";
 import { platformFilterKey, topicFilterKey } from "@/lib/analysis";
+import { paginatedListResult, usePaginatedQuery } from "@/hooks/usePaginatedQuery";
 import { queryKeys } from "@/lib/queries";
 import type {
   AnalysisFilters,
@@ -58,7 +58,7 @@ export function useBacklinkOpportunityUrls(
   const sortBy = options.sortBy ?? "count";
   const order = options.order ?? "desc";
 
-  const query = useQuery({
+  const query = usePaginatedQuery({
     queryKey: queryKeys.backlinkOpportunityUrls(
       subjectId,
       platformKey,
@@ -82,14 +82,7 @@ export function useBacklinkOpportunityUrls(
     enabled: (options.enabled ?? true) && !!options.host,
   });
 
-  return useMemo(
-    () => ({
-      ...query,
-      rows: query.data?.items ?? [],
-      total: query.data?.total ?? 0,
-    }),
-    [query],
-  );
+  return paginatedListResult(query, { page: options.page, pageSize: options.pageSize });
 }
 
 export function useBacklinkOpportunityPrompts(
@@ -110,7 +103,7 @@ export function useBacklinkOpportunityPrompts(
   const sortBy = options.sortBy ?? "count";
   const order = options.order ?? "desc";
 
-  const query = useQuery({
+  const query = usePaginatedQuery({
     queryKey: queryKeys.backlinkOpportunityPrompts(
       subjectId,
       platformKey,
@@ -134,12 +127,5 @@ export function useBacklinkOpportunityPrompts(
     enabled: (options.enabled ?? true) && !!options.host,
   });
 
-  return useMemo(
-    () => ({
-      ...query,
-      rows: query.data?.items ?? [],
-      total: query.data?.total ?? 0,
-    }),
-    [query],
-  );
+  return paginatedListResult(query, { page: options.page, pageSize: options.pageSize });
 }

@@ -2,13 +2,17 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
 
 import { BrandRankLabel } from "@/components/brand/BrandRankLabel";
+import { SentimentValue } from "@/components/analysis/sentiment/SentimentValue";
 import { FaviconImage } from "@/components/common/FaviconImage";
 import { performanceTableClasses } from "@/components/analysis/prompt/performanceTableLayout";
 import { DotBadge, TextBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useBrandGeoMetrics } from "@/hooks/useBrandGeoMetrics";
 import { brandRowLabel } from "@/lib/brand/hoverRow";
+import type { BrandGeoMetrics } from "@/lib/brand/geoMetrics";
 import { faviconUrlFromHost, faviconUrlFromWebsite } from "@/lib/favicon";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { CompetitorItem } from "@/types";
 
 /** 竞品列表最小宽度（窄屏横向滚动） */
@@ -19,6 +23,8 @@ export const COMPETITOR_ACTION_COL_WIDTH = "6rem";
 
 type CompetitorHoverCardProps = {
   row: CompetitorItem;
+  /** 页面已有 rank 行数据时可传入，跳过重复解析 */
+  geoMetrics?: BrandGeoMetrics;
   className?: string;
 };
 
@@ -32,8 +38,44 @@ function Metric({ label, value, valueClassName }: MetricProps) {
   return (
     <div className="min-w-0 space-y-1">
       <p className="text-muted-foreground text-xs">{label}</p>
-      <p className={cn("text-sm font-semibold tracking-tight", valueClassName)}>{value}</p>
+      <p className={cn("text-sm font-semibold tracking-tight tabular-nums", valueClassName)}>
+        {value}
+      </p>
     </div>
+  );
+}
+
+function SentimentMetric({
+  score,
+  label,
+}: {
+  score: string | null;
+  label: string | null;
+}) {
+  const hasScore = score != null && score !== "-";
+
+  return (
+    <div className="min-w-0 space-y-1">
+      <p className="text-muted-foreground text-xs">情感倾向</p>
+      {hasScore ? (
+        <SentimentValue value={score} label={label} />
+      ) : (
+        <p className="text-sm font-semibold tracking-tight tabular-nums">—</p>
+      )}
+    </div>
+  );
+}
+
+function GeoMetricsSkeleton() {
+  return (
+    <>
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div key={index} className="min-w-0 space-y-1">
+          <Skeleton className="h-3 w-10" />
+          <Skeleton className="h-4 w-12" />
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -118,13 +160,14 @@ function CollapsibleDescription({ text }: { text: string }) {
   );
 }
 
-/** 竞争对手悬停信息卡（GEO 指标待后端接入）。 */
-export function CompetitorHoverCard({ row, className }: CompetitorHoverCardProps) {
+/** 竞争对手悬停信息卡：简介 + 当前筛选下 GEO 四指标。 */
+export function CompetitorHoverCard({ row, geoMetrics, className }: CompetitorHoverCardProps) {
   const label = brandRowLabel(row);
   const domain = row.domain.trim();
   const websiteUrl = competitorWebsiteUrl(row);
   const faviconUrl = faviconUrlFromWebsite(row.website_url, domain);
   const description = row.summary.trim() || "暂无简介。";
+  const { metrics, isLoading } = useBrandGeoMetrics(row, geoMetrics);
 
   return (
     <div
@@ -171,11 +214,20 @@ export function CompetitorHoverCard({ row, className }: CompetitorHoverCardProps
           <SectionBadge>GEO</SectionBadge>
           <div className="bg-border h-px min-w-0 flex-1" aria-hidden />
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
-          <Metric label="可见度" value="0%" />
-          <Metric label="引用率" value="0%" />
-          <Metric label="声量份额" value="—" />
-          <Metric label="情感倾向" value="—" />
+        <div
+          className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4"
+          aria-busy={isLoading}
+        >
+          {isLoading ? (
+            <GeoMetricsSkeleton />
+          ) : (
+            <>
+              <Metric label="可见度" value={metrics.visibility} />
+              <Metric label="引用率" value={metrics.citationRate} />
+              <Metric label="声量份额" value={metrics.shareVoice} />
+              <SentimentMetric score={metrics.sentimentScore} label={metrics.sentimentLabel} />
+            </>
+          )}
         </div>
       </div>
     </div>

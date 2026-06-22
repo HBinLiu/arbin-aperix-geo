@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { PaginatedTableCard } from "@/components/analysis/common/PaginatedTableCard";
 import {
   DEFAULT_TABLE_PAGE_SIZE,
   TABLE_PAGE_SIZE_OPTIONS,
@@ -88,7 +89,7 @@ export function OpportunityBacklinkPromptTable({
   const [sort, setSort] = useState<SortState>(null);
   const { sortBy, order } = sortParams(sort);
 
-  const { rows, total, isLoading } = useBacklinkOpportunityPrompts(subjectId, filters, {
+  const { rows, total, loading, fetching } = useBacklinkOpportunityPrompts(subjectId, filters, {
     host,
     page,
     pageSize,
@@ -106,8 +107,22 @@ export function OpportunityBacklinkPromptTable({
   };
 
   return (
-    <div className="border-border overflow-hidden rounded-lg border bg-white" aria-busy={isLoading}>
-      <div className="overflow-x-auto">
+    <PaginatedTableCard
+      loading={loading}
+      fetching={fetching}
+      footer={
+        total > 0 ? (
+          <TablePagination
+            total={total}
+            page={page}
+            pageSize={pageSize}
+            pageSizeOptions={TABLE_PAGE_SIZE_OPTIONS}
+            onPageChange={setPage}
+            onPageSizeChange={handlePageSizeChange}
+          />
+        ) : null
+      }
+    >
         <table className="w-full min-w-[800px] table-fixed text-sm">
           <colgroup>
             <col style={{ width: "32%" }} />
@@ -140,7 +155,7 @@ export function OpportunityBacklinkPromptTable({
             </tr>
           </thead>
           <tbody className="border-border border-t">
-            {isLoading ? (
+            {loading && rows.length === 0 ? (
               Array.from({ length: SKELETON_ROWS }).map((_, rowIndex) => (
                 <tr key={rowIndex} className="border-border border-t [&>td]:py-3" aria-hidden>
                   {Array.from({ length: COLUMN_COUNT }).map((__, cellIndex) => (
@@ -177,18 +192,6 @@ export function OpportunityBacklinkPromptTable({
             )}
           </tbody>
         </table>
-      </div>
-
-      {!isLoading && total > 0 ? (
-        <TablePagination
-          total={total}
-          page={page}
-          pageSize={pageSize}
-          pageSizeOptions={TABLE_PAGE_SIZE_OPTIONS}
-          onPageChange={setPage}
-          onPageSizeChange={handlePageSizeChange}
-        />
-      ) : null}
-    </div>
+    </PaginatedTableCard>
   );
 }

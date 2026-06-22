@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { PaginatedTableCard } from "@/components/analysis/common/PaginatedTableCard";
 import {
   DEFAULT_TABLE_PAGE_SIZE,
   paginateRows,
@@ -10,20 +11,21 @@ import {
 import { MentionedBrandsCell } from "@/components/analysis/common/MentionedBrandsCell";
 import { CitationUrlPromptsDialog } from "@/components/analysis/citation/CitationUrlPromptsDialog";
 import { ColumnHelp } from "@/components/analysis/prompt/PerformanceMetricCells";
+import { PlatformLogoGroup } from "@/components/brand/PlatformLogo";
 import { FaviconImage } from "@/components/common/FaviconImage";
-import { DotBadge, TextBadge } from "@/components/ui/badge";
+import { DotBadge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCitationDomainUrls, useCitationUrls } from "@/hooks/useCitationList";
 import { DEFAULT_ANALYSIS_FILTERS } from "@/lib/analysis/filters";
 import { citationMentionsOwnBrand, citationUrlDisplayTitle } from "@/lib/analysis/citation";
 import { formatRate } from "@/lib/analysis/format";
 import { cn } from "@/lib/utils";
-import type { AnalysisFilters, CitationUrlRow, CitationUrlSortField } from "@/types";
+import type { AnalysisFilters, CitationUrlRow, CitationUrlSortField, SamplingPlatform } from "@/types";
 
 const SKELETON_ROWS = 8;
 const COLUMN_COUNT = 6;
-const URL_COUNT_DESCRIPTION = "此特定页面在 AI 生成答案中被引用为来源的总次数。";
-const URL_CITATION_RATE_DESCRIPTION = "此特定页面在窗口内全部 AI 回复中的引用占比。";
+const URL_COUNT_DESCRIPTION = "此特定页面在 AI 回复中被引用为来源的总次数。";
+const URL_CITATION_RATE_DESCRIPTION = "此特定页面在全部 AI 回复中的引用占比。";
 
 type UrlSortKey = CitationUrlSortField;
 type UrlSortDir = "asc" | "desc";
@@ -98,6 +100,7 @@ type CitationUrlTableProps = {
   ownBrand?: string | null;
   citationSearch?: string;
   host?: string;
+  platformsMeta?: SamplingPlatform[];
 } & (
   | {
       subjectId: string;
@@ -164,7 +167,7 @@ function MentionStatusCell({ mentioned }: { mentioned: boolean | null }) {
 }
 
 export function CitationUrlTable(props: CitationUrlTableProps) {
-  const { ownLabel, ownBrand } = props;
+  const { ownLabel, ownBrand, platformsMeta = [] } = props;
   const citationSearch = "citationSearch" in props ? (props.citationSearch ?? "") : "";
   const domainHost = "host" in props ? (props.host ?? "") : "";
   const staticMode = "rows" in props && props.rows != null;
@@ -218,7 +221,8 @@ export function CitationUrlTable(props: CitationUrlTableProps) {
     [staticRows, page, pageSize],
   );
 
-  const isLoading = staticMode ? (props.loading ?? false) : remoteQuery.isLoading;
+  const loading = staticMode ? (props.loading ?? false) : remoteQuery.loading;
+  const fetching = staticMode ? false : remoteQuery.fetching;
   const rows = staticMode ? staticPageRows : remoteQuery.rows;
   const total = staticMode ? staticRows.length : remoteQuery.total;
 
@@ -243,17 +247,28 @@ export function CitationUrlTable(props: CitationUrlTableProps) {
         open={promptsOpen}
         onOpenChange={setPromptsOpen}
       />
-      <div
-      className="border-border overflow-hidden rounded-lg border bg-white"
-      aria-busy={isLoading}
+      <PaginatedTableCard
+      loading={loading}
+      fetching={fetching}
+      footer={
+        total > 0 ? (
+          <TablePagination
+            total={total}
+            page={page}
+            pageSize={pageSize}
+            pageSizeOptions={TABLE_PAGE_SIZE_OPTIONS}
+            onPageChange={setPage}
+            onPageSizeChange={handlePageSizeChange}
+          />
+        ) : null
+      }
     >
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[960px] table-fixed text-sm">
+        <table className="w-full min-w-[1040px] table-fixed text-sm">
           <colgroup>
-            <col style={{ width: "35%" }} />
-            <col style={{ width: "13%" }} />
-            <col style={{ width: "13%" }} />
-            <col style={{ width: "13%" }} />
+            <col style={{ width: "34%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "14%" }} />
             <col style={{ width: "13%" }} />
             <col style={{ width: "13%" }} />
           </colgroup>
@@ -262,10 +277,10 @@ export function CitationUrlTable(props: CitationUrlTableProps) {
               <th className="pl-5 pr-10">URL</th>
               <th>
                 <span className="inline-flex items-center gap-1">
-                  URL 类型
+                  平台
                   <ColumnHelp
-                    label="URL 类型"
-                    description="对 AI 引用的页面内容类型进行分类。反映算法偏好的内容结构。"
+                    label="平台"
+                    description="AI 回复中直接引用此链接的平台。"
                   />
                 </span>
               </th>
@@ -274,7 +289,7 @@ export function CitationUrlTable(props: CitationUrlTableProps) {
                   是否提及
                   <ColumnHelp
                     label="是否提及"
-                    description="AI 回复中直接提及的品牌。用于衡量此特定页面的竞争表现。"
+                    description="AI 回复中直接提及的品牌。"
                   />
                 </span>
               </th>
@@ -283,7 +298,7 @@ export function CitationUrlTable(props: CitationUrlTableProps) {
                   提及品牌
                   <ColumnHelp
                     label="提及品牌"
-                    description="AI 回复中直接提及的品牌。用于衡量此特定页面的竞争表现。"
+                    description="AI 回复中直接提及的品牌。"
                   />
                 </span>
               </th>
@@ -308,7 +323,7 @@ export function CitationUrlTable(props: CitationUrlTableProps) {
             </tr>
           </thead>
           <tbody className="border-border border-t">
-            {isLoading ? (
+            {loading && rows.length === 0 ? (
               <SkeletonRows />
             ) : rows.length === 0 ? (
               <tr>
@@ -326,10 +341,12 @@ export function CitationUrlTable(props: CitationUrlTableProps) {
                   <td className="max-w-0 pl-5 pr-10">
                     <UrlCell url={row.url} title={citationUrlDisplayTitle(row.title, row.url)} />
                   </td>
-                  <td className="px-4">
-                    <TextBadge variant="gray" className="bg-background px-2 py-1 font-semibold text-foreground">
-                      {row.url_type ?? "其它类型"}
-                    </TextBadge>
+                  <td className="px-4" onClick={(event) => event.stopPropagation()}>
+                    <PlatformLogoGroup
+                      providers={row.platforms ?? []}
+                      platforms={platformsMeta}
+                      logoClassName="size-5"
+                    />
                   </td>
                   <td className="px-4">
                     <MentionStatusCell
@@ -353,19 +370,7 @@ export function CitationUrlTable(props: CitationUrlTableProps) {
             )}
           </tbody>
         </table>
-      </div>
-
-      {!isLoading && total > 0 ? (
-        <TablePagination
-          total={total}
-          page={page}
-          pageSize={pageSize}
-          pageSizeOptions={TABLE_PAGE_SIZE_OPTIONS}
-          onPageChange={setPage}
-          onPageSizeChange={handlePageSizeChange}
-        />
-      ) : null}
-    </div>
+    </PaginatedTableCard>
     </>
   );
 }

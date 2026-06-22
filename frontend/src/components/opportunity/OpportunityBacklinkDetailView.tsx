@@ -5,7 +5,7 @@ import { MentionedBrandsCell } from "@/components/analysis/common/MentionedBrand
 import { PlatformLogoGroup } from "@/components/brand/PlatformLogo";
 import { OpportunityBacklinkPromptTable } from "@/components/opportunity/OpportunityBacklinkPromptTable";
 import { OpportunityBacklinkUrlTable } from "@/components/opportunity/OpportunityBacklinkUrlTable";
-import { DotBadge, TextBadge, type SemanticBadgeVariant } from "@/components/ui/badge";
+import { DotBadge, type SemanticBadgeVariant } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBacklinkOpportunityDetail } from "@/hooks/useBacklinkOpportunityDetail";
@@ -26,8 +26,6 @@ const PRIORITY_VARIANT: Record<OpportunityPriority, SemanticBadgeVariant> = {
   medium: "warning",
   low: "success",
 };
-
-const DOMAIN_TYPE_FALLBACK = "其它类型";
 
 type OpportunityBacklinkDetailViewProps = {
   subjectId: string;
@@ -86,21 +84,12 @@ export function OpportunityBacklinkDetailView({
 
   return (
     <div className="flex flex-col gap-4 px-4 py-4 sm:px-6">
-      <div className="border-border grid gap-4 rounded-lg border bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="border-border grid gap-4 rounded-lg border bg-white p-4 sm:grid-cols-2 lg:grid-cols-3">
         <InfoField label="域名">
           {isLoading ? (
             <Skeleton className="h-5 w-32" />
           ) : (
             <span className="truncate font-semibold">{host}</span>
-          )}
-        </InfoField>
-        <InfoField label="域名类型">
-          {isLoading ? (
-            <Skeleton className="h-6 w-28" />
-          ) : (
-            <TextBadge variant="gray" className="bg-background px-2 py-1 font-semibold text-foreground">
-              {data?.domain_type?.trim() || DOMAIN_TYPE_FALLBACK}
-            </TextBadge>
           )}
         </InfoField>
         <InfoField label="优先级">

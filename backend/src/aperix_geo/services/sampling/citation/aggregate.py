@@ -118,16 +118,10 @@ def _aggregate_url_row(
             if record.page_title and not is_template_title(record.page_title)
         ]
     )
-    url_type = mode_nonempty([record.url_type for record in records])
-    domain_type = mode_nonempty([record.domain_type for record in records])
 
     mentioned_brands = _mentioned_brands_for_records(records, competitor_domains=competitor_domains)
     has_brand_analysis = any(
-        isinstance(record.llm_analysis, dict)
-        and (
-            "page_mentioned_brands" in record.llm_analysis
-            or record.llm_analysis.get("analysis_source") in ("llm", "heuristic")
-        )
+        isinstance(record.llm_analysis, dict) and "page_mentioned_brands" in record.llm_analysis
         for record in records
     )
 
@@ -135,8 +129,6 @@ def _aggregate_url_row(
         "url": url,
         "host": host,
         "title": coalesce_page_title(page_title, url=url),
-        "url_type": url_type or None,
-        "domain_type": domain_type or None,
         "count": count,
         "citation_rate": round(count / total, 4) if total else 0,
         "has_brand_analysis": has_brand_analysis,
@@ -147,81 +139,6 @@ def _aggregate_url_row(
             topic_names=topic_names,
         ),
     }
-
-
-def aggregate_citation_domains(
-    db: Session,
-    rows: list[LLMResponse],
-) -> list[dict[str, Any]]:
-    """Domain-level citation counts for a response window (from tb_citation_domains)."""
-    if not rows:
-        return []
-    total = len(rows)
-    response_ids = [r.id for r in rows]
-    stmt = (
-        select(
-            CitationDomain.domain,
-            func.sum(CitationDomain.cite_count),
-            func.max(CitationDomain.domain_type),
-        )
-        .where(CitationDomain.response_id.in_(response_ids))
-        .group_by(CitationDomain.domain)
-    )
-    db_rows = db.execute(stmt).all()
-    host_counts = {domain: int(count) for domain, count, _ in db_rows if domain}
-    domain_types = {domain: str(domain_type or "").strip() for domain, _, domain_type in db_rows if domain}
-    return sorted(
-        [
-            {
-                "host": host,
-                "count": count,
-                "citation_rate": round(count / total, 4) if total else 0,
-                "domain_type": domain_types.get(host) or None,
-            }
-            for host, count in host_counts.items()
-        ],
-        key=lambda row: -row["count"],
-    )
-
-
-def aggregate_citation_urls(
-    db: Session,
-    rows: list[LLMResponse],
-    *,
-    subject: Subject | None = None,
-) -> list[dict[str, Any]]:
-    """URL-level citation counts and source-page metadata (from tb_citation_urls)."""
-    if not rows:
-        return []
-    total = len(rows)
-    response_ids = [r.id for r in rows]
-    competitor_domains = _competitor_domain_map(subject)
-
-    records = db.execute(
-        select(CitationUrl).where(CitationUrl.response_id.in_(response_ids))
-    ).scalars().all()
-
-    grouped: dict[str, list[CitationUrl]] = defaultdict(list)
-    for record in records:
-        grouped[record.url].append(record)
-
-    prompt_ids = {record.prompt_id for record in records}
-    prompt_map, topic_names = _load_prompt_topic_maps(db, prompt_ids)
-
-    return sorted(
-        [
-            _aggregate_url_row(
-                url,
-                grouped[url],
-                total=total,
-                competitor_domains=competitor_domains,
-                prompt_map=prompt_map,
-                topic_names=topic_names,
-            )
-            for url in grouped
-        ],
-        key=lambda row: -row["count"],
-    )
 
 
 def _normalize_pagination(page: int, page_size: int) -> tuple[int, int]:
@@ -333,7 +250,6 @@ def paginate_citation_domains(
         select(
             CitationDomain.domain.label("host"),
             count_expr.label("count"),
-            func.max(CitationDomain.domain_type).label("domain_type"),
         )
         .where(*domain_filters)
         .group_by(CitationDomain.domain)
@@ -345,7 +261,7 @@ def paginate_citation_domains(
     )
     offset = (safe_page - 1) * safe_page_size
     rows = db.execute(
-        select(grouped.c.host, grouped.c.count, grouped.c.domain_type)
+        select(grouped.c.host, grouped.c.count)
         .order_by(order_clause, grouped.c.host.asc())
         .offset(offset)
         .limit(safe_page_size)
@@ -356,11 +272,30 @@ def paginate_citation_domains(
             "host": str(host or "").strip().lower(),
             "count": int(count or 0),
             "citation_rate": round(int(count or 0) / response_total, 4),
-            "domain_type": str(domain_type or "").strip() or None,
         }
-        for host, count, domain_type in rows
+        for host, count in rows
         if host
     ]
+    page_hosts = [item["host"] for item in items]
+    if page_hosts:
+        platform_rows = db.execute(
+            select(CitationDomain.domain, LLMResponse.platform)
+            .join(LLMResponse, CitationDomain.response_id == LLMResponse.id)
+            .where(
+                CitationDomain.response_id.in_(select(id_subq.c.id)),
+                CitationDomain.domain.in_(page_hosts),
+            )
+        ).all()
+        platforms_by_host: dict[str, set[str]] = defaultdict(set)
+        for domain, platform_value in platform_rows:
+            host_key = str(domain or "").strip().lower()
+            if host_key and platform_value:
+                platforms_by_host[host_key].add(str(platform_value))
+        for item in items:
+            item["platforms"] = sorted(platforms_by_host.get(item["host"], set()))
+    else:
+        for item in items:
+            item["platforms"] = []
     return {
         "items": items,
         "total": total,
@@ -401,8 +336,8 @@ def domain_cite_stats(
     platform: list[str] | None = None,
     topic_id: list[UUID] | None = None,
     prompt_id: UUID | None = None,
-) -> tuple[int, str | None, int]:
-    """Return (cite_count, domain_type, response_total) for one host in window."""
+) -> tuple[int, int]:
+    """Return (cite_count, response_total) for one host in window."""
     from aperix_geo.services.analysis._query import (
         count_responses_in_window,
         response_ids_in_window_stmt,
@@ -419,20 +354,16 @@ def domain_cite_stats(
     )
     response_total = count_responses_in_window(db, **window)
     if response_total == 0 or not host:
-        return 0, None, response_total
+        return 0, response_total
 
     id_subq = response_ids_in_window_stmt(**window).subquery()
-    count, domain_type = db.execute(
-        select(
-            func.coalesce(func.sum(CitationDomain.cite_count), 0),
-            func.max(CitationDomain.domain_type),
-        ).where(
+    count = db.scalar(
+        select(func.coalesce(func.sum(CitationDomain.cite_count), 0)).where(
             CitationDomain.response_id.in_(select(id_subq.c.id)),
             CitationDomain.domain == host,
         )
-    ).one()
-    dtype = str(domain_type or "").strip() or None
-    return int(count or 0), dtype, response_total
+    )
+    return int(count or 0), response_total
 
 
 def domain_daily_citation_series(
@@ -784,23 +715,29 @@ def paginate_citation_urls(
             "response_total": response_total,
         }
 
-    records = db.execute(
-        select(CitationUrl).where(
+    joined = db.execute(
+        select(CitationUrl, LLMResponse.platform)
+        .join(LLMResponse, CitationUrl.response_id == LLMResponse.id)
+        .where(
             CitationUrl.url.in_(page_urls),
             CitationUrl.response_id.in_(select(id_subq.c.id)),
         )
-    ).scalars().all()
+    ).all()
 
     grouped_records: dict[str, list[CitationUrl]] = defaultdict(list)
-    for record in records:
+    platforms_by_url: dict[str, set[str]] = defaultdict(set)
+    for record, platform_value in joined:
         grouped_records[record.url].append(record)
+        if platform_value:
+            platforms_by_url[record.url].add(str(platform_value))
 
-    prompt_ids = {record.prompt_id for record in records}
+    prompt_ids = {record.prompt_id for record, _platform in joined}
     prompt_map, topic_names = _load_prompt_topic_maps(db, prompt_ids)
     competitor_domains = _competitor_domain_map(subject)
 
-    items = [
-        _aggregate_url_row(
+    items = []
+    for url in page_urls:
+        row = _aggregate_url_row(
             url,
             grouped_records.get(url, []),
             total=response_total,
@@ -808,8 +745,8 @@ def paginate_citation_urls(
             prompt_map=prompt_map,
             topic_names=topic_names,
         )
-        for url in page_urls
-    ]
+        row["platforms"] = sorted(platforms_by_url.get(url, set()))
+        items.append(row)
 
     return {
         "items": items,

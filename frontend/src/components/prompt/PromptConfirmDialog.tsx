@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/button";
+import { Button, type ButtonProps } from "@/components/ui/button";
 import {
   Dialog,
   DialogClose,
@@ -15,6 +15,7 @@ type PromptConfirmDialogProps = {
   title: string;
   description: string;
   confirmLabel?: string;
+  confirmVariant?: ButtonProps["variant"];
   submitting?: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
@@ -22,10 +23,12 @@ type PromptConfirmDialogProps = {
 
 function PromptConfirmDialogFooter({
   confirmLabel,
+  confirmVariant = "default",
   submitting,
   onConfirm,
 }: {
   confirmLabel: string;
+  confirmVariant?: ButtonProps["variant"];
   submitting: boolean;
   onConfirm: () => void;
 }) {
@@ -33,10 +36,10 @@ function PromptConfirmDialogFooter({
 
   return (
     <DialogFooter>
-      <Button type="button" variant="brandout" disabled={submitting} onClick={requestClose}>
+      <Button type="button" variant="outline" disabled={submitting} onClick={requestClose}>
         取消
       </Button>
-      <Button type="button" disabled={submitting} onClick={onConfirm}>
+      <Button type="button" variant={confirmVariant} disabled={submitting} onClick={onConfirm}>
         {submitting ? "处理中…" : confirmLabel}
       </Button>
     </DialogFooter>
@@ -49,6 +52,7 @@ export function PromptConfirmDialog({
   title,
   description,
   confirmLabel = "确认",
+  confirmVariant = "default",
   submitting = false,
   onOpenChange,
   onConfirm,
@@ -65,6 +69,7 @@ export function PromptConfirmDialog({
         </div>
         <PromptConfirmDialogFooter
           confirmLabel={confirmLabel}
+          confirmVariant={confirmVariant}
           submitting={submitting}
           onConfirm={onConfirm}
         />

@@ -9,7 +9,8 @@ from uuid import UUID
 from sqlalchemy import Select, and_, func, select
 from sqlalchemy.orm import Session
 
-from aperix_geo.db.models import LLMResponse, LLMResponseStatus, Prompt, SamplingJob
+from aperix_geo.db.base import utc_now
+from aperix_geo.db.models import LLMResponse, LLMResponseStatus, Prompt, SamplingJob, Subject
 
 
 class _ResponsesInWindowQuery:
@@ -138,3 +139,22 @@ def count_responses_in_window(
         prompt_id=prompt_id,
     )
     return int(db.scalar(select(func.count()).select_from(stmt.subquery())) or 0)
+
+
+def subject_response_window(db: Session, *, subject: Subject) -> tuple[datetime, datetime]:
+    """Full success-response span for a subject (diagnosis center, no FilterBar window)."""
+    dt_min, dt_max = db.execute(
+        select(func.min(LLMResponse.created_at), func.max(LLMResponse.created_at))
+        .join(SamplingJob, LLMResponse.sampling_job_id == SamplingJob.id)
+        .where(
+            and_(
+                SamplingJob.subject_id == subject.id,
+                LLMResponse.status == LLMResponseStatus.success,
+                LLMResponse.parsed.isnot(None),
+            )
+        )
+    ).one()
+    now = utc_now()
+    if dt_min is None or dt_max is None:
+        return subject.created_at, now
+    return dt_min, dt_max

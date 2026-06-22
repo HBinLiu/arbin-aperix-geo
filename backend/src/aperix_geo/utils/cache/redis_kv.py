@@ -79,15 +79,31 @@ def redis_set_json_persistent(key: str, value: dict[str, Any]) -> None:
         logger.debug("Redis SET 失败 key=%s", key, exc_info=True)
 
 
-def redis_set_nx(key: str, *, ttl_s: int) -> bool:
+def redis_set_nx(key: str, *, ttl_s: int, fail_open: bool = True) -> bool:
+    """SET NX with TTL. When Redis is unavailable, fail_open=True returns True (legacy)."""
     client = _redis_client()
     if client is None:
-        return True
+        return fail_open
     try:
         return bool(client.set(key, "1", nx=True, ex=max(1, ttl_s)))
     except Exception:
         logger.debug("Redis SET NX 失败 key=%s", key, exc_info=True)
-        return True
+        return fail_open
+
+
+def redis_set_nx_strict(key: str, *, ttl_s: int) -> bool:
+    """SET NX; returns False when Redis is unavailable (sampling locks / debounce)."""
+    return redis_set_nx(key, ttl_s=ttl_s, fail_open=False)
+
+
+def redis_expire(key: str, *, ttl_s: int) -> None:
+    client = _redis_client()
+    if client is None:
+        return
+    try:
+        client.expire(key, max(1, ttl_s))
+    except Exception:
+        logger.debug("Redis EXPIRE 失败 key=%s", key, exc_info=True)
 
 
 def redis_delete(key: str) -> None:

@@ -252,6 +252,17 @@ export const queryKeys = {
       sortBy ?? "created_at",
       order ?? "desc",
     ] as const,
+  diagnosisContentSummary: (subjectId: string) =>
+    ["diagnosis-content-summary", subjectId] as const,
+  diagnosisContent: (
+    subjectId: string,
+    page: number,
+    pageSize: number,
+    sortBy: string,
+    order: string,
+  ) => ["diagnosis-content", subjectId, page, pageSize, sortBy, order] as const,
+  diagnosisContentDetail: (subjectId: string, promptId: string) =>
+    ["diagnosis-content-detail", subjectId, promptId] as const,
   contentOpportunities: (
     subjectId: string,
     entityId: string,

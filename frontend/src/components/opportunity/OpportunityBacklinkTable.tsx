@@ -13,7 +13,7 @@ import { performanceTableClasses } from "@/components/analysis/prompt/performanc
 import { PlatformLogoGroup } from "@/components/brand/PlatformLogo";
 import { FaviconImage } from "@/components/common/FaviconImage";
 import { faviconUrlFromHost } from "@/lib/favicon";
-import { DotBadge, TextBadge, type SemanticBadgeVariant } from "@/components/ui/badge";
+import { DotBadge, type SemanticBadgeVariant } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   BACKLINK_OPPORTUNITY_COLUMNS,
@@ -134,6 +134,7 @@ type OpportunityBacklinkTableProps = {
   rows: BacklinkOpportunityRow[];
   platformsMeta: SamplingPlatform[];
   loading?: boolean;
+  fetching?: boolean;
   className?: string;
   total: number;
   page: number;
@@ -150,6 +151,7 @@ export function OpportunityBacklinkTable({
   rows,
   platformsMeta,
   loading = false,
+  fetching = false,
   className,
   total,
   page,
@@ -173,9 +175,10 @@ export function OpportunityBacklinkTable({
     <PerformanceTableShell
       className={className}
       loading={loading}
+      fetching={fetching}
       scrollMinWidth={BACKLINK_OPPORTUNITY_MIN_WIDTH}
       footer={
-        !loading && total > 0 ? (
+        total > 0 ? (
           <TablePagination
             total={total}
             page={page}
@@ -206,7 +209,6 @@ export function OpportunityBacklinkTable({
                 onSort={handleSort}
               />
             </th>
-            <th>域名类型</th>
             <th>AI 平台</th>
             <th>
               <SortableHeader
@@ -235,11 +237,11 @@ export function OpportunityBacklinkTable({
           </tr>
         </thead>
         <tbody>
-          {loading ? (
+          {loading && rows.length === 0 ? (
             <BacklinkSkeletonRows />
           ) : total === 0 ? (
             <tr>
-              <td colSpan={7} className="text-muted-foreground px-5 py-10 text-center text-sm">
+              <td colSpan={6} className="text-muted-foreground px-5 py-10 text-center text-sm">
                 暂无反向链接机会
               </td>
             </tr>
@@ -271,11 +273,6 @@ export function OpportunityBacklinkTable({
                 </td>
                 <td>
                   <PriorityCell priority={row.priority} label={row.priorityLabel} />
-                </td>
-                <td>
-                  <TextBadge variant="gray" className="bg-background px-2 py-1 font-semibold text-foreground">
-                    {row.domainType}
-                  </TextBadge>
                 </td>
                 <td>
                   <PlatformLogoGroup

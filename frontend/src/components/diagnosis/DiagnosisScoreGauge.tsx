@@ -13,7 +13,7 @@ type DiagnosisScoreGaugeProps = {
 const STATUS_BADGE_VARIANT: Record<DiagnosisStatus, SemanticBadgeVariant> = {
   excellent: "success",
   good: "success",
-  needs_improvement: "warning",
+  improvement: "warning",
   critical: "error",
 };
 

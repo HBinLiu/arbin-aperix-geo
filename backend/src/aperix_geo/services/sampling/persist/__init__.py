@@ -2,9 +2,10 @@
 
 from aperix_geo.services.sampling.persist.artifacts import refresh_parsed_artifacts
 from aperix_geo.services.sampling.persist.brands import sync_brands_for_drafts
-from aperix_geo.services.sampling.persist.response import persist_successful_response
+from aperix_geo.services.sampling.persist.response import persist_llm_result, persist_successful_response
 
 __all__ = [
+    "persist_llm_result",
     "persist_successful_response",
     "refresh_parsed_artifacts",
     "sync_brands_for_drafts",

@@ -36,6 +36,7 @@ export type PromptPerformanceSortState = { key: SortKey; dir: SortDir } | null;
 type PromptPerformanceTableProps = {
   rows: PromptPerformanceRow[];
   loading?: boolean;
+  fetching?: boolean;
   className?: string;
   total: number;
   page: number;
@@ -97,6 +98,7 @@ function cycleSort(prev: PromptPerformanceSortState, key: SortKey): PromptPerfor
 export function PromptPerformanceTable({
   rows,
   loading = false,
+  fetching = false,
   className,
   total,
   page,
@@ -117,9 +119,10 @@ export function PromptPerformanceTable({
     <PerformanceTableShell
       className={className}
       loading={loading}
+      fetching={fetching}
       scrollMinWidth={PROMPT_TABLE_MIN_WIDTH}
       footer={
-        !loading && total > 0 ? (
+        total > 0 ? (
           <TablePagination
             total={total}
             page={page}
@@ -215,7 +218,7 @@ export function PromptPerformanceTable({
           </tr>
         </thead>
         <tbody>
-          {loading ? (
+          {loading && rows.length === 0 ? (
             <PromptPerformanceSkeletonRows />
           ) : total === 0 ? (
             <tr>

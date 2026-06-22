@@ -1,7 +1,7 @@
 """Shared cache utilities (bounded memory, Redis TTL, single-flight)."""
 
 from aperix_geo.utils.cache.bounded import BoundedTTLCache
-from aperix_geo.utils.cache.coalesce import run_single_flight
+from aperix_geo.utils.cache.coalesce import SingleFlightWaitTimeout, run_single_flight
 from aperix_geo.utils.cache.tiered_json import TieredJsonCache
 from aperix_geo.utils.cache.redis_kv import (
     clear_redis_kv_cache,
@@ -27,9 +27,11 @@ __all__ = [
     "redis_set_json_exat",
     "redis_set_json_persistent",
     "redis_set_nx",
+    "redis_set_nx_strict",
     "require_redis_client",
     "shared_redis_client",
     "remaining_ttl_s",
     "run_single_flight",
+    "SingleFlightWaitTimeout",
     "TieredJsonCache",
 ]

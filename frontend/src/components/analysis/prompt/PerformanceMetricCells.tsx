@@ -1,5 +1,5 @@
 import { CircleHelp } from "lucide-react";
-import { useState } from "react";
+import { useState, type SyntheticEvent } from "react";
 
 import { SentimentValue } from "@/components/analysis/sentiment/SentimentValue";
 import { DeltaBadgeSlot } from "@/components/ui/badge";
@@ -9,17 +9,29 @@ import { cn } from "@/lib/utils";
 export function ColumnHelp({ label, description }: { label: string; description: string }) {
   const [open, setOpen] = useState(false);
 
+  const toggleOpen = (event: SyntheticEvent) => {
+    event.stopPropagation();
+    event.preventDefault();
+    setOpen((prev) => !prev);
+  };
+
   return (
     <Tooltip open={open} onOpenChange={setOpen}>
       <TooltipTrigger asChild>
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground inline-flex shrink-0 rounded-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        <span
+          role="button"
+          tabIndex={0}
+          className="text-muted-foreground hover:text-foreground inline-flex shrink-0 cursor-pointer rounded-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           aria-label={`了解${label}`}
-          onClick={() => setOpen((prev) => !prev)}
+          onClick={toggleOpen}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              toggleOpen(event);
+            }
+          }}
         >
           <CircleHelp className="size-4" aria-hidden />
-        </button>
+        </span>
       </TooltipTrigger>
       <TooltipContent
         side="top"

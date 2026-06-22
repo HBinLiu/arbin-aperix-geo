@@ -76,6 +76,13 @@ def sync_brand_for_entity(
     )
 
 
+_ENTITY_KIND_ORDER = {"own": 0, "competitor": 1, "other": 2}
+
+
+def _brand_sync_sort_key(entity: BrandSyncEntity) -> tuple[int, str]:
+    return (_ENTITY_KIND_ORDER.get(entity.entity_kind, 9), entity.entity_id)
+
+
 def sync_brands_for_entities(
     db: Session,
     *,
@@ -87,7 +94,7 @@ def sync_brands_for_entities(
 ) -> dict[str, Brand]:
     sync_ctx = BrandSyncContext.load(db, subject_id=subject_id)
     brands: dict[str, Brand] = {}
-    for entity in entities:
+    for entity in sorted(entities, key=_brand_sync_sort_key):
         brands[entity.entity_id] = sync_brand_for_entity(
             db,
             subject_id=subject_id,

@@ -20,7 +20,13 @@ from aperix_geo.services.analysis.aggregate import (
     metrics_from_signals,
 )
 from aperix_geo.services.analysis.entity import list_analysis_entities, resolve_analysis_entity
-from aperix_geo.services.analysis.opportunity import competitive_gap_metrics, opportunity_priority
+from aperix_geo.services.analysis.diagnosis import (
+    diagnosis_gap_metrics,
+    diagnosis_mention_rate,
+    has_diagnosis_content_gap,
+    mention_action_priority,
+    overall_action_priority,
+)
 from aperix_geo.services.analysis.performance import platform_performance_rows
 from aperix_geo.services.analysis.signal_index import build_dual_signal_window
 from aperix_geo.services.analysis.signal_load import LLMResponseSignalRow, load_llm_response_other_brand_signals, load_llm_response_signals
@@ -70,13 +76,30 @@ def _opportunity_summary(
         return None
 
     response_ids = {row.response_id for row in entity_signals}
-    gap = competitive_gap_metrics(
+    gap = diagnosis_gap_metrics(
         focus_entity_id=focus_entity_id,
         response_ids=response_ids,
         all_signals=all_signals,
         subject=subject,
     )
-    if gap["brand_gap_rate"] <= 0 and gap["source_gap_rate"] <= 0:
+    metrics = metrics_from_signals(
+        entity_signals,
+        subject=subject,
+        all_signals_for_voice=all_signals,
+    )
+    mention_priority = mention_action_priority(
+        diagnosis_mention_rate(
+            mention_own_count=sum(1 for row in entity_signals if row.mentioned),
+            mention_total_count=metrics.response_count,
+            visibility_rate=metrics.visibility_rate,
+        ),
+        metrics.average_rank,
+    )
+    if not has_diagnosis_content_gap(
+        brand_gap_rate=gap["brand_gap_rate"],
+        source_gap_rate=gap["source_gap_rate"],
+        mention_priority=mention_priority,
+    ):
         return None
 
     return {
@@ -84,7 +107,12 @@ def _opportunity_summary(
         "brand_gap_priority": gap["brand_gap_priority"],
         "source_gap_rate": gap["source_gap_rate"],
         "source_gap_priority": gap["source_gap_priority"],
-        "priority": opportunity_priority(gap["brand_gap_rate"], gap["source_gap_rate"]),
+        "mention_priority": mention_priority,
+        "priority": overall_action_priority(
+            mention_priority,
+            gap["brand_gap_priority"],
+            gap["source_gap_priority"],
+        ),
     }
 
 

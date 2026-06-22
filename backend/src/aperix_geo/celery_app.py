@@ -1,11 +1,21 @@
 """Celery application instance."""
 
+import os
 from pathlib import Path
 
 from celery import Celery
+from celery.schedules import crontab
 from celery.signals import worker_ready
 
+from aperix_geo.celery_queues import (
+    celery_task_queues,
+    celery_task_routes,
+)
 from aperix_geo.config import get_settings
+from aperix_geo.services.sampling.workflow.schedule import (
+    SAMPLING_TIMEZONE,
+    sampling_beat_cron_hour_range,
+)
 
 _BACKEND_DIR = Path(__file__).resolve().parents[2]
 
@@ -17,28 +27,39 @@ def make_celery() -> Celery:
         broker=s.celery_broker_url,
         backend=s.celery_result_backend,
     )
-    tick = s.sampling_scheduler_tick_seconds
+    redis_transport = {
+        "socket_timeout": s.celery_redis_socket_timeout_s,
+        "socket_connect_timeout": s.celery_redis_connect_timeout_s,
+        "retry_on_timeout": True,
+        "health_check_interval": 30,
+    }
+    interval = s.sampling_scheduler_interval_minutes
+    beat_hours = sampling_beat_cron_hour_range(settings=s)
     app.conf.update(
-        task_default_queue="aperix",
+        task_default_queue=s.celery_default_queue,
+        task_queues=celery_task_queues(settings=s),
+        task_routes=celery_task_routes(settings=s),
         worker_prefetch_multiplier=1,
         task_serializer="json",
         result_serializer="json",
         accept_content=["json"],
-        timezone="UTC",
+        timezone=SAMPLING_TIMEZONE,
         enable_utc=True,
+        result_backend_transport_options=redis_transport,
+        broker_transport_options=redis_transport,
         beat_schedule_filename=str(_BACKEND_DIR / "celerybeat"),
         beat_schedule={
+            # 仅在每日采样窗口内 tick；窗口内各 subject 按 id hash 到不同 minute slot
             "sampling-scheduler-tick": {
-                "task": "aperix_geo.tasks.sampling.sampling_scheduled_tick",
-                "schedule": tick,
+                "task": "aperix_geo.tasks.sampling.sampling_tick",
+                "schedule": crontab(minute=f"*/{interval}", hour=beat_hours),
             },
         },
     )
     app.conf.include = [
         "aperix_geo.tasks.sampling",
-        "aperix_geo.tasks.favicon",
         "aperix_geo.tasks.brand",
-        "aperix_geo.tasks.alerts",
+        "aperix_geo.tasks.alert",
     ]
     return app
 
@@ -50,8 +71,14 @@ from aperix_geo.utils.logging import configure  # noqa: E402
 configure()
 
 
-@worker_ready.connect
 def _recover_stale_sampling_jobs_on_worker_start(**kwargs) -> None:
-    from aperix_geo.tasks.sampling import sampling_recover_stale_jobs
+    """Run stale-job recovery once from the orchestration worker pool."""
+    role = os.environ.get("CELERY_WORKER_ROLE", "all").strip().lower()
+    if role not in ("all", "orch"):
+        return
+    from aperix_geo.tasks.sampling import sampling_recover
 
-    sampling_recover_stale_jobs.delay(force=True)
+    sampling_recover.delay(force=True)
+
+
+worker_ready.connect(_recover_stale_sampling_jobs_on_worker_start)

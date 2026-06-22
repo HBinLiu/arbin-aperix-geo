@@ -8,7 +8,7 @@ from typing import Any
 from aperix_geo.services.brand.resolve import normalize_brand_key
 from aperix_geo.services.providers import LLMProviderError, chat_completion
 from aperix_geo.services.providers.prompts import (
-    citation_response_absa_system,
+    CITATION_RESPONSE_ABSA_SYSTEM,
     citation_response_absa_user_content,
 )
 from aperix_geo.services.sampling.cache.absa import (
@@ -18,7 +18,7 @@ from aperix_geo.services.sampling.cache.absa import (
 )
 from aperix_geo.services.brand.keys import configured_brand_keys
 from aperix_geo.services.sampling.signal_draft import EntitySignalDraft
-from aperix_geo.utils.cache import run_single_flight
+from aperix_geo.utils.cache import SingleFlightWaitTimeout, run_single_flight
 from aperix_geo.utils.json import extract_json_object
 
 logger = logging.getLogger(__name__)
@@ -29,18 +29,14 @@ def response_absa_needed(
     llm_configured: bool,
     text: str,
     entity_signals: list[EntitySignalDraft],
-    urls: list[str],
 ) -> bool:
-    """Run ABSA only when sentiment/open-set analysis is plausibly useful."""
+    """Run ABSA when own/competitor brands are mentioned in the response text."""
     if not llm_configured or not text.strip():
         return False
-    has_monitored_mentions = any(
+    return any(
         draft.mentioned and draft.entity_kind in ("own", "competitor")
         for draft in entity_signals
     )
-    if has_monitored_mentions or urls:
-        return True
-    return False
 
 
 def _brand_entry(raw: Any) -> dict[str, Any]:
@@ -66,7 +62,6 @@ def normalize_response_absa(
     own_brand: str,
     competitors: list[str],
     excluded_keys: set[str] | None = None,
-    open_set_enabled: bool = True,
 ) -> dict[str, Any]:
     brands_raw = data.get("brands_sentiment_absa") if isinstance(data.get("brands_sentiment_absa"), dict) else {}
     brands: dict[str, dict[str, Any]] = {}
@@ -82,14 +77,13 @@ def normalize_response_absa(
         )
 
     other_brands: dict[str, dict[str, Any]] = {}
-    if open_set_enabled:
-        others_raw = data.get("other_brands_sentiment_absa")
-        if isinstance(others_raw, dict):
-            for name, entry in others_raw.items():
-                label = str(name or "").strip()
-                if not label or normalize_brand_key(label) in excluded_keys:
-                    continue
-                other_brands[label] = _brand_entry(entry)
+    others_raw = data.get("other_brands_sentiment_absa")
+    if isinstance(others_raw, dict):
+        for name, entry in others_raw.items():
+            label = str(name or "").strip()
+            if not label or normalize_brand_key(label) in excluded_keys:
+                continue
+            other_brands[label] = _brand_entry(entry)
 
     return {
         "brands_sentiment_absa": brands,
@@ -114,7 +108,6 @@ def analyze_response_absa(
     competitors: list[str],
     excluded_keys: set[str] | None = None,
     cache_ttl_s: int = 0,
-    open_set_enabled: bool = True,
 ) -> dict[str, Any]:
     """ABSA on the sampling LLM response text (once per LLM response)."""
     if not own_brand.strip():
@@ -134,7 +127,6 @@ def analyze_response_absa(
             own_brand=own_brand,
             competitors=competitors,
             excluded_keys=excluded_keys,
-            open_set_enabled=open_set_enabled,
             ttl_s=cache_ttl_s,
         )
 
@@ -144,14 +136,13 @@ def analyze_response_absa(
 
     def _fetch() -> dict[str, Any]:
         messages = [
-            {"role": "system", "content": citation_response_absa_system(open_set_enabled=open_set_enabled)},
+            {"role": "system", "content": CITATION_RESPONSE_ABSA_SYSTEM},
             {
                 "role": "user",
                 "content": citation_response_absa_user_content(
                     raw_text=raw_text,
                     own_brand=own_brand,
                     competitors=competitors,
-                    open_set_enabled=open_set_enabled,
                 ),
             },
         ]
@@ -165,14 +156,12 @@ def analyze_response_absa(
                 own_brand=own_brand,
                 competitors=competitors,
                 excluded_keys=excluded_keys,
-                open_set_enabled=open_set_enabled,
             )
             set_response_absa_cached(
                 raw_text=raw_text,
                 own_brand=own_brand,
                 competitors=competitors,
                 excluded_keys=excluded_keys,
-                open_set_enabled=open_set_enabled,
                 result=result,
                 ttl_s=cache_ttl_s,
             )
@@ -189,12 +178,18 @@ def analyze_response_absa(
         own_brand=own_brand,
         competitors=competitors,
         excluded_keys=excluded_keys,
-        open_set_enabled=open_set_enabled,
     )
-    return run_single_flight(
-        digest,
-        wait_s=120.0,
-        read_cache=_read_cache,
-        fetch=_fetch,
-        lock_prefix="aperix:response_absa:lock:",
-    )
+    try:
+        return run_single_flight(
+            digest,
+            wait_s=120.0,
+            read_cache=_read_cache,
+            fetch=_fetch,
+            lock_prefix="aperix:response_absa:lock:",
+        )
+    except SingleFlightWaitTimeout:
+        cached = _read_cache()
+        if cached is not None:
+            return cached
+        logger.warning("Response ABSA single-flight wait timeout")
+        return _empty_response_absa(reason="absa single-flight wait timeout")

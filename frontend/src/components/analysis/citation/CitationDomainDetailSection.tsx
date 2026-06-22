@@ -56,6 +56,7 @@ export function CitationDomainDetailSection({
           host={host}
           ownLabel={ownLabel}
           ownBrand={ownBrand}
+          platformsMeta={platformsMeta}
         />
       ) : activeTab === "prompt" ? (
         <CitationDomainBreakdownTable

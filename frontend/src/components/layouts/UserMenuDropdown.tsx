@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  ChevronRight,
   LogOut,
   Settings,
   Smile,
@@ -16,7 +15,7 @@ import { userPrimaryLabel, userSecondaryLabel } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import type { User } from "@/types";
 
-const PROMPT_QUOTA_LIMIT = 50;
+import { PROMPT_QUOTA_LIMIT } from "@/lib/prompt";
 const CREDIT_QUOTA_LIMIT = 24000;
 
 type UserMenuDropdownProps = {
@@ -170,14 +169,11 @@ export function UserMenuDropdown({
 
           <MenuDivider />
           <UsageRow label="提示词" used={promptUsed} limit={PROMPT_QUOTA_LIMIT} />
-          <UsageRow label="额度" used={creditUsed} limit={CREDIT_QUOTA_LIMIT} />
+          <UsageRow label="Token额度" used={creditUsed} limit={CREDIT_QUOTA_LIMIT} />
 
           <MenuDivider />
           <MenuRow label="订阅" icon={Ticket} />
           <MenuRow label="计划与账单" icon={Wallet} />
-
-          <MenuDivider />
-          <MenuRow label="语言" trailing={<ChevronRight className="text-muted-foreground size-4" />} />
 
           <MenuDivider />
           <MenuRow label="退出登录" icon={LogOut} destructive onClick={onLogout} />

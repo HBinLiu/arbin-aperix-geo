@@ -17,8 +17,8 @@ import {
   AnalysisVisibilityRoute,
   BrandRoute,
   DiagnosisRoute,
+  DiagnosisContentDetailRoute,
   OpportunityRoute,
-  OpportunityContentDetailRoute,
   OpportunityBacklinkDetailRoute,
   OverviewRoute,
   PromptRoute,
@@ -64,13 +64,15 @@ export function AppRoutes() {
             </Route>
             <Route path="rank" element={<RankRoute />} />
             <Route path="opportunity">
-              <Route index element={<Navigate to="content" replace />} />
-              <Route path="content/:promptId" element={<OpportunityContentDetailRoute />} />
+              <Route index element={<Navigate to="backlink" replace />} />
               <Route path="backlink/:host" element={<OpportunityBacklinkDetailRoute />} />
               <Route path=":tab" element={<OpportunityRoute />} />
             </Route>
             <Route path="agent" element={<AgentRoute />} />
-            <Route path="diagnosis" element={<DiagnosisRoute />} />
+            <Route path="diagnosis">
+              <Route index element={<DiagnosisRoute />} />
+              <Route path=":promptId" element={<DiagnosisContentDetailRoute />} />
+            </Route>
             <Route path="prompt" element={<PromptRoute />} />
             <Route path="brand" element={<BrandRoute />} />
             <Route path="*" element={<Navigate to={DASHBOARD_APP_BASE} replace />} />

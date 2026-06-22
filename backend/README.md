@@ -51,7 +51,7 @@ export PYTHONPATH=src
 celery -A aperix_geo.celery_app.celery_app worker --loglevel=INFO
 ```
 
-定时采样调度（另开终端，与 Worker 同时运行）：
+定时采样调度（另开终端，与 Worker 同时运行；仅在每日窗口内 tick）：
 
 ```bash
 export PYTHONPATH=src
@@ -69,7 +69,7 @@ API 只**创建**采样任务；真正调用 LLM 的是 **Celery Worker**。仅�
 | PostgreSQL + Redis | ✅ | 数据与队列 |
 | Celery Worker | ✅ | 执行采样 |
 | API | 按需 | 前端 / HTTP 触发 |
-| Celery Beat | 可选 | 按品牌页间隔自动采样 |
+| Celery Beat | 可选 | 每日窗口内扫描到期 subject 并入队 |
 
 `.env` 至少配置 `DATABASE_URL`、`CELERY_BROKER_URL` 与一个采样平台 Key（如 `DOUBAO_API_KEY`）。
 
@@ -81,9 +81,9 @@ python3 scripts/sampling_trigger.py          # 对最新 subject 触发
 python3 scripts/sampling_reparse.py --dry-run  # 重算已有回复的 parsed 字段
 ```
 
-其它入口：Setup 完成自动创建 job；`POST /api/v1/subjects/{id}/sampling-jobs`（需 JWT）；开发调试入口见 `.env.example` 中 `SAMPLING_DEBUG_*`。
+其它入口：Setup finalize 自动创建 job；本地脚本 `scripts/sampling_trigger.py`；开发调试见 `.env.example` 中 `SAMPLING_DEBUG_*`。
 
-Beat 按 `SAMPLING_SCHEDULER_TICK_SECONDS`（默认 15 分钟）扫描到期主体；品牌页可配间隔（6h / 12h / 每天 / 3 天 / 每周 / 关闭）。
+每日定时采样在 **北京时间 02:00–05:00** 内按 subject id hash 错开 slot；Beat 仅在该时段内每 `SAMPLING_SCHEDULER_INTERVAL_MINUTES`（默认 15）分钟扫描一次。
 
 更完整联调步骤见 [../docs/07-后端联调.md](../docs/07-后端联调.md#采样)。
 

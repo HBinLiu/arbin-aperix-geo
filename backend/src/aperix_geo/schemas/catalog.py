@@ -157,7 +157,7 @@ class SetupFinalizeResponse(BaseModel):
 
 class GenerateSubjectPromptsRequest(BaseModel):
     topic_id: UUID
-    count: int = Field(..., ge=1, le=20)
+    count: int = Field(..., ge=1, le=50)
 
 
 class TopicCreate(BaseModel):
@@ -179,6 +179,17 @@ class PromptCreate(BaseModel):
     funnel_stage: str = Field(default="mofu", max_length=8)
     search_intent: str = Field(default="commercial", max_length=16)
     enabled: bool = True
+
+
+class PromptBatchItem(BaseModel):
+    text: str = Field(..., min_length=1)
+    funnel_stage: str = Field(default="mofu", max_length=8)
+    search_intent: str = Field(default="commercial", max_length=16)
+
+
+class PromptBatchCreate(BaseModel):
+    topic_id: UUID
+    items: list[PromptBatchItem] = Field(..., min_length=1, max_length=50)
 
 
 class PromptUpdate(BaseModel):

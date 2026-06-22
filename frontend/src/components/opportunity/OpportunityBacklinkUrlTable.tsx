@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { PaginatedTableCard } from "@/components/analysis/common/PaginatedTableCard";
 import {
   DEFAULT_TABLE_PAGE_SIZE,
   TABLE_PAGE_SIZE_OPTIONS,
@@ -143,7 +144,7 @@ export function OpportunityBacklinkUrlTable({
   const [sort, setSort] = useState<UrlSortState>(null);
   const { sortBy, order } = urlSortParams(sort);
 
-  const { rows, total, isLoading } = useBacklinkOpportunityUrls(subjectId, filters, {
+  const { rows, total, loading, fetching } = useBacklinkOpportunityUrls(subjectId, filters, {
     host,
     page,
     pageSize,
@@ -161,8 +162,22 @@ export function OpportunityBacklinkUrlTable({
   };
 
   return (
-    <div className="border-border overflow-hidden rounded-lg border bg-white" aria-busy={isLoading}>
-      <div className="overflow-x-auto">
+    <PaginatedTableCard
+      loading={loading}
+      fetching={fetching}
+      footer={
+        total > 0 ? (
+          <TablePagination
+            total={total}
+            page={page}
+            pageSize={pageSize}
+            pageSizeOptions={TABLE_PAGE_SIZE_OPTIONS}
+            onPageChange={setPage}
+            onPageSizeChange={handlePageSizeChange}
+          />
+        ) : null
+      }
+    >
         <table className="w-full min-w-[840px] table-fixed text-sm">
           <colgroup>
             <col style={{ width: "35%" }} />
@@ -188,7 +203,7 @@ export function OpportunityBacklinkUrlTable({
             </tr>
           </thead>
           <tbody className="border-border border-t">
-            {isLoading ? (
+            {loading && rows.length === 0 ? (
               <SkeletonRows />
             ) : rows.length === 0 ? (
               <tr>
@@ -228,18 +243,6 @@ export function OpportunityBacklinkUrlTable({
             )}
           </tbody>
         </table>
-      </div>
-
-      {!isLoading && total > 0 ? (
-        <TablePagination
-          total={total}
-          page={page}
-          pageSize={pageSize}
-          pageSizeOptions={TABLE_PAGE_SIZE_OPTIONS}
-          onPageChange={setPage}
-          onPageSizeChange={handlePageSizeChange}
-        />
-      ) : null}
-    </div>
+    </PaginatedTableCard>
   );
 }

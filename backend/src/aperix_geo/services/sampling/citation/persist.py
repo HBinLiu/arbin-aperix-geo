@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 from aperix_geo.db.models import CitationDomain, CitationUrl
 from aperix_geo.services.sampling.parsed import ParsedSamplingResult
 from aperix_geo.utils.coerce import safe_int
-from aperix_geo.utils.text import mode_nonempty
 from aperix_geo.utils.url import filter_citation_urls, hostname_from_url, is_valid_citation_host
 
 
@@ -47,16 +46,12 @@ def citations_from_parsed(parsed: dict[str, Any] | ParsedSamplingResult) -> list
         seen.add(key)
         src = source_map.get(key, {})
         page_title = str(src.get("page_title") or "").strip()
-        url_type = str(src.get("url_type") or "").strip()
-        domain_type = str(src.get("domain_type") or "").strip()
         llm_analysis = src.get("llm_analysis") if isinstance(src.get("llm_analysis"), dict) else {}
         rows.append(
             {
                 "domain": domain[:255],
                 "url": key,
                 "page_title": page_title[:500],
-                "domain_type": domain_type[:128],
-                "url_type": url_type[:128],
                 "http_status": safe_int(src, "http_status", 0),
                 "description": str(src.get("description") or "")[:8000],
                 "headings": _headings_text(src.get("headings"))[:4000],
@@ -78,16 +73,6 @@ def domain_counts_from_url_rows(url_rows: list[dict[str, Any]]) -> dict[str, int
         if domain:
             counts[domain] += 1
     return dict(counts)
-
-
-def domain_types_from_url_rows(url_rows: list[dict[str, Any]]) -> dict[str, str]:
-    types: dict[str, list[str]] = defaultdict(list)
-    for row in url_rows:
-        domain = str(row.get("domain") or "").strip()
-        domain_type = str(row.get("domain_type") or "").strip()
-        if domain and domain_type:
-            types[domain].append(domain_type)
-    return {domain: mode_nonempty(values) for domain, values in types.items()}
 
 
 def replace_citations_for_response(
@@ -117,7 +102,6 @@ def replace_citations_for_response(
                 prompt_id=prompt_id,
                 url=row["url"],
                 page_title=row["page_title"],
-                domain_type=row["domain_type"],
                 http_status=row["http_status"],
                 description=row["description"],
                 headings=row["headings"],
@@ -127,11 +111,9 @@ def replace_citations_for_response(
                 llm_analysis=row["llm_analysis"],
                 fetch_ok=row["fetch_ok"],
                 from_api=row["from_api"],
-                url_type=row["url_type"],
             )
         )
 
-    domain_types = domain_types_from_url_rows(url_rows)
     for domain, cite_count in domain_counts_from_url_rows(url_rows).items():
         db.add(
             CitationDomain(
@@ -139,7 +121,6 @@ def replace_citations_for_response(
                 prompt_id=prompt_id,
                 domain=domain,
                 cite_count=cite_count,
-                domain_type=domain_types.get(domain, ""),
             )
         )
 

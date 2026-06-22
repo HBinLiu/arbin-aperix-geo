@@ -34,12 +34,11 @@ export const PROMPT_TABLE_MIN_WIDTH = PROMPT_TABLE_COLUMNS.reduce(
 /** 工具栏单行布局最小宽度，不足时由外层横向滚动 */
 export const PROMPT_TOOLBAR_MIN_WIDTH = 720;
 
-/** 每个主题最多可创建的提示词数量 */
-export const PROMPT_MAX_PER_TOPIC = 20;
+/** Subject 下提示词总配额上限 */
+export const PROMPT_QUOTA_LIMIT = 50;
 
-export function topicPromptRemaining(topicId: string, prompts: SubjectPrompt[]): number {
-  const count = prompts.filter((prompt) => prompt.topic_id === topicId).length;
-  return Math.max(0, PROMPT_MAX_PER_TOPIC - count);
+export function subjectPromptRemaining(prompts: SubjectPrompt[]): number {
+  return Math.max(0, PROMPT_QUOTA_LIMIT - prompts.length);
 }
 
 export function promptColumnStyle(column: { width: string; minWidth: number }): CSSProperties {

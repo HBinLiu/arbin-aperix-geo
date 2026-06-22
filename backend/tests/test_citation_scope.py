@@ -1,4 +1,4 @@
-"""Tests for citation page GEO brand scope tightening."""
+"""Tests for citation source-page brand scope."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import uuid
 
 from aperix_geo.db.models import Competitor, Subject, SubjectType
 from aperix_geo.services.analysis.entity import OWN_ENTITY_ID
-from aperix_geo.services.sampling.citation.scope import page_geo_brand_scope
+from aperix_geo.services.sampling.citation.scope import citation_brand_scope
 from aperix_geo.services.sampling.signal_draft import EntitySignalDraft, init_entity_signal_drafts
 from aperix_geo.services.sampling.mentions import competitor_entries
 
@@ -32,7 +32,7 @@ def _subject_with_competitor(*, brand: str = "Beta") -> Subject:
     return subject
 
 
-def test_page_geo_brand_scope_only_response_mentioned_competitors() -> None:
+def test_citation_brand_scope_only_response_mentioned_competitors() -> None:
     subject = _subject_with_competitor()
     drafts = init_entity_signal_drafts(subject)
     competitors = competitor_entries(subject)
@@ -44,11 +44,11 @@ def test_page_geo_brand_scope_only_response_mentioned_competitors() -> None:
         if draft.entity_id == OWN_ENTITY_ID:
             draft.mentioned = False
 
-    scope = page_geo_brand_scope(drafts, own_brand="Aperix", competitors=competitors)
+    scope = citation_brand_scope(drafts, own_brand="Aperix", competitors=competitors)
     assert scope == ["Beta"]
 
 
-def test_page_geo_brand_scope_includes_own_when_mentioned() -> None:
+def test_citation_brand_scope_includes_own_when_mentioned() -> None:
     subject = _subject_with_competitor()
     drafts = init_entity_signal_drafts(subject)
     competitors = competitor_entries(subject)
@@ -56,28 +56,28 @@ def test_page_geo_brand_scope_includes_own_when_mentioned() -> None:
     for draft in drafts:
         draft.mentioned = draft.entity_kind in ("own", "competitor")
 
-    scope = page_geo_brand_scope(drafts, own_brand="Aperix", competitors=competitors)
+    scope = citation_brand_scope(drafts, own_brand="Aperix", competitors=competitors)
     assert scope == ["Aperix", "Beta"]
 
 
-def test_page_geo_brand_scope_empty_when_no_response_mentions() -> None:
+def test_citation_brand_scope_empty_when_no_response_mentions() -> None:
     subject = _subject_with_competitor()
     drafts = init_entity_signal_drafts(subject)
     competitors = competitor_entries(subject)
 
-    scope = page_geo_brand_scope(drafts, own_brand="Aperix", competitors=competitors)
+    scope = citation_brand_scope(drafts, own_brand="Aperix", competitors=competitors)
     assert scope == []
 
 
-def test_page_geo_brand_scope_includes_cross_validated_other_brands() -> None:
+def test_citation_brand_scope_includes_absa_open_brands() -> None:
     subject = _subject_with_competitor()
     drafts = init_entity_signal_drafts(subject)
     competitors = competitor_entries(subject)
 
-    scope = page_geo_brand_scope(
+    scope = citation_brand_scope(
         drafts,
         own_brand="Aperix",
         competitors=competitors,
-        cross_validated_other_brands=["Stripe"],
+        open_brand_labels=["Stripe"],
     )
     assert scope == ["Stripe"]

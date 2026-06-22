@@ -142,18 +142,7 @@ export function chartRowValue(row: ChartRow, key: string): number {
 export function buildChartYAxis(dataMax: number): { yMin: number; yMax: number } {
   return {
     yMin: 0,
-    yMax: Math.max(dataMax * 1.08, 0.01),
-  };
-}
-
-/** AI 提及等绝对值 Y 轴（非百分比） */
-export function buildChartYAxisForScore(
-  dataMin: number,
-  dataMax: number,
-): { yMin: number; yMax: number } {
-  return {
-    yMin: Math.min(dataMin * 0.92, 0),
-    yMax: Math.max(dataMax * 1.08, 0.01),
+    yMax: Math.max(dataMax * 1, 0.01),
   };
 }
 
@@ -439,7 +428,6 @@ export function buildChartModel(input: ChartInput): ChartModel {
     showPreviousSeries = true,
     onToggleLegendKey,
     valueFormatter = (v) => String(v),
-    yAxisMode = "rate",
   } = input;
 
   const drawPrevious = shouldOverlayPreviousPeriod({
@@ -474,11 +462,8 @@ export function buildChartModel(input: ChartInput): ChartModel {
   });
 
   const lineKeys = lines.map((line) => line.key);
-  const { min: dataMin, max: dataMax } = computeChartDataRange(rows, lineKeys);
-  const { yMin, yMax } =
-    yAxisMode === "score"
-      ? buildChartYAxisForScore(dataMin, dataMax)
-      : buildChartYAxis(dataMax);
+  const { max: dataMax } = computeChartDataRange(rows, lineKeys);
+  const { yMin, yMax } = buildChartYAxis(dataMax);
   const yAxisWidth = computeChartYAxisWidth(yMin, yMax, valueFormatter);
 
   return {

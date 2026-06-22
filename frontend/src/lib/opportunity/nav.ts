@@ -2,12 +2,11 @@ import { DASHBOARD_APP_BASE } from "@/lib/dashboard";
 import type { OpportunityTab } from "@/types";
 
 export const OPPORTUNITY_TABS: { id: OpportunityTab; label: string }[] = [
-  { id: "content", label: "内容" },
   { id: "backlink", label: "反向链接" },
   { id: "social", label: "社交媒体" },
 ];
 
-export const DEFAULT_OPPORTUNITY_TAB: OpportunityTab = "content";
+export const DEFAULT_OPPORTUNITY_TAB: OpportunityTab = "backlink";
 
 export const OPPORTUNITY_BASE_PATH = `${DASHBOARD_APP_BASE}/opportunity`;
 
@@ -35,8 +34,6 @@ export function opportunityTabFromPathname(pathname: string): OpportunityTab {
   return parseOpportunityTab(segment || null);
 }
 
-const CONTENT_OPPORTUNITY_DETAIL_PREFIX = `${OPPORTUNITY_BASE_PATH}/content/`;
-
 export const BACKLINK_OPPORTUNITY_DETAIL_PREFIX = `${OPPORTUNITY_BASE_PATH}/backlink/`;
 
 export function backlinkOpportunityDetailPath(host: string): string {
@@ -56,28 +53,5 @@ export function backlinkOpportunityHostFromPathname(pathname: string): string | 
     return decodeURIComponent(encoded).trim().toLowerCase();
   } catch {
     return encoded.trim().toLowerCase();
-  }
-}
-
-export function contentOpportunityDetailPath(promptId: string): string {
-  return `${CONTENT_OPPORTUNITY_DETAIL_PREFIX}${encodeURIComponent(promptId)}`;
-}
-
-export function contentOpportunityPromptIdFromPathname(pathname: string): string | null {
-  const normalized = pathname.replace(/\/+$/, "");
-  if (normalized === `${OPPORTUNITY_BASE_PATH}/content`) {
-    return null;
-  }
-  if (!normalized.startsWith(CONTENT_OPPORTUNITY_DETAIL_PREFIX)) {
-    return null;
-  }
-  const encoded = normalized.slice(CONTENT_OPPORTUNITY_DETAIL_PREFIX.length).split("/")[0] ?? "";
-  if (!encoded) {
-    return null;
-  }
-  try {
-    return decodeURIComponent(encoded).trim();
-  } catch {
-    return encoded.trim();
   }
 }

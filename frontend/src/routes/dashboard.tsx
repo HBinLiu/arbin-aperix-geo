@@ -3,7 +3,7 @@ import { DiagnosisContent } from "@/pages/dashboard/DiagnosisPage";
 import { PromptContent } from "@/pages/dashboard/PromptPage";
 import { BrandPage } from "@/pages/dashboard/BrandPage";
 import { OpportunityContent } from "@/pages/dashboard/OpportunityPage";
-import { ContentDetailPage } from "@/pages/opportunity/ContentDetailPage";
+import { ContentDetailPage } from "@/pages/diagnosis/ContentDetailPage";
 import { BacklinkDetailPage } from "@/pages/opportunity/BacklinkDetailPage";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
 import { RankContent } from "@/pages/dashboard/RankPage";
@@ -64,7 +64,7 @@ export function RankRoute() {
   return <RankContent subjectId={subject.id} />;
 }
 
-export function OpportunityContentDetailRoute() {
+export function DiagnosisContentDetailRoute() {
   const { subject } = useDashboardContext();
   return <ContentDetailPage subjectId={subject.id} />;
 }

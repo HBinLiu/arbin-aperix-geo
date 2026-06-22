@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
 
+import { PaginatedTableCard } from "@/components/analysis/common/PaginatedTableCard";
 import {
   DEFAULT_TABLE_PAGE_SIZE,
   TABLE_PAGE_SIZE_OPTIONS,
@@ -136,7 +137,7 @@ export function SentimentResponseTable({
     [sentimentSort],
   );
 
-  const { isLoading, responses, total } = useSentimentTabResponses(
+  const { loading, fetching, responses, total } = useSentimentTabResponses(
     subjectId,
     filters,
     activeTab,
@@ -170,11 +171,22 @@ export function SentimentResponseTable({
   const emptyLabel = SENTIMENT_LABELS[activeTab];
 
   return (
-    <div
-      className="border-border overflow-hidden rounded-lg border bg-white"
-      aria-busy={isLoading}
+    <PaginatedTableCard
+      loading={loading}
+      fetching={fetching}
+      footer={
+        total > 0 ? (
+          <TablePagination
+            total={total}
+            page={page}
+            pageSize={pageSize}
+            pageSizeOptions={TABLE_PAGE_SIZE_OPTIONS}
+            onPageChange={setPage}
+            onPageSizeChange={handlePageSizeChange}
+          />
+        ) : null
+      }
     >
-      <div className="overflow-x-auto">
         <table
           className="w-full table-fixed text-sm"
           style={{ minWidth: SENTIMENT_RESPONSE_TABLE_MIN_WIDTH }}
@@ -203,7 +215,7 @@ export function SentimentResponseTable({
             </tr>
           </thead>
           <tbody className="border-border border-t">
-            {isLoading ? (
+            {loading && responses.length === 0 ? (
               <SentimentResponseSkeletonRows />
             ) : total === 0 ? (
               <tr>
@@ -266,18 +278,6 @@ export function SentimentResponseTable({
             )}
           </tbody>
         </table>
-      </div>
-
-      {!isLoading && total > 0 ? (
-        <TablePagination
-          total={total}
-          page={page}
-          pageSize={pageSize}
-          pageSizeOptions={TABLE_PAGE_SIZE_OPTIONS}
-          onPageChange={setPage}
-          onPageSizeChange={handlePageSizeChange}
-        />
-      ) : null}
 
       <PromptDetailResponseDialog
         row={selectedRow}
@@ -286,6 +286,6 @@ export function SentimentResponseTable({
         promptText={promptText}
         platformsMeta={platformsMeta}
       />
-    </div>
+    </PaginatedTableCard>
   );
 }

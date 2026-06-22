@@ -32,6 +32,8 @@ class SamplingJobStatus(str, enum.Enum):
 
 class LLMResponseStatus(str, enum.Enum):
     pending = "pending"
+    llm_ready = "llm_ready"
+    crawl_ready = "crawl_ready"
     success = "success"
     failed = "failed"
 
@@ -396,6 +398,9 @@ class LLMResponse(Base):
             postgresql_where=sa_text("deleted = false"),
         ),
         Index("ix_llm_responses_job_created", "sampling_job_id", "created_at"),
+        Index("ix_llm_responses_job_status", "sampling_job_id", "status"),
+        Index("ix_llm_responses_job_status_created", "sampling_job_id", "status", "created_at"),
+        Index("ix_llm_responses_prompt_status_created", "prompt_id", "status", "created_at"),
         Index("ix_llm_responses_created_at", "created_at"),
     )
 
@@ -451,6 +456,8 @@ class LLMResponseSignal(Base):
         ),
         Index("ix_llm_response_signals_subject_entity_created", "subject_id", "entity_id", "created_at"),
         Index("ix_llm_response_signals_subject_prompt_entity", "subject_id", "prompt_id", "entity_id"),
+        Index("ix_llm_response_signals_subject_kind_created", "subject_id", "entity_kind", "created_at"),
+        Index("ix_llm_response_signals_subject_kind_cited", "subject_id", "entity_kind", "cited_on_source"),
         Index("ix_llm_response_signals_response_id", "response_id"),
         Index("ix_llm_response_signals_brand_id", "brand_id"),
     )
@@ -470,7 +477,6 @@ class CitationDomain(Base):
     )
     domain: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     cite_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
-    domain_type: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
@@ -492,6 +498,8 @@ class CitationDomain(Base):
         ),
         Index("ix_citation_domains_prompt_id", "prompt_id"),
         Index("ix_citation_domains_domain", "domain"),
+        Index("ix_citation_domains_domain_response", "domain", "response_id"),
+        Index("ix_citation_domains_domain_prompt", "domain", "prompt_id"),
         Index("ix_citation_domains_response_id", "response_id"),
     )
 
@@ -510,7 +518,6 @@ class CitationUrl(Base):
     )
     url: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     page_title: Mapped[str] = mapped_column(String(500), nullable=False, default="", server_default="")
-    domain_type: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
     http_status: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     description: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     headings: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
@@ -522,7 +529,6 @@ class CitationUrl(Base):
     )
     fetch_ok: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     from_api: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
-    url_type: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
@@ -544,4 +550,5 @@ class CitationUrl(Base):
         ),
         Index("ix_citation_urls_prompt_id", "prompt_id"),
         Index("ix_citation_urls_response_id", "response_id"),
+        Index("ix_citation_urls_url_response", "url", "response_id"),
     )
