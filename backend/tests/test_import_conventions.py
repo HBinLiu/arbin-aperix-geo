@@ -12,6 +12,7 @@ _ALLOWED_REL_PATHS = frozenset(
         "utils/net.py",
         "utils/domains.py",
         "utils/url.py",
+        "utils/dns.py",
     }
 )
 

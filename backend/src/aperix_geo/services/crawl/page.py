@@ -171,12 +171,12 @@ def fetch_page(
         if settings.negative_cache_ttl_s > 0:
             cache.store_negative()
         return PageFetchResult(url=key)
-    if host and not host_resolves(host, timeout_s=2.0):
+    if host and not host_resolves(host):
         logger.debug("页面抓取 DNS 不可解析 %s", key)
         if settings.negative_cache_ttl_s > 0:
             cache.store_negative()
         return PageFetchResult(url=key)
-    if host and not host_resolves_public(host, timeout_s=2.0):
+    if host and not host_resolves_public(host):
         logger.debug("页面抓取跳过非公开地址 %s", key)
         if settings.negative_cache_ttl_s > 0:
             cache.store_negative()

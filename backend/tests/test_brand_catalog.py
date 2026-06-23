@@ -95,3 +95,51 @@ def test_resolve_brand_domain_reuses_batch_domain_memo(mock_extract, mock_search
     assert domain == "stripe.com"
     mock_extract.assert_not_called()
     mock_search.assert_not_called()
+
+
+@patch("aperix_geo.services.brand.domain.get_brand_domain_cached", return_value=None)
+@patch("aperix_geo.services.brand.resolve.find_brand_by_name_or_alias", return_value=None)
+@patch("aperix_geo.services.brand.domain.registrable_domain", return_value=False)
+@patch("aperix_geo.services.brand.domain.search_brand_official_domain", return_value="stripe.com")
+@patch("aperix_geo.services.brand.domain.extract_domain_from_text_for_brand", return_value="stripe.com")
+def test_resolve_brand_domain_skips_unresolvable_discovered_domain(
+    mock_extract,
+    mock_search,
+    _mock_dns,
+    _mock_find,
+    _mock_cache,
+) -> None:
+    domain = resolve_brand_domain(
+        MagicMock(),
+        subject_id=uuid.uuid4(),
+        brand="Stripe",
+        raw_text="see https://stripe.com",
+    )
+
+    assert domain == ""
+    mock_extract.assert_called_once()
+    mock_search.assert_called_once()
+
+
+@patch("aperix_geo.services.brand.domain.get_brand_domain_cached", return_value=None)
+@patch("aperix_geo.services.brand.resolve.find_brand_by_name_or_alias", return_value=None)
+@patch("aperix_geo.services.brand.domain.registrable_domain", return_value=True)
+@patch("aperix_geo.services.brand.domain.search_brand_official_domain")
+@patch("aperix_geo.services.brand.domain.extract_domain_from_text_for_brand", return_value="stripe.com")
+def test_resolve_brand_domain_persists_resolvable_text_domain(
+    mock_extract,
+    mock_search,
+    _mock_dns,
+    _mock_find,
+    _mock_cache,
+) -> None:
+    domain = resolve_brand_domain(
+        MagicMock(),
+        subject_id=uuid.uuid4(),
+        brand="Stripe",
+        raw_text="see https://stripe.com",
+    )
+
+    assert domain == "stripe.com"
+    mock_extract.assert_called_once()
+    mock_search.assert_not_called()

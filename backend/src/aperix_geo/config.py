@@ -77,6 +77,10 @@ class Settings(BaseSettings):
     # --- 采样 · SearXNG 联网（DeepSeek / Kimi 等）---
     sampling_searxng_max_results: int = Field(default=8, ge=1, le=28)
 
+    # --- DNS（dnspython · 爬虫预检 / 品牌推断等）---
+    dns_timeout_s: float = Field(default=1.0, ge=0.5, le=30.0)
+    dns_cache_ttl_s: int = Field(default=3600, ge=0, le=86_400)
+
     # --- 页面抓取（httpx → Crawl4AI，全局共用）---
     page_crawl_fetch_timeout_s: float = Field(default=3.0, ge=1.0, le=120.0)
     page_crawl_crawl_timeout_s: float = Field(default=10.0, ge=5.0, le=120.0)
@@ -89,7 +93,6 @@ class Settings(BaseSettings):
     page_crawl_cache_ttl_s: int = Field(default=86_400, ge=0, le=86_400)
     page_crawl_negative_cache_ttl_s: int = Field(default=3600, ge=0, le=3600)
     page_crawl_rate_limit_negative_ttl_s: int = Field(default=60, ge=0, le=600)
-    page_crawl_dns_cache_ttl_s: int = Field(default=3600, ge=0, le=86_400)
     page_crawl_domain_limit_per_minute: int = Field(default=30, ge=0, le=1000)
     page_crawl_domain_max_inflight: int = Field(default=3, ge=0, le=100)
     page_crawl_domain_limit_wait_s: float = Field(default=15.0, ge=0.0, le=120.0)

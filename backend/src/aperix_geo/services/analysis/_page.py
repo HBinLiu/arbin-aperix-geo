@@ -1,4 +1,4 @@
-"""Shared period/rank presentation helpers for analysis pages."""
+"""Period/rank/pagination helpers for analysis pages."""
 
 from __future__ import annotations
 
@@ -80,3 +80,14 @@ def build_rank_table_rows(
             }
         )
     return rows
+
+
+def normalize_pagination(
+    page: int,
+    page_size: int,
+    *,
+    max_page_size: int = 100,
+) -> tuple[int, int]:
+    safe_page = max(1, page)
+    safe_page_size = max(1, min(page_size, max_page_size))
+    return safe_page, safe_page_size

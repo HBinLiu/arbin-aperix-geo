@@ -81,12 +81,7 @@ def _other_brand_has_domain_link(label: str, text: str, url_hosts: list[str]) ->
     if not url_hosts:
         return False
     domain = extract_domain_from_text_for_brand(text, label, None)
-    if domain and host_mentions_domain(domain, url_hosts):
-        return True
-    brand_key = label.strip().casefold()
-    if not brand_key:
-        return False
-    return any(brand_key in (host or "").casefold() for host in url_hosts)
+    return bool(domain and host_mentions_domain(domain, url_hosts))
 
 
 def _competitor_keys_by_label(

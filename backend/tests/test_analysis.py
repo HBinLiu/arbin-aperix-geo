@@ -37,7 +37,7 @@ def _patch_diagnosis_response_window(dt_from: datetime, dt_to: datetime):
 
 @contextmanager
 def _patch_diagnosis_content_from_signals(signals: list[LLMResponseSignalRow]):
-    from aperix_geo.services.analysis.diagnosis_page import (
+    from aperix_geo.services.analysis.diagnosis_sql import (
         query_diagnosis_content_page,
         query_diagnosis_content_summary,
     )
@@ -63,7 +63,7 @@ def _patch_diagnosis_content_from_signals(signals: list[LLMResponseSignalRow]):
 
 @contextmanager
 def _patch_diagnosis_detail_from_signals(signals: list[LLMResponseSignalRow]):
-    from aperix_geo.services.analysis.diagnosis_page import query_diagnosis_content_detail
+    from aperix_geo.services.analysis.diagnosis_sql import query_diagnosis_content_detail
     from tests.diagnosis_mem import mem_diagnosis_detail
 
     orig_detail = query_diagnosis_content_detail.override
@@ -981,7 +981,7 @@ def test_build_backlink_opportunities():
 
     from aperix_geo.db.models import Competitor
     from aperix_geo.services.analysis import build_backlink_opportunities
-    from aperix_geo.services.analysis.opportunity import _query_backlink_domain_stats
+    from aperix_geo.services.analysis.backlink_sql import _query_backlink_domain_stats
 
     subject = _subject()
     subject.competitors = [
@@ -1035,7 +1035,7 @@ def test_build_backlink_opportunities_groups_by_host():
     from datetime import UTC, datetime, timedelta
 
     from aperix_geo.services.analysis import build_backlink_opportunities
-    from aperix_geo.services.analysis.opportunity import _query_backlink_domain_stats
+    from aperix_geo.services.analysis.backlink_sql import _query_backlink_domain_stats
 
     subject = _subject()
     stats_items = [
@@ -1076,7 +1076,7 @@ def test_build_backlink_opportunities_search_and_pagination():
     from datetime import UTC, datetime, timedelta
 
     from aperix_geo.services.analysis import build_backlink_opportunities
-    from aperix_geo.services.analysis.opportunity import _query_backlink_domain_stats
+    from aperix_geo.services.analysis.backlink_sql import _query_backlink_domain_stats
 
     subject = _subject()
     stats_items = [
@@ -1135,7 +1135,7 @@ def test_build_backlink_opportunity_detail():
     from datetime import UTC, datetime, timedelta
 
     from aperix_geo.services.analysis import build_backlink_opportunity_detail
-    from aperix_geo.services.analysis.opportunity import _BacklinkDomainContext, _query_backlink_domain_context
+    from aperix_geo.services.analysis.backlink_sql import _BacklinkDomainContext, _query_backlink_domain_context
 
     subject = _subject()
     ctx = _BacklinkDomainContext(

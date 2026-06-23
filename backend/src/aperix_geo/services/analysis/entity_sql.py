@@ -13,6 +13,11 @@ from sqlalchemy import Select, case, func, select
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import LLMResponseSignal, Prompt, Subject, SubjectType
+from aperix_geo.services.analysis._sql_daily import (
+    daily_citation_series,
+    daily_multi_label_series,
+    parse_row_day,
+)
 from aperix_geo.services.analysis._sql_metrics import (
     agg_metric_columns,
     mentioned_count_expr,
@@ -225,34 +230,24 @@ def _daily_share_series_from_rows(
     metric: Literal["visibility", "mention", "share_voice"],
     labels: list[str] | None = None,
 ) -> list[dict[str, Any]]:
-    label_by_id = {entity.id: entity.label for entity in entities}
-    label_set = set(labels) if labels is not None else None
-    by_day: dict[date, dict[str, float]] = defaultdict(dict)
-
-    for row in daily_rows:
-        day = row.day
-        if isinstance(day, str):
-            day = date.fromisoformat(day)
-        entity_id = str(row.entity_id)
-        label = label_by_id.get(entity_id)
-        if not label or (label_set is not None and label not in label_set):
-            continue
+    def value_fn(row: Any) -> float:
         n = int(row.response_count or 0)
         if n == 0:
-            value = 0.0
-        elif metric == "share_voice":
-            total_voice = daily_voice.get(day, 0)
+            return 0.0
+        if metric == "share_voice":
+            total_voice = daily_voice.get(parse_row_day(row.day), 0)
             mention_total = int(row.mention_total or 0)
-            value = round(mention_total / total_voice, 4) if total_voice else 0.0
-        elif metric == "mention":
-            mention_total = int(row.mention_total or 0)
-            value = round(mention_total / n, 4)
-        else:
-            mentioned_rows = int(row.mentioned_rows or 0)
-            value = round(mentioned_rows / n, 4)
-        by_day[day][label] = value
+            return round(mention_total / total_voice, 4) if total_voice else 0.0
+        if metric == "mention":
+            return round(int(row.mention_total or 0) / n, 4)
+        return round(int(row.mentioned_rows or 0) / n, 4)
 
-    return [{"date": day.isoformat(), "values": values} for day, values in sorted(by_day.items())]
+    return daily_multi_label_series(
+        daily_rows,
+        entities=entities,
+        value_fn=value_fn,
+        labels=labels,
+    )
 
 
 def _daily_average_rank_series_from_rows(
@@ -264,9 +259,7 @@ def _daily_average_rank_series_from_rows(
     for row in daily_rows:
         if str(row.entity_id) != entity_id:
             continue
-        day = row.day
-        if isinstance(day, str):
-            day = date.fromisoformat(day)
+        day = parse_row_day(row.day)
         avg_rank_raw = row.avg_rank
         if avg_rank_raw is None:
             value = None
@@ -281,9 +274,7 @@ def _daily_average_rank_series_from_rows(
 def _daily_voice_map(rows: list[Any]) -> dict[date, int]:
     out: dict[date, int] = {}
     for row in rows:
-        day = row.day
-        if isinstance(day, str):
-            day = date.fromisoformat(day)
+        day = parse_row_day(row.day)
         out[day] = int(row.total_voice or 0)
     return out
 
@@ -295,9 +286,7 @@ def _sentiment_distribution_from_rows(
 ) -> list[dict[str, Any]]:
     by_day: dict[date, list[Any]] = defaultdict(list)
     for row in rows:
-        day = row.day
-        if isinstance(day, str):
-            day = date.fromisoformat(day)
+        day = parse_row_day(row.day)
         by_day[day].append(row)
 
     platform_filter = set(platform_ids) if platform_ids else None
@@ -522,23 +511,13 @@ def _daily_citation_share_series_from_rows(
     entities: list[AnalysisEntity],
     labels: list[str] | None = None,
 ) -> list[dict[str, Any]]:
-    label_by_id = {entity.id: entity.label for entity in entities}
-    label_set = set(labels) if labels is not None else None
-    by_day: dict[date, dict[str, float]] = defaultdict(dict)
-
-    for row in daily_rows:
-        day = row.day
-        if isinstance(day, str):
-            day = date.fromisoformat(day)
-        entity_id = str(row.entity_id)
-        label = label_by_id.get(entity_id)
-        if not label or (label_set is not None and label not in label_set):
-            continue
-        mentioned_rows = int(row.mentioned_rows or 0)
-        with_link = int(getattr(row, "mention_with_link", 0) or 0)
-        by_day[day][label] = round(with_link / mentioned_rows, 4) if mentioned_rows else 0.0
-
-    return [{"date": day.isoformat(), "values": values} for day, values in sorted(by_day.items())]
+    return daily_citation_series(
+        daily_rows,
+        entities=entities,
+        labels=labels,
+        with_link_attr="mention_with_link",
+        mentioned_attr="mentioned_rows",
+    )
 
 
 def daily_citation_share_series_for_window(

@@ -18,7 +18,7 @@ from aperix_geo.services.analysis._series import (
 )
 from aperix_geo.services.analysis.aggregate import rank_dict_from_entity_rows
 from aperix_geo.services.analysis.catalog import load_topic_prompt_catalog
-from aperix_geo.services.analysis._page_helpers import (
+from aperix_geo.services.analysis._page import (
     build_rank_table_rows,
     metric_with_rank,
     previous_value,

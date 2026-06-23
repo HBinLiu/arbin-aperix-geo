@@ -15,7 +15,7 @@ from aperix_geo.services.analysis._series import (
     slim_daily_series,
 )
 from aperix_geo.services.analysis.citation_sql import query_citation
-from aperix_geo.services.analysis._page_helpers import build_rank_table_rows, previous_value
+from aperix_geo.services.analysis._page import build_rank_table_rows, previous_value
 from aperix_geo.services.analysis.entity import (
     entity_chart_labels,
     list_analysis_entities,

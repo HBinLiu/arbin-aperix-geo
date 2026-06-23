@@ -12,6 +12,7 @@ Semantic layers (pick the narrowest that fits):
 - ``resolve_website`` — probe and resolve homepage URL
 - ``crawl_cache_url`` — crawl cache key normalization
 - ``host_under_root`` — whether a host belongs to a registrable root
+- ``dns_timeout_s`` / ``dns_cache_ttl_s`` — project DNS settings (``DNS_TIMEOUT_S`` / ``DNS_CACHE_TTL_S``)
 
 Business modules should import from this module only (enforced by ``tests/test_import_conventions.py``).
 """
@@ -28,6 +29,13 @@ from aperix_geo.utils.domains import (
     is_valid_hostname,
     registrable_from,
     site_name_from_title,
+)
+from aperix_geo.utils.dns import (
+    clear_dns_cache,
+    dns_cache_ttl_s,
+    dns_timeout_s,
+    host_has_dns_records,
+    registrable_domain,
 )
 from aperix_geo.utils.url import (
     apex_homepage_urls,
@@ -50,6 +58,9 @@ from aperix_geo.utils.url import (
 )
 
 __all__ = [
+    "clear_dns_cache",
+    "dns_cache_ttl_s",
+    "dns_timeout_s",
     "apex_homepage_urls",
     "brand_from",
     "citation_from",
@@ -62,6 +73,7 @@ __all__ = [
     "filter_citation_urls",
     "homepage_urls",
     "host_from",
+    "host_has_dns_records",
     "host_resolves",
     "host_resolves_public",
     "host_under_root",
@@ -73,6 +85,7 @@ __all__ = [
     "parse_url",
     "profile_crawl_urls",
     "registrable_from",
+    "registrable_domain",
     "resolve_website",
     "site_name_from_title",
     "website_candidates",

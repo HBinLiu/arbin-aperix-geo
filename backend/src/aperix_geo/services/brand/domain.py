@@ -15,7 +15,13 @@ from aperix_geo.services.brand.cache import (
 )
 from aperix_geo.services.brand.catalog import BrandSyncContext
 from aperix_geo.services.searxng import SearchHit, search_text
-from aperix_geo.utils.net import brand_from, extract_urls, host_from, is_brand_domain
+from aperix_geo.utils.net import (
+    brand_from,
+    extract_urls,
+    host_from,
+    is_brand_domain,
+    registrable_domain,
+)
 
 # 品牌域名解析时排除的泛域/媒体站（与竞品发现无关，仅用于 search 结果过滤）
 _SKIP_SEARCH_DOMAINS: frozenset[str] = frozenset(
@@ -121,6 +127,14 @@ def _is_usable_brand_domain(domain: str) -> bool:
     return True
 
 
+def _discovered_domain_if_resolvable(domain: str) -> str:
+    """Accept inferred domains only when DNS resolves (root or www)."""
+    normalized = brand_from(domain)
+    if not normalized or not registrable_domain(normalized):
+        return ""
+    return normalized
+
+
 def _brand_match_key(brand: str) -> str:
     return brand.strip().casefold()
 
@@ -211,7 +225,9 @@ def resolve_brand_domain(
             sync_ctx.remember_domain(brand, domain)
         return domain
 
-    from_text = extract_domain_from_text_for_brand(raw_text, brand, urls)
+    from_text = _discovered_domain_if_resolvable(
+        extract_domain_from_text_for_brand(raw_text, brand, urls)
+    )
     if from_text:
         remember_brand_domain_cached(subject_id=subject_id, brand=brand, domain=from_text)
         if sync_ctx is not None:
@@ -219,7 +235,7 @@ def resolve_brand_domain(
         return from_text
 
     if allow_search:
-        from_search = search_brand_official_domain(brand)
+        from_search = _discovered_domain_if_resolvable(search_brand_official_domain(brand))
         if from_search:
             remember_brand_domain_cached(subject_id=subject_id, brand=brand, domain=from_search)
             if sync_ctx is not None:

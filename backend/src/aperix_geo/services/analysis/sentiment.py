@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import Subject
 from aperix_geo.services.analysis._series import previous_date_range
-from aperix_geo.services.analysis._page_helpers import build_rank_table_rows, previous_value
+from aperix_geo.services.analysis._page import build_rank_table_rows, previous_value
 from aperix_geo.services.analysis.entity import list_analysis_entities, resolve_analysis_entity
 from aperix_geo.services.analysis.entity_sql import (
     query_dual_entity_window,

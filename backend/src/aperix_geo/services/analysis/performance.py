@@ -9,6 +9,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import Subject
+from aperix_geo.services.analysis._page import normalize_pagination
 from aperix_geo.services.analysis.catalog import load_topic_prompt_catalog
 from aperix_geo.services.analysis.entity import resolve_analysis_entity
 from aperix_geo.services.analysis.grouped_sql import (
@@ -43,15 +44,6 @@ def build_topics_performance(
         platform=platform,
         topic_id=topic_id,
     )
-
-
-_MAX_PROMPT_PAGE_SIZE = 100
-
-
-def _normalize_prompt_pagination(page: int, page_size: int) -> tuple[int, int]:
-    safe_page = max(1, page)
-    safe_page_size = max(1, min(page_size, _MAX_PROMPT_PAGE_SIZE))
-    return safe_page, safe_page_size
 
 
 def _apply_prompt_search(rows: list[dict[str, Any]], search: str | None) -> list[dict[str, Any]]:
@@ -94,7 +86,7 @@ def _paginate_prompt_rows(
     page: int,
     page_size: int,
 ) -> tuple[list[dict[str, Any]], int, int, int]:
-    safe_page, safe_page_size = _normalize_prompt_pagination(page, page_size)
+    safe_page, safe_page_size = normalize_pagination(page, page_size)
     total = len(rows)
     start = (safe_page - 1) * safe_page_size
     return rows[start : start + safe_page_size], total, safe_page, safe_page_size

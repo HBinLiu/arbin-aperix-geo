@@ -98,10 +98,10 @@ def host_mentions_domain(domain: str, url_hosts: list[str]) -> bool:
     if not domain or not url_hosts:
         return False
     root = registrable_from(domain) or host_from(domain)
-    label = domain.split(".")[0].lower()
+    if not root:
+        return False
     for host in url_hosts:
-        host_lower = (host or "").lower()
-        if label in host_lower or host_under_root(host, root):
+        if host_under_root(host, root):
             return True
     return False
 

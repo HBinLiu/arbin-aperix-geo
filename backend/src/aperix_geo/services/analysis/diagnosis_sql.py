@@ -1,4 +1,4 @@
-"""DB-side pagination and summary aggregation for diagnosis content."""
+"""SQL aggregation for diagnosis content list, summary, and detail."""
 
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import EntityKind, Prompt, Subject
-from aperix_geo.services.analysis.diagnosis import (
-    _lookup_entity_citation_urls,
+from aperix_geo.services.analysis.diagnosis import _lookup_entity_citation_urls
+from aperix_geo.services.analysis.diagnosis_rules import (
     diagnosis_issue_type,
     gap_action_priority,
     mention_action_priority,

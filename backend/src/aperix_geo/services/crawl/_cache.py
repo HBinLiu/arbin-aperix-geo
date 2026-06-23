@@ -1,4 +1,4 @@
-"""L1 memory + L2 Redis TTL caches for page crawl (fetch results + DNS preflight)."""
+"""L1 memory + L2 Redis TTL caches for page crawl fetch results."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ import base64
 import gzip
 import hashlib
 import logging
-import socket
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -222,59 +221,3 @@ def set_negative_cached_page(
 
 def clear_page_cache() -> None:
     _page_memory.clear()
-
-
-# --- DNS preflight cache ---
-
-_DNS_L1_MAX = 2048
-_dns_memory = BoundedTTLCache(_DNS_L1_MAX)
-_DNS_REDIS_PREFIX = "aperix:dns:v1:"
-
-
-def _dns_redis_key(host: str) -> str:
-    digest = hashlib.sha256(host.strip().lower().encode("utf-8")).hexdigest()
-    return f"{_DNS_REDIS_PREFIX}{digest}"
-
-
-def _lookup_dns(host: str, *, timeout_s: float) -> bool:
-    try:
-        prev = socket.getdefaulttimeout()
-        socket.setdefaulttimeout(timeout_s)
-        try:
-            socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
-            return True
-        finally:
-            socket.setdefaulttimeout(prev)
-    except OSError:
-        return False
-
-
-def host_resolves_cached(host: str, *, timeout_s: float = 3.0, ttl_s: int = 0) -> bool:
-    key = host.strip().lower()
-    if not key:
-        return False
-    if ttl_s <= 0:
-        return _lookup_dns(key, timeout_s=timeout_s)
-
-    cached = _dns_memory.get(key)
-    if cached is not None:
-        return bool(cached)
-
-    hit = redis_get_json_with_remaining_ttl(_dns_redis_key(key))
-    if hit is not None:
-        data, remaining = hit
-        if "ok" in data:
-            ok = bool(data["ok"])
-            expires_at = int(data.get("expires_at") or (time.time() + remaining))
-            _dns_memory.set(key, ok, expires_at=expires_at)
-            return ok
-
-    ok = _lookup_dns(key, timeout_s=timeout_s)
-    expires_at = expires_at_from_ttl(ttl_s)
-    _dns_memory.set(key, ok, expires_at=expires_at)
-    redis_set_json_exat(_dns_redis_key(key), {"ok": ok, "expires_at": expires_at}, expires_at=expires_at)
-    return ok
-
-
-def clear_dns_cache() -> None:
-    _dns_memory.clear()

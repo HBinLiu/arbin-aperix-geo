@@ -31,6 +31,7 @@ dependencies = [
     "alibabacloud-dysmsapi20170525>=4.0.0",
     "publicsuffix2>=1.0.0",
     "validators>=0.34.0",
+    "dnspython>=2.6.0",
 ]
 
 [project.scripts]

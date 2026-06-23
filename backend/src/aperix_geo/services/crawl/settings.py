@@ -20,7 +20,6 @@ class PageCrawlSettings:
     cache_ttl_s: int
     negative_cache_ttl_s: int
     rate_limit_negative_ttl_s: int
-    dns_cache_ttl_s: int
 
 
 def page_crawl_settings(settings: Settings | None = None) -> PageCrawlSettings:
@@ -37,7 +36,6 @@ def page_crawl_settings(settings: Settings | None = None) -> PageCrawlSettings:
         cache_ttl_s=s.page_crawl_cache_ttl_s,
         negative_cache_ttl_s=s.page_crawl_negative_cache_ttl_s,
         rate_limit_negative_ttl_s=s.page_crawl_rate_limit_negative_ttl_s,
-        dns_cache_ttl_s=s.page_crawl_dns_cache_ttl_s,
     )
 
 

@@ -11,10 +11,11 @@ from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import Prompt, Subject, Topic
 from aperix_geo.services.analysis._query import responses_in_window
-from aperix_geo.services.analysis._series import previous_date_range
-from aperix_geo.services.analysis.aggregate import mentioned_brands_for_response, metrics_from_signals
-from aperix_geo.services.analysis.diagnosis import (
-    diagnosis_gap_metrics,
+from aperix_geo.services.analysis._rows import build_citation_response_row
+from aperix_geo.services.analysis._series import previous_date_range, single_value_series
+from aperix_geo.services.analysis.aggregate import metrics_from_signals
+from aperix_geo.services.analysis.diagnosis import diagnosis_gap_metrics
+from aperix_geo.services.analysis.diagnosis_rules import (
     diagnosis_mention_rate,
     has_diagnosis_content_gap,
     mention_action_priority,
@@ -30,21 +31,9 @@ from aperix_geo.services.analysis.entity_sql import (
 from aperix_geo.services.analysis.grouped_sql import query_platform_metrics
 from aperix_geo.services.analysis.signal_load import (
     LLMResponseSignalRow,
-    load_llm_response_other_brand_signals,
     load_llm_response_signals,
+    load_mention_brand_signals,
 )
-from aperix_geo.utils.mention import has_mention_rank
-from aperix_geo.utils.text import reply_text, truncate_text
-
-
-def _single_value_series(
-    multi_series: list[dict[str, Any]],
-    label: str,
-) -> list[dict[str, Any]]:
-    return [
-        {"date": point["date"], "value": point["values"].get(label)}
-        for point in multi_series
-    ]
 
 
 def _metrics_from_entity_row(entity_rows: list[dict[str, Any]], entity_id: str) -> dict[str, Any]:
@@ -114,31 +103,14 @@ def _citation_response_rows(
 ) -> list[dict[str, Any]]:
     citation: list[dict[str, Any]] = []
     for row in sorted(rows, key=lambda item: item.created_at, reverse=True):
-        signal = signal_by_response.get(row.id)
-        if signal is None or not (signal.has_domain_link or signal.cited_on_source):
-            continue
-        mentioned = signal.mentioned
-        rank = (
-            round(float(signal.mention_rank), 1)
-            if has_mention_rank(signal.mention_rank)
-            else None
+        item = build_citation_response_row(
+            row,
+            signal_by_response.get(row.id),
+            all_signals=all_signals,
+            entities=entities,
         )
-        citation.append(
-            {
-                "response_id": str(row.id),
-                "platform": row.platform,
-                "reply_preview": truncate_text(reply_text(row.raw_text), 120, suffix="…"),
-                "mentioned_brands": mentioned_brands_for_response(
-                    row.id,
-                    all_signals=all_signals,
-                    entities=entities,
-                ),
-                "mentioned": mentioned,
-                "rank": rank,
-                "created_at": row.created_at.isoformat(),
-                "cited_on_source": signal.cited_on_source,
-            }
-        )
+        if item is not None:
+            citation.append(item)
     return citation
 
 
@@ -182,7 +154,7 @@ def build_prompt_detail(
     current = windows["current"]
     focus_metrics = _metrics_from_entity_row(current.entity_rows, entity.id)
 
-    visibility_series = _single_value_series(
+    visibility_series = single_value_series(
         daily_share_series_for_window(
             current,
             entities=entities,
@@ -195,7 +167,7 @@ def build_prompt_detail(
         current,
         entity_id=entity.id,
     )
-    citation_series = _single_value_series(
+    citation_series = single_value_series(
         daily_citation_share_series_for_window(
             current,
             entities=entities,
@@ -233,7 +205,7 @@ def build_prompt_detail(
         prompt_id=prompt_id,
     )
     focus_signals = [row for row in current_signals if row.entity_id == entity.id]
-    other_brand_signals = load_llm_response_other_brand_signals(
+    mention_brand_signals = load_mention_brand_signals(
         db,
         subject=subject,
         dt_from=dt_from,
@@ -242,7 +214,6 @@ def build_prompt_detail(
         topic_id=topic_id,
         prompt_id=prompt_id,
     )
-    mention_brand_signals = [*current_signals, *other_brand_signals]
 
     response_rows = responses_in_window(
         db,

@@ -326,7 +326,8 @@ def test_parse_llm_output_overlaps_absa_with_page_fetch() -> None:
     mock_settings.page_crawl_concurrency = 10
     mock_settings.page_crawl_cache_ttl_s = 3600
     mock_settings.page_crawl_negative_cache_ttl_s = 300
-    mock_settings.page_crawl_dns_cache_ttl_s = 3600
+    mock_settings.dns_timeout_s = 1.0
+    mock_settings.dns_cache_ttl_s = 3600
     mock_settings.citation_text_snippet_chars = 4000
     mock_settings.citation_response_absa_cache_ttl_s = 3600
     mock_settings.deepseek_chat_timeout_s = 120.0

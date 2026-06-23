@@ -240,3 +240,39 @@ class _LoadLLMResponseOtherBrandSignals:
 
 
 load_llm_response_other_brand_signals = _LoadLLMResponseOtherBrandSignals()
+
+
+def load_mention_brand_signals(
+    db: Session,
+    *,
+    subject: Subject,
+    dt_from: datetime,
+    dt_to: datetime,
+    platform: list[str] | None = None,
+    topic_id: list[UUID] | None = None,
+    prompt_id: UUID | None = None,
+    response_ids: list[UUID] | None = None,
+) -> list[LLMResponseSignalRow]:
+    """Own/competitor + open-set brand signals for ``mentioned_brands`` display."""
+    return [
+        *load_llm_response_signals(
+            db,
+            subject=subject,
+            dt_from=dt_from,
+            dt_to=dt_to,
+            platform=platform,
+            topic_id=topic_id,
+            prompt_id=prompt_id,
+            response_ids=response_ids,
+        ),
+        *load_llm_response_other_brand_signals(
+            db,
+            subject=subject,
+            dt_from=dt_from,
+            dt_to=dt_to,
+            platform=platform,
+            topic_id=topic_id,
+            prompt_id=prompt_id,
+            response_ids=response_ids,
+        ),
+    ]

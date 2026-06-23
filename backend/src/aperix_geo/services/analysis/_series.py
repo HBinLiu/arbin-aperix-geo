@@ -43,6 +43,17 @@ def slim_daily_series(
     ]
 
 
+def single_value_series(
+    multi_series: list[dict[str, Any]],
+    label: str,
+) -> list[dict[str, Any]]:
+    """Extract one entity label from a multi-brand daily series."""
+    return [
+        {"date": point["date"], "value": point["values"].get(label)}
+        for point in multi_series
+    ]
+
+
 def align_previous_single_series(
     current_series: list[dict[str, Any]],
     previous_series: list[dict[str, Any]],

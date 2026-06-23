@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
 from collections.abc import Callable
-from datetime import date, datetime
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -12,6 +11,7 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import LLMResponseSignal, Prompt, Subject
+from aperix_geo.services.analysis._sql_daily import citation_rate, daily_citation_series
 from aperix_geo.services.analysis._sql_metrics import mentioned_count_expr, with_link_count_expr
 from aperix_geo.services.analysis._sql_scope import scope_where
 from aperix_geo.services.analysis.entity import AnalysisEntity, list_analysis_entities
@@ -50,10 +50,6 @@ def _daily_entity_citation_metrics_stmt(**window: Any) -> Select[tuple[Any, ...]
     )
 
 
-def _citation_rate(with_link: int, mentioned: int) -> float:
-    return round(with_link / mentioned, 4) if mentioned else 0.0
-
-
 def _share_by_label(
     rows: list[Any],
     *,
@@ -67,7 +63,7 @@ def _share_by_label(
     for entity in entities:
         with_link, mentioned = by_entity_id.get(entity.id, (0, 0))
         counts[entity.label] = with_link
-        share[entity.label] = _citation_rate(with_link, mentioned)
+        share[entity.label] = citation_rate(with_link, mentioned)
     return counts, share
 
 
@@ -76,25 +72,7 @@ def _daily_series_by_label(
     *,
     entities: list[AnalysisEntity],
 ) -> list[dict[str, Any]]:
-    label_by_id = {entity.id: entity.label for entity in entities}
-    by_day: dict[date, dict[str, float]] = defaultdict(dict)
-    for row in rows:
-        day = row.day
-        if isinstance(day, str):
-            day = date.fromisoformat(day)
-        entity_id = str(row.entity_id)
-        label = label_by_id.get(entity_id)
-        if not label:
-            continue
-        with_link = int(row.with_link or 0)
-        mentioned = int(row.mentioned or 0)
-        by_day[day][label] = _citation_rate(with_link, mentioned)
-
-    series: list[dict[str, Any]] = []
-    for day in sorted(by_day.keys()):
-        values = by_day[day]
-        series.append({"date": day.isoformat(), "values": values})
-    return series
+    return daily_citation_series(rows, entities=entities)
 
 
 def _window_has_data(db: Session, **window: Any) -> bool:

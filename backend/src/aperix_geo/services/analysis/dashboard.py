@@ -15,7 +15,7 @@ from aperix_geo.services.analysis._series import (
     slim_daily_series,
 )
 from aperix_geo.services.analysis.catalog import load_topic_prompt_catalog
-from aperix_geo.services.analysis._page_helpers import (
+from aperix_geo.services.analysis._page import (
     build_rank_table_rows,
     metric_period,
     metric_with_rank,

@@ -154,14 +154,12 @@ def test_filter_citation_urls() -> None:
 
 
 def test_host_resolves_public_rejects_private() -> None:
-    import socket
+    from aperix_geo.utils.url import host_resolves_public
 
-    def _addrinfo(host: str, port: int, *args, **kwargs):
-        if host == "internal.example":
-            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.1", port))]
-        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port))]
-
-    with patch("socket.getaddrinfo", side_effect=_addrinfo):
+    with patch("aperix_geo.utils.dns.resolve_host_addresses") as mock_addrs:
+        mock_addrs.side_effect = lambda host, **kwargs: (
+            ["10.0.0.1"] if host == "internal.example" else ["93.184.216.34"]
+        )
         assert host_resolves_public("internal.example") is False
         assert host_resolves_public("wise.com") is True
 

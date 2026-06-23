@@ -156,51 +156,20 @@ def crawl_cache_url(url: str) -> str:
     return urlunparse((parsed.scheme.lower(), parsed.netloc.lower(), path, "", query, ""))
 
 
-def host_resolves(host: str, *, timeout_s: float = 3.0) -> bool:
-    from aperix_geo.services.crawl._cache import _lookup_dns, host_resolves_cached
-    from aperix_geo.services.crawl.settings import page_crawl_settings
+def host_resolves(host: str, *, timeout_s: float | None = None) -> bool:
+    from aperix_geo.utils.dns import host_has_dns_records
 
-    ttl_s = page_crawl_settings().dns_cache_ttl_s
-    if ttl_s <= 0:
-        return _lookup_dns(host, timeout_s=timeout_s)
-
-    return host_resolves_cached(host, timeout_s=timeout_s, ttl_s=ttl_s)
+    return host_has_dns_records(host, timeout_s=timeout_s)
 
 
-def host_resolves_public(host: str, *, timeout_s: float = 3.0) -> bool:
+def host_resolves_public(host: str, *, timeout_s: float | None = None) -> bool:
     """True when DNS resolves and every A/AAAA address is a public routable IP."""
-    import ipaddress
-    import socket
+    from aperix_geo.utils.dns import host_resolves_public as dns_host_resolves_public
 
     key = (host or "").strip().lower()
     if not key:
         return False
-    try:
-        prev = socket.getdefaulttimeout()
-        socket.setdefaulttimeout(timeout_s)
-        try:
-            infos = socket.getaddrinfo(key, 443, type=socket.SOCK_STREAM)
-        finally:
-            socket.setdefaulttimeout(prev)
-    except OSError:
-        return False
-    if not infos:
-        return False
-    for info in infos:
-        addr = info[4][0]
-        try:
-            ip = ipaddress.ip_address(addr)
-        except ValueError:
-            return False
-        if (
-            ip.is_private
-            or ip.is_loopback
-            or ip.is_link_local
-            or ip.is_reserved
-            or ip.is_multicast
-        ):
-            return False
-    return True
+    return dns_host_resolves_public(key, timeout_s=timeout_s)
 
 
 def _homepage_https_urls(domain: str, *, prefer_www: bool) -> list[str]:

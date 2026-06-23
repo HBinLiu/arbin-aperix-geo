@@ -22,13 +22,12 @@ from aperix_geo.services.analysis.diagnosis import (
 )
 from aperix_geo.services.analysis.entity import list_analysis_entities, resolve_analysis_entity
 from aperix_geo.services.analysis.metrics import MetricsBundle, build_analysis_entities
-from aperix_geo.services.analysis.opportunity import (
+from aperix_geo.services.analysis.backlink import (
     build_backlink_opportunities,
     build_backlink_opportunity_detail,
     build_backlink_opportunity_prompts_page,
     build_backlink_opportunity_urls_page,
 )
-from aperix_geo.services.analysis.overview import build_overview
 from aperix_geo.services.analysis.performance import (
     build_platform_performance,
     build_prompts_performance,
@@ -49,14 +48,12 @@ __all__ = [
     "MetricsBundle",
     "VISIBILITY_CHART_LABEL_LIMIT",
     "TOPIC_VISIBILITY_RANK_LIMIT",
-    "build_overview",
     "build_dashboard_overview",
     "build_rank",
     "build_topics_performance",
     "build_prompts_performance",
     "build_prompts_performance_page",
     "build_prompt_detail",
-
     "build_topic_visibility_ranks",
     "build_visibility_analysis",
     "build_platform_performance",
