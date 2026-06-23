@@ -234,11 +234,11 @@ export async function fetchCitationUrls(
 export async function fetchCitationDomainAnalysis(
   subjectId: string,
   filters: AnalysisQueryFilters,
-  host: string,
+  domain: string,
 ): Promise<CitationDomainAnalysisData> {
   const body: Record<string, string | string[]> = {
     ...buildAnalysisParams(filters),
-    host,
+    domain,
   };
   if (typeof body.platform === "string") {
     body.platform = [body.platform];
@@ -251,7 +251,7 @@ export async function fetchCitationDomainAnalysis(
 }
 
 type FetchCitationDomainListOptions = FetchCitationListOptions & {
-  host: string;
+  domain: string;
 };
 
 export async function fetchCitationDomainUrls(
@@ -261,7 +261,7 @@ export async function fetchCitationDomainUrls(
 ): Promise<CitationListPage<CitationUrlRow>> {
   const body: Record<string, string | number | string[] | undefined> = {
     ...buildAnalysisParams(filters),
-    host: options.host,
+    domain: options.domain,
     page: options.page ?? 1,
     page_size: options.pageSize ?? 10,
     sort_by: options.sortBy ?? "count",
@@ -284,7 +284,7 @@ export async function fetchCitationDomainPrompts(
 ): Promise<CitationListPage<CitationDomainBreakdownRow>> {
   const body: Record<string, string | number | string[] | undefined> = {
     ...buildAnalysisParams(filters),
-    host: options.host,
+    domain: options.domain,
     page: options.page ?? 1,
     page_size: options.pageSize ?? 10,
     sort_by: options.sortBy ?? "count",
@@ -455,13 +455,13 @@ export async function fetchBacklinkOpportunities(
 
 function buildBacklinkDetailBody(
   filters: AnalysisQueryFilters,
-  host: string,
+  domain: string,
   extra: Record<string, string | number | string[] | undefined> = {},
 ) {
   const params = buildAnalysisParams(filters);
   const body: Record<string, string | number | string[] | undefined> = {
     ...params,
-    host,
+    domain,
     ...extra,
   };
   if (typeof body.platform === "string") {
@@ -473,11 +473,11 @@ function buildBacklinkDetailBody(
 export async function fetchBacklinkOpportunityDetail(
   subjectId: string,
   filters: AnalysisQueryFilters,
-  options: { host: string },
+  options: { domain: string },
 ): Promise<BacklinkOpportunityDetailData> {
   const { data } = await api.post<BacklinkOpportunityDetailData>(
     `/subjects/${subjectId}/opportunity/backlink/detail`,
-    buildBacklinkDetailBody(filters, options.host),
+    buildBacklinkDetailBody(filters, options.domain),
   );
   return data;
 }
@@ -486,7 +486,7 @@ export async function fetchBacklinkOpportunityUrls(
   subjectId: string,
   filters: AnalysisQueryFilters,
   options: {
-    host: string;
+    domain: string;
     page?: number;
     pageSize?: number;
     sortBy?: CitationUrlSortField;
@@ -501,7 +501,7 @@ export async function fetchBacklinkOpportunityUrls(
     response_total: number;
   }>(
     `/subjects/${subjectId}/opportunity/backlink/detail/urls`,
-    buildBacklinkDetailBody(filters, options.host, {
+    buildBacklinkDetailBody(filters, options.domain, {
       page: options.page ?? 1,
       page_size: options.pageSize ?? 15,
       sort_by: options.sortBy ?? "count",
@@ -515,7 +515,7 @@ export async function fetchBacklinkOpportunityPrompts(
   subjectId: string,
   filters: AnalysisQueryFilters,
   options: {
-    host: string;
+    domain: string;
     page?: number;
     pageSize?: number;
     sortBy?: CitationDomainPromptSortField;
@@ -530,7 +530,7 @@ export async function fetchBacklinkOpportunityPrompts(
     response_total: number;
   }>(
     `/subjects/${subjectId}/opportunity/backlink/detail/prompts`,
-    buildBacklinkDetailBody(filters, options.host, {
+    buildBacklinkDetailBody(filters, options.domain, {
       page: options.page ?? 1,
       page_size: options.pageSize ?? 15,
       sort_by: options.sortBy ?? "count",

@@ -24,7 +24,7 @@ from aperix_geo.services.sampling.signal_draft import (
     EntitySignalDraft,
     build_mention_entity_signals,
 )
-from aperix_geo.utils.url import extract_urls, filter_citation_urls, hostname_from_url
+from aperix_geo.utils.net import extract_urls, filter_citation_urls, host_from
 
 
 @dataclass(frozen=True)
@@ -53,7 +53,7 @@ def extract_citation_urls(raw_text: str, source_urls: list[str] | None) -> tuple
         urls = filter_citation_urls(list(dict.fromkeys([*urls, *[url for url in source_urls if url]])))
     url_hosts: list[str] = []
     for url in urls:
-        host = hostname_from_url(url)
+        host = host_from(url)
         if host:
             url_hosts.append(host)
     return urls, url_hosts

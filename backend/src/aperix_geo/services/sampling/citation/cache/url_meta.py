@@ -6,7 +6,7 @@ from typing import Any
 
 from aperix_geo.config import get_settings
 from aperix_geo.utils.cache import TieredJsonCache
-from aperix_geo.utils.url import normalize_crawl_cache_url
+from aperix_geo.utils.net import crawl_cache_url
 
 _STORE = TieredJsonCache(
     redis_prefix="aperix:sampling:url_page_meta:v1:",
@@ -20,7 +20,7 @@ def _url_meta_cache_ttl_s() -> int:
 
 
 def get_url_citation_page(url: str) -> dict[str, Any] | None:
-    key = normalize_crawl_cache_url(url)
+    key = crawl_cache_url(url)
     if not key:
         return None
     ttl_s = _url_meta_cache_ttl_s()
@@ -40,7 +40,7 @@ def set_url_citation_page(payload: dict[str, Any], *, ttl_s: int | None = None) 
     effective_ttl = _url_meta_cache_ttl_s() if ttl_s is None else ttl_s
     if effective_ttl <= 0:
         return
-    key = normalize_crawl_cache_url(url)
+    key = crawl_cache_url(url)
     stored = dict(payload)
     stored.pop("expires_at", None)
     _STORE.set(key, stored, ttl_s=effective_ttl)

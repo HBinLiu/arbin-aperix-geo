@@ -1,31 +1,10 @@
-const MULTIPART_SUFFIXES = new Set([
-  "com.cn",
-  "net.cn",
-  "org.cn",
-  "gov.cn",
-  "edu.cn",
-  "ac.cn",
-  "co.uk",
-  "org.uk",
-  "com.au",
-  "co.jp",
-  "com.hk",
-  "com.tw",
-  "co.kr",
-  "com.sg",
-]);
+import { getDomain } from "tldts";
 
-/** 主域名（eTLD+1），与后端 registrable_domain 规则一致。 */
+/** 主域名（eTLD+1），与后端 registrable_from (publicsuffix2) 对齐。 */
 export function registrableDomain(raw: string): string {
-  let host = hostnameFromWebsiteInput(raw);
-  if (host.startsWith("www.")) host = host.slice(4);
-  const parts = host.split(".");
-  if (parts.length < 2) return host;
-  const suffix2 = parts.slice(-2).join(".");
-  if (MULTIPART_SUFFIXES.has(suffix2) && parts.length >= 3) {
-    return parts.slice(-3).join(".");
-  }
-  return suffix2;
+  const host = hostnameFromWebsiteInput(raw);
+  if (!host) return "";
+  return getDomain(host, { detectIp: false, allowPrivateDomains: false }) ?? "";
 }
 
 /** 从用户输入的 URL 或主机名得到小写 hostname，供 domain 类型主体写入后端。 */
@@ -34,17 +13,32 @@ export function hostnameFromWebsiteInput(raw: string): string {
   if (!s) return "";
   try {
     const withProto = /^https?:\/\//i.test(s) ? s : `https://${s}`;
-    return new URL(withProto).hostname.toLowerCase();
+    return new URL(withProto).hostname.toLowerCase().replace(/^www\./, "");
   } catch {
     return s
       .replace(/^https?:\/\//i, "")
       .split("/")[0]
+      ?.replace(/^www\./, "")
       ?.trim()
       .toLowerCase() ?? "";
   }
 }
 
-/** 将用户输入的 URL / 域名规范为可访问地址（保留路径，与 favicon 解析一致）。 */
+/**
+ * Favicon 缓存键：裸主域归 eTLD+1；gov 等有意义子域保留完整主机名。
+ * 与后端 favicon_from 一致。
+ */
+export function faviconDomainKey(raw: string): string {
+  const host = hostnameFromWebsiteInput(raw);
+  if (!host) return "";
+  const root = registrableDomain(host);
+  if (root && host !== root && host.endsWith(`.${root}`)) {
+    return host;
+  }
+  return root || host;
+}
+
+/** 将用户输入的 URL / 域名规范为可访问地址（保留路径；最终校验由后端 HttpUrl 完成）。 */
 export function websiteUrlFromInput(raw: string): string {
   const s = raw.trim();
   if (!s) return "";

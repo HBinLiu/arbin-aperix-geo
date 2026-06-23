@@ -13,7 +13,7 @@ from aperix_geo.services.brand.resolve import normalize_brand_key
 from aperix_geo.services.sampling.cache import clear_subject_sampling_cache
 from aperix_geo.services.subject.domain_fields import prepare_domain_and_website_url
 from aperix_geo.services.subject.labels import competitor_rank_label
-from aperix_geo.utils.domains import ensure_brand, registrable_domain
+from aperix_geo.utils.net import ensure_brand, registrable_from
 
 
 class PromoteBrandError(ValueError):
@@ -31,9 +31,9 @@ class PromoteBrandResult:
 
 def _competitor_conflicts(subject: Subject, *, brand: Brand) -> None:
     brand_key = normalize_brand_key(brand.brand)
-    domain_key = registrable_domain(brand.domain) if brand.domain else ""
+    domain_key = registrable_from(brand.domain) if brand.domain else ""
     for existing in subject.competitors or []:
-        existing_domain = registrable_domain(existing.domain) if existing.domain else ""
+        existing_domain = registrable_from(existing.domain) if existing.domain else ""
         if domain_key and existing_domain and domain_key == existing_domain:
             raise PromoteBrandError("该域名已是配置竞品")
         existing_brand_key = normalize_brand_key(existing.brand)

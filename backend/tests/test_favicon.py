@@ -1,27 +1,27 @@
-from aperix_geo.services.favicon import normalize_favicon_domain
+from aperix_geo.services.favicon import favicon_from
 from aperix_geo.services.favicon._fetch import sniff_image
 from aperix_geo.services.favicon._parse import parse_link_icons, parse_meta_images
 from aperix_geo.services.favicon._resolve import resolve_favicon_coalesced
 
 
-def test_normalize_favicon_domain() -> None:
+def test_favicon_from() -> None:
     from aperix_geo.services.favicon._domain import (
         is_favicon_homepage_url,
-        normalize_favicon_domain,
+        favicon_from,
         resolve_favicon_request_url,
     )
 
-    assert normalize_favicon_domain("huanqiulvzhou.com") == "huanqiulvzhou.com"
-    assert normalize_favicon_domain("example.com") == "example.com"
-    assert normalize_favicon_domain("www.Airwallex.com") == "airwallex.com"
-    assert normalize_favicon_domain("https://www.shop.foo.com/path") == "shop.foo.com"
-    assert normalize_favicon_domain("m.example.com.cn") == "m.example.com.cn"
-    assert normalize_favicon_domain("yjj.gxzf.gov.cn") == "yjj.gxzf.gov.cn"
-    assert normalize_favicon_domain("m.iefans.net") == "m.iefans.net"
-    assert normalize_favicon_domain("https://m.iefans.net/android/1728638.html") == "m.iefans.net"
+    assert favicon_from("huanqiulvzhou.com") == "huanqiulvzhou.com"
+    assert favicon_from("example.com") == "example.com"
+    assert favicon_from("www.Airwallex.com") == "airwallex.com"
+    assert favicon_from("https://www.shop.foo.com/path") == "shop.foo.com"
+    assert favicon_from("m.example.com.cn") == "m.example.com.cn"
+    assert favicon_from("yjj.gxzf.gov.cn") == "yjj.gxzf.gov.cn"
+    assert favicon_from("m.iefans.net") == "m.iefans.net"
+    assert favicon_from("https://m.iefans.net/android/1728638.html") == "m.iefans.net"
 
     resolved = resolve_favicon_request_url("https://geowise.newrank.cn/")
-    assert resolved == ("geowise.newrank.cn", "https://geowise.newrank.cn/")
+    assert resolved == ("geowise.newrank.cn", "https://geowise.newrank.cn")
     assert is_favicon_homepage_url("https://example.com/", "example.com") is True
     assert is_favicon_homepage_url("https://m.example.com/article", "example.com") is False
 

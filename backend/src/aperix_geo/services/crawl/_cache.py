@@ -16,7 +16,7 @@ from aperix_geo.utils.cache import (
     redis_get_json_with_remaining_ttl,
     redis_set_json_exat,
 )
-from aperix_geo.utils.url import normalize_crawl_cache_url
+from aperix_geo.utils.net import crawl_cache_url
 
 if TYPE_CHECKING:
     from aperix_geo.services.crawl.types import PageFetchResult
@@ -66,7 +66,7 @@ def _unpack_redis_fields(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _logical_key(url: str, *, max_chars: int, crawl_fallback: bool) -> str:
-    normalized = normalize_crawl_cache_url(url)
+    normalized = crawl_cache_url(url)
     return f"{normalized}|{max_chars}|{int(crawl_fallback)}"
 
 
@@ -201,7 +201,7 @@ def set_cached_page(
     payload["expires_at"] = expires_at
     _page_memory.set(logical, payload, expires_at=expires_at)
     redis_set_json_exat(_page_redis_key(logical), _pack_redis_fields(payload), expires_at=expires_at)
-    logger.debug("页面抓取缓存写入 %s", normalize_crawl_cache_url(url.strip()))
+    logger.debug("页面抓取缓存写入 %s", crawl_cache_url(url.strip()))
 
 
 def set_negative_cached_page(

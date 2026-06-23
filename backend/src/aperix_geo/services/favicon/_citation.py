@@ -7,7 +7,7 @@ import threading
 
 from aperix_geo.config import get_settings
 from aperix_geo.services.crawl._httpx import get_icon_httpx_client
-from aperix_geo.services.favicon._domain import normalize_favicon_domain
+from aperix_geo.utils.net import favicon_from
 from aperix_geo.services.favicon._fetch import fetch_first_icon
 from aperix_geo.services.favicon._parse import page_icon_candidates_from_html
 from aperix_geo.services.favicon._storage import read_cached_favicon, static_favicon_path
@@ -35,7 +35,7 @@ def maybe_cache_favicon_from_page_html(
     if not page_url or not html.strip():
         return False
 
-    domain = normalize_favicon_domain(page_url)
+    domain = favicon_from(page_url)
     if not domain or favicon_cached_for_domain(domain):
         return False
 

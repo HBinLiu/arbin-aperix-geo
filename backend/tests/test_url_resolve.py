@@ -6,20 +6,20 @@ import httpx
 
 from aperix_geo.services.crawl._crawl4ai import result_markdown
 from aperix_geo.utils.url import (
-    fallback_website_url,
+    apex_homepage_urls,
+    crawl_cache_url,
     homepage_urls,
-    homepage_urls_apex_first,
     host_resolves,
-    normalize_crawl_cache_url,
-    normalize_page_url,
-    profile_homepage_crawl_urls,
-    resolve_website_url,
-    root_website_url,
+    page_url,
+    profile_crawl_urls,
+    resolve_website,
+    website_fallback,
+    website_root_url,
 )
 
 
-def test_root_website_url() -> None:
-    assert root_website_url("https://www.Example.com/path?q=1") == "https://www.example.com"
+def test_website_root_url() -> None:
+    assert website_root_url("https://www.Example.com/path?q=1") == "https://www.example.com"
 
 
 def test_prepare_domain_and_website_url_preserves_user_input() -> None:
@@ -27,7 +27,7 @@ def test_prepare_domain_and_website_url_preserves_user_input() -> None:
 
     domain, url = prepare_domain_and_website_url("aibase.com", "https://geo.aibase.com/")
     assert domain == "aibase.com"
-    assert url == "https://geo.aibase.com/"
+    assert url == "https://geo.aibase.com"
 
     domain, url = prepare_domain_and_website_url(
         "aibase.com",
@@ -38,14 +38,14 @@ def test_prepare_domain_and_website_url_preserves_user_input() -> None:
     assert url == "https://geo.aibase.com/about"
 
 
-def test_resolve_website_url_without_probe() -> None:
-    domain, url = resolve_website_url("https://www.stripe.com/pricing", probe=False)
+def test_resolve_website_without_probe() -> None:
+    domain, url = resolve_website("https://www.stripe.com/pricing", probe=False)
     assert domain == "stripe.com"
-    assert url == fallback_website_url("stripe.com")
+    assert url == website_fallback("stripe.com")
 
 
 @patch("aperix_geo.utils.url.host_resolves", return_value=False)
-def test_resolve_website_url_probe_success(_mock_resolve: MagicMock) -> None:
+def test_resolve_website_probe_success(_mock_resolve: MagicMock) -> None:
     class _Client:
         def get(self, url: str, **kwargs):  # noqa: ANN003
             if url == "https://example.com":
@@ -59,23 +59,23 @@ def test_resolve_website_url_probe_success(_mock_resolve: MagicMock) -> None:
             return False
 
     with patch("aperix_geo.utils.url.httpx.Client", return_value=_Client()):
-        domain, url = resolve_website_url("example.com", probe=True, timeout_s=1.0)
+        domain, url = resolve_website("example.com", probe=True, timeout_s=1.0)
 
     assert domain == "example.com"
     assert url == "https://example.com"
 
 
-def test_normalize_page_url() -> None:
-    assert normalize_page_url("https://Example.com/about/") == "https://example.com/about"
-    assert normalize_page_url("https://example.com/pricing#x") == "https://example.com/pricing"
+def test_page_url() -> None:
+    assert page_url("https://Example.com/about/") == "https://example.com/about"
+    assert page_url("https://example.com/pricing#x") == "https://example.com/pricing"
 
 
-def test_normalize_crawl_cache_url() -> None:
-    assert normalize_crawl_cache_url("https://Example.com/page/?utm_source=x&a=1") == (
+def test_crawl_cache_url() -> None:
+    assert crawl_cache_url("https://Example.com/page/?utm_source=x&a=1") == (
         "https://example.com/page?a=1"
     )
-    assert normalize_crawl_cache_url("https://example.com/page/?fbclid=abc") == "https://example.com/page"
-    assert normalize_crawl_cache_url("https://example.com/page/?utm=1") == "https://example.com/page"
+    assert crawl_cache_url("https://example.com/page/?fbclid=abc") == "https://example.com/page"
+    assert crawl_cache_url("https://example.com/page/?utm=1") == "https://example.com/page"
 
 
 def test_result_markdown_from_object() -> None:
@@ -103,18 +103,18 @@ def test_homepage_urls_prefers_www(monkeypatch) -> None:
     assert all(u.startswith("https://") for u in urls)
 
 
-def test_homepage_urls_apex_first(monkeypatch) -> None:
+def test_apex_homepage_urls(monkeypatch) -> None:
     monkeypatch.setattr(
         "aperix_geo.utils.url.host_resolves",
         lambda host: host in {"example.com", "www.example.com"},
     )
-    urls = homepage_urls_apex_first("example.com")
+    urls = apex_homepage_urls("example.com")
     assert urls[0] == "https://example.com/"
     assert urls[1] == "https://www.example.com/"
 
 
-def test_profile_homepage_crawl_urls_user_input_first() -> None:
-    urls = profile_homepage_crawl_urls(
+def test_profile_crawl_urls_user_input_first() -> None:
+    urls = profile_crawl_urls(
         "https://www.sheepgeo.com/about",
         root="sheepgeo.com",
     )

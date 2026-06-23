@@ -8,26 +8,14 @@ from contextlib import contextmanager
 
 from aperix_geo.config import get_settings
 from aperix_geo.utils.cache.redis_kv import shared_redis_client
-from aperix_geo.utils.domains import registrable_domain
+from aperix_geo.utils.net import registrable_from
 
 
 class CrawlRateLimitError(RuntimeError):
     """Domain crawl quota or in-flight concurrency exceeded."""
 
 
-def normalize_crawl_domain(host_or_url: str) -> str:
-    text = (host_or_url or "").strip().lower()
-    if not text:
-        return ""
-    if "://" in text or text.startswith("//"):
-        from aperix_geo.utils.url import hostname_from_url
-
-        host = hostname_from_url(text if not text.startswith("//") else f"https:{text}")
-    else:
-        host = text.split("/", 1)[0]
-    if not host:
-        return ""
-    return registrable_domain(host) or host
+normalize_crawl_domain = registrable_from
 
 
 def _minute_key(domain: str) -> str:

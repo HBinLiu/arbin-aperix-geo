@@ -13,7 +13,7 @@ import { AppShell } from "@/components/layouts/AppShell";
 import { useDashboardSidebar } from "@/hooks/useDashboardSidebar";
 import { AnalysisFiltersProvider } from "@/hooks/useAnalysisFiltersState";
 import { analysisDimensionFromPathname, citationDomainFromPathname, promptIdFromPathname } from "@/lib/analysis";
-import { opportunityTabFromPathname, backlinkOpportunityHostFromPathname } from "@/lib/opportunity/nav";
+import { opportunityTabFromPathname, backlinkOpportunityDomainFromPathname } from "@/lib/opportunity/nav";
 import { diagnosisContentPromptIdFromPathname } from "@/lib/diagnosis/nav";
 import {
   DASHBOARD_NAV_SECTIONS,
@@ -37,7 +37,7 @@ export function DashboardLayout() {
   const promptDetailId = promptIdFromPathname(pathname);
   const opportunityTab = opportunityTabFromPathname(pathname);
   const diagnosisContentPromptId = diagnosisContentPromptIdFromPathname(pathname);
-  const backlinkOpportunityHost = backlinkOpportunityHostFromPathname(pathname);
+  const backlinkOpportunityDomain = backlinkOpportunityDomainFromPathname(pathname);
 
   return (
     <AppShell headerStart={<SubjectSwitcher />}>
@@ -83,13 +83,13 @@ export function DashboardLayout() {
               </button>
             </div>
             {isAnalysisPage && citationDomain ? (
-              <CitationDomainHeader host={citationDomain} />
+              <CitationDomainHeader domain={citationDomain} />
             ) : isAnalysisPage && promptDetailId ? (
               <PromptAnalysisHeader promptId={promptDetailId} />
             ) : isAnalysisPage ? (
               <AnalysisDimensionTabs embedded value={analysisDimension} />
-            ) : isOpportunityPage && backlinkOpportunityHost ? (
-              <OpportunityBacklinkHeader host={backlinkOpportunityHost} />
+            ) : isOpportunityPage && backlinkOpportunityDomain ? (
+              <OpportunityBacklinkHeader domain={backlinkOpportunityDomain} />
             ) : isOpportunityPage ? (
               <OpportunityTabs embedded value={opportunityTab} />
             ) : isDiagnosisPage && diagnosisContentPromptId ? (

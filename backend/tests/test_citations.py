@@ -45,7 +45,7 @@ def test_citations_from_parsed_dedupes_and_maps_source_metadata() -> None:
     rows = citations_from_parsed(parsed)
     assert len(rows) == 2
     by_url = {row["url"]: row for row in rows}
-    assert by_url["https://blog.acme-brand.com/a"]["domain"] == "blog.acme-brand.com"
+    assert by_url["https://blog.acme-brand.com/a"]["domain"] == "acme-brand.com"
     assert by_url["https://blog.acme-brand.com/a"]["page_title"] == "Acme Blog Post"
     assert by_url["https://docs.acme-brand.com/b"]["from_api"] is True
 
@@ -77,10 +77,7 @@ def test_domain_counts_from_url_rows() -> None:
             "source_urls_from_api": [],
         }
     )
-    assert domain_counts_from_url_rows(rows) == {
-        "blog.acme-brand.com": 2,
-        "docs.acme-brand.com": 1,
-    }
+    assert domain_counts_from_url_rows(rows) == {"acme-brand.com": 3}
 
 
 def test_replace_citations_for_response_inserts_url_and_domain_rows() -> None:

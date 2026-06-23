@@ -9,18 +9,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import Brand
-from aperix_geo.utils.domains import registrable_domain
+from aperix_geo.utils.net import brand_from
 
 
 def _normalize_brand_key(name: str) -> str:
     return (name or "").strip().casefold()
-
-
-def _normalize_domain(raw: str) -> str:
-    text = (raw or "").strip()
-    if not text:
-        return ""
-    return registrable_domain(text) or text
 
 
 @dataclass
@@ -46,7 +39,7 @@ class BrandCatalog:
             alias_key = _normalize_brand_key(str(alias))
             if alias_key:
                 self.by_key.setdefault(alias_key, row)
-        domain = _normalize_domain(row.domain)
+        domain = brand_from(row.domain)
         if domain:
             self.by_domain.setdefault(domain, row)
 
@@ -54,7 +47,7 @@ class BrandCatalog:
         return self.by_key.get(_normalize_brand_key(name))
 
     def find_by_domain(self, domain: str) -> Brand | None:
-        normalized = _normalize_domain(domain)
+        normalized = brand_from(domain)
         if not normalized:
             return None
         return self.by_domain.get(normalized)
@@ -75,7 +68,7 @@ class BrandSyncContext:
         return self.domain_memo.get(_normalize_brand_key(brand))
 
     def remember_domain(self, brand: str, domain: str) -> None:
-        normalized = _normalize_domain(domain)
+        normalized = brand_from(domain)
         if not normalized:
             return
         self.domain_memo[_normalize_brand_key(brand)] = normalized

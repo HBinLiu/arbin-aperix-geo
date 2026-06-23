@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from typing import Any
 from unittest.mock import patch
 
 from aperix_geo.db.models import Competitor, LLMResponse, LLMResponseStatus, Subject, SubjectType
@@ -25,7 +26,6 @@ def _subject() -> Subject:
         website_url="https://aperix.com",
     )
 
-
 @contextmanager
 def _patch_diagnosis_response_window(dt_from: datetime, dt_to: datetime):
     with patch(
@@ -33,6 +33,49 @@ def _patch_diagnosis_response_window(dt_from: datetime, dt_to: datetime):
         return_value=(dt_from, dt_to),
     ):
         yield
+
+
+@contextmanager
+def _patch_diagnosis_content_from_signals(signals: list[LLMResponseSignalRow]):
+    from aperix_geo.services.analysis.diagnosis_page import (
+        query_diagnosis_content_page,
+        query_diagnosis_content_summary,
+    )
+    from tests.diagnosis_mem import mem_diagnosis_page, mem_diagnosis_summary
+
+    orig_page = query_diagnosis_content_page.override
+    orig_summary = query_diagnosis_content_summary.override
+
+    def _page(db, **kwargs):
+        return mem_diagnosis_page(db, signals=signals, **kwargs)
+
+    def _summary(db, **kwargs):
+        return mem_diagnosis_summary(db, signals=signals, **kwargs)
+
+    query_diagnosis_content_page.override = _page
+    query_diagnosis_content_summary.override = _summary
+    try:
+        yield
+    finally:
+        query_diagnosis_content_page.override = orig_page
+        query_diagnosis_content_summary.override = orig_summary
+
+
+@contextmanager
+def _patch_diagnosis_detail_from_signals(signals: list[LLMResponseSignalRow]):
+    from aperix_geo.services.analysis.diagnosis_page import query_diagnosis_content_detail
+    from tests.diagnosis_mem import mem_diagnosis_detail
+
+    orig_detail = query_diagnosis_content_detail.override
+
+    def _detail(db, **kwargs):
+        return mem_diagnosis_detail(db, signals=signals, **kwargs)
+
+    query_diagnosis_content_detail.override = _detail
+    try:
+        yield
+    finally:
+        query_diagnosis_content_detail.override = orig_detail
 
 
 def _row(parsed: dict) -> LLMResponse:
@@ -279,18 +322,14 @@ def test_build_diagnosis_content():
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
     signals = _signals_for_rows(rows, subject, payloads)
-    original = load_llm_response_signals.override
-    load_llm_response_signals.override = lambda *args, **kwargs: signals
-    try:
-        with _patch_diagnosis_response_window(dt_from, dt_to):
+    with _patch_diagnosis_response_window(dt_from, dt_to):
+        with _patch_diagnosis_content_from_signals(signals):
             out = build_diagnosis_content(
                 FakeDb(), subject=subject
             )
             summary_out = build_diagnosis_content_summary(
                 FakeDb(), subject=subject
             )
-    finally:
-        load_llm_response_signals.override = original
 
     assert len(out["items"]) == 1
     item = out["items"][0]
@@ -382,14 +421,10 @@ def test_diagnosis_summary_mention_priority_counts_match_table_rows():
 
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
-    original = load_llm_response_signals.override
-    load_llm_response_signals.override = lambda *args, **kwargs: signals
-    try:
-        with _patch_diagnosis_response_window(dt_from, dt_to):
+    with _patch_diagnosis_response_window(dt_from, dt_to):
+        with _patch_diagnosis_content_from_signals(signals):
             list_out = build_diagnosis_content(FakeDb(), subject=subject)
             summary_out = build_diagnosis_content_summary(FakeDb(), subject=subject)
-    finally:
-        load_llm_response_signals.override = original
 
     assert list_out["total"] == 1
     assert list_out["items"][0]["mention_priority"] == "high"
@@ -459,14 +494,10 @@ def test_diagnosis_content_includes_mention_only_prompt():
 
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
-    original = load_llm_response_signals.override
-    load_llm_response_signals.override = lambda *args, **kwargs: signals
-    try:
-        with _patch_diagnosis_response_window(dt_from, dt_to):
+    with _patch_diagnosis_response_window(dt_from, dt_to):
+        with _patch_diagnosis_content_from_signals(signals):
             list_out = build_diagnosis_content(FakeDb(), subject=subject)
             summary_out = build_diagnosis_content_summary(FakeDb(), subject=subject)
-    finally:
-        load_llm_response_signals.override = original
 
     assert list_out["total"] == 1
     item = list_out["items"][0]
@@ -556,13 +587,9 @@ def test_diagnosis_mention_rate_matches_mentioned_response_share():
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
     signals = _signals_for_rows(rows, subject, payloads)
-    original = load_llm_response_signals.override
-    load_llm_response_signals.override = lambda *args, **kwargs: signals
-    try:
-        with _patch_diagnosis_response_window(dt_from, dt_to):
+    with _patch_diagnosis_response_window(dt_from, dt_to):
+        with _patch_diagnosis_content_from_signals(signals):
             out = build_diagnosis_content(FakeDb(), subject=subject)
-    finally:
-        load_llm_response_signals.override = original
 
     assert out["total"] == 1
     item = out["items"][0]
@@ -614,21 +641,15 @@ def test_build_diagnosis_content_detail():
 
     from datetime import UTC, datetime, timedelta
 
-    from aperix_geo.services.analysis.signal_load import load_llm_response_signals
-
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
-    original = load_llm_response_signals.override
-    load_llm_response_signals.override = lambda *args, **kwargs: signals
-    try:
-        with _patch_diagnosis_response_window(dt_from, dt_to):
+    with _patch_diagnosis_response_window(dt_from, dt_to):
+        with _patch_diagnosis_detail_from_signals(signals):
             out = build_diagnosis_content_detail(
                 FakeDb(),
                 subject=subject,
                 prompt_id=prompt_id,
             )
-    finally:
-        load_llm_response_signals.override = original
 
     assert out["prompt_id"] == str(prompt_id)
     assert out["brand"]["gap_rate"] == 1.0
@@ -685,21 +706,15 @@ def test_content_opportunity_detail_competitor_platform_aggregation():
 
     from datetime import UTC, datetime, timedelta
 
-    from aperix_geo.services.analysis.signal_load import load_llm_response_signals
-
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
-    original = load_llm_response_signals.override
-    load_llm_response_signals.override = lambda *args, **kwargs: signals
-    try:
-        with _patch_diagnosis_response_window(dt_from, dt_to):
+    with _patch_diagnosis_response_window(dt_from, dt_to):
+        with _patch_diagnosis_detail_from_signals(signals):
             out = build_diagnosis_content_detail(
                 FakeDb(),
                 subject=subject,
                 prompt_id=prompt_id,
             )
-    finally:
-        load_llm_response_signals.override = original
 
     assert len(out["brand"]["rows"]) == 1
     row = out["brand"]["rows"][0]
@@ -753,21 +768,15 @@ def test_competitor_breakdown_excludes_no_gap_platforms():
 
     from datetime import UTC, datetime, timedelta
 
-    from aperix_geo.services.analysis.signal_load import load_llm_response_signals
-
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
-    original = load_llm_response_signals.override
-    load_llm_response_signals.override = lambda *args, **kwargs: signals
-    try:
-        with _patch_diagnosis_response_window(dt_from, dt_to):
+    with _patch_diagnosis_response_window(dt_from, dt_to):
+        with _patch_diagnosis_detail_from_signals(signals):
             out = build_diagnosis_content_detail(
                 FakeDb(),
                 subject=subject,
                 prompt_id=prompt_id,
             )
-    finally:
-        load_llm_response_signals.override = original
 
     assert len(out["brand"]["rows"]) == 1
     assert out["brand"]["rows"][0]["platforms"] == ["deepseek"]
@@ -820,25 +829,20 @@ def test_content_opportunity_detail_matches_list_gap_merge():
 
     from datetime import UTC, datetime, timedelta
 
-    from aperix_geo.services.analysis.signal_load import load_llm_response_signals
-
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
-    original = load_llm_response_signals.override
-    load_llm_response_signals.override = lambda *args, **kwargs: signals
-    try:
-        with _patch_diagnosis_response_window(dt_from, dt_to):
-            list_out = build_diagnosis_content(
-                FakeDb(),
-                subject=subject,
-            )
-            detail_out = build_diagnosis_content_detail(
-                FakeDb(),
-                subject=subject,
-                prompt_id=prompt_id,
-            )
-    finally:
-        load_llm_response_signals.override = original
+    with _patch_diagnosis_response_window(dt_from, dt_to):
+        with _patch_diagnosis_content_from_signals(signals):
+            with _patch_diagnosis_detail_from_signals(signals):
+                list_out = build_diagnosis_content(
+                    FakeDb(),
+                    subject=subject,
+                )
+                detail_out = build_diagnosis_content_detail(
+                    FakeDb(),
+                    subject=subject,
+                    prompt_id=prompt_id,
+                )
 
     list_row = list_out["items"][0]
     assert list_row["brand_gap_rate"] == 1.0
@@ -896,21 +900,15 @@ def test_content_opportunity_detail_competitive_gap():
 
     from datetime import UTC, datetime, timedelta
 
-    from aperix_geo.services.analysis.signal_load import load_llm_response_signals
-
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
-    original = load_llm_response_signals.override
-    load_llm_response_signals.override = lambda *args, **kwargs: signals
-    try:
-        with _patch_diagnosis_response_window(dt_from, dt_to):
+    with _patch_diagnosis_response_window(dt_from, dt_to):
+        with _patch_diagnosis_detail_from_signals(signals):
             out = build_diagnosis_content_detail(
                 FakeDb(),
                 subject=subject,
                 prompt_id=prompt_id,
             )
-    finally:
-        load_llm_response_signals.override = original
 
     assert out["brand"]["gap_rate"] == 0.5
     assert out["brand"]["chat_mention_own"] == 1
@@ -961,21 +959,15 @@ def test_content_opportunity_detail_source_domain_link():
 
     from datetime import UTC, datetime, timedelta
 
-    from aperix_geo.services.analysis.signal_load import load_llm_response_signals
-
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
-    original = load_llm_response_signals.override
-    load_llm_response_signals.override = lambda *args, **kwargs: signals
-    try:
-        with _patch_diagnosis_response_window(dt_from, dt_to):
+    with _patch_diagnosis_response_window(dt_from, dt_to):
+        with _patch_diagnosis_detail_from_signals(signals):
             out = build_diagnosis_content_detail(
                 FakeDb(),
                 subject=subject,
                 prompt_id=prompt_id,
             )
-    finally:
-        load_llm_response_signals.override = original
 
     assert out["source"]["gap_rate"] == 0.5
     assert out["source"]["chat_source_own"] == 1
@@ -989,7 +981,7 @@ def test_build_backlink_opportunities():
 
     from aperix_geo.db.models import Competitor
     from aperix_geo.services.analysis import build_backlink_opportunities
-    from aperix_geo.services.analysis.opportunity import _query_backlink_host_stats
+    from aperix_geo.services.analysis.opportunity import _query_backlink_domain_stats
 
     subject = _subject()
     subject.competitors = [
@@ -1006,8 +998,8 @@ def test_build_backlink_opportunities():
 
     stats_items = [
         {
-            "id": "support.google.com",
-            "host": "support.google.com",
+            "id": "google.com",
+            "domain": "google.com",
             "platforms": ["deepseek"],
             "priority": "medium",
             "citation_count": 2,
@@ -1018,21 +1010,21 @@ def test_build_backlink_opportunities():
 
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
-    original = _query_backlink_host_stats.override
-    _query_backlink_host_stats.override = lambda *args, **kwargs: stats_items
+    original = _query_backlink_domain_stats.override
+    _query_backlink_domain_stats.override = lambda *args, **kwargs: stats_items
     try:
         out = build_backlink_opportunities(
             FakeDb(), subject=subject, dt_from=dt_from, dt_to=dt_to
         )
     finally:
-        _query_backlink_host_stats.override = original
+        _query_backlink_domain_stats.override = original
 
     assert out["total"] == 1
     assert out["page"] == 1
     assert out["page_size"] == 10
     assert len(out["items"]) == 1
     item = out["items"][0]
-    assert item["host"] == "support.google.com"
+    assert item["domain"] == "google.com"
     assert item["platforms"] == ["deepseek"]
     assert item["citation_count"] == 2
     assert item["chat_count"] == 2
@@ -1043,13 +1035,13 @@ def test_build_backlink_opportunities_groups_by_host():
     from datetime import UTC, datetime, timedelta
 
     from aperix_geo.services.analysis import build_backlink_opportunities
-    from aperix_geo.services.analysis.opportunity import _query_backlink_host_stats
+    from aperix_geo.services.analysis.opportunity import _query_backlink_domain_stats
 
     subject = _subject()
     stats_items = [
         {
-            "id": "support.google.com",
-            "host": "support.google.com",
+            "id": "google.com",
+            "domain": "google.com",
             "platforms": ["chatgpt", "deepseek"],
             "priority": "medium",
             "citation_count": 2,
@@ -1060,8 +1052,8 @@ def test_build_backlink_opportunities_groups_by_host():
 
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
-    original = _query_backlink_host_stats.override
-    _query_backlink_host_stats.override = lambda *args, **kwargs: stats_items
+    original = _query_backlink_domain_stats.override
+    _query_backlink_domain_stats.override = lambda *args, **kwargs: stats_items
     try:
         out = build_backlink_opportunities(
             object(),
@@ -1070,11 +1062,11 @@ def test_build_backlink_opportunities_groups_by_host():
             dt_to=dt_to,
         )
     finally:
-        _query_backlink_host_stats.override = original
+        _query_backlink_domain_stats.override = original
 
     assert out["total"] == 1
     item = out["items"][0]
-    assert item["host"] == "support.google.com"
+    assert item["domain"] == "google.com"
     assert item["platforms"] == ["chatgpt", "deepseek"]
     assert item["chat_count"] == 2
     assert item["prompt_count"] == 1
@@ -1084,13 +1076,13 @@ def test_build_backlink_opportunities_search_and_pagination():
     from datetime import UTC, datetime, timedelta
 
     from aperix_geo.services.analysis import build_backlink_opportunities
-    from aperix_geo.services.analysis.opportunity import _query_backlink_host_stats
+    from aperix_geo.services.analysis.opportunity import _query_backlink_domain_stats
 
     subject = _subject()
     stats_items = [
         {
             "id": "alpha.example.com",
-            "host": "alpha.example.com",
+            "domain": "alpha.example.com",
             "platforms": ["deepseek"],
             "priority": "low",
             "citation_count": 1,
@@ -1099,7 +1091,7 @@ def test_build_backlink_opportunities_search_and_pagination():
         },
         {
             "id": "beta.example.com",
-            "host": "beta.example.com",
+            "domain": "beta.example.com",
             "platforms": ["deepseek"],
             "priority": "low",
             "citation_count": 1,
@@ -1110,8 +1102,8 @@ def test_build_backlink_opportunities_search_and_pagination():
 
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
-    original = _query_backlink_host_stats.override
-    _query_backlink_host_stats.override = lambda *args, **kwargs: stats_items
+    original = _query_backlink_domain_stats.override
+    _query_backlink_domain_stats.override = lambda *args, **kwargs: stats_items
     try:
         filtered = build_backlink_opportunities(
             object(),
@@ -1131,10 +1123,10 @@ def test_build_backlink_opportunities_search_and_pagination():
             order="desc",
         )
     finally:
-        _query_backlink_host_stats.override = original
+        _query_backlink_domain_stats.override = original
 
     assert filtered["total"] == 1
-    assert filtered["items"][0]["host"] == "alpha.example.com"
+    assert filtered["items"][0]["domain"] == "alpha.example.com"
     assert paged["total"] == 2
     assert len(paged["items"]) == 1
 
@@ -1143,17 +1135,14 @@ def test_build_backlink_opportunity_detail():
     from datetime import UTC, datetime, timedelta
 
     from aperix_geo.services.analysis import build_backlink_opportunity_detail
-    from aperix_geo.services.analysis.opportunity import _BacklinkHostContext, _query_backlink_host_context
+    from aperix_geo.services.analysis.opportunity import _BacklinkDomainContext, _query_backlink_domain_context
 
     subject = _subject()
-    prompt_id = uuid.uuid4()
-    other_prompt_id = uuid.uuid4()
-    ctx = _BacklinkHostContext(
-        host="yahoo.com",
-        response_ids=frozenset({uuid.uuid4(), uuid.uuid4()}),
+    ctx = _BacklinkDomainContext(
+        domain="yahoo.com",
         citation_count=3,
         chat_count=2,
-        prompt_ids=frozenset({prompt_id, other_prompt_id}),
+        prompt_count=2,
         platforms=["chatgpt", "deepseek"],
     )
 
@@ -1177,20 +1166,20 @@ def test_build_backlink_opportunity_detail():
 
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
-    original = _query_backlink_host_context.override
-    _query_backlink_host_context.override = lambda *args, **kwargs: ctx
+    original = _query_backlink_domain_context.override
+    _query_backlink_domain_context.override = lambda *args, **kwargs: ctx
     try:
         out = build_backlink_opportunity_detail(
             FakeDb(),
             subject=subject,
-            host="yahoo.com",
+            domain="yahoo.com",
             dt_from=dt_from,
             dt_to=dt_to,
         )
     finally:
-        _query_backlink_host_context.override = original
+        _query_backlink_domain_context.override = original
 
-    assert out["host"] == "yahoo.com"
+    assert out["domain"] == "yahoo.com"
     assert out["citation_count"] == 3
     assert out["chat_count"] == 2
     assert out["prompt_count"] == 2
@@ -1381,19 +1370,30 @@ def test_build_topic_visibility_ranks():
 
     from datetime import UTC, datetime, timedelta
 
+    from aperix_geo.services.analysis.entity_sql import (
+        query_entity_window,
+        window_overview_from_index,
+    )
+    from aperix_geo.services.analysis.signal_index import index_signals
     from aperix_geo.services.analysis.signal_load import load_llm_response_signals
 
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
     signals = _signals_for_rows(rows, subject, payloads)
-    original = load_llm_response_signals.override
+    original_window = query_entity_window.override
+    original_signals = load_llm_response_signals.override
+    query_entity_window.override = lambda db, **kwargs: window_overview_from_index(
+        index_signals(signals),
+        subject=kwargs["subject"],
+    )
     load_llm_response_signals.override = lambda *args, **kwargs: signals
     try:
         out = build_topic_visibility_ranks(
             FakeDb(), subject=subject, dt_from=dt_from, dt_to=dt_to
         )
     finally:
-        load_llm_response_signals.override = original
+        query_entity_window.override = original_window
+        load_llm_response_signals.override = original_signals
 
     assert len(out) == 2
     assert out[0]["topic_name"] == "Topic A"
@@ -1623,7 +1623,15 @@ def test_aggregate_metrics_entity_group():
 def test_build_visibility_analysis_flat_payload():
     from datetime import timedelta
 
+    from aperix_geo.services.analysis._series import previous_date_range
     from aperix_geo.services.analysis import build_visibility_analysis
+    from aperix_geo.services.analysis.entity_sql import (
+        dual_overview_from_signals,
+        query_dual_entity_window,
+        query_entity_window,
+        window_overview_from_index,
+    )
+    from aperix_geo.services.analysis.signal_index import index_signals
     from aperix_geo.services.analysis.signal_load import load_llm_response_signals
 
     subject = _subject_with_competitor()
@@ -1667,7 +1675,22 @@ def test_build_visibility_analysis_flat_payload():
 
     dt_to = datetime.now(UTC)
     dt_from = dt_to - timedelta(days=7)
-    original = load_llm_response_signals.override
+    prev_from, prev_to = previous_date_range(dt_from, dt_to)
+    original_overview = query_dual_entity_window.override
+    original_window = query_entity_window.override
+    original_signals = load_llm_response_signals.override
+    query_dual_entity_window.override = lambda db, **kwargs: dual_overview_from_signals(
+        signals,
+        subject=subject,
+        dt_from=dt_from,
+        dt_to=dt_to,
+        prev_from=prev_from,
+        prev_to=prev_to,
+    )
+    query_entity_window.override = lambda db, **kwargs: window_overview_from_index(
+        index_signals(signals),
+        subject=subject,
+    )
     load_llm_response_signals.override = lambda *args, **kwargs: signals
     try:
         out = build_visibility_analysis(
@@ -1677,7 +1700,9 @@ def test_build_visibility_analysis_flat_payload():
             dt_to=dt_to,
         )
     finally:
-        load_llm_response_signals.override = original
+        query_dual_entity_window.override = original_overview
+        query_entity_window.override = original_window
+        load_llm_response_signals.override = original_signals
 
     assert out["entity_id"] == OWN_ENTITY_ID
     assert "own_label" not in out
@@ -1688,3 +1713,161 @@ def test_build_visibility_analysis_flat_payload():
     assert out["average_rank_chart"]["cur_series"]
     assert len(out["visibility_table"]) == 2
     assert out["topic_visibility_ranks"] == []
+
+
+def test_citation_sql_share_matches_signal_aggregation():
+    from datetime import date
+
+    from aperix_geo.services.analysis.aggregate import (
+        citation_share_from_signals,
+        daily_citation_share_series_from_signals,
+    )
+    from aperix_geo.services.analysis.citation_sql import (
+        _daily_series_by_label,
+        _share_by_label,
+    )
+
+    subject = _subject_with_competitor()
+    payloads = [
+        parsed_payload(
+            entity_signal(mentioned=True, has_domain_link=True),
+            competitor_signal(mentioned=True, has_domain_link=False),
+        ),
+        parsed_payload(
+            entity_signal(mentioned=True, has_domain_link=False),
+            competitor_signal(mentioned=True, has_domain_link=True),
+        ),
+    ]
+    rows = [_row(payload) for payload in payloads]
+    rows[0].created_at = datetime(2026, 1, 1, tzinfo=UTC)
+    rows[1].created_at = datetime(2026, 1, 2, tzinfo=UTC)
+    signals = _signals_for_rows(rows, subject, payloads)
+
+    _, signal_share, _ = citation_share_from_signals(signals, subject=subject)
+    signal_series = daily_citation_share_series_from_signals(signals, subject=subject)
+
+    by_entity: dict[str, list[int]] = {}
+    daily: dict[str, dict[str, list[int]]] = {}
+    for row in signals:
+        bucket = by_entity.setdefault(row.entity_id, [0, 0])
+        day_bucket = daily.setdefault(row.created_at.date().isoformat(), {}).setdefault(
+            row.entity_id, [0, 0]
+        )
+        if row.mentioned:
+            bucket[1] += 1
+            day_bucket[1] += 1
+            if row.has_domain_link:
+                bucket[0] += 1
+                day_bucket[0] += 1
+
+    class _MetricRow:
+        def __init__(self, entity_id: str, with_link: int, mentioned: int, day=None):
+            self.entity_id = entity_id
+            self.with_link = with_link
+            self.mentioned = mentioned
+            self.day = day
+
+    metric_rows = [
+        _MetricRow(entity_id, counts[0], counts[1])
+        for entity_id, counts in by_entity.items()
+    ]
+    daily_rows = [
+        _MetricRow(entity_id, counts[0], counts[1], day=date.fromisoformat(day))
+        for day, entities in daily.items()
+        for entity_id, counts in entities.items()
+    ]
+
+    entities = list_analysis_entities(subject)
+    _, sql_share = _share_by_label(metric_rows, entities=entities)
+    sql_series = _daily_series_by_label(daily_rows, entities=entities)
+
+    assert sql_share == signal_share
+    assert sql_series == signal_series
+
+
+def test_entity_sql_matches_signal_aggregation():
+    from aperix_geo.services.analysis.aggregate import entity_metrics_rows_from_index
+    from aperix_geo.services.analysis.entity_sql import (
+        _entity_metrics_rows_from_aggs,
+        window_overview_from_index,
+    )
+    from aperix_geo.services.analysis.signal_index import index_signals
+
+    subject = _subject_with_competitor()
+    payloads = [
+        parsed_payload(
+            entity_signal(mentioned=True, mention_count=2, mention_rank=1, has_domain_link=True),
+            competitor_signal(mentioned=True, mention_count=1, mention_rank=2),
+        ),
+        parsed_payload(
+            entity_signal(mentioned=False, mention_count=0),
+            competitor_signal(mentioned=True, mention_count=3, mention_rank=1, has_domain_link=True),
+        ),
+    ]
+    rows = [_row(payload) for payload in payloads]
+    signals = _signals_for_rows(rows, subject, payloads)
+    entities = list_analysis_entities(subject)
+    index = index_signals(signals)
+    signal_rows = entity_metrics_rows_from_index(index, subject=subject, entities=entities)
+
+    by_entity: dict[str, dict[str, Any]] = {}
+    for row in signals:
+        bucket = by_entity.setdefault(
+            row.entity_id,
+            {
+                "response_ids": set(),
+                "mentioned_rows": 0,
+                "mention_total": 0,
+                "mention_with_link": 0,
+                "cited_on_source_rows": 0,
+                "ranks": [],
+                "sentiments": [],
+            },
+        )
+        bucket["response_ids"].add(row.response_id)
+        if row.mentioned:
+            bucket["mentioned_rows"] += 1
+            bucket["mention_total"] += row.mention_count
+            if row.has_domain_link:
+                bucket["mention_with_link"] += 1
+        if row.cited_on_source:
+            bucket["cited_on_source_rows"] += 1
+        if row.mention_rank > 0:
+            bucket["ranks"].append(float(row.mention_rank))
+        if row.sentiment_score > 0:
+            bucket["sentiments"].append(float(row.sentiment_score))
+
+    class _AggRow:
+        pass
+
+    agg_rows = []
+    for entity_id, bucket in by_entity.items():
+        row = _AggRow()
+        row.entity_id = entity_id
+        row.response_count = len(bucket["response_ids"])
+        row.mentioned_rows = bucket["mentioned_rows"]
+        row.mention_total = bucket["mention_total"]
+        row.mention_with_link = bucket["mention_with_link"]
+        row.cited_on_source_rows = bucket["cited_on_source_rows"]
+        ranks = bucket["ranks"]
+        row.avg_rank = round(sum(ranks) / len(ranks), 2) if ranks else None
+        sentiments = bucket["sentiments"]
+        row.sentiment_avg = round(sum(sentiments) / len(sentiments), 1) if sentiments else None
+        agg_rows.append(row)
+
+    sql_rows = _entity_metrics_rows_from_aggs(
+        agg_rows,
+        subject=subject,
+        entities=entities,
+        total_voice=index.total_voice,
+    )
+
+    for signal_row, sql_row in zip(
+        sorted(signal_rows, key=lambda item: item["id"]),
+        sorted(sql_rows, key=lambda item: item["id"]),
+    ):
+        assert signal_row["metrics"] == sql_row["metrics"]
+
+    overview = window_overview_from_index(index, subject=subject, entities=entities)
+    assert overview.total_voice == index.total_voice
+    assert len(overview.entity_rows) == len(signal_rows)

@@ -17,7 +17,7 @@ import type {
 export function useBacklinkOpportunityDetail(
   subjectId: string,
   filters: AnalysisFilters,
-  options: { host: string; enabled?: boolean },
+  options: { domain: string; enabled?: boolean },
 ) {
   const { from, to, platformIds, topicIds } = filters;
   const topicKey = topicFilterKey(topicIds);
@@ -30,13 +30,13 @@ export function useBacklinkOpportunityDetail(
       topicKey,
       from,
       to,
-      options.host,
+      options.domain,
     ),
     queryFn: () =>
       fetchBacklinkOpportunityDetail(subjectId, filters, {
-        host: options.host,
+        domain: options.domain,
       }),
-    enabled: (options.enabled ?? true) && !!options.host,
+    enabled: (options.enabled ?? true) && !!options.domain,
   });
 }
 
@@ -44,7 +44,7 @@ export function useBacklinkOpportunityUrls(
   subjectId: string,
   filters: AnalysisFilters,
   options: {
-    host: string;
+    domain: string;
     page: number;
     pageSize: number;
     sortBy?: CitationUrlSortField;
@@ -65,7 +65,7 @@ export function useBacklinkOpportunityUrls(
       topicKey,
       from,
       to,
-      options.host,
+      options.domain,
       options.page,
       options.pageSize,
       sortBy,
@@ -73,13 +73,13 @@ export function useBacklinkOpportunityUrls(
     ),
     queryFn: () =>
       fetchBacklinkOpportunityUrls(subjectId, filters, {
-        host: options.host,
+        domain: options.domain,
         page: options.page,
         pageSize: options.pageSize,
         sortBy,
         order,
       }),
-    enabled: (options.enabled ?? true) && !!options.host,
+    enabled: (options.enabled ?? true) && !!options.domain,
   });
 
   return paginatedListResult(query, { page: options.page, pageSize: options.pageSize });
@@ -89,7 +89,7 @@ export function useBacklinkOpportunityPrompts(
   subjectId: string,
   filters: AnalysisFilters,
   options: {
-    host: string;
+    domain: string;
     page: number;
     pageSize: number;
     sortBy?: CitationDomainPromptSortField;
@@ -110,7 +110,7 @@ export function useBacklinkOpportunityPrompts(
       topicKey,
       from,
       to,
-      options.host,
+      options.domain,
       options.page,
       options.pageSize,
       sortBy,
@@ -118,13 +118,13 @@ export function useBacklinkOpportunityPrompts(
     ),
     queryFn: () =>
       fetchBacklinkOpportunityPrompts(subjectId, filters, {
-        host: options.host,
+        domain: options.domain,
         page: options.page,
         pageSize: options.pageSize,
         sortBy,
         order,
       }),
-    enabled: (options.enabled ?? true) && !!options.host,
+    enabled: (options.enabled ?? true) && !!options.domain,
   });
 
   return paginatedListResult(query, { page: options.page, pageSize: options.pageSize });

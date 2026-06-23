@@ -22,7 +22,7 @@ def _isolate_page_cache_from_redis() -> None:
         ),
         patch("aperix_geo.services.crawl._cache.redis_set_json_exat"),
         patch("aperix_geo.services.crawl.page.host_resolves", return_value=True),
-        patch("aperix_geo.services.crawl.page.host_resolves_to_public_addresses", return_value=True),
+        patch("aperix_geo.services.crawl.page.host_resolves_public", return_value=True),
     ):
         yield
 
@@ -87,7 +87,7 @@ def test_fetch_page_skips_private_resolved_host() -> None:
 
     with (
         patch("aperix_geo.services.crawl.page.host_resolves", return_value=True),
-        patch("aperix_geo.services.crawl.page.host_resolves_to_public_addresses", return_value=False),
+        patch("aperix_geo.services.crawl.page.host_resolves_public", return_value=False),
         patch("aperix_geo.services.crawl.page.get_httpx_client") as mock_client,
         patch("aperix_geo.services.crawl.page.fetch_url_crawl4ai") as mock_crawl,
     ):

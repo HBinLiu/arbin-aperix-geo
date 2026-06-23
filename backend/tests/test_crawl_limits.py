@@ -85,7 +85,7 @@ def test_fetch_page_stores_soft_negative_on_rate_limit(
 
     with (
         patch("aperix_geo.services.crawl.page.host_resolves", return_value=True),
-        patch("aperix_geo.services.crawl.page.host_resolves_to_public_addresses", return_value=True),
+        patch("aperix_geo.services.crawl.page.host_resolves_public", return_value=True),
         patch("aperix_geo.services.crawl.page.get_httpx_client") as mock_client,
     ):
         result = fetch_page("https://wise.com/rate-limited", crawl=crawl)
@@ -116,7 +116,7 @@ def test_fetch_page_skips_soft_negative_when_rate_limit_ttl_zero(
 
     with (
         patch("aperix_geo.services.crawl.page.host_resolves", return_value=True),
-        patch("aperix_geo.services.crawl.page.host_resolves_to_public_addresses", return_value=True),
+        patch("aperix_geo.services.crawl.page.host_resolves_public", return_value=True),
         patch("aperix_geo.services.crawl.page.get_httpx_client"),
     ):
         result = fetch_page("https://wise.com/rate-limited", crawl=crawl)

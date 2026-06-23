@@ -19,7 +19,12 @@ from aperix_geo.services.sampling.citation.scope import (
 )
 from aperix_geo.services.sampling.mentions import CompetitorEntry, collect_match_terms
 from aperix_geo.services.sampling.signal_draft import EntitySignalDraft
-from aperix_geo.utils.url import filter_citation_urls, host_matches_root, hostname_from_url, normalize_domain
+from aperix_geo.utils.net import (
+    filter_citation_urls,
+    host_from,
+    host_under_root,
+    registrable_from,
+)
 
 if TYPE_CHECKING:
     from aperix_geo.services.crawl.settings import PageCrawlSettings
@@ -27,23 +32,26 @@ if TYPE_CHECKING:
 
 def citation_root(subject: Subject) -> str | None:
     if subject.website_url:
-        root = normalize_domain(hostname_from_url(subject.website_url))
+        root = registrable_from(subject.website_url)
         if root:
             return root
     if subject.type == SubjectType.domain and subject.domain:
-        return normalize_domain(subject.domain)
+        root = registrable_from(subject.domain) or host_from(subject.domain)
+        return root or None
     return None
 
 
 def _url_matches_competitor(url: str, entry: CompetitorEntry) -> bool:
     if not entry.domain:
         return False
-    root = normalize_domain(entry.domain) or entry.domain.lower()
-    return host_matches_root(hostname_from_url(url), root)
+    root = registrable_from(entry.domain) or host_from(entry.domain)
+    if not root:
+        return False
+    return host_under_root(host_from(url), root)
 
 
 def _url_target(url: str, *, root: str | None, competitors: list[CompetitorEntry]) -> str:
-    if root and host_matches_root(hostname_from_url(url), root):
+    if root and host_under_root(host_from(url), root):
         return "own"
     for entry in competitors:
         if _url_matches_competitor(url, entry):
@@ -97,7 +105,7 @@ def build_citation_document(
         competitors=competitors,
     )
     own_brand_keys = collect_match_terms(own_brand, *own_names)
-    citation_urls_own = [url for url in urls if root and host_matches_root(hostname_from_url(url), root)]
+    citation_urls_own = [url for url in urls if root and host_under_root(host_from(url), root)]
 
     citation_sources: list[dict] = []
     for page in pages:

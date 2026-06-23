@@ -12,9 +12,8 @@ from aperix_geo.services.crawl.metadata import SeoProfile, extract_page_metadata
 from aperix_geo.services.crawl.settings import PageCrawlSettings
 from aperix_geo.services.crawl.types import PageFetchResult
 from aperix_geo.utils.cache import SingleFlightWaitTimeout, run_single_flight
-from aperix_geo.utils.domains import registrable_domain
-from aperix_geo.utils.text import truncate_text
-from aperix_geo.utils.url import filter_citation_urls, hostname_from_url, is_valid_citation_host, normalize_crawl_cache_url
+from aperix_geo.utils.net import citation_from, filter_citation_urls, host_from, is_citation_host
+from aperix_geo.utils.net import crawl_cache_url
 
 
 @dataclass
@@ -74,10 +73,7 @@ class CitationPageMeta:
 
 
 def _primary_domain(url: str) -> str:
-    host = (hostname_from_url(url) or "").strip().lower()
-    if not host:
-        return ""
-    return registrable_domain(host) or host
+    return citation_from(url)
 
 
 def _citation_url_priority(url: str, *, own_root: str | None, competitor_roots: set[str]) -> tuple[int, str]:
@@ -201,8 +197,8 @@ def fetch_citation_page_meta(
 
     key = url.strip()
     domain = _primary_domain(key)
-    host = hostname_from_url(key)
-    if not key or not is_valid_citation_host(host):
+    host = host_from(key)
+    if not key or not is_citation_host(host):
         return CitationPageMeta(url=key, domain=domain)
 
     if sampling_job_id is not None:
@@ -261,7 +257,7 @@ def fetch_citation_page_meta(
         return _fetch_and_parse()
 
     wait_s = settings.fetch_timeout_s + settings.crawl_timeout_s + 15.0
-    flight_key = f"{sampling_job_id}:{normalize_crawl_cache_url(key)}"
+    flight_key = f"{sampling_job_id}:{crawl_cache_url(key)}"
     try:
         return run_single_flight(
             flight_key,

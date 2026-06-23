@@ -14,8 +14,8 @@ from aperix_geo.db.models import CitationUrl, Prompt, Subject
 from aperix_geo.services.analysis._query import subject_response_window
 from aperix_geo.services.analysis.aggregate import metrics_from_signals
 from aperix_geo.services.analysis.entity import list_analysis_entities, own_entity
-from aperix_geo.services.analysis.signal_load import LLMResponseSignalRow, load_llm_response_signals
-from aperix_geo.utils.url import host_matches_root, hostname_from_url
+from aperix_geo.services.analysis.signal_load import LLMResponseSignalRow
+from aperix_geo.utils.net import host_from, host_under_root
 
 
 ACTION_PRIORITY_ORDER: dict[str, int] = {"high": 0, "medium": 1, "low": 2}
@@ -303,43 +303,64 @@ def health_score_from_gap_items(items: list[dict[str, Any]], *, gap_key: str) ->
     return health_score_from_gap(gap_rates)
 
 
-def _prompt_diagnosis_snapshots(
+def build_diagnosis_content_summary(
+    db: Session,
     *,
-    entity_signals: list[LLMResponseSignalRow],
-    all_signals: list[LLMResponseSignalRow],
     subject: Subject,
-    focus_entity_id: str,
-    prompts: dict[UUID, Prompt],
-) -> dict[UUID, dict[str, Any]]:
-    by_prompt: dict[UUID, list[LLMResponseSignalRow]] = defaultdict(list)
-    for row in entity_signals:
-        by_prompt[row.prompt_id].append(row)
+) -> dict[str, Any]:
+    """诊断内容汇总：综合得分与三维维度卡数据。"""
+    from aperix_geo.services.analysis.diagnosis_page import query_diagnosis_content_summary
 
-    snapshots: dict[UUID, dict[str, Any]] = {}
-    for prompt_id, subset in by_prompt.items():
-        if prompt_id not in prompts:
-            continue
-        metrics = metrics_from_signals(
-            subset,
-            subject=subject,
-            all_signals_for_voice=all_signals,
-        )
-        mention_own = sum(1 for row in subset if row.mentioned)
-        mention_total = metrics.response_count
-        mention_rate = diagnosis_mention_rate(
-            mention_own_count=mention_own,
-            mention_total_count=mention_total,
-            visibility_rate=metrics.visibility_rate,
-        )
-        snapshots[prompt_id] = {
-            "mention_rate": mention_rate,
-            "mention_own_count": mention_own,
-            "mention_total_count": mention_total,
-            "average_rank": metrics.average_rank,
-            "mention_issue_type": diagnosis_issue_type(mention_rate, metrics.average_rank),
-            "mention_priority": mention_action_priority(mention_rate, metrics.average_rank),
-        }
-    return snapshots
+    entity = own_entity(subject)
+    dt_from, dt_to = subject_response_window(db, subject=subject)
+    summary = query_diagnosis_content_summary(
+        db,
+        subject=subject,
+        dt_from=dt_from,
+        dt_to=dt_to,
+    )
+    return {
+        "entity_id": entity.id,
+        "entity_label": entity.label,
+        "summary": summary,
+    }
+
+
+def build_diagnosis_content(
+    db: Session,
+    *,
+    subject: Subject,
+    sort_by: str | None = None,
+    order: str = "asc",
+    page: int = 1,
+    page_size: int = 10,
+) -> dict[str, Any]:
+    """诊断内容列表（分页）：按提示词聚合 AI 提及问题与品牌/来源差距。"""
+    from aperix_geo.services.analysis.diagnosis_page import query_diagnosis_content_page
+
+    entity = own_entity(subject)
+    safe_page = max(1, page)
+    safe_page_size = max(1, page_size)
+    dt_from, dt_to = subject_response_window(db, subject=subject)
+    page_items, total = query_diagnosis_content_page(
+        db,
+        subject=subject,
+        dt_from=dt_from,
+        dt_to=dt_to,
+        sort_by=sort_by,
+        order=order,
+        page=safe_page,
+        page_size=safe_page_size,
+    )
+
+    return {
+        "entity_id": entity.id,
+        "entity_label": entity.label,
+        "items": page_items,
+        "total": total,
+        "page": safe_page,
+        "page_size": safe_page_size,
+    }
 
 
 def _build_diagnosis_content_summary(
@@ -380,53 +401,6 @@ def _build_diagnosis_content_summary(
             "priority_counts": priority_counts(source_gap_items, key="source_gap_priority"),
         },
     }
-
-
-def _attach_diagnosis_mention_fields(item: dict[str, Any], snapshot: dict[str, Any]) -> None:
-    item["mention_rate"] = snapshot["mention_rate"]
-    item["mention_own_count"] = snapshot["mention_own_count"]
-    item["mention_total_count"] = snapshot["mention_total_count"]
-    item["average_rank"] = snapshot["average_rank"]
-    item["mention_issue_type"] = snapshot["mention_issue_type"]
-    item["mention_priority"] = snapshot["mention_priority"]
-    _apply_diagnosis_row_priorities(item)
-
-
-def _diagnosis_content_rank_key(row: dict[str, Any]) -> tuple[int, float, float, float]:
-    """默认排序：优先级 → AI 提及率（小者优先）→ 品牌差距 → 来源差距（大者优先）。"""
-    return (
-        ACTION_PRIORITY_ORDER.get(row["priority"], 9),
-        row.get("mention_rate", 0),
-        -row["brand_gap_rate"],
-        -row["source_gap_rate"],
-    )
-
-
-def _sort_diagnosis_content_items(
-    items: list[dict[str, Any]],
-    *,
-    sort_by: str | None,
-    order: str,
-) -> list[dict[str, Any]]:
-    if not sort_by:
-        return sorted(items, key=_diagnosis_content_rank_key)
-
-    reverse = order == "desc"
-
-    if sort_by == "brand_gap_rate":
-        return sorted(items, key=lambda row: row["brand_gap_rate"], reverse=reverse)
-    if sort_by == "source_gap_rate":
-        return sorted(items, key=lambda row: row["source_gap_rate"], reverse=reverse)
-    if sort_by == "mention_rate":
-        return sorted(items, key=lambda row: row.get("mention_rate", 0), reverse=reverse)
-    if sort_by == "priority":
-        return sorted(
-            items,
-            key=lambda row: ACTION_PRIORITY_ORDER.get(row.get("priority", "low"), 9),
-            reverse=reverse,
-        )
-
-    return sorted(items, key=_diagnosis_content_rank_key, reverse=reverse)
 
 
 def _merge_gap_counts(
@@ -516,161 +490,6 @@ def _merged_diagnosis_gap_metrics(
         subject=subject,
     )
     return {**gap, "platforms": []}
-
-
-def _load_diagnosis_content_merged(
-    db: Session,
-    *,
-    subject: Subject,
-) -> tuple[Any, dict[UUID, dict[str, Any]], list[dict[str, Any]]]:
-    dt_from, dt_to = subject_response_window(db, subject=subject)
-    entity = own_entity(subject)
-    all_signals = load_llm_response_signals(
-        db,
-        subject=subject,
-        dt_from=dt_from,
-        dt_to=dt_to,
-    )
-    entity_signals = [row for row in all_signals if row.entity_id == entity.id]
-    prompts = {
-        p.id: p for p in db.execute(select(Prompt).where(Prompt.subject_id == subject.id)).scalars().all()
-    }
-
-    prompt_snapshots = _prompt_diagnosis_snapshots(
-        entity_signals=entity_signals,
-        all_signals=all_signals,
-        subject=subject,
-        focus_entity_id=entity.id,
-        prompts=prompts,
-    )
-
-    by_prompt: dict[UUID, list[LLMResponseSignalRow]] = defaultdict(list)
-    for row in entity_signals:
-        by_prompt[row.prompt_id].append(row)
-
-    items: list[dict[str, Any]] = []
-    for prompt_id, prompt_entity_signals in by_prompt.items():
-        prompt = prompts.get(prompt_id)
-        if not prompt:
-            continue
-
-        response_ids = {row.response_id for row in prompt_entity_signals}
-        snapshot = prompt_snapshots.get(prompt_id)
-        if snapshot is None:
-            continue
-
-        gap = _merged_diagnosis_gap_metrics(
-            focus_entity_id=entity.id,
-            entity_signals=prompt_entity_signals,
-            response_ids=response_ids,
-            all_signals=all_signals,
-            subject=subject,
-        )
-        if not has_diagnosis_content_gap(
-            brand_gap_rate=gap["brand_gap_rate"],
-            source_gap_rate=gap["source_gap_rate"],
-            mention_priority=snapshot["mention_priority"],
-        ):
-            continue
-
-        items.append(
-            {
-                "id": str(prompt_id),
-                "prompt_id": str(prompt_id),
-                "prompt_text": prompt.text,
-                "platforms": gap["platforms"],
-                "competitors": gap["competitors"],
-                "brand_gap_rate": gap["brand_gap_rate"],
-                "brand_gap_priority": gap["brand_gap_priority"],
-                "source_gap_rate": gap["source_gap_rate"],
-                "source_gap_priority": gap["source_gap_priority"],
-                "brand_own_count": gap["brand_own_count"],
-                "brand_total_count": gap["brand_total_count"],
-                "source_own_count": gap["source_own_count"],
-                "source_total_count": gap["source_total_count"],
-            }
-        )
-
-    for row in items:
-        snapshot = prompt_snapshots.get(UUID(row["prompt_id"]))
-        if snapshot is not None:
-            _attach_diagnosis_mention_fields(row, snapshot)
-    return entity, prompt_snapshots, items
-
-
-def build_diagnosis_content_summary(
-    db: Session,
-    *,
-    subject: Subject,
-) -> dict[str, Any]:
-    """诊断内容汇总：综合得分与三维维度卡数据。"""
-    entity = own_entity(subject)
-    if load_llm_response_signals.override is not None:
-        _entity, prompt_snapshots, merged = _load_diagnosis_content_merged(db, subject=subject)
-        summary = _build_diagnosis_content_summary(
-            mention_snapshots=list(prompt_snapshots.values()),
-            gap_items=merged,
-        )
-    else:
-        from aperix_geo.services.analysis.diagnosis_page import query_diagnosis_content_summary
-
-        dt_from, dt_to = subject_response_window(db, subject=subject)
-        summary = query_diagnosis_content_summary(
-            db,
-            subject=subject,
-            dt_from=dt_from,
-            dt_to=dt_to,
-        )
-    return {
-        "entity_id": entity.id,
-        "entity_label": entity.label,
-        "summary": summary,
-    }
-
-
-def build_diagnosis_content(
-    db: Session,
-    *,
-    subject: Subject,
-    sort_by: str | None = None,
-    order: str = "asc",
-    page: int = 1,
-    page_size: int = 10,
-) -> dict[str, Any]:
-    """诊断内容列表（分页）：按提示词聚合 AI 提及问题与品牌/来源差距。"""
-    entity = own_entity(subject)
-    safe_page = max(1, page)
-    safe_page_size = max(1, page_size)
-
-    if load_llm_response_signals.override is not None:
-        _entity, _prompt_snapshots, merged = _load_diagnosis_content_merged(db, subject=subject)
-        sorted_items = _sort_diagnosis_content_items(merged, sort_by=sort_by, order=order)
-        total = len(sorted_items)
-        start = (safe_page - 1) * safe_page_size
-        page_items = sorted_items[start : start + safe_page_size]
-    else:
-        from aperix_geo.services.analysis.diagnosis_page import query_diagnosis_content_page
-
-        dt_from, dt_to = subject_response_window(db, subject=subject)
-        page_items, total = query_diagnosis_content_page(
-            db,
-            subject=subject,
-            dt_from=dt_from,
-            dt_to=dt_to,
-            sort_by=sort_by,
-            order=order,
-            page=safe_page,
-            page_size=safe_page_size,
-        )
-
-    return {
-        "entity_id": entity.id,
-        "entity_label": entity.label,
-        "items": page_items,
-        "total": total,
-        "page": safe_page,
-        "page_size": safe_page_size,
-    }
 
 
 def _platforms_with_gap(
@@ -788,8 +607,8 @@ def _lookup_entity_citation_urls(
         text = str(url or "").strip()
         if not text or text in seen:
             continue
-        host = hostname_from_url(text)
-        if host and host_matches_root(host, root):
+        host = host_from(text)
+        if host and host_under_root(host, root):
             seen.add(text)
             urls.append(text)
     return urls
@@ -917,124 +736,20 @@ def build_diagnosis_content_detail(
     prompt_id: UUID,
 ) -> dict[str, Any]:
     """Single prompt diagnosis content drill-down: gap summary + competitor breakdown."""
+    from aperix_geo.services.analysis.diagnosis_page import query_diagnosis_content_detail
 
     dt_from, dt_to = subject_response_window(db, subject=subject)
-    entity = own_entity(subject)
     prompt = db.get(Prompt, prompt_id)
     if not prompt or prompt.subject_id != subject.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prompt not found")
 
-    all_signals = load_llm_response_signals(
+    result = query_diagnosis_content_detail(
         db,
         subject=subject,
+        prompt=prompt,
         dt_from=dt_from,
         dt_to=dt_to,
-        prompt_id=prompt_id,
     )
-    entity_signals = [row for row in all_signals if row.entity_id == entity.id]
-    response_ids = {row.response_id for row in entity_signals}
-    if not response_ids:
+    if int(result["brand"]["chat_mention_total"] or 0) <= 0:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No responses for prompt")
-
-    catalog_ids = {item.id for item in list_analysis_entities(subject)}
-    entities = list_analysis_entities(subject)
-    competitor_ids = _competitor_ids(entities, entity.id)
-    domain_key_by_entity = {
-        item.id: (item.domain or item.label).strip().lower()
-        for item in entities
-        if item.id in competitor_ids
-    }
-
-    gap_metrics = _merged_diagnosis_gap_metrics(
-        focus_entity_id=entity.id,
-        entity_signals=entity_signals,
-        response_ids=response_ids,
-        all_signals=all_signals,
-        subject=subject,
-    )
-    brand_gap_rate = gap_metrics["brand_gap_rate"]
-    source_gap_rate = gap_metrics["source_gap_rate"]
-    chat_mention_own, chat_mention_total = _chat_mention_counts(entity_signals, response_ids)
-    chat_source_own = gap_metrics["source_own_count"]
-    chat_source_total = gap_metrics["source_total_count"]
-    competitor_brand_count = _distinct_competitors_with_signal(
-        all_signals,
-        response_ids=response_ids,
-        competitor_ids=competitor_ids,
-        signal_present=lambda row: row.mentioned,
-    )
-    competitor_source_count = _distinct_competitor_domains_with_link(
-        all_signals,
-        response_ids=response_ids,
-        competitor_ids=competitor_ids,
-        domain_key_by_entity=domain_key_by_entity,
-    )
-    total_mention_count = _total_mention_count(
-        all_signals,
-        response_ids=response_ids,
-        catalog_ids=catalog_ids,
-    )
-    total_source_count = _total_domain_link_count(
-        all_signals,
-        response_ids=response_ids,
-        catalog_ids=catalog_ids,
-    )
-
-    brand_gap_platforms = _platforms_with_gap(
-        focus_entity_id=entity.id,
-        entity_signals=entity_signals,
-        response_ids=response_ids,
-        all_signals=all_signals,
-        subject=subject,
-        metric="brand",
-    )
-    source_gap_platforms = _platforms_with_gap(
-        focus_entity_id=entity.id,
-        entity_signals=entity_signals,
-        response_ids=response_ids,
-        all_signals=all_signals,
-        subject=subject,
-        metric="source",
-    )
-
-    brand_rows = _competitor_breakdown_rows(
-        db,
-        all_signals,
-        subject=subject,
-        focus_entity_id=entity.id,
-        response_ids=response_ids,
-        gap_platforms=brand_gap_platforms,
-        metric="brand",
-    )
-    source_rows = _competitor_breakdown_rows(
-        db,
-        all_signals,
-        subject=subject,
-        focus_entity_id=entity.id,
-        response_ids=response_ids,
-        gap_platforms=source_gap_platforms,
-        metric="source",
-    )
-
-    return {
-        "prompt_id": str(prompt_id),
-        "prompt_text": prompt.text,
-        "brand": {
-            "gap_rate": brand_gap_rate,
-            "gap_priority": gap_action_priority(brand_gap_rate),
-            "chat_mention_own": chat_mention_own,
-            "chat_mention_total": chat_mention_total,
-            "competitor_brand_count": competitor_brand_count,
-            "total_mention_count": total_mention_count,
-            "rows": brand_rows,
-        },
-        "source": {
-            "gap_rate": source_gap_rate,
-            "gap_priority": gap_action_priority(source_gap_rate),
-            "chat_source_own": chat_source_own,
-            "chat_source_total": chat_source_total,
-            "competitor_source_count": competitor_source_count,
-            "total_source_count": total_source_count,
-            "rows": source_rows,
-        },
-    }
+    return result

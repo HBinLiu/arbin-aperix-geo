@@ -47,7 +47,7 @@ type CitationDomainBreakdownTableProps = {
   | {
       subjectId: string;
       filters: AnalysisFilters;
-      host: string;
+      domain: string;
       rows?: never;
       loading?: never;
     }
@@ -56,7 +56,7 @@ type CitationDomainBreakdownTableProps = {
       loading?: boolean;
       subjectId?: never;
       filters?: never;
-      host?: never;
+      domain?: never;
     }
 );
 
@@ -157,7 +157,7 @@ export function CitationDomainBreakdownTable(props: CitationDomainBreakdownTable
     staticMode ? "" : props.subjectId,
     staticMode ? DEFAULT_ANALYSIS_FILTERS : props.filters,
     {
-      host: staticMode ? "" : props.host,
+      domain: staticMode ? "" : props.domain,
       page,
       pageSize,
       sortBy,
@@ -183,7 +183,7 @@ export function CitationDomainBreakdownTable(props: CitationDomainBreakdownTable
 
   useEffect(() => {
     setPage(1);
-  }, [sort, pageSize, staticRowsSource, staticMode ? null : props.host, staticMode ? null : props.filters]);
+  }, [sort, pageSize, staticRowsSource, staticMode ? null : props.domain, staticMode ? null : props.filters]);
 
   const handlePageSizeChange = (nextPageSize: number) => {
     setPageSize(nextPageSize);

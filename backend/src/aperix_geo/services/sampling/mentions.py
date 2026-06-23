@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from aperix_geo.db.models import Competitor, Subject
-from aperix_geo.utils.url import host_matches_root, normalize_domain
+from aperix_geo.utils.net import host_from, host_under_root, registrable_from
 
 if TYPE_CHECKING:
     from aperix_geo.services.analysis.entity import AnalysisEntity
@@ -97,11 +97,11 @@ def count_term(text: str, term: str) -> int:
 def host_mentions_domain(domain: str, url_hosts: list[str]) -> bool:
     if not domain or not url_hosts:
         return False
-    root = normalize_domain(domain) or domain.lower()
+    root = registrable_from(domain) or host_from(domain)
     label = domain.split(".")[0].lower()
     for host in url_hosts:
         host_lower = (host or "").lower()
-        if label in host_lower or host_matches_root(host, root):
+        if label in host_lower or host_under_root(host, root):
             return True
     return False
 

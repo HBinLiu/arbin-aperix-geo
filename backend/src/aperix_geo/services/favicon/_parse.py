@@ -6,7 +6,7 @@ import re
 from html import unescape
 from urllib.parse import urljoin, urlparse
 
-from aperix_geo.utils.url import hostname_from_url
+from aperix_geo.utils.net import host_from
 
 _LINK_TAG_RE = re.compile(r"<link\b([^>]+)>", re.IGNORECASE)
 _META_TAG_RE = re.compile(r"<meta\b([^>]+)>", re.IGNORECASE)
@@ -135,7 +135,7 @@ def related_hosts_from_html(html: str, root_domain: str) -> list[str]:
             continue
         if raw.startswith("//"):
             raw = f"https:{raw}"
-        host = hostname_from_url(raw if "://" in raw else f"https://{raw.lstrip('/')}")
+        host = host_from(raw if "://" in raw else f"https://{raw.lstrip('/')}")
         if not host or not _host_belongs_to_domain(host, root_domain):
             continue
         if host in seen:

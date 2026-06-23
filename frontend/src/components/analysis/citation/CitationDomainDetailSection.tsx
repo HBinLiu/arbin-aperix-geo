@@ -13,7 +13,7 @@ import type {
 
 type CitationDomainDetailSectionProps = {
   subjectId: string;
-  host: string;
+  domain: string;
   filters: AnalysisFilters;
   data: CitationDomainAnalysisData | undefined;
   ownLabel: string;
@@ -24,7 +24,7 @@ type CitationDomainDetailSectionProps = {
 
 export function CitationDomainDetailSection({
   subjectId,
-  host,
+  domain,
   filters,
   data,
   ownLabel,
@@ -53,7 +53,7 @@ export function CitationDomainDetailSection({
         <CitationUrlTable
           subjectId={subjectId}
           filters={filters}
-          host={host}
+          domain={domain}
           ownLabel={ownLabel}
           ownBrand={ownBrand}
           platformsMeta={platformsMeta}
@@ -62,7 +62,7 @@ export function CitationDomainDetailSection({
         <CitationDomainBreakdownTable
           subjectId={subjectId}
           filters={filters}
-          host={host}
+          domain={domain}
           nameHeader="提示词"
           showTopicColumn
         />

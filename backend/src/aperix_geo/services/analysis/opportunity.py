@@ -9,12 +9,12 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, func, not_, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import CitationDomain, CitationUrl, EntityKind, LLMResponse, LLMResponseSignal, Prompt, Subject
 from aperix_geo.services.analysis.entity import own_entity
-from aperix_geo.utils.url import host_matches_root
+from aperix_geo.utils.net import citation_registrable_key, registrable_from
 
 
 def citation_root_for_subject(subject: Subject) -> str | None:
@@ -39,7 +39,7 @@ def _backlink_row_rank_key(row: dict[str, Any]) -> tuple[int, int, int, str]:
         _BACKLINK_PRIORITY_ORDER.get(row["priority"], 9),
         -row["chat_count"],
         -row["prompt_count"],
-        row["host"],
+        row["domain"],
     )
 
 
@@ -47,7 +47,7 @@ def _filter_backlink_by_search(items: list[dict[str, Any]], search: str | None) 
     query = (search or "").strip().lower()
     if not query:
         return items
-    return [item for item in items if query in item["host"].lower()]
+    return [item for item in items if query in item["domain"].lower()]
 
 
 def _sort_backlink_items(
@@ -63,7 +63,7 @@ def _sort_backlink_items(
     if sort_by == "priority":
         return sorted(
             items,
-            key=lambda row: (_BACKLINK_PRIORITY_ORDER.get(row["priority"], 9), row["host"]),
+            key=lambda row: (_BACKLINK_PRIORITY_ORDER.get(row["priority"], 9), row["domain"]),
             reverse=reverse,
         )
     if sort_by == "prompt_count":
@@ -75,18 +75,111 @@ def _sort_backlink_items(
     return sorted(items, key=_backlink_row_rank_key)
 
 
+def _backlink_search_needle(search: str | None) -> str | None:
+    text = (search or "").strip().lower()
+    return text or None
+
+
+def _backlink_ilike_pattern(needle: str) -> str:
+    escaped = needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+def _backlink_priority_rank_expr(prompt_count_col, chat_count_col):
+    return case(
+        (or_(prompt_count_col >= 5, chat_count_col >= 8), 0),
+        (or_(prompt_count_col >= 2, chat_count_col >= 3), 1),
+        else_=2,
+    )
+
+
+def _backlink_grouped_subquery(
+    *,
+    subject_id: UUID,
+    dt_from: datetime,
+    dt_to: datetime,
+    platform: list[str] | None,
+    topic_id: list[UUID] | None,
+    own_root: str | None,
+):
+    eligible = _backlink_eligible_response_ids_stmt(
+        subject_id=subject_id,
+        dt_from=dt_from,
+        dt_to=dt_to,
+        platform=platform,
+        topic_id=topic_id,
+    ).subquery()
+    return (
+        select(
+            CitationDomain.domain.label("domain"),
+            func.sum(CitationDomain.cite_count).label("citation_count"),
+            func.count(func.distinct(CitationDomain.response_id)).label("chat_count"),
+            func.count(func.distinct(CitationDomain.prompt_id)).label("prompt_count"),
+        )
+        .where(
+            CitationDomain.response_id.in_(select(eligible.c.id)),
+            _exclude_own_domain(CitationDomain.domain, own_root),
+        )
+        .group_by(CitationDomain.domain)
+    ).subquery()
+
+
+def _backlink_sql_order_clauses(grouped, priority_rank, *, sort_by: str | None, order: str):
+    domain_col = grouped.c.domain
+    if not sort_by:
+        return (
+            priority_rank.asc(),
+            grouped.c.chat_count.desc(),
+            grouped.c.prompt_count.desc(),
+            domain_col.asc(),
+        )
+    reverse = order == "desc"
+    if sort_by == "priority":
+        priority_order = priority_rank.desc() if reverse else priority_rank.asc()
+        return (priority_order, domain_col.asc())
+    if sort_by == "prompt_count":
+        col = grouped.c.prompt_count.desc() if reverse else grouped.c.prompt_count.asc()
+        return (col, domain_col.asc())
+    if sort_by == "chat_count":
+        col = grouped.c.chat_count.desc() if reverse else grouped.c.chat_count.asc()
+        return (col, domain_col.asc())
+    if sort_by == "citation_count":
+        col = grouped.c.citation_count.desc() if reverse else grouped.c.citation_count.asc()
+        return (col, domain_col.asc())
+    return (
+        priority_rank.asc(),
+        grouped.c.chat_count.desc(),
+        grouped.c.prompt_count.desc(),
+        domain_col.asc(),
+    )
+
+
+def _backlink_row_from_sql(domain, citation_count, chat_count, prompt_count) -> dict[str, Any] | None:
+    domain_key = str(domain or "").strip().lower()
+    if not domain_key:
+        return None
+    chat = int(chat_count or 0)
+    if chat <= 0:
+        return None
+    prompts = int(prompt_count or 0)
+    return {
+        "id": domain_key,
+        "domain": domain_key,
+        "platforms": [],
+        "priority": backlink_priority(prompts, chat),
+        "citation_count": int(citation_count or 0),
+        "prompt_count": prompts,
+        "chat_count": chat,
+    }
+
+
 @dataclass(frozen=True)
-class _BacklinkHostContext:
-    host: str
-    response_ids: frozenset[UUID]
+class _BacklinkDomainContext:
+    domain: str
     citation_count: int
     chat_count: int
-    prompt_ids: frozenset[UUID]
+    prompt_count: int
     platforms: list[str]
-
-
-def _normalize_backlink_host(host: str) -> str:
-    return (host or "").strip().lower()
 
 
 def _backlink_window_subquery(
@@ -106,23 +199,22 @@ def _backlink_window_subquery(
     ).subquery()
 
 
-def _backlink_host_domain_filter(host: str, eligible_subq) -> Any:
+def _backlink_domain_filter(domain: str, eligible_subq) -> Any:
     return and_(
         CitationDomain.response_id.in_(select(eligible_subq.c.id)),
-        CitationDomain.domain == host,
+        CitationDomain.domain == domain,
     )
 
 
-def _backlink_host_response_ids_stmt(
+def _backlink_domain_response_ids_stmt(
     *,
     subject_id: UUID,
-    host: str,
+    domain: str,
     dt_from: datetime,
     dt_to: datetime,
     platform: list[str] | None,
     topic_id: list[UUID] | None,
 ):
-    host_key = _normalize_backlink_host(host)
     eligible = _backlink_window_subquery(
         subject_id=subject_id,
         dt_from=dt_from,
@@ -130,20 +222,16 @@ def _backlink_host_response_ids_stmt(
         platform=platform,
         topic_id=topic_id,
     )
-    return select(CitationDomain.response_id).where(_backlink_host_domain_filter(host_key, eligible)).distinct()
+    return select(CitationDomain.response_id).where(_backlink_domain_filter(domain, eligible)).distinct()
 
 
 def _exclude_own_domain(domain_column, own_root: str | None):
     if not own_root:
         return True
-    root = own_root.lower().replace("www.", "")
-    return not_(
-        or_(
-            domain_column == root,
-            domain_column == f"www.{root}",
-            domain_column.like(f"%.{root}"),
-        )
-    )
+    root = registrable_from(own_root) or own_root.strip().lower()
+    if not root:
+        return True
+    return domain_column != root
 
 
 def _backlink_eligible_response_ids_stmt(
@@ -177,8 +265,8 @@ def _backlink_eligible_response_ids_stmt(
     return window.where(LLMResponse.id.not_in(cited_on_source_ids))
 
 
-class _BacklinkHostStatsQuery:
-    """Patchable host stats query (tests assign to `.override`)."""
+class _BacklinkDomainPageQuery:
+    """Patchable domain page query (tests assign to `.override`)."""
 
     override: Callable[..., list[dict[str, Any]]] | None = None
 
@@ -191,9 +279,14 @@ class _BacklinkHostStatsQuery:
         dt_to: datetime,
         platform: list[str] | None = None,
         topic_id: list[UUID] | None = None,
-    ) -> list[dict[str, Any]]:
+        search: str | None = None,
+        sort_by: str | None = None,
+        order: str = "asc",
+        page: int = 1,
+        page_size: int = 10,
+    ) -> tuple[list[dict[str, Any]], int]:
         if self.override is not None:
-            return self.override(
+            all_items = self.override(
                 db,
                 subject=subject,
                 dt_from=dt_from,
@@ -201,6 +294,13 @@ class _BacklinkHostStatsQuery:
                 platform=platform,
                 topic_id=topic_id,
             )
+            filtered = _filter_backlink_by_search(all_items, search)
+            sorted_items = _sort_backlink_items(filtered, sort_by=sort_by, order=order)
+            safe_page = max(1, page)
+            safe_page_size = max(1, page_size)
+            total = len(sorted_items)
+            start = (safe_page - 1) * safe_page_size
+            return sorted_items[start : start + safe_page_size], total
         return self._load_sql(
             db,
             subject=subject,
@@ -208,6 +308,11 @@ class _BacklinkHostStatsQuery:
             dt_to=dt_to,
             platform=platform,
             topic_id=topic_id,
+            search=search,
+            sort_by=sort_by,
+            order=order,
+            page=page,
+            page_size=page_size,
         )
 
     @staticmethod
@@ -219,60 +324,60 @@ class _BacklinkHostStatsQuery:
         dt_to: datetime,
         platform: list[str] | None = None,
         topic_id: list[UUID] | None = None,
-    ) -> list[dict[str, Any]]:
-        eligible = _backlink_eligible_response_ids_stmt(
+        search: str | None = None,
+        sort_by: str | None = None,
+        order: str = "asc",
+        page: int = 1,
+        page_size: int = 10,
+    ) -> tuple[list[dict[str, Any]], int]:
+        safe_page = max(1, page)
+        safe_page_size = max(1, page_size)
+        own_root = citation_root_for_subject(subject)
+        grouped = _backlink_grouped_subquery(
             subject_id=subject.id,
             dt_from=dt_from,
             dt_to=dt_to,
             platform=platform,
             topic_id=topic_id,
-        ).subquery()
-        own_root = citation_root_for_subject(subject)
-        grouped = (
-            select(
-                CitationDomain.domain.label("host"),
-                func.sum(CitationDomain.cite_count).label("citation_count"),
-                func.count(func.distinct(CitationDomain.response_id)).label("chat_count"),
-                func.count(func.distinct(CitationDomain.prompt_id)).label("prompt_count"),
-            )
-            .where(
-                CitationDomain.response_id.in_(select(eligible.c.id)),
-                _exclude_own_domain(CitationDomain.domain, own_root),
-            )
-            .group_by(CitationDomain.domain)
-        ).subquery()
+            own_root=own_root,
+        )
+        filters = [grouped.c.chat_count > 0]
+        search_needle = _backlink_search_needle(search)
+        if search_needle:
+            filters.append(grouped.c.domain.ilike(_backlink_ilike_pattern(search_needle)))
 
+        filtered = select(grouped).where(*filters).subquery()
+        total = int(db.scalar(select(func.count()).select_from(filtered)) or 0)
+        if total == 0:
+            return [], 0
+
+        priority_rank = _backlink_priority_rank_expr(filtered.c.prompt_count, filtered.c.chat_count)
+        order_clauses = _backlink_sql_order_clauses(
+            filtered, priority_rank, sort_by=sort_by, order=order
+        )
+        offset = (safe_page - 1) * safe_page_size
         rows = db.execute(
             select(
-                grouped.c.host,
-                grouped.c.citation_count,
-                grouped.c.chat_count,
-                grouped.c.prompt_count,
-            ).where(grouped.c.chat_count > 0)
+                filtered.c.domain,
+                filtered.c.citation_count,
+                filtered.c.chat_count,
+                filtered.c.prompt_count,
+            )
+            .order_by(*order_clauses)
+            .offset(offset)
+            .limit(safe_page_size)
         ).all()
 
         items: list[dict[str, Any]] = []
-        for host, citation_count, chat_count, prompt_count in rows:
-            host_key = str(host or "").strip().lower()
-            if not host_key:
-                continue
-            chat = int(chat_count or 0)
-            prompts = int(prompt_count or 0)
-            items.append(
-                {
-                    "id": host_key,
-                    "host": host_key,
-                    "platforms": [],
-                    "priority": backlink_priority(prompts, chat),
-                    "citation_count": int(citation_count or 0),
-                    "prompt_count": prompts,
-                    "chat_count": chat,
-                }
-            )
-        return items
+        for domain, citation_count, chat_count, prompt_count in rows:
+            row = _backlink_row_from_sql(domain, citation_count, chat_count, prompt_count)
+            if row is not None:
+                items.append(row)
+        return items, total
 
 
-_query_backlink_host_stats = _BacklinkHostStatsQuery()
+_query_backlink_domain_page = _BacklinkDomainPageQuery()
+_query_backlink_domain_stats = _query_backlink_domain_page
 
 
 def _attach_backlink_platforms(
@@ -287,7 +392,7 @@ def _attach_backlink_platforms(
 ) -> None:
     if not items:
         return
-    page_hosts = [item["host"] for item in items]
+    page_domains = [item["domain"] for item in items]
     eligible = _backlink_eligible_response_ids_stmt(
         subject_id=subject_id,
         dt_from=dt_from,
@@ -300,39 +405,39 @@ def _attach_backlink_platforms(
         .join(LLMResponse, CitationDomain.response_id == LLMResponse.id)
         .where(
             CitationDomain.response_id.in_(select(eligible.c.id)),
-            CitationDomain.domain.in_(page_hosts),
+            CitationDomain.domain.in_(page_domains),
         )
     ).all()
-    platforms_by_host: dict[str, set[str]] = defaultdict(set)
+    platforms_by_domain: dict[str, set[str]] = defaultdict(set)
     for domain, platform_value in platform_rows:
-        host_key = str(domain or "").strip().lower()
-        if host_key and platform_value:
-            platforms_by_host[host_key].add(str(platform_value))
+        domain_key = str(domain or "").strip().lower()
+        if domain_key and platform_value:
+            platforms_by_domain[domain_key].add(str(platform_value))
     for item in items:
-        item["platforms"] = sorted(platforms_by_host.get(item["host"], set()))
+        item["platforms"] = sorted(platforms_by_domain.get(item["domain"], set()))
 
 
-class _BacklinkHostContextQuery:
-    """Patchable single-host context query (tests assign to `.override`)."""
+class _BacklinkDomainContextQuery:
+    """Patchable single-domain context query (tests assign to `.override`)."""
 
-    override: Callable[..., _BacklinkHostContext | None] | None = None
+    override: Callable[..., _BacklinkDomainContext | None] | None = None
 
     def __call__(
         self,
         db: Session,
         *,
         subject: Subject,
-        host: str,
+        domain: str,
         dt_from: datetime,
         dt_to: datetime,
         platform: list[str] | None = None,
         topic_id: list[UUID] | None = None,
-    ) -> _BacklinkHostContext | None:
+    ) -> _BacklinkDomainContext | None:
         if self.override is not None:
             return self.override(
                 db,
                 subject=subject,
-                host=host,
+                domain=domain,
                 dt_from=dt_from,
                 dt_to=dt_to,
                 platform=platform,
@@ -341,7 +446,7 @@ class _BacklinkHostContextQuery:
         return self._load_sql(
             db,
             subject=subject,
-            host=host,
+            domain=domain,
             dt_from=dt_from,
             dt_to=dt_to,
             platform=platform,
@@ -353,17 +458,16 @@ class _BacklinkHostContextQuery:
         db: Session,
         *,
         subject: Subject,
-        host: str,
+        domain: str,
         dt_from: datetime,
         dt_to: datetime,
         platform: list[str] | None = None,
         topic_id: list[UUID] | None = None,
-    ) -> _BacklinkHostContext | None:
-        host_key = _normalize_backlink_host(host)
-        if not host_key:
+    ) -> _BacklinkDomainContext | None:
+        if not domain:
             return None
         own_root = citation_root_for_subject(subject)
-        if own_root and host_matches_root(host_key, own_root):
+        if own_root and domain == registrable_from(own_root):
             return None
 
         eligible = _backlink_window_subquery(
@@ -373,19 +477,18 @@ class _BacklinkHostContextQuery:
             platform=platform,
             topic_id=topic_id,
         )
-        domain_filter = _backlink_host_domain_filter(host_key, eligible)
-        citation_count, chat_count = db.execute(
+        domain_filter = _backlink_domain_filter(domain, eligible)
+        citation_count, chat_count, prompt_count = db.execute(
             select(
                 func.coalesce(func.sum(CitationDomain.cite_count), 0),
                 func.count(func.distinct(CitationDomain.response_id)),
+                func.count(func.distinct(CitationDomain.prompt_id)),
             ).where(domain_filter)
         ).one()
         chat = int(chat_count or 0)
         if chat == 0:
             return None
 
-        response_ids = frozenset(db.scalars(select(CitationDomain.response_id).where(domain_filter)).all())
-        prompt_ids = frozenset(db.scalars(select(CitationDomain.prompt_id).where(domain_filter)).all())
         platform_rows = db.execute(
             select(LLMResponse.platform)
             .join(CitationDomain, CitationDomain.response_id == LLMResponse.id)
@@ -394,17 +497,16 @@ class _BacklinkHostContextQuery:
         ).all()
         platforms = sorted({str(row[0]) for row in platform_rows if row[0]})
 
-        return _BacklinkHostContext(
-            host=host_key,
-            response_ids=response_ids,
+        return _BacklinkDomainContext(
+            domain=domain,
             citation_count=int(citation_count or 0),
             chat_count=chat,
-            prompt_ids=prompt_ids,
+            prompt_count=int(prompt_count or 0),
             platforms=platforms,
         )
 
 
-_query_backlink_host_context = _BacklinkHostContextQuery()
+_query_backlink_domain_context = _BacklinkDomainContextQuery()
 
 
 def build_backlink_opportunities(
@@ -421,23 +523,23 @@ def build_backlink_opportunities(
     page: int = 1,
     page_size: int = 10,
 ) -> dict[str, Any]:
-    """Aggregate external citation hosts where own brand is not cited on source."""
-    items = _query_backlink_host_stats(
+    """Aggregate external citation domains where own brand is not cited on source."""
+    safe_page = max(1, page)
+    safe_page_size = max(1, page_size)
+    page_items, total = _query_backlink_domain_page(
         db,
         subject=subject,
         dt_from=dt_from,
         dt_to=dt_to,
         platform=platform,
         topic_id=topic_id,
+        search=search,
+        sort_by=sort_by,
+        order=order,
+        page=safe_page,
+        page_size=safe_page_size,
     )
-    filtered = _filter_backlink_by_search(items, search)
-    sorted_items = _sort_backlink_items(filtered, sort_by=sort_by, order=order)
-    safe_page = max(1, page)
-    safe_page_size = max(1, page_size)
-    total = len(sorted_items)
-    start = (safe_page - 1) * safe_page_size
-    page_items = sorted_items[start : start + safe_page_size]
-    if page_items and _query_backlink_host_stats.override is None:
+    if page_items and _query_backlink_domain_page.override is None:
         _attach_backlink_platforms(
             db,
             items=page_items,
@@ -459,7 +561,7 @@ def _backlink_mentioned_competitors(
     db: Session,
     *,
     subject: Subject,
-    host: str,
+    domain: str,
     subject_id: UUID,
     dt_from: datetime,
     dt_to: datetime,
@@ -468,14 +570,13 @@ def _backlink_mentioned_competitors(
 ) -> list[dict[str, str | None]]:
     from aperix_geo.services.sampling.citation.aggregate import (
         _competitor_domain_map,
-        _url_matches_host,
+        _url_matches_registrable,
     )
     from aperix_geo.services.sampling.citation.labels import page_mentioned_brand_names
 
-    host_key = _normalize_backlink_host(host)
-    response_ids_stmt = _backlink_host_response_ids_stmt(
+    response_ids_stmt = _backlink_domain_response_ids_stmt(
         subject_id=subject_id,
-        host=host_key,
+        domain=domain,
         dt_from=dt_from,
         dt_to=dt_to,
         platform=platform,
@@ -490,7 +591,7 @@ def _backlink_mentioned_competitors(
     records = db.execute(
         select(CitationUrl).where(
             CitationUrl.response_id.in_(response_ids_stmt),
-            _url_matches_host(CitationUrl.url, host_key),
+            _url_matches_registrable(CitationUrl.url, domain),
         )
     ).scalars().all()
     competitor_domains = _competitor_domain_map(subject)
@@ -507,9 +608,9 @@ def _backlink_mentioned_competitors(
     return items
 
 
-def _empty_backlink_detail(host: str) -> dict[str, Any]:
+def _empty_backlink_detail(domain: str) -> dict[str, Any]:
     return {
-        "host": host,
+        "domain": domain,
         "priority": "low",
         "platforms": [],
         "citation_count": 0,
@@ -524,26 +625,26 @@ def build_backlink_opportunity_detail(
     db: Session,
     *,
     subject: Subject,
-    host: str,
+    domain: str,
     dt_from: datetime,
     dt_to: datetime,
     platform: list[str] | None = None,
     topic_id: list[UUID] | None = None,
 ) -> dict[str, Any]:
-    host = _normalize_backlink_host(host)
-    ctx = _query_backlink_host_context(
+    domain = citation_registrable_key(domain)
+    ctx = _query_backlink_domain_context(
         db,
         subject=subject,
-        host=host,
+        domain=domain,
         dt_from=dt_from,
         dt_to=dt_to,
         platform=platform,
         topic_id=topic_id,
     )
     if ctx is None:
-        return _empty_backlink_detail(host)
+        return _empty_backlink_detail(domain)
 
-    prompt_count = len(ctx.prompt_ids)
+    prompt_count = ctx.prompt_count
 
     from aperix_geo.services.analysis._query import count_responses_in_window
 
@@ -558,7 +659,7 @@ def build_backlink_opportunity_detail(
     )
 
     return {
-        "host": host,
+        "domain": domain,
         "priority": backlink_priority(prompt_count, ctx.chat_count),
         "platforms": ctx.platforms,
         "citation_count": ctx.citation_count,
@@ -568,7 +669,7 @@ def build_backlink_opportunity_detail(
         "mentioned_competitors": _backlink_mentioned_competitors(
             db,
             subject=subject,
-            host=host,
+            domain=domain,
             subject_id=subject.id,
             dt_from=dt_from,
             dt_to=dt_to,
@@ -582,7 +683,7 @@ def build_backlink_opportunity_urls_page(
     db: Session,
     *,
     subject: Subject,
-    host: str,
+    domain: str,
     dt_from: datetime,
     dt_to: datetime,
     platform: list[str] | None = None,
@@ -597,14 +698,14 @@ def build_backlink_opportunity_urls_page(
         _competitor_domain_map,
         _load_prompt_topic_maps,
         _normalize_pagination,
-        _url_matches_host,
+        _url_matches_registrable,
     )
 
-    host = _normalize_backlink_host(host)
-    ctx = _query_backlink_host_context(
+    domain = citation_registrable_key(domain)
+    ctx = _query_backlink_domain_context(
         db,
         subject=subject,
-        host=host,
+        domain=domain,
         dt_from=dt_from,
         dt_to=dt_to,
         platform=platform,
@@ -620,9 +721,9 @@ def build_backlink_opportunity_urls_page(
             "response_total": 0,
         }
 
-    response_ids_stmt = _backlink_host_response_ids_stmt(
+    response_ids_stmt = _backlink_domain_response_ids_stmt(
         subject_id=subject.id,
-        host=host,
+        domain=domain,
         dt_from=dt_from,
         dt_to=dt_to,
         platform=platform,
@@ -637,7 +738,7 @@ def build_backlink_opportunity_urls_page(
         )
         .where(
             CitationUrl.response_id.in_(response_ids_stmt),
-            _url_matches_host(CitationUrl.url, host),
+            _url_matches_registrable(CitationUrl.url, domain),
         )
         .group_by(CitationUrl.url)
     ).subquery()
@@ -709,7 +810,7 @@ def build_backlink_opportunity_prompts_page(
     db: Session,
     *,
     subject: Subject,
-    host: str,
+    domain: str,
     dt_from: datetime,
     dt_to: datetime,
     platform: list[str] | None = None,
@@ -719,13 +820,13 @@ def build_backlink_opportunity_prompts_page(
     sort_by: str = "count",
     order: str = "desc",
 ) -> dict[str, Any]:
-    from aperix_geo.services.sampling.citation.aggregate import _normalize_pagination, _url_matches_host
+    from aperix_geo.services.sampling.citation.aggregate import _normalize_pagination, _url_matches_registrable
 
-    host = _normalize_backlink_host(host)
-    ctx = _query_backlink_host_context(
+    domain = citation_registrable_key(domain)
+    ctx = _query_backlink_domain_context(
         db,
         subject=subject,
-        host=host,
+        domain=domain,
         dt_from=dt_from,
         dt_to=dt_to,
         platform=platform,
@@ -741,9 +842,9 @@ def build_backlink_opportunity_prompts_page(
             "response_total": 0,
         }
 
-    response_ids_stmt = _backlink_host_response_ids_stmt(
+    response_ids_stmt = _backlink_domain_response_ids_stmt(
         subject_id=subject.id,
-        host=host,
+        domain=domain,
         dt_from=dt_from,
         dt_to=dt_to,
         platform=platform,
@@ -758,7 +859,7 @@ def build_backlink_opportunity_prompts_page(
         )
         .where(
             CitationUrl.response_id.in_(response_ids_stmt),
-            _url_matches_host(CitationUrl.url, host),
+            _url_matches_registrable(CitationUrl.url, domain),
         )
         .group_by(CitationUrl.prompt_id)
     ).subquery()
@@ -803,7 +904,7 @@ def build_backlink_opportunity_prompts_page(
         .where(
             CitationUrl.response_id.in_(response_ids_stmt),
             CitationUrl.prompt_id.in_(page_prompt_ids),
-            _url_matches_host(CitationUrl.url, host),
+            _url_matches_registrable(CitationUrl.url, domain),
         )
         .distinct()
     ).all()

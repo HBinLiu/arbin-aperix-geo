@@ -6,14 +6,13 @@ import logging
 from typing import Any, Literal
 
 from aperix_geo.config import get_settings
-from aperix_geo.utils.domains import registrable_domain
+from aperix_geo.utils.net import registrable_from
 from aperix_geo.services.competitor.cross_validate import expand_ranked_domains, run_cross_validate
 from aperix_geo.services.competitor.doubao import (
     discover_competitors_via_doubao,
     pool_from_discovered_competitors,
 )
 from aperix_geo.services.competitor.enrich import enrich_discovered_competitors
-from aperix_geo.utils.domains import registrable_domain
 from aperix_geo.services.competitor.types import CrossValidateResult, DiscoveredCompetitor, NicheProfile
 
 logger = logging.getLogger(__name__)
@@ -22,8 +21,8 @@ SubjectType = Literal["domain", "brand"]
 
 
 def _exclude_self_domain(domains: list[str], *, target: str) -> list[str]:
-    self_domain = registrable_domain(target)
-    return [d for d in domains if registrable_domain(d) != self_domain]
+    self_domain = registrable_from(target)
+    return [d for d in domains if registrable_from(d) != self_domain]
 
 
 def _merge_doubao_candidates(
@@ -32,7 +31,7 @@ def _merge_doubao_candidates(
 ) -> int:
     added = 0
     for item in batch:
-        domain = registrable_domain(str(item.get("domain") or ""))
+        domain = registrable_from(str(item.get("domain") or ""))
         if domain:
             if domain in existing:
                 continue
@@ -64,13 +63,13 @@ def _select_after_cross_validate(
     )
     pack_order = _exclude_self_domain(pack_order, target=target)[: settings.competitor_result_max]
     by_domain = {
-        registrable_domain(str(c.get("domain") or "")): c
+        registrable_from(str(c.get("domain") or "")): c
         for c in candidates
         if c.get("domain")
     }
     out: list[DiscoveredCompetitor] = []
     for domain in pack_order:
-        key = registrable_domain(domain)
+        key = registrable_from(domain)
         item = by_domain.get(key)
         if not item:
             continue
@@ -87,11 +86,11 @@ def _attach_cross_validate_scores(
     competitors: list[DiscoveredCompetitor],
     validation: CrossValidateResult,
 ) -> list[DiscoveredCompetitor]:
-    scores_by_domain = {registrable_domain(s.domain): s for s in validation.scores}
+    scores_by_domain = {registrable_from(s.domain): s for s in validation.scores}
     enriched: list[DiscoveredCompetitor] = []
     for item in competitors:
         row = dict(item)
-        domain = registrable_domain(str(item.get("domain") or ""))
+        domain = registrable_from(str(item.get("domain") or ""))
         score_row = scores_by_domain.get(domain) if domain else None
         if score_row is not None:
             row["cross_validate_score"] = score_row.score

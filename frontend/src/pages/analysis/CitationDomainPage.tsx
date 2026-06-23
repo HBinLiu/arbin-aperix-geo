@@ -9,7 +9,7 @@ import { useAnalysisFiltersState } from "@/hooks/useAnalysisFiltersState";
 import { useCitationDomainAnalysis } from "@/hooks/useCitationDomainAnalysis";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
 
-function decodeRouteHost(value: string | undefined): string {
+function decodeRouteDomain(value: string | undefined): string {
   if (!value) return "";
   try {
     return decodeURIComponent(value).trim().toLowerCase();
@@ -20,13 +20,13 @@ function decodeRouteHost(value: string | undefined): string {
 
 /** 分析 · 引用率 · 域名详情 */
 export function CitationDomainPage() {
-  const { host: hostParam } = useParams<{ host: string }>();
-  const host = decodeRouteHost(hostParam);
+  const { domain: domainParam } = useParams<{ domain: string }>();
+  const domain = decodeRouteDomain(domainParam);
   const { subjectId } = useAnalysisOutletContext();
   const { subject } = useDashboardContext();
   const { filters, setFilters } = useAnalysisFiltersState();
 
-  const { isLoading, data } = useCitationDomainAnalysis(subjectId, host, filters);
+  const { isLoading, data } = useCitationDomainAnalysis(subjectId, domain, filters);
   const { platforms: platformsMeta } = useAnalysisFilter();
   const ownLabel = subject.brand;
 
@@ -39,7 +39,7 @@ export function CitationDomainPage() {
 
         <CitationDomainDetailSection
           subjectId={subjectId}
-          host={host}
+          domain={domain}
           filters={filters}
           data={data}
           ownLabel={ownLabel}

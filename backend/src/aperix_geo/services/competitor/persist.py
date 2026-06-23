@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from aperix_geo.db.models import Competitor, Subject
 from aperix_geo.schemas.catalog import CompetitorItem
 from aperix_geo.services.subject.domain_fields import prepare_domain_and_website_url
-from aperix_geo.utils.domains import ensure_brand
+from aperix_geo.utils.net import ensure_brand
 
 
 def _cross_validated_at(item: CompetitorItem) -> datetime | None:

@@ -99,7 +99,7 @@ type CitationUrlTableProps = {
   ownLabel: string;
   ownBrand?: string | null;
   citationSearch?: string;
-  host?: string;
+  domain?: string;
   platformsMeta?: SamplingPlatform[];
 } & (
   | {
@@ -114,7 +114,7 @@ type CitationUrlTableProps = {
       subjectId?: never;
       filters?: never;
       citationSearch?: never;
-      host?: never;
+      domain?: never;
     }
 );
 
@@ -169,9 +169,9 @@ function MentionStatusCell({ mentioned }: { mentioned: boolean | null }) {
 export function CitationUrlTable(props: CitationUrlTableProps) {
   const { ownLabel, ownBrand, platformsMeta = [] } = props;
   const citationSearch = "citationSearch" in props ? (props.citationSearch ?? "") : "";
-  const domainHost = "host" in props ? (props.host ?? "") : "";
+  const filterDomain = "domain" in props ? (props.domain ?? "") : "";
   const staticMode = "rows" in props && props.rows != null;
-  const domainMode = !staticMode && Boolean(domainHost);
+  const domainMode = !staticMode && Boolean(filterDomain);
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
@@ -197,7 +197,7 @@ export function CitationUrlTable(props: CitationUrlTableProps) {
     staticMode || !domainMode ? "" : props.subjectId,
     staticMode || !domainMode ? DEFAULT_ANALYSIS_FILTERS : props.filters,
     {
-      host: domainHost,
+      domain: filterDomain,
       page,
       pageSize,
       sortBy,
@@ -228,7 +228,7 @@ export function CitationUrlTable(props: CitationUrlTableProps) {
 
   useEffect(() => {
     setPage(1);
-  }, [sort, pageSize, staticRowsSource, remoteFilters, citationSearch, domainHost]);
+  }, [sort, pageSize, staticRowsSource, remoteFilters, citationSearch, filterDomain]);
 
   const handlePageSizeChange = (nextPageSize: number) => {
     setPageSize(nextPageSize);

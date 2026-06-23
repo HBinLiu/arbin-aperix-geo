@@ -9,7 +9,7 @@ import type { AnalysisFilters } from "@/types";
 
 export function useCitationDomainAnalysis(
   subjectId: string,
-  host: string,
+  domain: string,
   filters: AnalysisFilters,
 ) {
   const queryFilters = useMemo(() => toAnalysisQueryFilters(filters), [filters]);
@@ -21,12 +21,12 @@ export function useCitationDomainAnalysis(
     queryKey: queryKeys.citationDomainAnalysis(
       subjectId,
       entityId,
-      platformKey, topicKey, host,
+      platformKey, topicKey, domain,
       from,
       to,
     ),
-    queryFn: () => fetchCitationDomainAnalysis(subjectId, queryFilters, host),
-    enabled: Boolean(host),
+    queryFn: () => fetchCitationDomainAnalysis(subjectId, queryFilters, domain),
+    enabled: Boolean(domain),
   });
 
   return {

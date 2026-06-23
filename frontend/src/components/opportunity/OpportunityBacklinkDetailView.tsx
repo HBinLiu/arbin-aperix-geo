@@ -29,7 +29,7 @@ const PRIORITY_VARIANT: Record<OpportunityPriority, SemanticBadgeVariant> = {
 
 type OpportunityBacklinkDetailViewProps = {
   subjectId: string;
-  host: string;
+  domain: string;
   filters: AnalysisFilters;
   ownLabel: string;
   ownBrand?: string | null;
@@ -56,14 +56,14 @@ function GeoMetricCard({ label, children, loading }: { label: string; children: 
 
 export function OpportunityBacklinkDetailView({
   subjectId,
-  host,
+  domain,
   filters,
   ownLabel,
   ownBrand,
   platformsMeta,
 }: OpportunityBacklinkDetailViewProps) {
   const [activeTab, setActiveTab] = useState<BacklinkOpportunityDetailTab>("pages");
-  const { data, isLoading } = useBacklinkOpportunityDetail(subjectId, filters, { host });
+  const { data, isLoading } = useBacklinkOpportunityDetail(subjectId, filters, { domain });
 
   const priority = data?.priority ?? "low";
   const priorityLabel = backlinkPriorityLabel(priority);
@@ -89,7 +89,7 @@ export function OpportunityBacklinkDetailView({
           {isLoading ? (
             <Skeleton className="h-5 w-32" />
           ) : (
-            <span className="truncate font-semibold">{host}</span>
+            <span className="truncate font-semibold">{domain}</span>
           )}
         </InfoField>
         <InfoField label="优先级">
@@ -144,7 +144,7 @@ export function OpportunityBacklinkDetailView({
         {activeTab === "pages" ? (
           <OpportunityBacklinkUrlTable
             subjectId={subjectId}
-            host={host}
+            domain={domain}
             filters={filters}
             ownLabel={ownLabel}
             ownBrand={ownBrand}
@@ -153,7 +153,7 @@ export function OpportunityBacklinkDetailView({
         ) : (
           <OpportunityBacklinkPromptTable
             subjectId={subjectId}
-            host={host}
+            domain={domain}
             filters={filters}
             platformsMeta={platformsMeta}
           />

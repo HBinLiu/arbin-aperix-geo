@@ -70,7 +70,7 @@ class AnalysisResponsesParams(AnalysisWindowParams):
 
 
 class CitationDomainAnalysisParams(AnalysisWindowParams):
-    host: str
+    domain: str
 
 
 CitationDomainPromptSortField = Literal["count", "citation_rate"]
@@ -135,7 +135,7 @@ class BacklinkOpportunityParams(OpportunityWindowParams):
 
 
 class BacklinkOpportunityDetailParams(OpportunityWindowParams):
-    host: str
+    domain: str
 
 
 class BacklinkOpportunityUrlsParams(BacklinkOpportunityDetailParams):

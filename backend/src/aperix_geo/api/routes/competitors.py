@@ -11,7 +11,7 @@ from aperix_geo.services.catalog import clear_analysis_entities_cache
 from aperix_geo.services.competitor.persist import apply_competitors
 from aperix_geo.services.competitor.promote import PromoteBrandError, promote_open_brand_to_competitor
 from aperix_geo.services.subject.rules import validate_brand_competitors
-from aperix_geo.utils.domains import ensure_brand
+from aperix_geo.utils.net import ensure_brand
 
 router = APIRouter(tags=["competitors"])
 

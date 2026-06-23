@@ -124,7 +124,7 @@ function MentionStatusCell({ mentioned }: { mentioned: boolean | null }) {
 
 type OpportunityBacklinkUrlTableProps = {
   subjectId: string;
-  host: string;
+  domain: string;
   filters: AnalysisFilters;
   ownLabel: string;
   ownBrand?: string | null;
@@ -133,7 +133,7 @@ type OpportunityBacklinkUrlTableProps = {
 
 export function OpportunityBacklinkUrlTable({
   subjectId,
-  host,
+  domain,
   filters,
   ownLabel,
   ownBrand,
@@ -145,7 +145,7 @@ export function OpportunityBacklinkUrlTable({
   const { sortBy, order } = urlSortParams(sort);
 
   const { rows, total, loading, fetching } = useBacklinkOpportunityUrls(subjectId, filters, {
-    host,
+    domain,
     page,
     pageSize,
     sortBy,
@@ -154,7 +154,7 @@ export function OpportunityBacklinkUrlTable({
 
   useEffect(() => {
     setPage(1);
-  }, [sort, pageSize, host, filters]);
+  }, [sort, pageSize, domain, filters]);
 
   const handlePageSizeChange = (nextPageSize: number) => {
     setPageSize(nextPageSize);

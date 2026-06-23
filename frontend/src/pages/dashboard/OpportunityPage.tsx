@@ -155,7 +155,7 @@ export function OpportunityContent({ subjectId }: OpportunityContentProps) {
             onPageChange={setPage}
             onPageSizeChange={setPageSize}
             onRowClick={(row) => {
-              navigate(backlinkOpportunityDetailPath(row.host));
+              navigate(backlinkOpportunityDetailPath(row.domain));
             }}
           />
         ) : (

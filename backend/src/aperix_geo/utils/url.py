@@ -7,7 +7,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import httpx
 
-from aperix_geo.utils.domains import is_valid_hostname, registrable_domain, strip_hostname
+from aperix_geo.utils.domains import is_brand_domain, is_valid_hostname, normalize_host, registrable_domain, registrable_from, strip_hostname
 from aperix_geo.utils.http import HTML_FETCH_HEADERS
 
 _URL_RE = re.compile(r"https?://[^\s\)\]\"']+", re.IGNORECASE)
@@ -47,18 +47,12 @@ def is_placeholder_citation_host(host: str | None) -> bool:
     return root.endswith((".example", ".test", ".localhost", ".invalid"))
 
 
-def is_valid_citation_host(host: str | None) -> bool:
-    """Real citation host: not placeholder, not numeric-only (e.g. 9.8), has a letter TLD/label."""
+def is_citation_host(host: str | None) -> bool:
+    """Real citation host: plausible domain and not a placeholder."""
     h = strip_hostname(host or "")
     if not h or is_placeholder_citation_host(h):
         return False
-    if "." not in h:
-        return False
-    if _NUMERIC_ONLY_HOST_RE.fullmatch(h):
-        return False
-    if not re.search(r"[a-z]", h):
-        return False
-    return is_valid_hostname(h)
+    return is_brand_domain(h)
 
 
 def filter_citation_urls(urls: list[str]) -> list[str]:
@@ -69,8 +63,8 @@ def filter_citation_urls(urls: list[str]) -> list[str]:
         key = str(raw).strip()
         if not key or key in seen:
             continue
-        host = hostname_from_url(key)
-        if not host or not is_valid_citation_host(host):
+        host = host_from_url(key)
+        if not host or not is_citation_host(host):
             continue
         seen.add(key)
         out.append(key)
@@ -82,7 +76,7 @@ def is_llm_numeric_fake_url(url: str) -> bool:
     key = (url or "").strip()
     if not key.lower().startswith(("http://", "https://")):
         return False
-    host = hostname_from_url(key)
+    host = host_from_url(key)
     if not host:
         return True
     if _NUMERIC_ONLY_HOST_RE.fullmatch(host):
@@ -90,7 +84,7 @@ def is_llm_numeric_fake_url(url: str) -> bool:
     return not re.search(r"[a-z]", host)
 
 
-def hostname_from_url(url: str) -> str | None:
+def host_from_url(url: str) -> str | None:
     try:
         parsed = urlparse(url.strip())
     except ValueError:
@@ -102,21 +96,33 @@ def hostname_from_url(url: str) -> str | None:
     return host or None
 
 
-def normalize_domain(domain: str | None) -> str | None:
-    if not domain:
-        return None
-    host = strip_hostname(domain)
-    return host or None
+def citation_from(url_or_host: str) -> str:
+    """Registrable domain (eTLD+1) for citation aggregation keys."""
+    return registrable_from(url_or_host)
 
 
-def host_matches_root(host: str | None, root: str | None) -> bool:
+def citation_registrable_key(value: str) -> str:
+    """Normalize URL/hostname input to ``tb_citation_domains.domain`` key (eTLD+1)."""
+    text = (value or "").strip()
+    if not text:
+        return ""
+    if "://" in text or text.startswith("//"):
+        raw = text if not text.startswith("//") else f"https:{text}"
+        return citation_from(raw) or ""
+    if "/" in text and "." in text.split("/", 1)[0]:
+        return citation_from(f"https://{text}") or ""
+    root = registrable_from(text) or registrable_from(f"https://{text}")
+    return root.lower() if root else text.split("/", 1)[0].lower()
+
+
+def host_under_root(host: str | None, root: str | None) -> bool:
     if not host or not root:
         return False
     h = host.lower().replace("www.", "")
     return h == root or h.endswith(f".{root}")
 
 
-def normalize_page_url(url: str) -> str | None:
+def page_url(url: str) -> str | None:
     parsed = urlparse(url.strip())
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
         return None
@@ -129,7 +135,7 @@ def normalize_page_url(url: str) -> str | None:
 _TRACKING_QUERY_KEYS = frozenset({"fbclid", "gclid", "mc_cid", "mc_eid", "ref", "source", "spm", "utm"})
 
 
-def normalize_crawl_cache_url(url: str) -> str:
+def crawl_cache_url(url: str) -> str:
     """Normalize URL for crawl cache keys (host/path/query cleanup)."""
     raw = url.strip()
     if not raw:
@@ -161,7 +167,7 @@ def host_resolves(host: str, *, timeout_s: float = 3.0) -> bool:
     return host_resolves_cached(host, timeout_s=timeout_s, ttl_s=ttl_s)
 
 
-def host_resolves_to_public_addresses(host: str, *, timeout_s: float = 3.0) -> bool:
+def host_resolves_public(host: str, *, timeout_s: float = 3.0) -> bool:
     """True when DNS resolves and every A/AAAA address is a public routable IP."""
     import ipaddress
     import socket
@@ -236,11 +242,16 @@ def homepage_urls(domain: str) -> list[str]:
     return _homepage_https_urls(domain, prefer_www=True)
 
 
-def candidate_website_urls(domain: str, *, preferred_url: str = "") -> list[str]:
+def apex_homepage_urls(domain: str) -> list[str]:
+    """候选首页 URL（仅 HTTPS，裸域优先，再试 www）。"""
+    return _homepage_https_urls(domain, prefer_www=False)
+
+
+def website_candidates(domain: str, *, preferred_url: str = "") -> list[str]:
     """URL 候选：优先给定链接，再试 domain 的 www/裸域首页。"""
     seen: set[str] = set()
     out: list[str] = []
-    preferred = normalize_user_website_input(preferred_url)
+    preferred = parse_url(preferred_url)
     if preferred and preferred not in seen:
         seen.add(preferred)
         out.append(preferred)
@@ -262,7 +273,7 @@ def probe_first_reachable_url(
     candidates: list[str] = []
     seen: set[str] = set()
     for raw in urls:
-        url = normalize_user_website_input(raw)
+        url = parse_url(raw)
         if url and url not in seen:
             seen.add(url)
             candidates.append(url)
@@ -280,29 +291,29 @@ def probe_first_reachable_url(
     return None
 
 
-def homepage_urls_apex_first(domain: str) -> list[str]:
-    """
-    候选首页 URL（仅 HTTPS，裸域优先，再试 www）。
+def parse_url(raw: str) -> str:
+    """Validate user URL input (HttpUrl + plausible host) and return a fetchable http(s) URL."""
+    from pydantic import ValidationError
 
-    用于 profile 抓取回退、favicon 等；Setup 首页优先走 profile_homepage_crawl_urls。
-    """
-    return _homepage_https_urls(domain, prefer_www=False)
+    from aperix_geo.schemas.url_fields import normalize_validated_http_url
 
-
-def normalize_user_website_input(raw: str) -> str:
-    """将用户输入转为可抓取的 http(s) URL，保留 host 与 path。"""
     s = raw.strip()
     if not s:
         return ""
-    if re.match(r"^https?://", s, re.I):
-        return s
-    return f"https://{s.lstrip('/')}"
+    if not re.match(r"^https?://", s, re.I):
+        s = f"https://{s.lstrip('/')}"
+    try:
+        validated = normalize_validated_http_url(s)
+    except ValidationError:
+        return ""
+    host = host_from_url(validated)
+    if not host or not is_brand_domain(host):
+        return ""
+    return validated
 
 
-def profile_homepage_crawl_urls(raw_input: str, *, root: str) -> list[str]:
-    """
-    Setup 画像首页抓取顺序：用户输入的完整 URL 优先，失败后再试 apex/www 候选。
-    """
+def profile_crawl_urls(raw_input: str, *, root: str) -> list[str]:
+    """Setup 画像首页抓取顺序：用户输入的完整 URL 优先，失败后再试 apex/www 候选。"""
     urls: list[str] = []
     seen: set[str] = set()
 
@@ -313,7 +324,7 @@ def profile_homepage_crawl_urls(raw_input: str, *, root: str) -> list[str]:
         seen.add(u)
         urls.append(u)
 
-    user = normalize_user_website_input(raw_input)
+    user = parse_url(raw_input)
     if user:
         add(user)
         parsed = urlparse(user)
@@ -321,12 +332,12 @@ def profile_homepage_crawl_urls(raw_input: str, *, root: str) -> list[str]:
             add(f"{parsed.scheme}://{parsed.netloc}/")
 
     if root:
-        for u in homepage_urls_apex_first(root):
+        for u in apex_homepage_urls(root):
             add(u)
     return urls
 
 
-def root_website_url(url: str) -> str:
+def website_root_url(url: str) -> str:
     """保留 scheme + host，去掉 path/query/fragment 与末尾斜杠。"""
     parsed = urlparse(url.strip())
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
@@ -335,7 +346,7 @@ def root_website_url(url: str) -> str:
     return f"{parsed.scheme.lower()}://{host}"
 
 
-def fallback_website_url(domain: str) -> str:
+def website_fallback(domain: str) -> str:
     """无网络探测时的默认首页 URL（优先 www + HTTPS）。"""
     root = registrable_domain(domain)
     if not root:
@@ -367,13 +378,13 @@ def _probe_reachable_root_url(url: str, *, timeout_s: float, client: httpx.Clien
     try:
         resp = client.get(url, follow_redirects=True, timeout=timeout_s)
         if resp.status_code < 400:
-            return root_website_url(str(resp.url))
+            return website_root_url(str(resp.url))
     except httpx.HTTPError:
         return None
     return None
 
 
-def resolve_website_url(raw: str, *, timeout_s: float = 5.0, probe: bool = True) -> tuple[str, str]:
+def resolve_website(raw: str, *, timeout_s: float = 5.0, probe: bool = True) -> tuple[str, str]:
     """
     从用户输入解析 (registrable_domain, website_url)。
 
@@ -393,4 +404,4 @@ def resolve_website_url(raw: str, *, timeout_s: float = 5.0, probe: bool = True)
         except OSError:
             pass
 
-    return domain, fallback_website_url(domain)
+    return domain, website_fallback(domain)

@@ -14,7 +14,7 @@ from aperix_geo.services.providers.prompts import (
     competitor_doubao_discover_user_content,
 )
 from aperix_geo.services.subject.domain_fields import prepare_domain_and_website_url
-from aperix_geo.utils.domains import ensure_brand, registrable_domain
+from aperix_geo.utils.net import ensure_brand, registrable_from
 from aperix_geo.utils.json import extract_json_object
 
 
@@ -80,7 +80,7 @@ def parse_doubao_competitors_payload(
     if not isinstance(rows, list):
         return []
 
-    self_domain = registrable_domain(self_domain)
+    self_domain = registrable_from(self_domain)
     out: list[DiscoveredCompetitor] = []
     seen_domains: set[str] = set()
     seen_brands: set[str] = set()
@@ -114,7 +114,7 @@ def pool_from_discovered_competitors(competitors: list[DiscoveredCompetitor]) ->
     domains: list[str] = []
     by_domain: dict[str, CandidateMeta] = {}
     for item in competitors:
-        domain = registrable_domain(str(item.get("domain") or ""))
+        domain = registrable_from(str(item.get("domain") or ""))
         if not domain or domain in by_domain:
             continue
         url = str(item.get("website_url") or "").strip() or f"https://{domain}/"
@@ -144,7 +144,7 @@ def discover_competitors_via_doubao(
         raise DoubaoProviderError("Doubao API key is not configured")
 
     require_domain = subject_type == "domain"
-    self_domain = registrable_domain(target if require_domain else "")
+    self_domain = registrable_from(target if require_domain else "")
     user_content = competitor_doubao_discover_user_content(
         target=target,
         website_url=website_url,

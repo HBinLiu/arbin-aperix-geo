@@ -7,7 +7,7 @@ JSONB ``LLMResponse.parsed`` is not used for aggregation.
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
@@ -17,9 +17,8 @@ from sqlalchemy.orm import Session
 from aperix_geo.db.models import CitationDomain, CitationUrl, LLMResponse, Prompt, Subject, Topic
 from aperix_geo.services.sampling.citation.labels import page_mentioned_brand_names
 from aperix_geo.services.subject.labels import competitor_rank_label
-from aperix_geo.utils.domains import registrable_domain
+from aperix_geo.utils.net import citation_from, citation_registrable_key, host_from, registrable_from
 from aperix_geo.utils.text import coalesce_page_title, is_template_title, mode_nonempty
-from aperix_geo.utils.url import hostname_from_url
 
 CitationDomainSortField = Literal["count"]
 CitationUrlSortField = Literal["count", "citation_rate"]
@@ -36,9 +35,13 @@ def _competitor_domain_map(subject: Subject | None) -> dict[str, str]:
         domain = (competitor.domain or "").strip()
         label = competitor_rank_label(brand=brand, domain=domain)
         if label and domain:
-            mapping[label] = registrable_domain(domain) or domain
+            rd = registrable_from(domain)
+            if rd:
+                mapping[label] = rd
         if brand:
-            mapping[brand] = registrable_domain(domain) or domain
+            rd = registrable_from(domain)
+            if rd:
+                mapping[brand] = rd
     return mapping
 
 
@@ -110,7 +113,7 @@ def _aggregate_url_row(
     topic_names: dict[UUID, str],
 ) -> dict[str, Any]:
     count = len(records)
-    host = (hostname_from_url(url) or "").strip().lower()
+    host = (host_from(url) or "").strip().lower()
     page_title = mode_nonempty(
         [
             record.page_title
@@ -128,6 +131,7 @@ def _aggregate_url_row(
     return {
         "url": url,
         "host": host,
+        "domain": citation_from(url) or host,
         "title": coalesce_page_title(page_title, url=url),
         "count": count,
         "citation_rate": round(count / total, 4) if total else 0,
@@ -158,21 +162,12 @@ def _citation_search_text(search: str | None) -> str | None:
 
 
 def domain_search_needle(search: str | None) -> str | None:
-    """Normalize user input for domain host substring match."""
+    """Normalize user input for domain substring match (registrable key)."""
     text = _citation_search_text(search)
     if not text:
         return None
-    if "://" in text or text.startswith("//"):
-        raw = text if not text.startswith("//") else f"https:{text}"
-        host = hostname_from_url(raw)
-    elif "/" in text and "." in text.split("/", 1)[0]:
-        host = hostname_from_url(f"https://{text}")
-    else:
-        host = text.split("/", 1)[0]
-    if not host:
-        return text.lower()
-    root = registrable_domain(host) or host.strip().lower()
-    return root.lower()
+    key = citation_registrable_key(text)
+    return key if key else text.lower()
 
 
 def url_search_needle(search: str | None) -> str | None:
@@ -248,7 +243,7 @@ def paginate_citation_domains(
         domain_filters.append(CitationDomain.domain.ilike(_ilike_pattern(domain_needle)))
     grouped = (
         select(
-            CitationDomain.domain.label("host"),
+            CitationDomain.domain.label("domain"),
             count_expr.label("count"),
         )
         .where(*domain_filters)
@@ -261,38 +256,38 @@ def paginate_citation_domains(
     )
     offset = (safe_page - 1) * safe_page_size
     rows = db.execute(
-        select(grouped.c.host, grouped.c.count)
-        .order_by(order_clause, grouped.c.host.asc())
+        select(grouped.c.domain, grouped.c.count)
+        .order_by(order_clause, grouped.c.domain.asc())
         .offset(offset)
         .limit(safe_page_size)
     ).all()
 
     items = [
         {
-            "host": str(host or "").strip().lower(),
+            "domain": str(domain or "").strip().lower(),
             "count": int(count or 0),
             "citation_rate": round(int(count or 0) / response_total, 4),
         }
-        for host, count in rows
-        if host
+        for domain, count in rows
+        if domain
     ]
-    page_hosts = [item["host"] for item in items]
-    if page_hosts:
+    page_domains = [item["domain"] for item in items]
+    if page_domains:
         platform_rows = db.execute(
             select(CitationDomain.domain, LLMResponse.platform)
             .join(LLMResponse, CitationDomain.response_id == LLMResponse.id)
             .where(
                 CitationDomain.response_id.in_(select(id_subq.c.id)),
-                CitationDomain.domain.in_(page_hosts),
+                CitationDomain.domain.in_(page_domains),
             )
         ).all()
-        platforms_by_host: dict[str, set[str]] = defaultdict(set)
+        platforms_by_domain: dict[str, set[str]] = defaultdict(set)
         for domain, platform_value in platform_rows:
-            host_key = str(domain or "").strip().lower()
-            if host_key and platform_value:
-                platforms_by_host[host_key].add(str(platform_value))
+            domain_key = str(domain or "").strip().lower()
+            if domain_key and platform_value:
+                platforms_by_domain[domain_key].add(str(platform_value))
         for item in items:
-            item["platforms"] = sorted(platforms_by_host.get(item["host"], set()))
+            item["platforms"] = sorted(platforms_by_domain.get(item["domain"], set()))
     else:
         for item in items:
             item["platforms"] = []
@@ -305,25 +300,14 @@ def paginate_citation_domains(
     }
 
 
-def _normalize_host(host: str) -> str:
-    return (host or "").strip().lower()
-
-
-def _url_matches_host(url_column, host: str):
-    """SQL filter: citation URL belongs to registrable host (matches persist hostname logic)."""
-    host = _normalize_host(host)
-    if not host:
+def _url_matches_registrable(url_column, domain: str):
+    """SQL filter: URL host belongs to pre-normalized registrable domain (eTLD+1)."""
+    root = (domain or "").strip().lower()
+    if not root:
         return or_(False)
-    roots = {host}
-    if host.startswith("www."):
-        roots.add(host[4:])
-    else:
-        roots.add(f"www.{host}")
-    clauses = []
-    for label in roots:
-        clauses.append(url_column.ilike(f"%://{label}/%"))
-        clauses.append(url_column.ilike(f"%://{label}"))
-    return or_(*clauses)
+    escaped = root.replace(".", r"\.")
+    pattern = rf"^https?://([^/:]*\.)*{escaped}([/:]|$)"
+    return url_column.op("~*")(pattern)
 
 
 def domain_cite_stats(
@@ -332,18 +316,20 @@ def domain_cite_stats(
     subject_id: UUID,
     dt_from: datetime,
     dt_to: datetime,
-    host: str,
+    domain: str,
     platform: list[str] | None = None,
     topic_id: list[UUID] | None = None,
     prompt_id: UUID | None = None,
 ) -> tuple[int, int]:
-    """Return (cite_count, response_total) for one host in window."""
+    """Return (cite_count, response_total) for one registrable domain in window.
+
+    ``domain`` must already be normalized via ``citation_registrable_key`` at the entry layer.
+    """
     from aperix_geo.services.analysis._query import (
         count_responses_in_window,
         response_ids_in_window_stmt,
     )
 
-    host = _normalize_host(host)
     window = _window_kwargs(
         subject_id=subject_id,
         dt_from=dt_from,
@@ -353,14 +339,14 @@ def domain_cite_stats(
         prompt_id=prompt_id,
     )
     response_total = count_responses_in_window(db, **window)
-    if response_total == 0 or not host:
+    if response_total == 0 or not domain:
         return 0, response_total
 
     id_subq = response_ids_in_window_stmt(**window).subquery()
     count = db.scalar(
         select(func.coalesce(func.sum(CitationDomain.cite_count), 0)).where(
             CitationDomain.response_id.in_(select(id_subq.c.id)),
-            CitationDomain.domain == host,
+            CitationDomain.domain == domain,
         )
     )
     return int(count or 0), response_total
@@ -372,15 +358,14 @@ def domain_daily_citation_series(
     subject_id: UUID,
     dt_from: datetime,
     dt_to: datetime,
-    host: str,
+    domain: str,
     platform: list[str] | None = None,
     topic_id: list[UUID] | None = None,
     prompt_id: UUID | None = None,
 ) -> list[dict[str, Any]]:
     from aperix_geo.services.analysis._query import response_ids_in_window_stmt
 
-    host = _normalize_host(host)
-    if not host:
+    if not domain:
         return []
 
     id_subq = response_ids_in_window_stmt(
@@ -398,7 +383,7 @@ def domain_daily_citation_series(
         .join(LLMResponse, CitationDomain.response_id == LLMResponse.id)
         .where(
             CitationDomain.response_id.in_(select(id_subq.c.id)),
-            CitationDomain.domain == host,
+            CitationDomain.domain == domain,
         )
         .group_by(day_expr)
         .order_by(day_expr)
@@ -437,7 +422,7 @@ def domain_topic_breakdown(
     subject_id: UUID,
     dt_from: datetime,
     dt_to: datetime,
-    host: str,
+    domain: str,
     platform: list[str] | None = None,
     topic_id: list[UUID] | None = None,
     prompt_id: UUID | None = None,
@@ -445,8 +430,7 @@ def domain_topic_breakdown(
 ) -> list[dict[str, Any]]:
     from aperix_geo.services.analysis._query import response_ids_in_window_stmt
 
-    host = _normalize_host(host)
-    if not host or response_total == 0:
+    if not domain or response_total == 0:
         return []
 
     id_subq = response_ids_in_window_stmt(
@@ -464,7 +448,7 @@ def domain_topic_breakdown(
         .join(Prompt, LLMResponse.prompt_id == Prompt.id)
         .where(
             CitationDomain.response_id.in_(select(id_subq.c.id)),
-            CitationDomain.domain == host,
+            CitationDomain.domain == domain,
         )
         .group_by(Prompt.topic_id)
     ).all()
@@ -484,7 +468,7 @@ def domain_platform_breakdown(
     subject_id: UUID,
     dt_from: datetime,
     dt_to: datetime,
-    host: str,
+    domain: str,
     platform: list[str] | None = None,
     topic_id: list[UUID] | None = None,
     prompt_id: UUID | None = None,
@@ -492,8 +476,7 @@ def domain_platform_breakdown(
 ) -> list[dict[str, Any]]:
     from aperix_geo.services.analysis._query import response_ids_in_window_stmt
 
-    host = _normalize_host(host)
-    if not host or response_total == 0:
+    if not domain or response_total == 0:
         return []
 
     id_subq = response_ids_in_window_stmt(
@@ -510,7 +493,7 @@ def domain_platform_breakdown(
         .join(LLMResponse, CitationDomain.response_id == LLMResponse.id)
         .where(
             CitationDomain.response_id.in_(select(id_subq.c.id)),
-            CitationDomain.domain == host,
+            CitationDomain.domain == domain,
         )
         .group_by(LLMResponse.platform)
     ).all()
@@ -531,7 +514,7 @@ def paginate_citation_domain_prompts(
     subject_id: UUID,
     dt_from: datetime,
     dt_to: datetime,
-    host: str,
+    domain: str,
     platform: list[str] | None = None,
     topic_id: list[UUID] | None = None,
     prompt_id: UUID | None = None,
@@ -545,7 +528,6 @@ def paginate_citation_domain_prompts(
         response_ids_in_window_stmt,
     )
 
-    host = _normalize_host(host)
     safe_page, safe_page_size = _normalize_pagination(page, page_size)
     window = _window_kwargs(
         subject_id=subject_id,
@@ -556,7 +538,7 @@ def paginate_citation_domain_prompts(
         prompt_id=prompt_id,
     )
     response_total = count_responses_in_window(db, **window)
-    if response_total == 0 or not host:
+    if response_total == 0 or not domain:
         return {
             "items": [],
             "total": 0,
@@ -574,7 +556,7 @@ def paginate_citation_domain_prompts(
         )
         .where(
             CitationDomain.response_id.in_(select(id_subq.c.id)),
-            CitationDomain.domain == host,
+            CitationDomain.domain == domain,
         )
         .group_by(CitationDomain.prompt_id)
     ).subquery()
@@ -642,7 +624,7 @@ def paginate_citation_urls(
     platform: list[str] | None = None,
     topic_id: list[UUID] | None = None,
     prompt_id: UUID | None = None,
-    host: str | None = None,
+    domain: str | None = None,
     search: str | None = None,
     subject: Subject | None = None,
     page: int = 1,
@@ -678,9 +660,8 @@ def paginate_citation_urls(
     id_subq = response_ids_in_window_stmt(**window).subquery()
     count_expr = func.count(CitationUrl.id)
     url_filters = [CitationUrl.response_id.in_(select(id_subq.c.id))]
-    host_needle = _normalize_host(host) if host else ""
-    if host_needle:
-        url_filters.append(_url_matches_host(CitationUrl.url, host_needle))
+    if domain:
+        url_filters.append(_url_matches_registrable(CitationUrl.url, domain))
     url_needle = url_search_needle(search)
     if url_needle:
         url_filters.append(CitationUrl.url.ilike(_ilike_pattern(url_needle)))

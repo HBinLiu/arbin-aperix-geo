@@ -311,7 +311,7 @@ def citation_domain_analysis(
     return analysis_svc.build_citation_domain_analysis(
         db,
         subject=s,
-        host=params.host,
+        domain=params.domain,
         platform=params.platform,
         topic_id=params.topic_id,
         prompt_id=params.prompt_id,
@@ -334,7 +334,7 @@ def citation_domain_urls(
     return analysis_svc.build_citation_domain_urls_page(
         db,
         subject=s,
-        host=params.host,
+        domain=params.domain,
         platform=params.platform,
         topic_id=params.topic_id,
         prompt_id=params.prompt_id,
@@ -361,7 +361,7 @@ def citation_domain_prompts(
     return analysis_svc.build_citation_domain_prompts_page(
         db,
         subject=s,
-        host=params.host,
+        domain=params.domain,
         platform=params.platform,
         topic_id=params.topic_id,
         prompt_id=params.prompt_id,
@@ -434,7 +434,7 @@ def backlink_opportunity_detail(
     return analysis_svc.build_backlink_opportunity_detail(
         db,
         subject=s,
-        host=params.host,
+        domain=params.domain,
         platform=params.platform,
         topic_id=params.topic_id,
         dt_from=f,
@@ -455,7 +455,7 @@ def backlink_opportunity_urls(
     return analysis_svc.build_backlink_opportunity_urls_page(
         db,
         subject=s,
-        host=params.host,
+        domain=params.domain,
         platform=params.platform,
         topic_id=params.topic_id,
         dt_from=f,
@@ -480,7 +480,7 @@ def backlink_opportunity_prompts(
     return analysis_svc.build_backlink_opportunity_prompts_page(
         db,
         subject=s,
-        host=params.host,
+        domain=params.domain,
         platform=params.platform,
         topic_id=params.topic_id,
         dt_from=f,

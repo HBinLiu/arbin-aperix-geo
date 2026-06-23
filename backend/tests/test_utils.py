@@ -11,8 +11,11 @@ from aperix_geo.utils.coerce import pick_str, safe_float, safe_int
 from aperix_geo.utils.contact import normalize_email, normalize_phone_cn
 from aperix_geo.utils.datetime import parse_iso_datetime
 from aperix_geo.utils.domains import (
+    brand_from,
     dedupe_domains,
     ensure_brand,
+    is_brand_domain,
+    normalize_host,
     registrable_domain,
     site_name_from_title,
     strip_hostname,
@@ -21,12 +24,12 @@ from aperix_geo.utils.text import headings_from_markdown, normalize_whitespace, 
 from aperix_geo.utils.url import (
     extract_urls,
     filter_citation_urls,
-    host_matches_root,
-    host_resolves_to_public_addresses,
-    hostname_from_url,
+    host_from_url,
+    host_resolves_public,
+    host_under_root,
+    is_citation_host,
     is_placeholder_citation_host,
-    is_valid_citation_host,
-    normalize_domain,
+    parse_url,
 )
 
 
@@ -81,18 +84,26 @@ def test_extract_urls_dedupes() -> None:
     assert extract_urls(text) == ["https://a.com/x", "https://b.com"]
 
 
-def test_hostname_from_url_strips_port_and_www() -> None:
-    assert hostname_from_url("https://www.Example.com:443/path") == "example.com"
+def test_host_from_url_strips_port_and_www() -> None:
+    assert host_from_url("https://www.Example.com:443/path") == "example.com"
 
 
-def test_normalize_domain() -> None:
-    assert normalize_domain("WWW.Example.COM") == "example.com"
-    assert normalize_domain(None) is None
+def test_normalize_host() -> None:
+    assert normalize_host("WWW.Example.COM") == "example.com"
+    assert normalize_host("https://blog.Example.com/path") == "blog.example.com"
+    assert normalize_host("") == ""
+    assert normalize_host(None) == ""
 
 
-def test_host_matches_root() -> None:
-    assert host_matches_root("www.blog.example.com", "example.com")
-    assert not host_matches_root("other.com", "example.com")
+def test_parse_url_validates() -> None:
+    assert parse_url("https://wise.com/path") == "https://wise.com/path"
+    assert parse_url("geo.aibase.com/about") == "https://geo.aibase.com/about"
+    assert parse_url("not-a-url") == ""
+
+
+def test_host_under_root() -> None:
+    assert host_under_root("www.blog.example.com", "example.com")
+    assert not host_under_root("other.com", "example.com")
 
 
 def test_is_placeholder_citation_host() -> None:
@@ -104,18 +115,18 @@ def test_is_placeholder_citation_host() -> None:
     assert not is_placeholder_citation_host("11467.com")
 
 
-def test_is_valid_citation_host_rejects_numeric_scores() -> None:
-    assert not is_valid_citation_host("9.8")
-    assert not is_valid_citation_host("9.5")
-    assert not is_valid_citation_host("9.2")
-    assert not is_valid_citation_host("0.5")
-    assert not is_valid_citation_host("1.75")
-    assert not is_valid_citation_host("0.0.0.5")
-    assert not is_valid_citation_host("3.0.0.1")
-    assert is_valid_citation_host("wise.com")
-    assert is_valid_citation_host("11467.com")
-    assert not is_valid_citation_host("jiqiz")
-    assert not is_valid_citation_host("localhost")
+def test_is_citation_host_rejects_numeric_scores() -> None:
+    assert not is_citation_host("9.8")
+    assert not is_citation_host("9.5")
+    assert not is_citation_host("9.2")
+    assert not is_citation_host("0.5")
+    assert not is_citation_host("1.75")
+    assert not is_citation_host("0.0.0.5")
+    assert not is_citation_host("3.0.0.1")
+    assert is_citation_host("wise.com")
+    assert is_citation_host("11467.com")
+    assert not is_citation_host("jiqiz")
+    assert not is_citation_host("localhost")
 
 
 def test_is_llm_numeric_fake_url() -> None:
@@ -142,7 +153,7 @@ def test_filter_citation_urls() -> None:
     assert urls == ["https://wise.com/b"]
 
 
-def test_host_resolves_to_public_addresses_rejects_private() -> None:
+def test_host_resolves_public_rejects_private() -> None:
     import socket
 
     def _addrinfo(host: str, port: int, *args, **kwargs):
@@ -151,8 +162,8 @@ def test_host_resolves_to_public_addresses_rejects_private() -> None:
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port))]
 
     with patch("socket.getaddrinfo", side_effect=_addrinfo):
-        assert host_resolves_to_public_addresses("internal.example") is False
-        assert host_resolves_to_public_addresses("wise.com") is True
+        assert host_resolves_public("internal.example") is False
+        assert host_resolves_public("wise.com") is True
 
 
 # --- contact ---
@@ -206,6 +217,28 @@ def test_dedupe_domains() -> None:
     assert dedupe_domains(["wise.com", "www.wise.com", "business.wise.com"]) == ["wise.com"]
 
 
+def test_is_brand_domain() -> None:
+    assert is_brand_domain("stripe.com")
+    assert is_brand_domain("https://www.163.com/path")
+    assert is_brand_domain("3m.com")
+    assert is_brand_domain("foo.co.uk")
+    assert is_brand_domain("brand.xn--p1ai")
+
+    assert not is_brand_domain("96.8")
+    assert not is_brand_domain("99.5")
+    assert not is_brand_domain("192.168.1.1")
+    assert not is_brand_domain("10.0.0.1")
+    assert not is_brand_domain("foo.8")
+    assert not is_brand_domain("")
+    assert not is_brand_domain("not-a-host")
+
+
+def test_brand_from() -> None:
+    assert brand_from("https://Stripe.COM/x") == "stripe.com"
+    assert brand_from("96.8") == ""
+    assert brand_from("  ") == ""
+
+
 def test_site_name_from_title_chinese() -> None:
     assert site_name_from_title("万里汇 | 跨境支付平台", domain="wise.com") == "万里汇"
 
@@ -218,3 +251,17 @@ def test_site_name_from_title_empty_falls_back_to_domain() -> None:
 def test_ensure_brand_uses_domain_fallback() -> None:
     assert ensure_brand("", domain="www.paypal.com") == "paypal.com"
     assert ensure_brand("PayPal", domain="paypal.com") == "PayPal"
+
+
+def test_competitor_item_website_url_http_validation() -> None:
+    from pydantic import ValidationError
+
+    from aperix_geo.schemas.catalog import CompetitorItem
+
+    item = CompetitorItem(domain="wise.com", brand="Wise", website_url="https://wise.com/path")
+    assert str(item.website_url).startswith("https://")
+
+    assert CompetitorItem(domain="wise.com", brand="Wise", website_url="").website_url == ""
+
+    with pytest.raises(ValidationError):
+        CompetitorItem(domain="wise.com", brand="Wise", website_url="not-a-url")

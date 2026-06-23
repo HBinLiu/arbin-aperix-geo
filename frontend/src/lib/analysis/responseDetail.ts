@@ -25,7 +25,7 @@ function entitySignals(parsed: LlmResponseParsed | null | undefined): EntitySign
 
 function mentionedEntitySignals(parsed: LlmResponseParsed | null | undefined): EntitySignalRecord[] {
   return entitySignals(parsed).filter(
-    (signal) => signal.mentioned || (signal.mention_count ?? 0) > 0,
+    (signal) => signal.mentioned === true && signal.entity_label.trim().length > 0,
   );
 }
 
@@ -76,6 +76,8 @@ export function responseSources(parsed: LlmResponseParsed | null | undefined): R
 export type ResponseMentionTerm = {
   term: string;
   iconLabel: string;
+  /** 与侧边栏「提及品牌」一致的展示名 */
+  canonicalLabel: string;
 };
 
 function defaultTermsForSignal(signal: EntitySignalRecord): string[] {
@@ -90,13 +92,14 @@ function addMentionTerm(
   seen: Set<string>,
   term: string,
   iconLabel: string,
+  canonicalLabel: string,
 ) {
   const normalized = term.trim();
   if (!normalized) return;
   const key = normalized.toLowerCase();
   if (seen.has(key)) return;
   seen.add(key);
-  rows.push({ term: normalized, iconLabel });
+  rows.push({ term: normalized, iconLabel, canonicalLabel });
 }
 
 export function responseMentionedBrandTerms(
@@ -107,8 +110,9 @@ export function responseMentionedBrandTerms(
 
   for (const signal of mentionedEntitySignals(parsed)) {
     const iconLabel = mentionIconLabel(signal);
+    const canonicalLabel = signal.entity_label.trim() || iconLabel;
     for (const term of defaultTermsForSignal(signal)) {
-      addMentionTerm(rows, seen, term, iconLabel);
+      addMentionTerm(rows, seen, term, iconLabel, canonicalLabel);
     }
   }
 
@@ -121,6 +125,14 @@ export function resolveMentionIconLabel(
 ): string {
   const hit = mentionTerms.find((item) => item.term.toLowerCase() === matched.toLowerCase());
   return hit?.iconLabel ?? matched;
+}
+
+export function resolveMentionCanonicalLabel(
+  matched: string,
+  mentionTerms: ResponseMentionTerm[],
+): string {
+  const hit = mentionTerms.find((item) => item.term.toLowerCase() === matched.toLowerCase());
+  return hit?.canonicalLabel ?? matched;
 }
 
 export function responseBrandTerms(

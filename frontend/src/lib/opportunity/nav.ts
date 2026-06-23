@@ -36,11 +36,11 @@ export function opportunityTabFromPathname(pathname: string): OpportunityTab {
 
 export const BACKLINK_OPPORTUNITY_DETAIL_PREFIX = `${OPPORTUNITY_BASE_PATH}/backlink/`;
 
-export function backlinkOpportunityDetailPath(host: string): string {
-  return `${BACKLINK_OPPORTUNITY_DETAIL_PREFIX}${encodeURIComponent(host)}`;
+export function backlinkOpportunityDetailPath(domain: string): string {
+  return `${BACKLINK_OPPORTUNITY_DETAIL_PREFIX}${encodeURIComponent(domain)}`;
 }
 
-export function backlinkOpportunityHostFromPathname(pathname: string): string | null {
+export function backlinkOpportunityDomainFromPathname(pathname: string): string | null {
   const normalized = pathname.replace(/\/+$/, "");
   if (!normalized.startsWith(BACKLINK_OPPORTUNITY_DETAIL_PREFIX)) {
     return null;

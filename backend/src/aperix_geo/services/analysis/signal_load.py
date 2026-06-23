@@ -11,6 +11,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import EntityKind, LLMResponseSignal, Prompt, Subject
+from aperix_geo.utils.net import brand_from
 
 
 @dataclass(frozen=True)
@@ -52,7 +53,7 @@ class LLMResponseSignalRow:
             cited_on_source=row.cited_on_source,
             created_at=row.created_at,
             entity_label=row.entity_label or "",
-            primary_domain=row.primary_domain or "",
+            primary_domain=brand_from(row.primary_domain or ""),
         )
 
 
@@ -66,6 +67,7 @@ def _load_llm_response_signals(
     topic_id: list[UUID] | None = None,
     prompt_id: UUID | None = None,
     prompt_ids: list[UUID] | None = None,
+    response_ids: list[UUID] | None = None,
     entity_id: str | None = None,
     brand_id: UUID | None = None,
 ) -> list[LLMResponseSignalRow]:
@@ -91,6 +93,8 @@ def _load_llm_response_signals(
         stmt = stmt.where(LLMResponseSignal.prompt_id == prompt_id)
     elif prompt_ids:
         stmt = stmt.where(LLMResponseSignal.prompt_id.in_(prompt_ids))
+    if response_ids:
+        stmt = stmt.where(LLMResponseSignal.response_id.in_(response_ids))
     if brand_id is not None:
         stmt = stmt.where(LLMResponseSignal.brand_id == brand_id)
     elif entity_id is not None:
@@ -115,6 +119,7 @@ def _load_llm_response_other_brand_signals(
     platform: list[str] | None = None,
     topic_id: list[UUID] | None = None,
     prompt_id: UUID | None = None,
+    response_ids: list[UUID] | None = None,
 ) -> list[LLMResponseSignalRow]:
     """Open-set brand signals for ``mentioned_brands`` display (not KPI aggregation)."""
     stmt = (
@@ -136,6 +141,8 @@ def _load_llm_response_other_brand_signals(
         stmt = stmt.where(Prompt.topic_id.in_(topic_id))
     if prompt_id is not None:
         stmt = stmt.where(LLMResponseSignal.prompt_id == prompt_id)
+    if response_ids:
+        stmt = stmt.where(LLMResponseSignal.response_id.in_(response_ids))
 
     return [LLMResponseSignalRow.from_model(r) for r in db.execute(stmt).scalars().all()]
 
@@ -156,6 +163,7 @@ class _LoadLLMResponseSignals:
         topic_id: list[UUID] | None = None,
         prompt_id: UUID | None = None,
         prompt_ids: list[UUID] | None = None,
+        response_ids: list[UUID] | None = None,
         entity_id: str | None = None,
         brand_id: UUID | None = None,
     ) -> list[LLMResponseSignalRow]:
@@ -169,6 +177,7 @@ class _LoadLLMResponseSignals:
                 topic_id=topic_id,
                 prompt_id=prompt_id,
                 prompt_ids=prompt_ids,
+                response_ids=response_ids,
                 entity_id=entity_id,
                 brand_id=brand_id,
             )
@@ -181,6 +190,7 @@ class _LoadLLMResponseSignals:
             topic_id=topic_id,
             prompt_id=prompt_id,
             prompt_ids=prompt_ids,
+            response_ids=response_ids,
             entity_id=entity_id,
             brand_id=brand_id,
         )
@@ -204,6 +214,7 @@ class _LoadLLMResponseOtherBrandSignals:
         platform: list[str] | None = None,
         topic_id: list[UUID] | None = None,
         prompt_id: UUID | None = None,
+        response_ids: list[UUID] | None = None,
     ) -> list[LLMResponseSignalRow]:
         if self.override is not None:
             return self.override(
@@ -214,6 +225,7 @@ class _LoadLLMResponseOtherBrandSignals:
                 platform=platform,
                 topic_id=topic_id,
                 prompt_id=prompt_id,
+                response_ids=response_ids,
             )
         return _load_llm_response_other_brand_signals(
             db,
@@ -223,6 +235,7 @@ class _LoadLLMResponseOtherBrandSignals:
             platform=platform,
             topic_id=topic_id,
             prompt_id=prompt_id,
+            response_ids=response_ids,
         )
 
 

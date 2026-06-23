@@ -7,7 +7,7 @@ import time
 from typing import Any
 from uuid import UUID
 
-from aperix_geo.utils.domains import registrable_domain
+from aperix_geo.utils.net import registrable_from
 from aperix_geo.services.competitor.profile import keywords_list, profile_from_dict, profile_to_dict
 from aperix_geo.services.setup.cache import (
     create_session,
@@ -48,7 +48,7 @@ def _resolve_target(
         if not domain:
             raise ValueError("domain is required for domain subject type")
         raw_website = domain.strip()
-        target = registrable_domain(raw_website)
+        target = registrable_from(raw_website)
         if not target:
             raise ValueError("invalid domain")
         return target, raw_website

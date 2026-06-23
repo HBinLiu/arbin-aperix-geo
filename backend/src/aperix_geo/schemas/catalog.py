@@ -4,7 +4,9 @@ from datetime import datetime
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from aperix_geo.schemas.url_fields import validate_optional_http_url
 
 
 class SubjectTypeEnum(str, Enum):
@@ -46,6 +48,11 @@ class CompetitorItem(BaseModel):
     cross_validate_score: float | None = None
     cross_validate_reason: str = Field(default="")
 
+    @field_validator("website_url", mode="before")
+    @classmethod
+    def _validate_website_url(cls, v: object) -> str:
+        return validate_optional_http_url(v)
+
 
 class CompetitorsUpdate(BaseModel):
     competitors: list[CompetitorItem] = Field(default_factory=list)
@@ -70,6 +77,11 @@ class DiscoveredCompetitor(BaseModel):
     summary: str = Field(default="", description="站点 meta description 摘要")
     aliases: list[str] = Field(default_factory=list, description="品牌别名/常用简称")
 
+    @field_validator("website_url", mode="before")
+    @classmethod
+    def _validate_website_url(cls, v: object) -> str:
+        return validate_optional_http_url(v)
+
 
 class SetupDiscoverCompetitorOut(BaseModel):
     """discover 响应：仅 Step1 UI 展示所需字段；summary/aliases 在 session.competitors。"""
@@ -77,6 +89,11 @@ class SetupDiscoverCompetitorOut(BaseModel):
     domain: str = Field(default="", max_length=255)
     website_url: str = Field(default="", max_length=255)
     brand: str = Field(..., max_length=255)
+
+    @field_validator("website_url", mode="before")
+    @classmethod
+    def _validate_website_url(cls, v: object) -> str:
+        return validate_optional_http_url(v)
 
 
 class GeneratedPromptOut(BaseModel):

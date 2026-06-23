@@ -9,12 +9,13 @@ from urllib.parse import urlparse
 from aperix_geo.services.crawl import fetch_page, page_crawl_settings
 from aperix_geo.services.crawl.metadata import extract_page_metadata, homepage_metadata_dict, SeoProfile
 from aperix_geo.services.crawl.settings import PageCrawlSettings
-from aperix_geo.utils.domains import registrable_domain, strip_hostname
 from aperix_geo.utils.text import truncate_text
-from aperix_geo.utils.url import (
+from aperix_geo.utils.net import (
+    host_from,
     host_resolves,
-    normalize_user_website_input,
-    profile_homepage_crawl_urls,
+    parse_url,
+    profile_crawl_urls,
+    registrable_from,
 )
 
 logger = logging.getLogger(__name__)
@@ -33,7 +34,7 @@ class HomepageContext:
 
 def _dns_reachable(user_url: str, root: str) -> bool:
     hosts: list[str] = []
-    normalized = normalize_user_website_input(user_url)
+    normalized = parse_url(user_url)
     if normalized:
         host = urlparse(normalized).hostname
         if host:
@@ -42,7 +43,7 @@ def _dns_reachable(user_url: str, root: str) -> bool:
         hosts.append(root)
         hosts.append(f"www.{root}")
     for host in hosts:
-        reg = registrable_domain(host) or host
+        reg = registrable_from(host) or host_from(host)
         if host_resolves(host) or host_resolves(f"www.{reg}"):
             return True
     return False
@@ -59,7 +60,7 @@ def fetch_site_homepage_context(
     max_chars = max_chars_total if max_chars_total is not None else settings.max_chars
 
     raw_input = user_url.strip() or domain.strip()
-    root = strip_hostname(domain) or registrable_domain(raw_input)
+    root = registrable_from(raw_input) or host_from(domain) or host_from(raw_input)
     if not root and not raw_input:
         return HomepageContext(url="", metadata={}, markdown="")
 
@@ -67,7 +68,7 @@ def fetch_site_homepage_context(
         logger.info("竞品发现: 跳过首页抓取，DNS 解析失败 域名=%s", root or raw_input)
         return HomepageContext(url="", metadata={}, markdown="")
 
-    candidates = profile_homepage_crawl_urls(raw_input, root=root)
+    candidates = profile_crawl_urls(raw_input, root=root)
 
     last_url = candidates[0] if candidates else ""
     for start_url in candidates:

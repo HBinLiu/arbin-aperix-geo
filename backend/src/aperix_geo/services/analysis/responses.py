@@ -6,11 +6,12 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import Select, case, func, select
 from sqlalchemy.orm import Session
 
-from aperix_geo.db.models import LLMResponse, Prompt, Subject
+from aperix_geo.db.models import LLMResponse, LLMResponseSignal, Prompt, Subject
 from aperix_geo.services.analysis._query import responses_in_window
+from aperix_geo.services.analysis._sql_scope import scope_filters
 from aperix_geo.services.analysis.aggregate import mentioned_brands_for_response
 from aperix_geo.services.analysis.catalog import load_topic_prompt_catalog
 from aperix_geo.services.analysis.entity import list_analysis_entities, resolve_analysis_entity
@@ -59,34 +60,74 @@ def _paginate(items: list[Any], *, page: int, page_size: int) -> tuple[list[Any]
     return items[start : start + safe_page_size], total
 
 
-def _sort_entity_signals(
-    signals: list[LLMResponseSignalRow],
+def _sentiment_bucket_expr():
+    return case(
+        (LLMResponseSignal.sentiment_score <= 0, "negative"),
+        (LLMResponseSignal.sentiment_score > 70, "positive"),
+        (LLMResponseSignal.sentiment_score < 45, "negative"),
+        else_="neutral",
+    )
+
+
+def _mentioned_signal_base_stmt(
+    *,
+    subject: Subject,
+    entity_id: str,
+    dt_from: datetime,
+    dt_to: datetime,
+    platform: list[str] | None,
+    topic_id: list[UUID] | None,
+    prompt_id: UUID | None,
+    sentiment_label: str | None,
+) -> Select[tuple[Any, ...]]:
+    filters = [
+        *scope_filters(
+            subject_id=subject.id,
+            dt_from=dt_from,
+            dt_to=dt_to,
+            platform=platform,
+            topic_id=topic_id,
+            prompt_id=prompt_id,
+        ),
+        LLMResponseSignal.entity_id == entity_id,
+        LLMResponseSignal.mentioned.is_(True),
+    ]
+    if sentiment_label:
+        filters.append(_sentiment_bucket_expr() == sentiment_label)
+    return (
+        select(
+            LLMResponseSignal.response_id.label("response_id"),
+            LLMResponseSignal.prompt_id.label("prompt_id"),
+            LLMResponseSignal.platform.label("platform"),
+            LLMResponseSignal.mention_rank.label("mention_rank"),
+            LLMResponseSignal.sentiment_score.label("sentiment_score"),
+            LLMResponseSignal.sentiment_reason.label("sentiment_reason"),
+            LLMResponseSignal.cited_on_source.label("cited_on_source"),
+            LLMResponse.created_at.label("created_at"),
+            LLMResponse.raw_text.label("raw_text"),
+        )
+        .join(LLMResponse, LLMResponseSignal.response_id == LLMResponse.id)
+        .join(Prompt, LLMResponseSignal.prompt_id == Prompt.id)
+        .where(*filters)
+    )
+
+
+def _order_mentioned_signal_stmt(
+    stmt: Select[tuple[Any, ...]],
     *,
     sort_by: AnalysisResponseSortField,
     order: str,
-) -> list[LLMResponseSignalRow]:
+) -> Select[tuple[Any, ...]]:
     if sort_by == "sentiment_score":
-        if order == "desc":
-            return sorted(
-                signals,
-                key=lambda row: (row.sentiment_score, -row.created_at.timestamp()),
-                reverse=True,
-            )
-        return sorted(
-            signals,
-            key=lambda row: (-row.sentiment_score, -row.created_at.timestamp()),
-        )
+        column = LLMResponseSignal.sentiment_score
+        return stmt.order_by(column.desc() if order == "desc" else column.asc(), LLMResponse.created_at.desc())
     if sort_by == "rank":
-        return sorted(
-            signals,
-            key=lambda row: _mention_rank_sort_key(
-                row,
-                order=order,
-                created_at_ts=row.created_at.timestamp(),
-            ),
-        )
-    reverse = order != "asc"
-    return sorted(signals, key=lambda row: row.created_at, reverse=reverse)
+        rank_expr = case((LLMResponseSignal.mention_rank > 0, LLMResponseSignal.mention_rank), else_=None)
+        if order == "asc":
+            return stmt.order_by(rank_expr.asc().nulls_last(), LLMResponse.created_at.desc())
+        return stmt.order_by(rank_expr.desc().nulls_last(), LLMResponse.created_at.desc())
+    column = LLMResponse.created_at
+    return stmt.order_by(column.desc() if order != "asc" else column.asc())
 
 
 def _sort_prompt_chat_responses(
@@ -217,56 +258,98 @@ def _prompt_chat_response_page(
     return rows, total
 
 
-def _filtered_response_page(
+def _sentiment_response_page_sql(
     db: Session,
     *,
-    entity_signals: list[LLMResponseSignalRow],
+    subject: Subject,
+    entity_id: str,
+    dt_from: datetime,
+    dt_to: datetime,
+    platform: list[str] | None,
+    topic_id: list[UUID] | None,
+    prompt_id: UUID | None,
     prompts: dict[UUID, Any],
-    all_signals: list[LLMResponseSignalRow],
     entities: list,
-    sentiment_label: str | None = None,
+    sentiment_label: str,
     sort_by: AnalysisResponseSortField,
     order: str,
     page: int,
     page_size: int,
 ) -> tuple[list[dict[str, Any]], int]:
-    mentioned = [row for row in entity_signals if row.mentioned]
-    if sentiment_label:
-        mentioned = [
-            row
-            for row in mentioned
-            if api_sentiment_label(row.sentiment_score) == sentiment_label
-        ]
-    if not mentioned:
+    base = _mentioned_signal_base_stmt(
+        subject=subject,
+        entity_id=entity_id,
+        dt_from=dt_from,
+        dt_to=dt_to,
+        platform=platform,
+        topic_id=topic_id,
+        prompt_id=prompt_id,
+        sentiment_label=sentiment_label,
+    )
+    total = int(db.scalar(select(func.count()).select_from(base.subquery())) or 0)
+    if total == 0:
         return [], 0
 
-    ordered = _sort_entity_signals(mentioned, sort_by=sort_by, order=order)
-    page_signals, total = _paginate(ordered, page=page, page_size=page_size)
-    if not page_signals:
+    safe_page, safe_page_size = _normalize_pagination(page, page_size)
+    offset = (safe_page - 1) * safe_page_size
+    page_stmt = _order_mentioned_signal_stmt(base, sort_by=sort_by, order=order).limit(safe_page_size).offset(offset)
+    page_rows = db.execute(page_stmt).all()
+    if not page_rows:
         return [], total
 
-    response_ids = {row.response_id for row in page_signals}
-    stmt = select(LLMResponse).where(LLMResponse.id.in_(response_ids))
-    responses_by_id = {row.id: row for row in db.scalars(stmt).all()}
+    response_ids = {row.response_id for row in page_rows}
+    mention_brand_signals = [
+        *load_llm_response_signals(
+            db,
+            subject=subject,
+            dt_from=dt_from,
+            dt_to=dt_to,
+            platform=platform,
+            topic_id=topic_id,
+            prompt_id=prompt_id,
+            response_ids=list(response_ids),
+        ),
+        *load_llm_response_other_brand_signals(
+            db,
+            subject=subject,
+            dt_from=dt_from,
+            dt_to=dt_to,
+            platform=platform,
+            topic_id=topic_id,
+            prompt_id=prompt_id,
+            response_ids=list(response_ids),
+        ),
+    ]
 
     rows: list[dict[str, Any]] = []
-    for signal in page_signals:
-        response = responses_by_id.get(signal.response_id)
-        if response is None:
-            continue
-        prompt = prompts.get(signal.prompt_id)
+    for row in page_rows:
+        prompt = prompts.get(row.prompt_id)
+        rank = (
+            round(float(row.mention_rank), 1)
+            if has_mention_rank(row.mention_rank)
+            else None
+        )
+        score = float(row.sentiment_score or 0)
         rows.append(
-            _response_row_from_signal(
-                response_id=response.id,
-                platform_id=signal.platform,
-                prompt_id=signal.prompt_id,
-                prompt_text=prompt.text if prompt else "",
-                reply_preview=truncate_text(reply_text(response.raw_text), 120, suffix="…"),
-                created_at=signal.created_at,
-                signal=signal,
-                all_signals=all_signals,
-                entities=entities,
-            )
+            {
+                "response_id": str(row.response_id),
+                "platform_id": str(row.platform),
+                "prompt_id": str(row.prompt_id),
+                "prompt_text": prompt.text if prompt else "",
+                "sentiment_score": api_sentiment_score(score),
+                "sentiment_label": api_sentiment_label(score),
+                "sentiment_reason": str(row.sentiment_reason or "") or None,
+                "reply_preview": truncate_text(reply_text(row.raw_text), 120, suffix="…"),
+                "created_at": row.created_at.isoformat(),
+                "mentioned": True,
+                "rank": rank,
+                "mentioned_brands": mentioned_brands_for_response(
+                    row.response_id,
+                    all_signals=mention_brand_signals,
+                    entities=entities,
+                ),
+                "cited_on_source": bool(row.cited_on_source),
+            }
         )
     return rows, total
 
@@ -292,28 +375,28 @@ def build_analysis_responses(
     resolved_sort = _resolve_sort_field(sort_by)
     focus_entity = resolve_analysis_entity(subject, entity_id)
     entities = list_analysis_entities(subject)
-    signals = load_llm_response_signals(
-        db,
-        subject=subject,
-        dt_from=dt_from,
-        dt_to=dt_to,
-        platform=platform,
-        topic_id=topic_id,
-        prompt_id=prompt_id,
-    )
-    other_brand_signals = load_llm_response_other_brand_signals(
-        db,
-        subject=subject,
-        dt_from=dt_from,
-        dt_to=dt_to,
-        platform=platform,
-        topic_id=topic_id,
-        prompt_id=prompt_id,
-    )
-    mention_brand_signals = [*signals, *other_brand_signals]
-    focus_signals = [row for row in signals if row.entity_id == focus_entity.id]
 
     if prompt_id is not None and sentiment_label is None:
+        signals = load_llm_response_signals(
+            db,
+            subject=subject,
+            dt_from=dt_from,
+            dt_to=dt_to,
+            platform=platform,
+            topic_id=topic_id,
+            prompt_id=prompt_id,
+        )
+        other_brand_signals = load_llm_response_other_brand_signals(
+            db,
+            subject=subject,
+            dt_from=dt_from,
+            dt_to=dt_to,
+            platform=platform,
+            topic_id=topic_id,
+            prompt_id=prompt_id,
+        )
+        mention_brand_signals = [*signals, *other_brand_signals]
+        focus_signals = [row for row in signals if row.entity_id == focus_entity.id]
         items, total = _prompt_chat_response_page(
             db,
             subject=subject,
@@ -334,11 +417,16 @@ def build_analysis_responses(
         items, total = [], 0
     else:
         _topics, prompts, _prompt_to_topic = load_topic_prompt_catalog(db, subject.id)
-        items, total = _filtered_response_page(
+        items, total = _sentiment_response_page_sql(
             db,
-            entity_signals=focus_signals,
+            subject=subject,
+            entity_id=focus_entity.id,
+            dt_from=dt_from,
+            dt_to=dt_to,
+            platform=platform,
+            topic_id=topic_id,
+            prompt_id=prompt_id,
             prompts=prompts,
-            all_signals=mention_brand_signals,
             entities=entities,
             sentiment_label=sentiment_label,
             sort_by=resolved_sort,

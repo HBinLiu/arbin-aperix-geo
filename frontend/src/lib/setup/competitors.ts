@@ -1,4 +1,4 @@
-import { registrableDomain, websiteUrlFromInput } from "@/lib/domain";
+import { hostnameFromWebsiteInput, registrableDomain, websiteUrlFromInput } from "@/lib/domain";
 import type { CompetitorItem, CompetitorRow, DiscoveredCompetitor, SubjectMode } from "@/types";
 
 export const MAX_SETUP_COMPETITORS = 5;

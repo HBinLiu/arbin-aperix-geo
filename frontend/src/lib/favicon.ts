@@ -1,28 +1,4 @@
-import { hostnameFromWebsiteInput, registrableDomain } from "@/lib/domain";
-
-/**
- * 与后端 normalize_favicon_domain 一致：支持 URL、裸域 example.com、www、子域名。
- * 裸主域归一为 eTLD+1（如 wise.com）；多级子域保留完整主机名。
- */
-export function normalizeFaviconDomain(raw: string): string {
-  const s = raw.trim();
-  if (!s) return "";
-
-  let host = hostnameFromWebsiteInput(s);
-  if (!host && /^[^\s/]+$/i.test(s)) {
-    host = s.replace(/^https?:\/\//i, "").split("/")[0]?.split(":")[0]?.trim().toLowerCase() ?? "";
-  }
-  if (host.startsWith("www.")) {
-    host = host.slice(4);
-  }
-  if (!host) return "";
-
-  const root = registrableDomain(host);
-  if (root && host !== root && host.endsWith(`.${root}`)) {
-    return host;
-  }
-  return root || host;
-}
+import { faviconDomainKey } from "@/lib/domain";
 
 export type FaviconInput = {
   host: string;
@@ -43,10 +19,13 @@ export function resolveFaviconInput(raw: string): FaviconInput | null {
     pageUrl = `https://${s.replace(/^\/\//, "")}/`;
   }
 
-  const host = normalizeFaviconDomain(pageUrl);
+  const host = faviconDomainKey(pageUrl);
   if (!host || !host.includes(".")) return null;
   return { host, pageUrl };
 }
+
+/** @deprecated 使用 faviconDomainKey */
+export const normalizeFaviconDomain = faviconDomainKey;
 
 /** 仅有 host/domain 时构造首页 URL（仍按 URL 解析 favicon）。 */
 export function faviconUrlFromHost(host: string): string {

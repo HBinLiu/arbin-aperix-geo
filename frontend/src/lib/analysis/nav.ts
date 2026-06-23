@@ -73,8 +73,8 @@ export function isAnalysisPathname(pathname: string): boolean {
 
 const CITATION_DOMAIN_DETAIL_PREFIX = `${ANALYSIS_BASE_PATH}/citation/`;
 
-export function citationDomainDetailPath(host: string): string {
-  return `${CITATION_DOMAIN_DETAIL_PREFIX}${encodeURIComponent(host)}`;
+export function citationDomainDetailPath(domain: string): string {
+  return `${CITATION_DOMAIN_DETAIL_PREFIX}${encodeURIComponent(domain)}`;
 }
 
 export function citationDomainFromPathname(pathname: string): string | null {

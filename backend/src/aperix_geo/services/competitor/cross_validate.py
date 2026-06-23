@@ -9,7 +9,7 @@ from typing import Any
 from aperix_geo.config import get_settings
 from aperix_geo.services.competitor.diagnostics import log_cross_validate_score
 from aperix_geo.services.competitor.head_fetch import fetch_site_heads
-from aperix_geo.utils.domains import registrable_domain
+from aperix_geo.utils.net import registrable_from
 from aperix_geo.services.competitor.types import (
     CandidateMeta,
     CandidatePool,
@@ -82,7 +82,7 @@ def _ensure_target_head(
     target_domain: str,
     target_website_url: str = "",
 ) -> dict[str, SiteHead]:
-    key = registrable_domain(target_domain)
+    key = registrable_from(target_domain)
     if not key or key in heads:
         return heads
     preferred: dict[str, str] = {}
@@ -104,7 +104,7 @@ def _parse_scores(data: dict[str, Any]) -> list[CompetitorScore]:
     for row in rows:
         if not isinstance(row, dict):
             continue
-        domain = registrable_domain(str(row.get("domain") or ""))
+        domain = registrable_from(str(row.get("domain") or ""))
         if not domain:
             continue
         try:
@@ -174,7 +174,7 @@ def _score_new_hosts(
     heads: dict[str, SiteHead],
     prior_scores: list[CompetitorScore],
 ) -> list[CompetitorScore]:
-    target_key = registrable_domain(target_domain)
+    target_key = registrable_from(target_domain)
     target = _target_payload(
         profile,
         target_domain=target_domain,

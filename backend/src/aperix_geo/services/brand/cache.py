@@ -9,7 +9,7 @@ from uuid import UUID
 from aperix_geo.db.models import Brand
 from aperix_geo.utils.cache.bounded import BoundedTTLCache
 from aperix_geo.utils.cache.redis_kv import redis_get_json, redis_set_json_persistent
-from aperix_geo.utils.domains import registrable_domain
+from aperix_geo.utils.net import brand_from
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +27,6 @@ __all__ = [
 
 def _normalize_brand_key(name: str) -> str:
     return (name or "").strip().casefold()
-
-
-def _normalize_domain(raw: str) -> str:
-    text = (raw or "").strip()
-    if not text:
-        return ""
-    return registrable_domain(text) or text
 
 
 def _cache_key(subject_id: UUID, brand: str) -> str:
@@ -60,7 +53,7 @@ def get_brand_domain_cached(*, subject_id: UUID, brand: str) -> str | None:
     payload = redis_get_json(l1_key)
     if not isinstance(payload, dict):
         return None
-    domain = _normalize_domain(str(payload.get("domain") or ""))
+    domain = brand_from(str(payload.get("domain") or ""))
     if not domain:
         return None
     _L1.set(l1_key, domain, expires_at=_L1_PERMANENT_EXPIRES_AT)
@@ -70,7 +63,7 @@ def get_brand_domain_cached(*, subject_id: UUID, brand: str) -> str | None:
 def remember_brand_domain_cached(*, subject_id: UUID, brand: str, domain: str) -> None:
     """Persist a resolved domain under brand name (no TTL)."""
     name = (brand or "").strip()
-    normalized = _normalize_domain(domain)
+    normalized = brand_from(domain)
     if not name or not normalized:
         return
 
@@ -82,7 +75,7 @@ def remember_brand_domain_cached(*, subject_id: UUID, brand: str, domain: str) -
 
 def remember_brand_row_domains(*, subject_id: UUID, brand: Brand) -> None:
     """Warm cache for canonical brand name and all aliases."""
-    domain = _normalize_domain(brand.domain)
+    domain = brand_from(brand.domain)
     if not domain:
         return
     remember_brand_domain_cached(subject_id=subject_id, brand=brand.brand, domain=domain)

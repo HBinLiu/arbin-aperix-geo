@@ -7,7 +7,12 @@ from datetime import UTC, datetime
 
 from aperix_geo.db.models import Competitor, Subject, SubjectType
 from aperix_geo.services.analysis.rank import build_rank
-from aperix_geo.services.analysis.signal_load import load_llm_response_signals
+from aperix_geo.services.analysis.entity_sql import (
+    query_entity_window,
+    window_overview_from_index,
+)
+from aperix_geo.services.analysis.entity import list_analysis_entities
+from aperix_geo.services.analysis.signal_index import index_signals
 from tests.parsed_fixtures import competitor_signal, entity_signal, parsed_payload, signal_rows_from_payload
 
 
@@ -50,8 +55,12 @@ def test_build_rank_returns_sorted_items_with_display_names() -> None:
         })(),
     ]
     signals = signal_rows_from_payload(rows, subject, parsed_payloads=payloads)
-    original = load_llm_response_signals.override
-    load_llm_response_signals.override = lambda *args, **kwargs: signals
+    original = query_entity_window.override
+    query_entity_window.override = lambda db, **kwargs: window_overview_from_index(
+        index_signals(signals),
+        subject=subject,
+        entities=list_analysis_entities(subject),
+    )
     try:
         payload = build_rank(
             db=None,  # type: ignore[arg-type]
@@ -60,7 +69,7 @@ def test_build_rank_returns_sorted_items_with_display_names() -> None:
             dt_to=datetime(2026, 6, 30, tzinfo=UTC),
         )
     finally:
-        load_llm_response_signals.override = original
+        query_entity_window.override = original
 
     assert payload["own_label"] == "aperix.com"
     assert len(payload["items"]) == 2

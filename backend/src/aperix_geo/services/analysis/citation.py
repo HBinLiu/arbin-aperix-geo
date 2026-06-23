@@ -14,18 +14,15 @@ from aperix_geo.services.analysis._series import (
     previous_date_range,
     slim_daily_series,
 )
-from aperix_geo.services.analysis.aggregate import (
-    citation_share_from_signals,
-    daily_citation_share_series_from_signals,
-)
-from aperix_geo.services.analysis.dashboard import _build_rank_table_rows, _previous_value
+from aperix_geo.services.analysis.citation_sql import query_citation
+from aperix_geo.services.analysis._page_helpers import build_rank_table_rows, previous_value
 from aperix_geo.services.analysis.entity import (
     entity_chart_labels,
     list_analysis_entities,
+    own_entity,
     resolve_analysis_entity,
 )
-from aperix_geo.services.analysis.signal_index import build_dual_signal_window, window_has_data
-from aperix_geo.services.analysis.signal_load import load_llm_response_signals
+from aperix_geo.utils.net import citation_registrable_key
 from aperix_geo.services.sampling.citation.aggregate import (
     domain_cite_stats,
     domain_daily_citation_series,
@@ -52,48 +49,36 @@ def build_citation_analysis(
     focus_entity = resolve_analysis_entity(subject, entity_id)
     entities = list_analysis_entities(subject)
     prev_from, prev_to = previous_date_range(dt_from, dt_to)
+    own = own_entity(subject)
 
-    all_signals = load_llm_response_signals(
+    overview = query_citation(
         db,
         subject=subject,
-        dt_from=prev_from,
-        dt_to=dt_to,
-        platform=platform,
-        topic_id=topic_id,
-        prompt_id=prompt_id,
-    )
-    windows = build_dual_signal_window(
-        all_signals,
         dt_from=dt_from,
         dt_to=dt_to,
         prev_from=prev_from,
         prev_to=prev_to,
+        platform=platform,
+        topic_id=topic_id,
+        prompt_id=prompt_id,
+        entities=entities,
     )
-    has_previous = window_has_data(windows.previous)
-
-    current_signals = [row for rows in windows.current.by_date.values() for row in rows]
-    prev_signals = [row for rows in windows.previous.by_date.values() for row in rows]
-
-    _cite_counts, citation_share, own = citation_share_from_signals(
-        current_signals, subject=subject
-    )
-    _prev_counts, prev_share, _ = citation_share_from_signals(prev_signals, subject=subject)
+    citation_share = overview["current_share"]
+    prev_share = overview["prev_share"]
+    has_previous = overview["has_previous"]
     focus_label = focus_entity.label
     labels = entity_chart_labels(entities)
 
-    series = slim_daily_series(
-        daily_citation_share_series_from_signals(current_signals, subject=subject),
-        labels,
-    )
-    prev_raw = daily_citation_share_series_from_signals(prev_signals, subject=subject)
+    series = slim_daily_series(overview["daily_series"], labels)
+    prev_raw = overview["prev_daily_series"]
 
     return {
         "entity_id": focus_entity.id,
-        "own_label": own,
+        "own_label": own.label,
         "focus_label": focus_label,
         "labels": labels,
         "citation_rate": citation_share.get(focus_label),
-        "citation_previous": _previous_value(
+        "citation_previous": previous_value(
             prev_share.get(focus_label),
             has_previous=has_previous,
         ),
@@ -105,7 +90,7 @@ def build_citation_analysis(
             current_start=dt_from.date(),
             previous_start=prev_from.date(),
         ),
-        "rank_table": _build_rank_table_rows(
+        "rank_table": build_rank_table_rows(
             citation_share,
             prev_share,
             entities=entities,
@@ -210,7 +195,7 @@ def build_citation_domain_analysis(
     db: Session,
     *,
     subject: Subject,
-    host: str,
+    domain: str,
     dt_from: datetime,
     dt_to: datetime,
     platform: list[str] | None = None,
@@ -218,7 +203,7 @@ def build_citation_domain_analysis(
     prompt_id: UUID | None = None,
 ) -> dict[str, Any]:
     """Single-domain overview: totals, daily trend, topic/platform breakdown (SQL-only)."""
-    host = (host or "").strip().lower()
+    domain = citation_registrable_key(domain)
     prev_from, prev_to = previous_date_range(dt_from, dt_to)
     window = {
         "subject_id": subject.id,
@@ -228,21 +213,21 @@ def build_citation_domain_analysis(
     }
 
     count, response_total = domain_cite_stats(
-        db, dt_from=dt_from, dt_to=dt_to, host=host, **window
+        db, dt_from=dt_from, dt_to=dt_to, domain=domain, **window
     )
     prev_count, _ = domain_cite_stats(
-        db, dt_from=prev_from, dt_to=prev_to, host=host, **window
+        db, dt_from=prev_from, dt_to=prev_to, domain=domain, **window
     )
 
     series = domain_daily_citation_series(
-        db, dt_from=dt_from, dt_to=dt_to, host=host, **window
+        db, dt_from=dt_from, dt_to=dt_to, domain=domain, **window
     )
     prev_raw = domain_daily_citation_series(
-        db, dt_from=prev_from, dt_to=prev_to, host=host, **window
+        db, dt_from=prev_from, dt_to=prev_to, domain=domain, **window
     )
 
     return {
-        "host": host,
+        "domain": domain,
         "count": count,
         "citation_rate": round(count / response_total, 4) if response_total else 0,
         "prev_count": prev_count,
@@ -258,7 +243,7 @@ def build_citation_domain_analysis(
             db,
             dt_from=dt_from,
             dt_to=dt_to,
-            host=host,
+            domain=domain,
             response_total=response_total,
             **window,
         ),
@@ -266,7 +251,7 @@ def build_citation_domain_analysis(
             db,
             dt_from=dt_from,
             dt_to=dt_to,
-            host=host,
+            domain=domain,
             response_total=response_total,
             **window,
         ),
@@ -277,7 +262,7 @@ def build_citation_domain_urls_page(
     db: Session,
     *,
     subject: Subject,
-    host: str,
+    domain: str,
     dt_from: datetime,
     dt_to: datetime,
     platform: list[str] | None = None,
@@ -289,6 +274,7 @@ def build_citation_domain_urls_page(
     order: str = "desc",
 ) -> dict[str, Any]:
     safe_sort = sort_by if sort_by in ("count", "citation_rate") else "count"
+    domain = citation_registrable_key(domain)
     return paginate_citation_urls(
         db,
         subject_id=subject.id,
@@ -297,7 +283,7 @@ def build_citation_domain_urls_page(
         platform=platform,
         topic_id=topic_id,
         prompt_id=prompt_id,
-        host=host,
+        domain=domain,
         subject=subject,
         page=page,
         page_size=page_size,
@@ -310,7 +296,7 @@ def build_citation_domain_prompts_page(
     db: Session,
     *,
     subject: Subject,
-    host: str,
+    domain: str,
     dt_from: datetime,
     dt_to: datetime,
     platform: list[str] | None = None,
@@ -322,12 +308,13 @@ def build_citation_domain_prompts_page(
     order: str = "desc",
 ) -> dict[str, Any]:
     safe_sort = sort_by if sort_by in ("count", "citation_rate") else "count"
+    domain = citation_registrable_key(domain)
     return paginate_citation_domain_prompts(
         db,
         subject_id=subject.id,
         dt_from=dt_from,
         dt_to=dt_to,
-        host=host,
+        domain=domain,
         platform=platform,
         topic_id=topic_id,
         prompt_id=prompt_id,

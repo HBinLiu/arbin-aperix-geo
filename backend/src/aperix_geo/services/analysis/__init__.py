@@ -34,7 +34,6 @@ from aperix_geo.services.analysis.performance import (
     build_prompts_performance,
     build_prompts_performance_page,
     build_topics_performance,
-    platform_performance_rows,
 )
 from aperix_geo.services.analysis.prompt_detail import build_prompt_detail
 from aperix_geo.services.analysis.platform import build_platform_analysis
@@ -62,7 +61,6 @@ __all__ = [
     "build_visibility_analysis",
     "build_platform_performance",
     "build_platform_analysis",
-    "platform_performance_rows",
     "build_citation_analysis",
     "build_citation_domain_analysis",
     "build_citation_domain_prompts_page",

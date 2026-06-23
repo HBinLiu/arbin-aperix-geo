@@ -24,7 +24,7 @@ def test_domain_cite_stats_empty_window() -> None:
             subject_id=uuid.uuid4(),
             dt_from=datetime(2026, 1, 1, tzinfo=UTC),
             dt_to=datetime(2026, 1, 31, tzinfo=UTC),
-            host="example.com",
+            domain="example.com",
         )
     assert count == 0
     assert response_total == 0
@@ -42,13 +42,13 @@ def test_paginate_citation_domain_prompts_empty_window() -> None:
             subject_id=uuid.uuid4(),
             dt_from=datetime(2026, 1, 1, tzinfo=UTC),
             dt_to=datetime(2026, 1, 31, tzinfo=UTC),
-            host="example.com",
+            domain="example.com",
         )
     assert result["items"] == []
     assert result["response_total"] == 0
 
 
-def test_paginate_citation_urls_with_host_filter_empty_window() -> None:
+def test_paginate_citation_urls_with_domain_filter_empty_window() -> None:
     db = MagicMock()
     with patch(
         "aperix_geo.services.analysis._query.count_responses_in_window",
@@ -59,7 +59,7 @@ def test_paginate_citation_urls_with_host_filter_empty_window() -> None:
             subject_id=uuid.uuid4(),
             dt_from=datetime(2026, 1, 1, tzinfo=UTC),
             dt_to=datetime(2026, 1, 31, tzinfo=UTC),
-            host="example.com",
+            domain="example.com",
         )
     assert result["items"] == []
     assert result["response_total"] == 0

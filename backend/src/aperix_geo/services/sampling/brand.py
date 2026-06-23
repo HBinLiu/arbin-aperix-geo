@@ -11,7 +11,7 @@ from aperix_geo.db.models import BrandSource, Subject
 from aperix_geo.services.brand.catalog import BrandSyncContext
 from aperix_geo.services.brand.domain import extract_domain_from_text_for_brand, resolve_brand_domain
 from aperix_geo.services.brand.resolve import resolve_or_create_brand
-from aperix_geo.utils.domains import registrable_domain
+from aperix_geo.utils.net import registrable_from
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +36,9 @@ def persist_open_brands_from_absa(
         if (c.brand or "").strip()
     }
     configured_domains = {
-        registrable_domain(c.domain)
+        registrable_from(c.domain)
         for c in (subject.competitors or [])
-        if c.domain and registrable_domain(c.domain)
+        if c.domain and registrable_from(c.domain)
     }
 
     sync_ctx = BrandSyncContext.load(db, subject_id=subject.id)
@@ -64,7 +64,7 @@ def persist_open_brands_from_absa(
                 allow_search=False,
                 sync_ctx=sync_ctx,
             )
-        domain_key = registrable_domain(domain) if domain else ""
+        domain_key = registrable_from(domain) if domain else ""
         if domain_key and domain_key in configured_domains:
             continue
 

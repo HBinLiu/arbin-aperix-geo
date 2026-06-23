@@ -12,14 +12,7 @@ from sqlalchemy.orm import Session
 from aperix_geo.db.models import Prompt, Subject, Topic
 from aperix_geo.services.analysis._query import responses_in_window
 from aperix_geo.services.analysis._series import previous_date_range
-from aperix_geo.services.analysis.aggregate import (
-    daily_average_rank_series_from_index,
-    daily_citation_share_series_from_signals,
-    daily_share_series_from_index,
-    mentioned_brands_for_response,
-    metrics_from_signals,
-)
-from aperix_geo.services.analysis.entity import list_analysis_entities, resolve_analysis_entity
+from aperix_geo.services.analysis.aggregate import mentioned_brands_for_response, metrics_from_signals
 from aperix_geo.services.analysis.diagnosis import (
     diagnosis_gap_metrics,
     diagnosis_mention_rate,
@@ -27,15 +20,21 @@ from aperix_geo.services.analysis.diagnosis import (
     mention_action_priority,
     overall_action_priority,
 )
-from aperix_geo.services.analysis.performance import platform_performance_rows
-from aperix_geo.services.analysis.signal_index import build_dual_signal_window
-from aperix_geo.services.analysis.signal_load import LLMResponseSignalRow, load_llm_response_other_brand_signals, load_llm_response_signals
+from aperix_geo.services.analysis.entity import list_analysis_entities, resolve_analysis_entity
+from aperix_geo.services.analysis.entity_sql import (
+    daily_average_rank_series_for_window,
+    daily_citation_share_series_for_window,
+    daily_share_series_for_window,
+    query_dual_entity_window,
+)
+from aperix_geo.services.analysis.grouped_sql import query_platform_metrics
+from aperix_geo.services.analysis.signal_load import (
+    LLMResponseSignalRow,
+    load_llm_response_other_brand_signals,
+    load_llm_response_signals,
+)
 from aperix_geo.utils.mention import has_mention_rank
 from aperix_geo.utils.text import reply_text, truncate_text
-
-
-def _signals_flat(index) -> list[LLMResponseSignalRow]:
-    return [row for rows in index.by_date.values() for row in rows]
 
 
 def _single_value_series(
@@ -48,21 +47,11 @@ def _single_value_series(
     ]
 
 
-def _prompt_detail_platform_rows(
-    all_signals: list[LLMResponseSignalRow],
-    *,
-    subject: Subject,
-    entity_id: str,
-) -> list[dict[str, Any]]:
-    return [
-        {
-            "platform": row["platform"],
-            "visibility_rate": row["visibility_rate"],
-            "average_rank": row["average_rank"],
-            "citation_rate": row["citation_rate"],
-        }
-        for row in platform_performance_rows(all_signals, subject=subject, entity_id=entity_id)
-    ]
+def _metrics_from_entity_row(entity_rows: list[dict[str, Any]], entity_id: str) -> dict[str, Any]:
+    row = next((item for item in entity_rows if item["id"] == entity_id), None)
+    if row is None:
+        return {}
+    return row.get("metrics") or {}
 
 
 def _opportunity_summary(
@@ -167,7 +156,7 @@ def build_prompt_detail(
     """提示词详情页扁平化数据：指标 / 趋势 / 平台 / 机会 / 引用回复明细。
 
     聊天回复明细见 ``POST .../analysis/responses``（传 prompt_id）。
-    DB: 1× signals（含上期）+ 1× responses + 1× prompt/topic。
+    KPI / 趋势 / 平台走 SQL；引用与机会仍按单 prompt 窗口加载 signal。
     """
     entity = resolve_analysis_entity(subject, entity_id)
     prev_from, prev_to = previous_date_range(dt_from, dt_to)
@@ -177,15 +166,73 @@ def build_prompt_detail(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prompt not found")
     topic = db.get(Topic, prompt.topic_id) if prompt.topic_id else None
 
-    all_signals = load_llm_response_signals(
+    entities = list_analysis_entities(subject)
+    windows = query_dual_entity_window(
         db,
         subject=subject,
-        dt_from=prev_from,
+        dt_from=dt_from,
+        dt_to=dt_to,
+        prev_from=prev_from,
+        prev_to=prev_to,
+        platform=platform,
+        topic_id=topic_id,
+        prompt_id=prompt_id,
+        entities=entities,
+    )
+    current = windows["current"]
+    focus_metrics = _metrics_from_entity_row(current.entity_rows, entity.id)
+
+    visibility_series = _single_value_series(
+        daily_share_series_for_window(
+            current,
+            entities=entities,
+            metric="visibility",
+            labels=[entity.label],
+        ),
+        entity.label,
+    )
+    average_rank_series = daily_average_rank_series_for_window(
+        current,
+        entity_id=entity.id,
+    )
+    citation_series = _single_value_series(
+        daily_citation_share_series_for_window(
+            current,
+            entities=entities,
+            labels=[entity.label],
+        ),
+        entity.label,
+    )
+    platform_rows = query_platform_metrics(
+        db,
+        subject=subject,
+        entity_id=entity.id,
+        dt_from=dt_from,
         dt_to=dt_to,
         platform=platform,
         topic_id=topic_id,
         prompt_id=prompt_id,
     )
+    platforms = [
+        {
+            "platform": row["platform"],
+            "visibility_rate": row["visibility_rate"],
+            "average_rank": row["average_rank"],
+            "citation_rate": row["citation_rate"],
+        }
+        for row in platform_rows
+    ]
+
+    current_signals = load_llm_response_signals(
+        db,
+        subject=subject,
+        dt_from=dt_from,
+        dt_to=dt_to,
+        platform=platform,
+        topic_id=topic_id,
+        prompt_id=prompt_id,
+    )
+    focus_signals = [row for row in current_signals if row.entity_id == entity.id]
     other_brand_signals = load_llm_response_other_brand_signals(
         db,
         subject=subject,
@@ -195,44 +242,7 @@ def build_prompt_detail(
         topic_id=topic_id,
         prompt_id=prompt_id,
     )
-    windows = build_dual_signal_window(
-        all_signals,
-        dt_from=dt_from,
-        dt_to=dt_to,
-        prev_from=prev_from,
-        prev_to=prev_to,
-    )
-    focus_signals = windows.current.by_entity.get(entity.id, [])
-    current_flat = _signals_flat(windows.current)
-    mention_brand_signals = [
-        *current_flat,
-        *other_brand_signals,
-    ]
-    entities = list_analysis_entities(subject)
-
-    metrics = metrics_from_signals(
-        focus_signals,
-        subject=subject,
-        total_voice=windows.current.total_voice,
-    )
-
-    visibility_series = _single_value_series(
-        daily_share_series_from_index(
-            windows.current,
-            entities=entities,
-            metric="visibility",
-            labels=[entity.label],
-        ),
-        entity.label,
-    )
-    average_rank_series = daily_average_rank_series_from_index(
-        windows.current,
-        entity_id=entity.id,
-    )
-    citation_series = _single_value_series(
-        daily_citation_share_series_from_signals(current_flat, subject=subject),
-        entity.label,
-    )
+    mention_brand_signals = [*current_signals, *other_brand_signals]
 
     response_rows = responses_in_window(
         db,
@@ -259,17 +269,17 @@ def build_prompt_detail(
         "topic_id": str(prompt.topic_id) if prompt.topic_id else None,
         "topic_name": topic.name if topic else None,
         "search_intent": prompt.search_intent,
-        "visibility_rate": metrics.visibility_rate,
-        "average_rank": metrics.average_rank,
-        "citation_rate": metrics.citation_rate,
+        "visibility_rate": focus_metrics.get("visibility_rate"),
+        "average_rank": focus_metrics.get("average_rank"),
+        "citation_rate": focus_metrics.get("citation_rate"),
         "visibility_series": visibility_series,
         "average_rank_series": average_rank_series,
         "citation_series": citation_series,
-        "platforms": _prompt_detail_platform_rows(current_flat, subject=subject, entity_id=entity.id),
+        "platforms": platforms,
         "opportunity": _opportunity_summary(
             focus_signals,
             subject=subject,
-            all_signals=current_flat,
+            all_signals=current_signals,
             focus_entity_id=entity.id,
         ),
         "citation_responses": citation_responses,

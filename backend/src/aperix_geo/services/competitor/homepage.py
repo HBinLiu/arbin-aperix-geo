@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from aperix_geo.services.competitor.web_context import HomepageContext, fetch_site_homepage_context
 from aperix_geo.services.crawl import page_crawl_settings
-from aperix_geo.utils.domains import registrable_domain
+from aperix_geo.utils.net import registrable_from
 
 
 def fetch_target_homepage(domain: str, *, user_url: str = "") -> HomepageContext:
     crawl = page_crawl_settings()
     raw = user_url.strip() or domain.strip()
-    root = registrable_domain(domain) or registrable_domain(raw)
+    root = registrable_from(domain) or registrable_from(raw)
     if not root and not raw:
         return HomepageContext(url="", metadata={}, markdown="")
 

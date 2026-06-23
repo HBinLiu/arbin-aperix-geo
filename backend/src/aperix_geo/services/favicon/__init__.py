@@ -14,20 +14,20 @@ from __future__ import annotations
 
 import asyncio
 
-from aperix_geo.services.favicon._domain import normalize_favicon_domain
+from aperix_geo.services.favicon._domain import favicon_from
 from aperix_geo.services.favicon._resolve import resolve_favicon_coalesced
 from aperix_geo.services.favicon._storage import (
     ensure_storage_dir,
     negative_cache_hit,
     read_cached_favicon,
 )
-from aperix_geo.utils.domains import is_valid_hostname
+from aperix_geo.utils.net import is_valid_hostname
 
 _DEFAULT_TIMEOUT_S = 5.0
 
 __all__ = [
     "ensure_storage_dir",
-    "normalize_favicon_domain",
+    "favicon_from",
     "resolve_favicon",
 ]
 
@@ -39,7 +39,7 @@ async def resolve_favicon(
     page_url: str | None = None,
 ) -> tuple[bytes, str] | None:
     """Network resolve; ``domain`` is the memory/disk cache key, ``page_url`` drives fetch."""
-    host = normalize_favicon_domain(domain)
+    host = favicon_from(domain)
     if not host or not is_valid_hostname(host):
         return None
 

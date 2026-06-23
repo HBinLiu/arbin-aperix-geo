@@ -103,7 +103,7 @@ export function useCitationUrls(
 }
 
 type CitationDomainListOptions = FetchCitationListOptions & {
-  host: string;
+  domain: string;
   enabled?: boolean;
 };
 
@@ -112,7 +112,7 @@ export function useCitationDomainUrls(
   filters: AnalysisFilters,
   options: CitationDomainListOptions,
 ) {
-  const { enabled = true, host, ...requestOptions } = options;
+  const { enabled = true, domain, ...requestOptions } = options;
   const queryFilters = useMemo(() => toAnalysisQueryFilters(filters), [filters]);
   const { from, to, entityId, platformIds, topicIds } = queryFilters;
   const topicKey = topicFilterKey(topicIds);
@@ -125,7 +125,7 @@ export function useCitationDomainUrls(
       entityId,
       platformKey,
       topicKey,
-      host,
+      domain,
       from,
       to,
       page,
@@ -135,13 +135,13 @@ export function useCitationDomainUrls(
     ),
     queryFn: () =>
       fetchCitationDomainUrls(subjectId, queryFilters, {
-        host,
+        domain,
         page,
         pageSize,
         sortBy: sortBy as CitationUrlSortField,
         order,
       }),
-    enabled: enabled && Boolean(host),
+    enabled: enabled && Boolean(domain),
   });
 
   return paginatedListResult(query, { page, pageSize });
@@ -152,7 +152,7 @@ export function useCitationDomainPrompts(
   filters: AnalysisFilters,
   options: CitationDomainListOptions,
 ) {
-  const { enabled = true, host, ...requestOptions } = options;
+  const { enabled = true, domain, ...requestOptions } = options;
   const queryFilters = useMemo(() => toAnalysisQueryFilters(filters), [filters]);
   const { from, to, entityId, platformIds, topicIds } = queryFilters;
   const topicKey = topicFilterKey(topicIds);
@@ -165,7 +165,7 @@ export function useCitationDomainPrompts(
       entityId,
       platformKey,
       topicKey,
-      host,
+      domain,
       from,
       to,
       page,
@@ -175,13 +175,13 @@ export function useCitationDomainPrompts(
     ),
     queryFn: () =>
       fetchCitationDomainPrompts(subjectId, queryFilters, {
-        host,
+        domain,
         page,
         pageSize,
         sortBy: sortBy as CitationDomainPromptSortField,
         order,
       }),
-    enabled: enabled && Boolean(host),
+    enabled: enabled && Boolean(domain),
   });
 
   return paginatedListResult(query, { page, pageSize });

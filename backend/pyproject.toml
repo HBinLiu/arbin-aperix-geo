@@ -29,6 +29,8 @@ dependencies = [
     "python-jose[cryptography]>=3.3.0",
     "email-validator>=2.2.0",
     "alibabacloud-dysmsapi20170525>=4.0.0",
+    "publicsuffix2>=1.0.0",
+    "validators>=0.34.0",
 ]
 
 [project.scripts]

@@ -5,7 +5,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from aperix_geo.services.brand.domain import (
-    _pick_brand_domain_from_search_hits,
+    _pick_brand_from_search_hits,
     extract_domain_from_text_for_brand,
     other_entity_id,
     search_brand_official_domain,
@@ -30,6 +30,24 @@ def test_extract_domain_from_host_match() -> None:
     assert domain == "stripe.com"
 
 
+def test_extract_domain_prefers_citation_url_over_text_score() -> None:
+    text = "DeepRank 的情感得分是 96.8，详情见 https://deeprank.ai/about。"
+    domain = extract_domain_from_text_for_brand(text, "DeepRank", ["https://deeprank.ai/about"])
+    assert domain == "deeprank.ai"
+
+
+def test_extract_domain_ignores_absa_score_near_brand() -> None:
+    text = "DeepRank 的情感得分是 96.8，整体表现不错。"
+    domain = extract_domain_from_text_for_brand(text, "DeepRank", [])
+    assert domain == ""
+
+
+def test_extract_domain_ignores_decimal_without_letters() -> None:
+    text = "ImpetaAI（99.5）在 GEO 领域表现突出。"
+    domain = extract_domain_from_text_for_brand(text, "ImpetaAI", [])
+    assert domain == ""
+
+
 def _hit(title: str, url: str, *, snippet: str = "") -> SearchHit:
     return SearchHit(title=title, url=url, snippet=snippet, query="q")
 
@@ -39,7 +57,7 @@ def test_pick_search_domain_prefers_host_match_over_earlier_hit() -> None:
         _hit("Stripe news", "https://techcrunch.com/stripe-funding"),
         _hit("Stripe | Payments", "https://stripe.com/pricing"),
     ]
-    assert _pick_brand_domain_from_search_hits("Stripe", hits) == "stripe.com"
+    assert _pick_brand_from_search_hits("Stripe", hits) == "stripe.com"
 
 
 def test_pick_search_domain_skips_unmatched_domains() -> None:
@@ -47,21 +65,21 @@ def test_pick_search_domain_skips_unmatched_domains() -> None:
         _hit("Payments roundup", "https://techcrunch.com/payments"),
         _hit("Wiki", "https://en.wikipedia.org/wiki/Stripe"),
     ]
-    assert _pick_brand_domain_from_search_hits("Stripe", hits) == ""
+    assert _pick_brand_from_search_hits("Stripe", hits) == ""
 
 
 def test_pick_search_domain_falls_back_to_title_match() -> None:
     hits = [
         _hit("贝宝中国", "https://www.paypal.com/cn/"),
     ]
-    assert _pick_brand_domain_from_search_hits("贝宝", hits) == "paypal.com"
+    assert _pick_brand_from_search_hits("贝宝", hits) == "paypal.com"
 
 
 def test_pick_search_domain_ignores_snippet_only_match() -> None:
     hits = [
         _hit("Weekly fintech digest", "https://techcrunch.com/fintech", snippet="Stripe raised funding"),
     ]
-    assert _pick_brand_domain_from_search_hits("Stripe", hits) == ""
+    assert _pick_brand_from_search_hits("Stripe", hits) == ""
 
 
 @patch("aperix_geo.services.brand.domain.search_text")

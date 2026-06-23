@@ -15,7 +15,7 @@ from aperix_geo.services.sampling.platforms import (
     validate_explicit_sampling_platforms,
 )
 from aperix_geo.services.subject.rules import validate_subject_fields
-from aperix_geo.utils.domains import ensure_brand
+from aperix_geo.utils.net import ensure_brand
 
 router = APIRouter(prefix="/subjects", tags=["subjects"])
 router.include_router(subject_setup.router)

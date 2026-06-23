@@ -13,6 +13,7 @@ import remarkGfm from "remark-gfm";
 import { BrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
 import { TextBadge } from "@/components/ui/badge";
 import {
+  resolveMentionCanonicalLabel,
   resolveMentionIconLabel,
   splitTextByTerms,
   type ResponseMentionTerm,
@@ -46,7 +47,7 @@ function renderMentionText(text: string, mentionTerms: ResponseMentionTerm[]): R
       return (
         <BrandInlineChip
           key={`mention-${index}`}
-          label={segment.value}
+          label={resolveMentionCanonicalLabel(segment.value, mentionTerms)}
           iconLabel={resolveMentionIconLabel(segment.value, mentionTerms)}
         />
       );

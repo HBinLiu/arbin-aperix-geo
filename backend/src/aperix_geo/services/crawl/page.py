@@ -20,13 +20,13 @@ from aperix_geo.services.crawl.settings import PageCrawlSettings, page_crawl_set
 from aperix_geo.services.crawl.types import FetchSource, PageFetchResult
 from aperix_geo.utils.cache import SingleFlightWaitTimeout, run_single_flight
 from aperix_geo.utils.text import truncate_text
-from aperix_geo.utils.url import (
+from aperix_geo.utils.net import (
+    host_from,
     host_resolves,
-    host_resolves_to_public_addresses,
-    hostname_from_url,
+    host_resolves_public,
     is_llm_numeric_fake_url,
-    is_valid_citation_host,
-    normalize_crawl_cache_url,
+    is_citation_host,
+    crawl_cache_url,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ class _PageCache:
     @classmethod
     def for_url(cls, request_url: str, *, crawl: PageCrawlSettings, max_chars: int) -> _PageCache:
         return cls(
-            cache_url=normalize_crawl_cache_url(request_url),
+            cache_url=crawl_cache_url(request_url),
             max_chars=max_chars,
             crawl=crawl,
         )
@@ -165,8 +165,8 @@ def fetch_page(
         logger.debug("页面抓取缓存命中 %s", key)
         return cached
 
-    host = hostname_from_url(key)
-    if host and not is_valid_citation_host(host):
+    host = host_from(key)
+    if host and not is_citation_host(host):
         logger.debug("页面抓取跳过无效 host %s", key)
         if settings.negative_cache_ttl_s > 0:
             cache.store_negative()
@@ -176,7 +176,7 @@ def fetch_page(
         if settings.negative_cache_ttl_s > 0:
             cache.store_negative()
         return PageFetchResult(url=key)
-    if host and not host_resolves_to_public_addresses(host, timeout_s=2.0):
+    if host and not host_resolves_public(host, timeout_s=2.0):
         logger.debug("页面抓取跳过非公开地址 %s", key)
         if settings.negative_cache_ttl_s > 0:
             cache.store_negative()

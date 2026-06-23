@@ -36,7 +36,7 @@ export function backlinkOpportunityColumnColStyle(column: BacklinkOpportunityCol
 
 export type BacklinkOpportunityRow = {
   id: string;
-  host: string;
+  domain: string;
   priority: OpportunityPriority;
   priorityLabel: string;
   platforms: string[];
@@ -63,7 +63,7 @@ export const BACKLINK_OPPORTUNITY_DETAIL_TABS: { id: BacklinkOpportunityDetailTa
 export function buildBacklinkOpportunityRows(items: BacklinkOpportunityItem[]): BacklinkOpportunityRow[] {
   return items.map((item) => ({
     id: item.id,
-    host: item.host,
+    domain: item.domain,
     priority: item.priority,
     priorityLabel: PRIORITY_LABELS[item.priority],
     platforms: item.platforms,

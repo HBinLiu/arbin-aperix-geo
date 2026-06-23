@@ -8,8 +8,7 @@ from typing import Any
 from aperix_geo.services.competitor.head_fetch import fetch_site_heads
 from aperix_geo.services.competitor.types import DiscoveredCompetitor, SiteHead
 from aperix_geo.services.subject.domain_fields import prepare_domain_and_website_url
-from aperix_geo.utils.domains import ensure_brand, registrable_domain
-from aperix_geo.utils.url import normalize_user_website_input
+from aperix_geo.utils.net import ensure_brand, parse_url, registrable_from
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +117,7 @@ def enrich_discovered_competitors(
     out: list[DiscoveredCompetitor] = []
     for item in competitors:
         domain = str(item.get("domain") or "").strip()
-        head = heads.get(registrable_domain(domain)) if domain else None
+        head = heads.get(registrable_from(domain)) if domain else None
         brand = resolve_competitor_brand(item)
         summary = resolve_competitor_summary(head)
         aliases = merge_competitor_aliases(
@@ -149,7 +148,7 @@ def _index_session_competitors_by_domain(session: dict[str, Any] | None) -> dict
     for row in cached:
         if not isinstance(row, dict):
             continue
-        domain = registrable_domain(str(row.get("domain") or ""))
+        domain = registrable_from(str(row.get("domain") or ""))
         if domain and domain not in out:
             out[domain] = row
     return out
@@ -200,7 +199,7 @@ def enrich_confirmed_competitor_dict(
         return out
 
     seed = _confirmed_seed_item(item, cache_seed=cache_seed)
-    user_website_url = normalize_user_website_input(str(seed.get("website_url") or ""))
+    user_website_url = parse_url(str(seed.get("website_url") or ""))
     domain, website_url = prepare_domain_and_website_url(
         domain_raw,
         user_website_url,
@@ -249,7 +248,7 @@ def enrich_confirmed_competitors(
     domain_hosts: list[str] = []
     preferred_urls: dict[str, str] = {}
     for item in competitors:
-        domain = registrable_domain(str(item.get("domain") or ""))
+        domain = registrable_from(str(item.get("domain") or ""))
         if not domain:
             continue
         domain_hosts.append(domain)
@@ -265,7 +264,7 @@ def enrich_confirmed_competitors(
 
     out: list[dict[str, Any]] = []
     for item in competitors:
-        domain = registrable_domain(str(item.get("domain") or ""))
+        domain = registrable_from(str(item.get("domain") or ""))
         head = heads.get(domain) if domain else None
         enriched = enrich_confirmed_competitor_dict(
             item,

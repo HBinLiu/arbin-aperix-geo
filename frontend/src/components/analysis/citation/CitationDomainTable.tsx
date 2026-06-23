@@ -166,26 +166,26 @@ export function CitationDomainTable({
             ) : (
               rows.map((row) => (
                 <tr
-                  key={row.host}
+                  key={row.domain}
                   className="border-border hover:bg-muted/40 cursor-pointer border-t [&>td]:py-3"
                   role="link"
                   tabIndex={0}
-                  onClick={() => navigate(citationDomainDetailPath(row.host))}
+                  onClick={() => navigate(citationDomainDetailPath(row.domain))}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault();
-                      navigate(citationDomainDetailPath(row.host));
+                      navigate(citationDomainDetailPath(row.domain));
                     }
                   }}
                 >
                   <td className="max-w-0 pl-5">
                     <div className="flex min-w-0 items-center gap-2">
-                      <FaviconImage url={faviconUrlFromHost(row.host)} size={20} className="size-5 shrink-0 rounded-sm" />
+                      <FaviconImage url={faviconUrlFromHost(row.domain)} size={20} className="size-5 shrink-0 rounded-sm" />
                       <span
                         className="truncate font-medium hover:text-primary hover:underline"
-                        title={row.host}
+                        title={row.domain}
                       >
-                        {row.host}
+                        {row.domain}
                       </span>
                     </div>
                   </td>

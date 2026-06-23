@@ -7,12 +7,12 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
-from aperix_geo.services.analysis.platform import (
-    _build_matrix_cells,
-    _build_platform_charts,
-    build_platform_analysis,
+from tests.platform_signal_helpers import (
+    build_matrix_cells,
+    build_platform_charts,
+    platform_performance_rows,
 )
-from aperix_geo.services.analysis.performance import platform_performance_rows
+from aperix_geo.services.analysis.platform import build_platform_analysis
 from aperix_geo.services.analysis.signal_load import LLMResponseSignalRow
 
 
@@ -48,7 +48,7 @@ def test_build_platform_charts_merges_platforms_by_date():
     subject = MagicMock()
     signals = [_signal(platform="deepseek", day=1), _signal(platform="doubao", day=1)]
 
-    charts = _build_platform_charts(
+    charts = build_platform_charts(
         ["deepseek", "doubao"],
         signals,
         subject=subject,
@@ -60,8 +60,9 @@ def test_build_platform_charts_merges_platforms_by_date():
     assert set(visibility[0]["values"].keys()) == {"deepseek", "doubao"}
 
 
-@patch("aperix_geo.services.analysis.platform.load_topic_prompt_catalog")
-@patch("aperix_geo.services.analysis.platform.load_llm_response_signals")
+@patch("aperix_geo.services.analysis.platform.query_platform_charts")
+@patch("aperix_geo.services.analysis.platform.query_platform_metrics")
+@patch("aperix_geo.services.analysis.platform.query_platform_matrix")
 @patch("aperix_geo.services.analysis.platform.list_analysis_entities")
 @patch("aperix_geo.services.analysis.platform.resolve_analysis_entity")
 @patch("aperix_geo.services.analysis.platform.resolve_platforms_for_sampling")
@@ -69,14 +70,22 @@ def test_build_platform_analysis_payload_shape(
     mock_resolve_platforms,
     mock_resolve_entity,
     mock_list_entities,
-    mock_load_signals,
-    mock_load_catalog,
+    mock_matrix_cells,
+    mock_platform_performance,
+    mock_daily_charts,
 ):
     mock_resolve_platforms.return_value = ["deepseek", "doubao"]
     mock_resolve_entity.return_value = SimpleNamespace(id="own", label="own.com")
     mock_list_entities.return_value = [SimpleNamespace(id="own", label="own.com", kind="own")]
-    mock_load_catalog.return_value = ({}, {}, {})
-    mock_load_signals.return_value = [_signal(platform="doubao", day=2)]
+    mock_matrix_cells.side_effect = lambda db, **kwargs: [
+        {"row_id": "own", "platform_id": platform_id, "visibility_rate": 0.5}
+        for platform_id in kwargs["platform_ids"]
+    ]
+    mock_platform_performance.return_value = [{"platform": "doubao", "visibility_rate": 0.5}]
+    mock_daily_charts.return_value = {
+        metric: {"current": [{"date": "2026-05-01", "values": {"doubao": 0.5}}]}
+        for metric in ("visibility", "share_voice", "citation", "average_rank", "sentiment")
+    }
 
     db = MagicMock()
     subject = MagicMock()
@@ -147,7 +156,7 @@ def test_matrix_and_performance_metrics_align_for_focus_entity():
         _signal(platform="doubao", entity_id="comp-a", mention_count=18),
     ]
 
-    matrix_cells = _build_matrix_cells(
+    matrix_cells = build_matrix_cells(
         signals,
         row_dimension="competitor",
         platform_ids=["doubao"],
@@ -173,7 +182,7 @@ def test_platform_chart_single_day_matches_performance_for_rate_metrics():
         _signal(platform="doubao", day=1, entity_id="comp-a", mention_count=8, mentioned=True),
     ]
 
-    charts = _build_platform_charts(["doubao"], signals, subject=subject, entity_id="own")
+    charts = build_platform_charts(["doubao"], signals, subject=subject, entity_id="own")
     performance = platform_performance_rows(signals, subject=subject, entity_id="own")[0]
     last_point = charts["visibility"]["current"][-1]["values"]["doubao"]
 

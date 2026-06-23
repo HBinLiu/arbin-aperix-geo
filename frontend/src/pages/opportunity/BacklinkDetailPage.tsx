@@ -10,7 +10,7 @@ type BacklinkDetailPageProps = {
   subjectId: string;
 };
 
-function decodeRouteHost(value: string | undefined): string {
+function decodeRouteDomain(value: string | undefined): string {
   if (!value) return "";
   try {
     return decodeURIComponent(value).trim().toLowerCase();
@@ -21,8 +21,8 @@ function decodeRouteHost(value: string | undefined): string {
 
 /** 机会 · 反向链接 · 单域名详情 */
 export function BacklinkDetailPage({ subjectId }: BacklinkDetailPageProps) {
-  const { host: hostParam } = useParams<{ host: string }>();
-  const host = decodeRouteHost(hostParam);
+  const { domain: domainParam } = useParams<{ domain: string }>();
+  const domain = decodeRouteDomain(domainParam);
   const { subject } = useDashboardContext();
   const { platforms: platformsMeta } = useAnalysisFilter();
   const { filters, setFilters } = useAnalysisFiltersState();
@@ -32,7 +32,7 @@ export function BacklinkDetailPage({ subjectId }: BacklinkDetailPageProps) {
       <AnalysisFilterBar value={filters} onChange={setFilters} hideEntityFilter />
       <OpportunityBacklinkDetailView
         subjectId={subjectId}
-        host={host}
+        domain={domain}
         filters={filters}
         ownLabel={subject.brand}
         ownBrand={subject.brand}

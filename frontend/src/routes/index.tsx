@@ -59,13 +59,13 @@ export function AppRoutes() {
               <Route path="platform" element={<AnalysisPlatformRoute />} />
               <Route path="sentiment" element={<AnalysisSentimentRoute />} />
               <Route path="citation" element={<AnalysisCitationRoute />} />
-              <Route path="citation/:host" element={<AnalysisCitationDomainRoute />} />
+              <Route path="citation/:domain" element={<AnalysisCitationDomainRoute />} />
               <Route path="*" element={<Navigate to="visibility" replace />} />
             </Route>
             <Route path="rank" element={<RankRoute />} />
             <Route path="opportunity">
               <Route index element={<Navigate to="backlink" replace />} />
-              <Route path="backlink/:host" element={<OpportunityBacklinkDetailRoute />} />
+              <Route path="backlink/:domain" element={<OpportunityBacklinkDetailRoute />} />
               <Route path=":tab" element={<OpportunityRoute />} />
             </Route>
             <Route path="agent" element={<AgentRoute />} />

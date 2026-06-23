@@ -3,22 +3,19 @@
 from __future__ import annotations
 
 from aperix_geo.db.models import Subject, SubjectType
-from aperix_geo.utils.domains import registrable_domain
-from aperix_geo.utils.url import hostname_from_url
+from aperix_geo.utils.net import host_from, registrable_from
 
 
 def _subject_rank_domain(subject: Subject) -> str:
     if subject.domain and subject.domain.strip():
-        return registrable_domain(subject.domain.strip()) or subject.domain.strip()
+        return registrable_from(subject.domain)
     if subject.website_url:
-        host = hostname_from_url(subject.website_url)
-        if host:
-            return registrable_domain(host) or host
+        return registrable_from(subject.website_url)
     return ""
 
 
 def competitor_rank_label(*, brand: str = "", domain: str = "") -> str:
-    d = registrable_domain(domain.strip()) if domain.strip() else ""
+    d = registrable_from(domain.strip()) if domain.strip() else ""
     if d:
         return d
     return brand.strip()
@@ -27,7 +24,7 @@ def competitor_rank_label(*, brand: str = "", domain: str = "") -> str:
 def competitor_rank_domain(*, domain: str = "") -> str:
     if not domain.strip():
         return ""
-    return registrable_domain(domain.strip()) or domain.strip()
+    return registrable_from(domain) or host_from(domain)
 
 
 def subject_rank_domain(subject: Subject) -> str:

@@ -13,18 +13,11 @@ from sqlalchemy.orm import Session
 from aperix_geo.db.models import Brand
 from aperix_geo.services.brand.cache import remember_brand_row_domains
 from aperix_geo.services.brand.catalog import BrandCatalog
-from aperix_geo.utils.domains import ensure_brand, registrable_domain
+from aperix_geo.utils.net import brand_from, ensure_brand, is_brand_domain
 
 
 def normalize_brand_key(name: str) -> str:
     return (name or "").strip().casefold()
-
-
-def _normalize_domain(raw: str) -> str:
-    text = (raw or "").strip()
-    if not text:
-        return ""
-    return registrable_domain(text) or text
 
 
 def _merge_aliases(existing: list[Any], extra: list[str] | None) -> list[str]:
@@ -43,7 +36,7 @@ def _merge_aliases(existing: list[Any], extra: list[str] | None) -> list[str]:
 
 
 def find_brand_by_domain(db: Session, *, subject_id: UUID, domain: str) -> Brand | None:
-    normalized = _normalize_domain(domain)
+    normalized = brand_from(domain)
     if not normalized:
         return None
     return db.execute(
@@ -85,7 +78,7 @@ def _find_brand(
     domain: str,
     catalog: BrandCatalog | None,
 ) -> Brand | None:
-    normalized_domain = _normalize_domain(domain)
+    normalized_domain = brand_from(domain)
     if normalized_domain:
         if catalog is not None:
             row = catalog.find_by_domain(normalized_domain)
@@ -103,8 +96,13 @@ def _find_brand(
 
 
 def _apply_domain_update(brand: Brand, domain: str, *, subject_id: UUID | None = None) -> None:
-    normalized = _normalize_domain(domain)
-    if not normalized or brand.domain:
+    normalized = brand_from(domain)
+    if not normalized:
+        return
+    current = brand_from(brand.domain)
+    if current and is_brand_domain(current):
+        return
+    if current == normalized:
         return
     brand.domain = normalized
     if subject_id is not None:
@@ -141,7 +139,7 @@ def resolve_or_create_brand(
 ) -> Brand:
     """Find or create a subject-scoped brand row; merge aliases and backfill empty domain."""
     display_name = ensure_brand(brand, domain=domain)
-    normalized_domain = _normalize_domain(domain)
+    normalized_domain = brand_from(domain)
 
     row = _find_brand(
         db,
@@ -232,7 +230,7 @@ def resolve_or_create_brand(
 
 
 def primary_domain_for_brand(brand: Brand) -> str:
-    return _normalize_domain(brand.domain)
+    return brand_from(brand.domain)
 
 
 def brand_passes_cross_validate(brand: Brand, *, min_score: float) -> bool:

@@ -73,14 +73,14 @@ function SortableHeader({ label, sortKey, sort, onSort }: SortableHeaderProps) {
 
 type OpportunityBacklinkPromptTableProps = {
   subjectId: string;
-  host: string;
+  domain: string;
   filters: AnalysisFilters;
   platformsMeta: SamplingPlatform[];
 };
 
 export function OpportunityBacklinkPromptTable({
   subjectId,
-  host,
+  domain,
   filters,
   platformsMeta,
 }: OpportunityBacklinkPromptTableProps) {
@@ -90,7 +90,7 @@ export function OpportunityBacklinkPromptTable({
   const { sortBy, order } = sortParams(sort);
 
   const { rows, total, loading, fetching } = useBacklinkOpportunityPrompts(subjectId, filters, {
-    host,
+    domain,
     page,
     pageSize,
     sortBy,
@@ -99,7 +99,7 @@ export function OpportunityBacklinkPromptTable({
 
   useEffect(() => {
     setPage(1);
-  }, [sort, pageSize, host, filters]);
+  }, [sort, pageSize, domain, filters]);
 
   const handlePageSizeChange = (nextPageSize: number) => {
     setPageSize(nextPageSize);

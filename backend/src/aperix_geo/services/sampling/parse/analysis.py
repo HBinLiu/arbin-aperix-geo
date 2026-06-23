@@ -17,8 +17,12 @@ from aperix_geo.services.sampling.citation.scope import open_brand_labels_from_a
 from aperix_geo.services.sampling.parse.context import ParseContext
 from aperix_geo.services.sampling.parse.types import CitationParseParams, ParseEnrichment
 from aperix_geo.services.sampling.response_absa import analyze_response_absa
-from aperix_geo.utils.url import filter_citation_urls, hostname_from_url, normalize_domain
-from aperix_geo.utils.domains import registrable_domain
+from aperix_geo.utils.net import (
+    citation_from,
+    filter_citation_urls,
+    host_from,
+    registrable_from,
+)
 
 
 def _run_response_absa(ctx: ParseContext) -> dict[str, Any]:
@@ -32,11 +36,12 @@ def _run_response_absa(ctx: ParseContext) -> dict[str, Any]:
 
 
 def _competitor_roots(params: CitationParseParams) -> set[str]:
-    return {
-        root
-        for entry in params.competitors
-        if (root := normalize_domain(entry.domain) or (entry.domain or "").strip().lower())
-    }
+    roots: set[str] = set()
+    for entry in params.competitors:
+        root = registrable_from(entry.domain) or host_from(entry.domain)
+        if root:
+            roots.add(root)
+    return roots
 
 
 def _fetch_citation_pages(params: CitationParseParams) -> list[CitationPageMeta]:
@@ -51,10 +56,7 @@ def _fetch_citation_pages(params: CitationParseParams) -> list[CitationPageMeta]
 
 
 def _page_domain(url: str) -> str:
-    host = (hostname_from_url(url) or "").strip().lower()
-    if not host:
-        return ""
-    return registrable_domain(host) or host
+    return citation_from(url)
 
 
 def _load_citation_pages_from_cache(params: CitationParseParams) -> list[CitationPageMeta]:

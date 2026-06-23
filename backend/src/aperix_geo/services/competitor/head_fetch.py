@@ -10,9 +10,8 @@ from aperix_geo.services.competitor.types import SiteHead
 from aperix_geo.services.crawl import PageFetchResult, fetch_page, page_crawl_settings
 from aperix_geo.services.crawl.metadata import PageMetadata, SeoProfile, extract_metadata_from_fetch
 from aperix_geo.services.crawl.settings import PageCrawlSettings, seo_fetch_max_chars
-from aperix_geo.utils.domains import registrable_domain
 from aperix_geo.services.crawl.seo import SeoMetadata, seo_prose_text
-from aperix_geo.utils.url import candidate_website_urls
+from aperix_geo.utils.net import website_candidates, registrable_from
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +59,7 @@ def _fetch_one_sync(
     seo_profile: SeoProfile,
     preferred_url: str = "",
 ) -> SiteHead:
-    urls = candidate_website_urls(domain, preferred_url=preferred_url)
+    urls = website_candidates(domain, preferred_url=preferred_url)
     if not urls:
         return SiteHead(domain=domain, title="", description="", reachable=False)
 
@@ -113,7 +112,7 @@ async def fetch_site_heads_async(
                 seo_profile=seo_profile,
                 preferred_url=preferred_urls.get(host, ""),
             )
-            out[registrable_domain(head.domain)] = head
+            out[registrable_from(head.domain)] = head
 
     await asyncio.gather(*(run_one(h) for h in unique))
 
@@ -143,7 +142,7 @@ def fetch_site_heads(
             seo_profile=seo_profile,
             preferred_url=preferred_urls.get(host, ""),
         )
-        return registrable_domain(head.domain), head
+        return registrable_from(head.domain), head
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         for domain, head in pool.map(run_one, unique):
@@ -153,4 +152,4 @@ def fetch_site_heads(
 
 
 def dedupe_keys(domains: list[str]) -> list[str]:
-    return list(dict.fromkeys(registrable_domain(d) for d in domains if d.strip()))
+    return list(dict.fromkeys(registrable_from(d) for d in domains if d.strip()))

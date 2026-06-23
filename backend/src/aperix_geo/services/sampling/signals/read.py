@@ -10,11 +10,16 @@ from aperix_geo.services.analysis.entity import list_analysis_entities
 from aperix_geo.services.sampling.parsed import ParsedSamplingResult
 from aperix_geo.services.sampling.signal_draft import drafts_to_records
 from aperix_geo.services.sampling.signals.match import match_terms_for_entity_signal
+from aperix_geo.utils.net import brand_from
 from aperix_geo.utils.mention import api_mention_rank
 from aperix_geo.utils.sentiment import (
     api_sentiment_label,
     api_sentiment_score,
 )
+
+
+def _api_primary_domain(value: str) -> str:
+    return brand_from(value)
 
 
 def _signal_record(
@@ -64,7 +69,7 @@ def entity_signal_records_for_response(
                 entity_id=row.entity_id,
                 entity_kind=row.entity_kind,
                 entity_label=entity_label,
-                primary_domain=row.primary_domain,
+                primary_domain=_api_primary_domain(row.primary_domain),
                 brand_id=str(row.brand_id),
                 mentioned=row.mentioned,
                 mention_count=row.mention_count,
@@ -100,7 +105,7 @@ def parsed_api_dict(
                     entity_id=str(draft_record.get("entity_id") or ""),
                     entity_kind=str(draft_record.get("entity_kind") or ""),
                     entity_label=entity_label,
-                    primary_domain=str(draft_record.get("primary_domain") or ""),
+                    primary_domain=_api_primary_domain(str(draft_record.get("primary_domain") or "")),
                     brand_id=draft_record.get("brand_id"),
                     mentioned=draft_record.get("mentioned"),
                     mention_count=draft_record.get("mention_count"),

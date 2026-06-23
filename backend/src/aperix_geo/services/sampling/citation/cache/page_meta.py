@@ -7,7 +7,7 @@ from uuid import UUID
 
 from aperix_geo.config import get_settings
 from aperix_geo.utils.cache import TieredJsonCache
-from aperix_geo.utils.url import normalize_crawl_cache_url
+from aperix_geo.utils.net import crawl_cache_url
 
 _STORE = TieredJsonCache(
     redis_prefix="aperix:sampling:job_page:v1:",
@@ -22,7 +22,7 @@ def _job_page_cache_ttl_s() -> int:
 
 
 def _cache_key(job_id: UUID, url: str) -> str:
-    return f"{job_id}:{normalize_crawl_cache_url(url)}"
+    return f"{job_id}:{crawl_cache_url(url)}"
 
 
 def get_job_citation_page(job_id: UUID | None, url: str) -> dict[str, Any] | None:

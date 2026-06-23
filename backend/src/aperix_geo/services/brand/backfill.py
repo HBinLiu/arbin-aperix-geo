@@ -12,6 +12,7 @@ from aperix_geo.db.models import BrandSource, LLMResponse, LLMResponseSignal, Su
 from aperix_geo.services.brand.catalog import BrandSyncContext
 from aperix_geo.services.brand.domain import resolve_brand_domain
 from aperix_geo.services.brand.resolve import primary_domain_for_brand, resolve_or_create_brand
+from aperix_geo.utils.net import brand_from, is_brand_domain
 
 
 def backfill_brand_domain_for_response(db: Session, response_id: UUID) -> int:
@@ -44,7 +45,8 @@ def backfill_brand_domain_for_response(db: Session, response_id: UUID) -> int:
 
     updated = 0
     for signal in signals:
-        if (signal.primary_domain or "").strip():
+        existing_domain = (signal.primary_domain or "").strip()
+        if existing_domain and is_brand_domain(existing_domain):
             continue
         brand_name = (signal.entity_label or "").strip()
         if not brand_name:

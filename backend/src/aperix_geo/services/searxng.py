@@ -9,7 +9,7 @@ import httpx
 
 from aperix_geo.config import get_settings
 from aperix_geo.utils.http import BROWSER_HEADERS
-from aperix_geo.utils.url import hostname_from_url
+from aperix_geo.utils.net import host_from
 
 logger = logging.getLogger(__name__)
 _BAIDU_SKIP_NETLOCS = frozenset(
@@ -37,7 +37,7 @@ class SearchHit:
 def _is_usable_result_url(url: str) -> bool:
     if not url.startswith(("http://", "https://")):
         return False
-    host = hostname_from_url(url)
+    host = host_from(url)
     if not host:
         return False
     if host in _BAIDU_SKIP_NETLOCS:

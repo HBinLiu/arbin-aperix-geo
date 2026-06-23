@@ -33,7 +33,7 @@ from aperix_geo.services.setup.helpers import (
 )
 from aperix_geo.services.subject.domain_fields import apply_subject_domain_fields
 from aperix_geo.services.subject.rules import validate_brand_competitors, validate_subject_fields
-from aperix_geo.utils.domains import ensure_brand
+from aperix_geo.utils.net import ensure_brand
 from aperix_geo.utils.text import prompt_text_hash
 
 logger = logging.getLogger(__name__)

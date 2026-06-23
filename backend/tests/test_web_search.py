@@ -10,16 +10,16 @@ from aperix_geo.services.searxng import (
     _search_searxng,
     search_text,
 )
-from aperix_geo.utils.url import hostname_from_url
+from aperix_geo.utils.url import host_from_url
 
 
-def test_hostname_from_url_strips_www() -> None:
-    assert hostname_from_url("https://www.Stripe.com/pricing") == "stripe.com"
+def test_host_from_url_strips_www() -> None:
+    assert host_from_url("https://www.Stripe.com/pricing") == "stripe.com"
 
 
-def test_hostname_from_url_invalid() -> None:
-    assert hostname_from_url("") is None
-    assert hostname_from_url("not-a-url") is None
+def test_host_from_url_invalid() -> None:
+    assert host_from_url("") is None
+    assert host_from_url("not-a-url") is None
 
 
 def test_is_usable_result_url_rejects_baidu() -> None:
