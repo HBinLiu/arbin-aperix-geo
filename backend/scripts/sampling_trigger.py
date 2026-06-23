@@ -89,7 +89,7 @@ def main() -> int:
                 print("No subjects found.")
                 return 0
             for s in rows:
-                label = s.domain or s.brand_name or str(s.id)
+                label = s.domain or s.brand or str(s.id)
                 print(f"{s.id}\t{label}")
             return 0
 
@@ -101,7 +101,7 @@ def main() -> int:
             if not rows:
                 raise SystemExit("No subjects in database; pass --subject-id")
             subject_id = rows[0].id
-            label = rows[0].domain or rows[0].brand_name or str(rows[0].id)
+            label = rows[0].domain or rows[0].brand or str(rows[0].id)
             print(f"Using latest subject: {subject_id} ({label})")
 
         if args.via_api:

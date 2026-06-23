@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from urllib.parse import urlparse
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -45,10 +46,18 @@ _SKIP_SEARCH_DOMAINS: frozenset[str] = frozenset(
         "qq.com",
         "qcc.com",
         "bilibili.com",
+        "sohu.com",
+        "it.sohu.com",
+        "techcrunch.com",
     },
 )
 
+_OFFICIAL_TITLE_MARKERS = ("官网", "官方网站", "官方首页", "首页")
+
+_SEARCH_QUERIES_FOR_BRAND = ("官网", "官方网站", "官网地址")
+
 _NEAR_WINDOW = 120
+_CJK_RE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]")
 _DOMAIN_IN_TEXT_RE = re.compile(
     r"(?:https?://)?(?:www\.)?([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)",
     re.IGNORECASE,
@@ -135,6 +144,106 @@ def _discovered_domain_if_resolvable(domain: str) -> str:
     return normalized
 
 
+def _verified_domain(candidate: str, brand: str) -> str:
+    """Return registrable domain when DNS + host/homepage checks pass."""
+    normalized = brand_from(candidate)
+    if not normalized:
+        return ""
+    from aperix_geo.services.brand.verify import accept_discovered_domain
+
+    if accept_discovered_domain(normalized, brand):
+        return normalized
+    return ""
+
+
+def _search_queries_for_brand(name: str) -> list[str]:
+    base = (name or "").strip()
+    if not base:
+        return []
+    return [f"{base} {suffix}" for suffix in _SEARCH_QUERIES_FOR_BRAND]
+
+
+def _url_path_depth(url: str) -> int:
+    path = urlparse((url or "").strip()).path.strip("/")
+    if not path:
+        return 0
+    return path.count("/") + 1
+
+
+def _hit_official_title_marker(title: str) -> bool:
+    return any(marker in (title or "") for marker in _OFFICIAL_TITLE_MARKERS)
+
+
+def _score_search_hit(hit: SearchHit, brand_key: str) -> tuple[str, int] | None:
+    domain = brand_from(hit.url)
+    if not _is_usable_brand_domain(domain):
+        return None
+
+    score = 0
+    if _domain_hosts_brand(domain, brand_key):
+        score += 50
+    if _brand_key_has_cjk(brand_key) and _text_mentions_brand(hit.title, brand_key):
+        score += 15
+    if _hit_official_title_marker(hit.title):
+        score += 10
+    if _url_path_depth(hit.url) <= 1:
+        score += 5
+
+    if score <= 0:
+        return None
+    return domain, score
+
+
+def _rank_search_domain_candidates(brand: str) -> list[tuple[str, int]]:
+    """Score SearXNG hits across Chinese queries; higher is better."""
+    name = (brand or "").strip()
+    if not name:
+        return []
+
+    brand_key = _brand_match_key(name)
+    totals: dict[str, int] = {}
+    query_hit_counts: dict[str, int] = {}
+
+    for query in _search_queries_for_brand(name):
+        query_domains: set[str] = set()
+        for hit in search_text(query, max_results=5):
+            scored = _score_search_hit(hit, brand_key)
+            if scored is None:
+                continue
+            domain, score = scored
+            totals[domain] = totals.get(domain, 0) + score
+            query_domains.add(domain)
+        for domain in query_domains:
+            query_hit_counts[domain] = query_hit_counts.get(domain, 0) + 1
+
+    for domain, count in query_hit_counts.items():
+        if count >= 2:
+            totals[domain] = totals.get(domain, 0) + 25
+
+    return sorted(totals.items(), key=lambda item: (-item[1], item[0]))
+
+
+def _pick_brand_from_search_hits(brand: str, hits: list[SearchHit]) -> str:
+    """Legacy helper: score a single query's hits and return top verified domain."""
+    brand_key = _brand_match_key(brand)
+    if not brand_key:
+        return ""
+
+    totals: dict[str, int] = {}
+    for hit in hits:
+        scored = _score_search_hit(hit, brand_key)
+        if scored is None:
+            continue
+        domain, score = scored
+        totals[domain] = totals.get(domain, 0) + score
+
+    for domain, _score in sorted(totals.items(), key=lambda item: (-item[1], item[0])):
+        verified = _verified_domain(domain, brand)
+        if verified:
+            return verified
+    return ""
+
+
 def _brand_match_key(brand: str) -> str:
     return brand.strip().casefold()
 
@@ -153,27 +262,18 @@ def _text_mentions_brand(text: str, brand_key: str) -> bool:
     return bool(brand_key and brand_key in text.casefold())
 
 
-def _pick_brand_from_search_hits(brand: str, hits: list[SearchHit]) -> str:
-    """Pick the best official-domain candidate; empty when nothing matches the brand."""
+def _brand_key_has_cjk(brand_key: str) -> bool:
+    """Latin brand names must match via host label; title fallback is for CJK names only."""
+    return bool(_CJK_RE.search(brand_key))
+
+
+def domain_plausibly_matches_brand(domain: str, brand: str) -> bool:
+    """True when the registrable domain likely belongs to the brand (host label match)."""
     brand_key = _brand_match_key(brand)
-    if not brand_key:
-        return ""
-
-    for hit in hits:
-        domain = brand_from(hit.url)
-        if not _is_usable_brand_domain(domain):
-            continue
-        if _domain_hosts_brand(domain, brand_key):
-            return domain
-
-    for hit in hits:
-        domain = brand_from(hit.url)
-        if not _is_usable_brand_domain(domain):
-            continue
-        if _text_mentions_brand(hit.title, brand_key):
-            return domain
-
-    return ""
+    normalized = brand_from(domain)
+    if not normalized or not brand_key:
+        return False
+    return _domain_hosts_brand(normalized, brand_key)
 
 
 def search_brand_official_domain(brand: str) -> str:
@@ -183,10 +283,10 @@ def search_brand_official_domain(brand: str) -> str:
     if not get_settings().searxng_base_url.strip():
         return ""
 
-    for query in (f"{name} 官网", f"{name} official site"):
-        domain = _pick_brand_from_search_hits(name, search_text(query, max_results=5))
-        if domain:
-            return domain
+    for domain, _score in _rank_search_domain_candidates(name):
+        verified = _verified_domain(domain, name)
+        if verified:
+            return verified
     return ""
 
 
@@ -225,8 +325,9 @@ def resolve_brand_domain(
             sync_ctx.remember_domain(brand, domain)
         return domain
 
-    from_text = _discovered_domain_if_resolvable(
-        extract_domain_from_text_for_brand(raw_text, brand, urls)
+    from_text = _verified_domain(
+        extract_domain_from_text_for_brand(raw_text, brand, urls),
+        brand,
     )
     if from_text:
         remember_brand_domain_cached(subject_id=subject_id, brand=brand, domain=from_text)
@@ -235,7 +336,7 @@ def resolve_brand_domain(
         return from_text
 
     if allow_search:
-        from_search = _discovered_domain_if_resolvable(search_brand_official_domain(brand))
+        from_search = search_brand_official_domain(brand)
         if from_search:
             remember_brand_domain_cached(subject_id=subject_id, brand=brand, domain=from_search)
             if sync_ctx is not None:

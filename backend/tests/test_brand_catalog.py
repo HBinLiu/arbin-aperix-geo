@@ -32,6 +32,8 @@ def test_brand_catalog_indexes_name_alias_and_domain() -> None:
     assert catalog.find_by_name_or_alias("Stripe") is row
     assert catalog.find_by_name_or_alias("stripe") is row
     assert catalog.find_by_name_or_alias("斯特里普") is row
+    assert catalog.find_by_canonical_name("Stripe") is row
+    assert catalog.find_by_canonical_name("斯特里普") is None
     assert catalog.find_by_domain("stripe.com") is row
     assert catalog.find_by_name_or_alias("PayPal") is None
 
@@ -99,13 +101,13 @@ def test_resolve_brand_domain_reuses_batch_domain_memo(mock_extract, mock_search
 
 @patch("aperix_geo.services.brand.domain.get_brand_domain_cached", return_value=None)
 @patch("aperix_geo.services.brand.resolve.find_brand_by_name_or_alias", return_value=None)
-@patch("aperix_geo.services.brand.domain.registrable_domain", return_value=False)
-@patch("aperix_geo.services.brand.domain.search_brand_official_domain", return_value="stripe.com")
+@patch("aperix_geo.services.brand.domain._verified_domain", return_value="")
+@patch("aperix_geo.services.brand.domain.search_brand_official_domain", return_value="")
 @patch("aperix_geo.services.brand.domain.extract_domain_from_text_for_brand", return_value="stripe.com")
 def test_resolve_brand_domain_skips_unresolvable_discovered_domain(
     mock_extract,
     mock_search,
-    _mock_dns,
+    _mock_verified,
     _mock_find,
     _mock_cache,
 ) -> None:
@@ -123,13 +125,13 @@ def test_resolve_brand_domain_skips_unresolvable_discovered_domain(
 
 @patch("aperix_geo.services.brand.domain.get_brand_domain_cached", return_value=None)
 @patch("aperix_geo.services.brand.resolve.find_brand_by_name_or_alias", return_value=None)
-@patch("aperix_geo.services.brand.domain.registrable_domain", return_value=True)
+@patch("aperix_geo.services.brand.domain._verified_domain", return_value="stripe.com")
 @patch("aperix_geo.services.brand.domain.search_brand_official_domain")
 @patch("aperix_geo.services.brand.domain.extract_domain_from_text_for_brand", return_value="stripe.com")
 def test_resolve_brand_domain_persists_resolvable_text_domain(
     mock_extract,
     mock_search,
-    _mock_dns,
+    _mock_verified,
     _mock_find,
     _mock_cache,
 ) -> None:

@@ -11,7 +11,7 @@ from aperix_geo.db.models import BrandSource, Subject
 from aperix_geo.services.brand.catalog import BrandSyncContext
 from aperix_geo.services.brand.domain import extract_domain_from_text_for_brand, resolve_brand_domain
 from aperix_geo.services.brand.resolve import resolve_or_create_brand
-from aperix_geo.utils.net import registrable_from
+from aperix_geo.utils.net import brand_from, registrable_from
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +54,7 @@ def persist_open_brands_from_absa(
             continue
 
         domain = extract_domain_from_text_for_brand(raw_text, label, urls)
+        domain = brand_from(domain) if domain else ""
         if not domain:
             domain = resolve_brand_domain(
                 db,
@@ -76,6 +77,7 @@ def persist_open_brands_from_absa(
             entity_kind="other",
             source=BrandSource.sampling_open_set,
             catalog=sync_ctx.catalog,
+            open_set_brand=True,
         )
         persisted += 1
         logger.debug(

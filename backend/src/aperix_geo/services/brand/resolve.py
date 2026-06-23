@@ -77,8 +77,10 @@ def _find_brand(
     brand: str,
     domain: str,
     catalog: BrandCatalog | None,
+    match_by_domain: bool = True,
+    canonical_name_only: bool = False,
 ) -> Brand | None:
-    normalized_domain = brand_from(domain)
+    normalized_domain = brand_from(domain) if match_by_domain else ""
     if normalized_domain:
         if catalog is not None:
             row = catalog.find_by_domain(normalized_domain)
@@ -90,19 +92,30 @@ def _find_brand(
                 return row
     if not brand.strip():
         return None
+    if canonical_name_only:
+        if catalog is not None:
+            return catalog.find_by_canonical_name(brand)
+        return find_brand_by_name(db, subject_id=subject_id, brand=brand)
     if catalog is not None:
         return catalog.find_by_name_or_alias(brand)
     return find_brand_by_name_or_alias(db, subject_id=subject_id, brand=brand)
+
+
+def _clear_invalid_stored_domain(brand: Brand) -> None:
+    stored = (brand.domain or "").strip()
+    if stored and not brand_from(stored):
+        brand.domain = ""
 
 
 def _apply_domain_update(brand: Brand, domain: str, *, subject_id: UUID | None = None) -> None:
     normalized = brand_from(domain)
     if not normalized:
         return
-    current = brand_from(brand.domain)
-    if current and is_brand_domain(current):
-        return
-    if current == normalized:
+    stored = (brand.domain or "").strip()
+    if stored and is_brand_domain(stored):
+        current = brand_from(stored)
+        if current == normalized:
+            return
         return
     brand.domain = normalized
     if subject_id is not None:
@@ -136,10 +149,13 @@ def resolve_or_create_brand(
     cross_validate_score: float | None = None,
     cross_validate_reason: str | None = None,
     catalog: BrandCatalog | None = None,
+    open_set_brand: bool = False,
 ) -> Brand:
     """Find or create a subject-scoped brand row; merge aliases and backfill empty domain."""
     display_name = ensure_brand(brand, domain=domain)
     normalized_domain = brand_from(domain)
+    match_by_domain = not open_set_brand
+    canonical_name_only = open_set_brand
 
     row = _find_brand(
         db,
@@ -147,6 +163,8 @@ def resolve_or_create_brand(
         brand=display_name,
         domain=domain,
         catalog=catalog,
+        match_by_domain=match_by_domain,
+        canonical_name_only=canonical_name_only,
     )
 
     if row is None:
@@ -177,6 +195,8 @@ def resolve_or_create_brand(
                 brand=display_name,
                 domain=domain,
                 catalog=catalog,
+                match_by_domain=match_by_domain,
+                canonical_name_only=canonical_name_only,
             )
             if row is None:
                 raise
@@ -186,13 +206,18 @@ def resolve_or_create_brand(
             remember_brand_row_domains(subject_id=subject_id, brand=created)
             return created
 
+    _clear_invalid_stored_domain(row)
+
     if entity_kind and row.entity_kind == "other" and entity_kind != "other":
         row.entity_kind = entity_kind
     if (source or "").strip() and not row.source:
         row.source = source.strip()
 
-    if display_name and normalize_brand_key(display_name) != normalize_brand_key(row.brand):
-        row.aliases = _merge_aliases(row.aliases or [], [display_name, *(aliases or [])])
+    if not open_set_brand:
+        if display_name and normalize_brand_key(display_name) != normalize_brand_key(row.brand):
+            row.aliases = _merge_aliases(row.aliases or [], [display_name, *(aliases or [])])
+        elif aliases:
+            row.aliases = _merge_aliases(row.aliases or [], aliases)
     elif aliases:
         row.aliases = _merge_aliases(row.aliases or [], aliases)
 
@@ -220,6 +245,8 @@ def resolve_or_create_brand(
             brand=display_name,
             domain=domain,
             catalog=catalog,
+            match_by_domain=match_by_domain,
+            canonical_name_only=canonical_name_only,
         )
         if row is None:
             raise

@@ -46,6 +46,18 @@ class BrandCatalog:
     def find_by_name_or_alias(self, name: str) -> Brand | None:
         return self.by_key.get(_normalize_brand_key(name))
 
+    def find_by_canonical_name(self, name: str) -> Brand | None:
+        """Match primary ``brand`` column only (ignore alias index pollution)."""
+        key = _normalize_brand_key(name)
+        if not key:
+            return None
+        row = self.by_key.get(key)
+        if row is None:
+            return None
+        if _normalize_brand_key(row.brand) == key:
+            return row
+        return None
+
     def find_by_domain(self, domain: str) -> Brand | None:
         normalized = brand_from(domain)
         if not normalized:

@@ -73,6 +73,7 @@ def sync_brand_for_entity(
         cross_validate_score=entity.cross_validate_score,
         cross_validate_reason=entity.cross_validate_reason,
         catalog=catalog,
+        open_set_brand=True,
     )
 
 
