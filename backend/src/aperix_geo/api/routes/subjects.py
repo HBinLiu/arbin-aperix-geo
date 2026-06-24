@@ -9,7 +9,9 @@ from aperix_geo.api.deps import CurrentUser, DbSession, get_subject_for_user
 from aperix_geo.api.routes import subject_setup
 from aperix_geo.db.models import Subject, SubjectType
 from aperix_geo.schemas.catalog import SubjectOut, SubjectUpdate
+from aperix_geo.services.brand.sync import sync_subject_brands_from_setup
 from aperix_geo.services.catalog import clear_analysis_entities_cache, get_analysis_entities
+from aperix_geo.services.setup.helpers import enrich_subject_aliases
 from aperix_geo.services.sampling.platforms import (
     SamplingPlatformError,
     validate_explicit_sampling_platforms,
@@ -75,6 +77,14 @@ def update_subject(
         sub.profile_summary = body.profile_summary
     if body.sampling_platforms is not None:
         sub.sampling_platforms = _validate_sampling_platforms(body.sampling_platforms)
+    if entity_catalog_dirty and sub.type == SubjectType.domain and (sub.domain or "").strip():
+        sub.aliases = enrich_subject_aliases(
+            brand=sub.brand,
+            domain=sub.domain,
+            website_url=sub.website_url or "",
+            existing=list(sub.aliases or []),
+        )
+        sync_subject_brands_from_setup(db, subject=sub)
     validate_subject_fields(sub)
     db.commit()
     db.refresh(sub)

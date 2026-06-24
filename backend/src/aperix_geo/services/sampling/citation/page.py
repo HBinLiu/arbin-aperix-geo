@@ -14,6 +14,7 @@ from aperix_geo.services.crawl.types import PageFetchResult
 from aperix_geo.utils.cache import SingleFlightWaitTimeout, run_single_flight
 from aperix_geo.utils.net import citation_from, filter_citation_urls, host_from, is_citation_host
 from aperix_geo.utils.net import crawl_cache_url
+from aperix_geo.utils.text import truncate_text
 
 
 @dataclass

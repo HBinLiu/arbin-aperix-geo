@@ -13,11 +13,14 @@ CELERY_SAMPLING_CRAWL_QUEUE = "sampling.crawl"
 CELERY_SAMPLING_PARSE_QUEUE = "sampling.parse"
 
 _SAMPLING_ORCHESTRATE_TASKS = (
-    "aperix_geo.tasks.sampling.sampling_finalize",
+    "aperix_geo.tasks.sampling.sampling_dispatch",
     "aperix_geo.tasks.sampling.sampling_orchestrate",
     "aperix_geo.tasks.sampling.sampling_continue",
     "aperix_geo.tasks.sampling.sampling_recover",
     "aperix_geo.tasks.sampling.sampling_tick",
+    "aperix_geo.tasks.sampling.sampling_fill",
+    "aperix_geo.tasks.sampling.sampling_finalize",
+    "aperix_geo.tasks.sampling.sampling_reconcile",
 )
 
 

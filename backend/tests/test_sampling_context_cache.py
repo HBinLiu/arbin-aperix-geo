@@ -64,7 +64,10 @@ def test_load_subject_cached_hits_l1_without_db(mock_load: MagicMock) -> None:
     mock_load.return_value = subject
 
     first = load_subject_with_competitors_cached(db, subject.id)
-    assert first is subject
+    assert first is not subject
+    assert first.id == subject.id
+    assert first.brand == subject.brand
+    assert len(first.competitors) == 1
     mock_load.assert_called_once()
 
     second = load_subject_with_competitors_cached(db, subject.id)
@@ -72,6 +75,34 @@ def test_load_subject_cached_hits_l1_without_db(mock_load: MagicMock) -> None:
     assert second.id == subject.id
     assert second.brand == subject.brand
     mock_load.assert_called_once()
+
+
+@patch("aperix_geo.services.sampling.cache.context.load_subject_with_competitors")
+def test_load_subject_detached_after_db_load(mock_load: MagicMock) -> None:
+    """Returned subject must work when the loader Session is already closed."""
+    clear_sampling_context_cache()
+    subject = _subject()
+    db = MagicMock()
+    mock_load.return_value = subject
+    db.close()
+
+    loaded = load_subject_with_competitors_cached(db, subject.id)
+    assert loaded is not None
+    from aperix_geo.services.analysis.entity import own_entity
+    from aperix_geo.services.sampling.parse.context import extract_parse_context
+
+    own = own_entity(loaded)
+    assert own.label
+    ctx = extract_parse_context(
+        "推荐 Aperix 和 Beta",
+        subject=loaded,
+        source_urls=None,
+        web_search_mode="off",
+        sampling_job_id=None,
+        db=None,
+    )
+    assert ctx.own_brand == "Aperix"
+    assert len(ctx.competitors) >= 1
 
 
 @patch("aperix_geo.utils.cache.tiered_json.redis_set_json_exat")

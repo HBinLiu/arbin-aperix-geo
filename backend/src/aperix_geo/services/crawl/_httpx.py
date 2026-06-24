@@ -9,20 +9,24 @@ import httpx
 from aperix_geo.utils.http import HTML_FETCH_HEADERS, ICON_FETCH_HEADERS
 
 _local = threading.local()
+_init_lock = threading.Lock()
 
 
 def _thread_local_client(*, attr: str, headers: dict[str, str]) -> httpx.Client:
     client = getattr(_local, attr, None)
     if client is None or client.is_closed:
-        setattr(
-            _local,
-            attr,
-            httpx.Client(
-                headers=headers,
-                follow_redirects=True,
-                limits=httpx.Limits(max_connections=32, max_keepalive_connections=16),
-            ),
-        )
+        with _init_lock:
+            client = getattr(_local, attr, None)
+            if client is None or client.is_closed:
+                setattr(
+                    _local,
+                    attr,
+                    httpx.Client(
+                        headers=headers,
+                        follow_redirects=True,
+                        limits=httpx.Limits(max_connections=32, max_keepalive_connections=16),
+                    ),
+                )
     return getattr(_local, attr)
 
 
@@ -32,3 +36,11 @@ def get_httpx_client() -> httpx.Client:
 
 def get_icon_httpx_client() -> httpx.Client:
     return _thread_local_client(attr="icon_client", headers=ICON_FETCH_HEADERS)
+
+
+def warmup_http_stack() -> None:
+    """Preload httpcore sync backend and thread-local clients (avoids import lock races)."""
+    import httpcore._backends.sync  # noqa: PLC0415
+
+    get_httpx_client()
+    get_icon_httpx_client()

@@ -11,6 +11,7 @@ from aperix_geo.services.sampling.workflow.finalize import finalize_sampling_job
 
 
 def test_finalize_keeps_running_when_crawl_ready_remain() -> None:
+    anchor = datetime.now(UTC)
     db = _FakeSession(
         job=SamplingJob(
             id=uuid.uuid4(),
@@ -18,6 +19,7 @@ def test_finalize_keeps_running_when_crawl_ready_remain() -> None:
             subject_id=uuid.uuid4(),
             status=SamplingJobStatus.running,
             total_items=2,
+            finished_at=anchor,
         ),
         rows=[
             _row(status=LLMResponseStatus.success),
@@ -29,10 +31,11 @@ def test_finalize_keeps_running_when_crawl_ready_remain() -> None:
     assert job is not None
     assert job.status == SamplingJobStatus.running
     assert job.completed_items == 1
-    assert job.finished_at is None
+    assert job.finished_at == anchor
 
 
 def test_finalize_keeps_running_when_llm_ready_remain() -> None:
+    anchor = datetime.now(UTC)
     db = _FakeSession(
         job=SamplingJob(
             id=uuid.uuid4(),
@@ -40,6 +43,7 @@ def test_finalize_keeps_running_when_llm_ready_remain() -> None:
             subject_id=uuid.uuid4(),
             status=SamplingJobStatus.running,
             total_items=2,
+            finished_at=anchor,
         ),
         rows=[
             _row(status=LLMResponseStatus.success),
@@ -51,10 +55,11 @@ def test_finalize_keeps_running_when_llm_ready_remain() -> None:
     assert job is not None
     assert job.status == SamplingJobStatus.running
     assert job.completed_items == 1
-    assert job.finished_at is None
+    assert job.finished_at == anchor
 
 
 def test_finalize_keeps_running_when_pending_remain() -> None:
+    anchor = datetime.now(UTC)
     db = _FakeSession(
         job=SamplingJob(
             id=uuid.uuid4(),
@@ -62,6 +67,7 @@ def test_finalize_keeps_running_when_pending_remain() -> None:
             subject_id=uuid.uuid4(),
             status=SamplingJobStatus.running,
             total_items=2,
+            finished_at=anchor,
         ),
         rows=[
             _row(status=LLMResponseStatus.success),
@@ -74,7 +80,7 @@ def test_finalize_keeps_running_when_pending_remain() -> None:
     assert job.status == SamplingJobStatus.running
     assert job.completed_items == 1
     assert job.failed_items == 0
-    assert job.finished_at is None
+    assert job.finished_at == anchor
 
 
 def test_finalize_marks_succeed_when_all_done() -> None:

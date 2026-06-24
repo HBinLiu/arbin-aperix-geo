@@ -245,6 +245,7 @@ def test_doubao_responses_chat_injects_system_prompt(mock_openai_cls) -> None:
         api_key="sk-test",
         base_url="https://ark.cn-beijing.volces.com/api/v3",
         timeout=120.0,
+        max_retries=0,
     )
     _, kwargs = mock_client.responses.create.call_args
     assert kwargs["tools"] == [{"type": "web_search"}]
@@ -385,6 +386,7 @@ def test_yuanbao_chat_injects_web_search_extra_body(mock_openai_cls) -> None:
         api_key="sk-test",
         base_url="https://api.hunyuan.cloud.tencent.com/v1",
         timeout=120.0,
+        max_retries=0,
     )
     _, kwargs = mock_client.chat.completions.create.call_args
     assert kwargs["extra_body"] == {

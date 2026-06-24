@@ -81,7 +81,7 @@ python3 scripts/sampling_trigger.py          # 对最新 subject 触发
 python3 scripts/sampling_reparse.py --dry-run  # 重算已有回复的 parsed 字段
 ```
 
-其它入口：Setup finalize 自动创建 job；本地脚本 `scripts/sampling_trigger.py`；开发调试见 `.env.example` 中 `SAMPLING_DEBUG_*`。
+其它入口：Setup finalize 自动创建 job；本地脚本 `scripts/sampling_trigger.py`；前端 `POST /subjects/{id}/sampling-jobs/retry` 重试失败任务。
 
 每日定时采样在 **北京时间 02:00–05:00** 内按 subject id hash 错开 slot；Beat 仅在该时段内每 `SAMPLING_SCHEDULER_INTERVAL_MINUTES`（默认 15）分钟扫描一次。
 

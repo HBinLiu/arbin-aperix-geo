@@ -38,6 +38,7 @@ def merge_parse_results(
             subject=ctx.subject,
             db=ctx.db,
             own_brand=ctx.own_brand,
+            own_absa_keys=ctx.own_absa_keys,
             competitor_brand_names=ctx.competitor_brand_names,
             competitor_absa_keys=ctx.competitor_absa_keys,
             url_hosts=ctx.url_hosts,

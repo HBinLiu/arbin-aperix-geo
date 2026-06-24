@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { Search, Settings2 } from "lucide-react";
+import { Search } from "lucide-react";
 
 import { AnalysisFilterBar } from "@/components/analysis/common/AnalysisFilterBar";
 import {
@@ -8,13 +7,11 @@ import {
 } from "@/components/analysis/common/TablePagination";
 import { PromptPerformanceTable } from "@/components/analysis/prompt/PromptPerformanceTable";
 import { TopicPerformanceTable } from "@/components/analysis/prompt/TopicPerformanceTable";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAnalysisOutletContext } from "@/hooks/useAnalysisContext";
 import { useAnalysisFiltersState } from "@/hooks/useAnalysisFiltersState";
 import { usePromptAnalysis } from "@/hooks/usePromptAnalysis";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
-import { dashboardNavToPath } from "@/lib/dashboard";
 import { promptSortToApiField } from "@/lib/analysis/prompt";
 
 const PAGE_TITLE = "提示词表现";
@@ -93,14 +90,6 @@ export function PromptPage() {
               aria-label="搜索提示词"
             />
           </div>
-        }
-        trailing={
-          <Button variant="brandout" size="sm" className="h-9 rounded-lg px-3 font-medium text-sm" asChild>
-            <Link to={dashboardNavToPath("prompt")}>
-              <Settings2 className="size-3.5" aria-hidden />
-              管理提示词
-            </Link>
-          </Button>
         }
       />
 

@@ -18,18 +18,6 @@ class ResponseWorkQueues:
     crawl_ready: tuple[UUID, ...]
 
     @property
-    def pending_strs(self) -> list[str]:
-        return [str(response_id) for response_id in self.pending]
-
-    @property
-    def llm_ready_strs(self) -> list[str]:
-        return [str(response_id) for response_id in self.llm_ready]
-
-    @property
-    def crawl_ready_strs(self) -> list[str]:
-        return [str(response_id) for response_id in self.crawl_ready]
-
-    @property
     def has_work(self) -> bool:
         return bool(self.pending or self.llm_ready or self.crawl_ready)
 

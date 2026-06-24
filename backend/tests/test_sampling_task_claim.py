@@ -35,10 +35,12 @@ def _crawl_ready_row() -> LLMResponse:
     return row
 
 
+@patch("aperix_geo.services.sampling.workflow.fill.on_task_claim_lost")
+@patch("aperix_geo.services.sampling.workflow.fill.on_task_finished")
 @patch("aperix_geo.services.sampling.workflow.phase.release_response_claim")
 @patch("aperix_geo.services.sampling.workflow.phase.try_claim_response", return_value=False)
-@patch("aperix_geo.tasks.sampling.load_subject_with_competitors_cached")
-@patch("aperix_geo.tasks.sampling.load_prompt_text_cached", return_value="prompt")
+@patch("aperix_geo.services.sampling.workflow.phase_specs.load_subject_with_competitors_cached")
+@patch("aperix_geo.services.sampling.workflow.phase_specs.load_prompt_text_cached", return_value="prompt")
 @patch("aperix_geo.services.sampling.workflow.phase.SessionLocal")
 def test_sample_llm_prompt_skips_when_claim_lost(
     mock_session_local: MagicMock,
@@ -46,6 +48,8 @@ def test_sample_llm_prompt_skips_when_claim_lost(
     mock_subject: MagicMock,
     _mock_claim: MagicMock,
     mock_release: MagicMock,
+    mock_on_finished: MagicMock,
+    mock_on_claim_lost: MagicMock,
 ) -> None:
     row = _pending_row()
     job = SamplingJob(id=row.sampling_job_id, subject_id=uuid4())
@@ -69,16 +73,18 @@ def test_sample_llm_prompt_skips_when_claim_lost(
     assert out == {"ok": True, "skipped": True, "reason": "claimed"}
     db.commit.assert_called()
     mock_release.assert_not_called()
+    mock_on_claim_lost.assert_called_once()
+    mock_on_finished.assert_not_called()
 
 
 @patch("aperix_geo.services.sampling.workflow.phase.release_response_claim")
 @patch("aperix_geo.services.sampling.workflow.phase.refresh_response_claim")
-@patch("aperix_geo.tasks.sampling.clear_cached_llm_result")
-@patch("aperix_geo.tasks.sampling.persist_llm_sample", return_value=True)
-@patch("aperix_geo.tasks.sampling.prepare_sample_chat_result")
+@patch("aperix_geo.services.sampling.workflow.phase_specs.clear_cached_llm_result")
+@patch("aperix_geo.services.sampling.workflow.phase_specs.persist_llm_sample", return_value=True)
+@patch("aperix_geo.services.sampling.workflow.phase_specs.prepare_sample_chat_result")
 @patch("aperix_geo.services.sampling.workflow.phase.try_claim_response", return_value=True)
-@patch("aperix_geo.tasks.sampling.load_subject_with_competitors_cached")
-@patch("aperix_geo.tasks.sampling.load_prompt_text_cached", return_value="prompt")
+@patch("aperix_geo.services.sampling.workflow.phase_specs.load_subject_with_competitors_cached")
+@patch("aperix_geo.services.sampling.workflow.phase_specs.load_prompt_text_cached", return_value="prompt")
 @patch("aperix_geo.services.sampling.workflow.phase.SessionLocal")
 def test_sample_llm_prompt_releases_claim_after_success(
     mock_session_local: MagicMock,
@@ -120,10 +126,10 @@ def test_sample_llm_prompt_releases_claim_after_success(
 
 
 @patch("aperix_geo.services.sampling.workflow.phase.release_response_claim")
-@patch("aperix_geo.tasks.sampling.persist_crawl_sample", return_value=True)
-@patch("aperix_geo.tasks.sampling.crawl_response_citations")
+@patch("aperix_geo.services.sampling.workflow.phase_specs.persist_crawl_sample", return_value=True)
+@patch("aperix_geo.services.sampling.workflow.phase_specs.crawl_response_citations")
 @patch("aperix_geo.services.sampling.workflow.phase.try_claim_response", return_value=True)
-@patch("aperix_geo.tasks.sampling.load_subject_with_competitors_cached")
+@patch("aperix_geo.services.sampling.workflow.phase_specs.load_subject_with_competitors_cached")
 @patch("aperix_geo.services.sampling.workflow.phase.SessionLocal")
 def test_sample_crawl_response_runs_crawl_phase(
     mock_session_local: MagicMock,
@@ -160,10 +166,10 @@ def test_sample_crawl_response_runs_crawl_phase(
 
 @patch("aperix_geo.services.brand.backfill.maybe_enqueue_brand_domain_backfill")
 @patch("aperix_geo.services.sampling.workflow.phase.release_response_claim")
-@patch("aperix_geo.tasks.sampling.persist_parsed_sample", return_value=True)
-@patch("aperix_geo.tasks.sampling.parse_llm_output")
+@patch("aperix_geo.services.sampling.workflow.phase_specs.persist_parsed_sample", return_value=True)
+@patch("aperix_geo.services.sampling.workflow.phase_specs.parse_llm_output")
 @patch("aperix_geo.services.sampling.workflow.phase.try_claim_response", return_value=True)
-@patch("aperix_geo.tasks.sampling.load_subject_with_competitors_cached")
+@patch("aperix_geo.services.sampling.workflow.phase_specs.load_subject_with_competitors_cached")
 @patch("aperix_geo.services.sampling.workflow.phase.SessionLocal")
 def test_sample_parse_response_runs_parse_phase(
     mock_session_local: MagicMock,

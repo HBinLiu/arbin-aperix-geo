@@ -3,7 +3,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # backend/.env 优先于 仓库根/.env（与当前工作目录无关）
@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     # 重启后 queued/running 且无 worker 推进时，超过该秒数视为 stale 并重新入队
     sampling_stale_job_seconds: int = Field(default=90, ge=30, le=600)
     sampling_resume_debounce_seconds: int = Field(default=90, ge=30, le=600)
+    sampling_fill_debounce_seconds: int = Field(default=1, ge=1, le=30)
+    sampling_finalize_debounce_seconds: int = Field(default=5, ge=1, le=120)
     # Celery 单条 response 采样重试：指数退避 base/cap 与最大次数
     sampling_retry_base_s: int = Field(default=20, ge=1, le=300)
     sampling_retry_cap_s: int = Field(default=120, ge=1, le=600)
@@ -42,8 +44,13 @@ class Settings(BaseSettings):
     sampling_db_retry_max: int = Field(default=3, ge=1, le=10)
     sampling_llm_result_cache_ttl_s: int = Field(default=3600, ge=60, le=86_400)
     sampling_response_claim_ttl_s: int = Field(default=2700, ge=300, le=7200)
-    # 每个 sampling job 的 Celery chord 一次最多派发的 pending response 数
-    sampling_chord_batch_size: int = Field(default=10, ge=1, le=500)
+    # 每个 sampling job 各 phase 同时进行中的 response 数上限
+    sampling_max_inflight: int = Field(
+        default=10,
+        ge=1,
+        le=500,
+        validation_alias=AliasChoices("sampling_max_inflight", "sampling_chord_batch_size"),
+    )
     # 各平台同时进行中的 LLM HTTP 请求上限（与每分钟 quota 互补）
     sampling_llm_max_inflight: int = Field(default=15, ge=1, le=256)
     sampling_llm_inflight_ttl_s: int = Field(default=600, ge=60, le=7200)
@@ -58,9 +65,6 @@ class Settings(BaseSettings):
     celery_parse_worker_concurrency: int = Field(default=16, ge=1, le=128)
     celery_redis_socket_timeout_s: float = Field(default=30.0, ge=5.0, le=120.0)
     celery_redis_connect_timeout_s: float = Field(default=10.0, ge=1.0, le=60.0)
-    # 开发调试入口：curl 手动触发采样（须同时设 SAMPLING_DEBUG_ENABLED 与 SAMPLING_DEBUG_SECRET）
-    sampling_debug_enabled: bool = False
-    sampling_debug_secret: str = ""
 
     jwt_secret_key: str = "change-me"
     jwt_encrypt_algorithm: str = "HS256"
@@ -76,6 +80,8 @@ class Settings(BaseSettings):
 
     # --- 采样 · SearXNG 联网（DeepSeek / Kimi 等）---
     sampling_searxng_max_results: int = Field(default=8, ge=1, le=28)
+    # SearXNG 搜索 HTTP 超时（与下方 LLM chat 超时独立）
+    sampling_searxng_timeout_s: float = Field(default=30.0, ge=5.0, le=120.0)
 
     # --- DNS（dnspython · 爬虫预检 / 品牌推断等）---
     dns_timeout_s: float = Field(default=1.0, ge=0.5, le=30.0)
@@ -136,7 +142,7 @@ class Settings(BaseSettings):
     kimi_model: str = "moonshot-v1-8k"
     kimi_rate_limit_per_minute: int = 30
     kimi_web_search_enabled: bool = True
-    kimi_chat_timeout_s: float = Field(default=120.0, ge=10.0, le=600.0)
+    kimi_chat_timeout_s: float = Field(default=180.0, ge=10.0, le=600.0)
     # Kimi 推理类模型（如 kimi-k2）仅允许 temperature=1
     kimi_temperature: float = Field(default=1.0, ge=0.0, le=2.0)
 

@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, inspect, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -33,6 +33,10 @@ def _merge_aliases(existing: list[Any], extra: list[str] | None) -> list[str]:
         seen.add(key)
         merged.append(text)
     return merged
+
+
+def merge_brand_aliases(existing: list[Any], extra: list[str] | None) -> list[str]:
+    return _merge_aliases(existing, extra)
 
 
 def find_brand_by_domain(db: Session, *, subject_id: UUID, domain: str) -> Brand | None:
@@ -188,7 +192,8 @@ def resolve_or_create_brand(
             with db.begin_nested():
                 db.flush()
         except IntegrityError:
-            db.expunge(created)
+            if inspect(created).session is db:
+                db.expunge(created)
             row = _find_brand(
                 db,
                 subject_id=subject_id,
@@ -198,6 +203,8 @@ def resolve_or_create_brand(
                 match_by_domain=match_by_domain,
                 canonical_name_only=canonical_name_only,
             )
+            if row is None:
+                row = find_brand_by_name(db, subject_id=subject_id, brand=display_name)
             if row is None:
                 raise
         else:

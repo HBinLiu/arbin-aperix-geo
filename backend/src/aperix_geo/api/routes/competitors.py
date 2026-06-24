@@ -7,7 +7,9 @@ from fastapi import APIRouter, HTTPException, status
 from aperix_geo.api.deps import CurrentUser, DbSession, get_subject_for_user
 from aperix_geo.db.models import Brand, Competitor, Subject
 from aperix_geo.schemas.catalog import CompetitorItem, CompetitorsOut, CompetitorsUpdate, PromoteBrandOut
+from aperix_geo.services.brand.sync import sync_subject_brands_from_setup
 from aperix_geo.services.catalog import clear_analysis_entities_cache
+from aperix_geo.services.competitor.enrich import enrich_confirmed_competitors
 from aperix_geo.services.competitor.persist import apply_competitors
 from aperix_geo.services.competitor.promote import PromoteBrandError, promote_open_brand_to_competitor
 from aperix_geo.services.subject.rules import validate_brand_competitors
@@ -54,12 +56,40 @@ def put_competitors(
         db.delete(c)
     db.flush()
 
-    apply_competitors(s, competitors=body.competitors)
+    raw_items = [
+        {
+            "domain": c.domain,
+            "website_url": c.website_url,
+            "brand": c.brand,
+            "aliases": list(c.aliases),
+            "summary": c.summary,
+            "cross_validate_score": c.cross_validate_score,
+            "cross_validate_reason": c.cross_validate_reason,
+        }
+        for c in body.competitors
+    ]
+    enriched = enrich_confirmed_competitors(raw_items, session=None)
+    apply_competitors(
+        s,
+        competitors=[
+            CompetitorItem(
+                domain=row["domain"],
+                website_url=row["website_url"],
+                brand=row["brand"],
+                aliases=list(row.get("aliases") or []),
+                summary=str(row.get("summary") or ""),
+                cross_validate_score=row.get("cross_validate_score"),
+                cross_validate_reason=str(row.get("cross_validate_reason") or ""),
+            )
+            for row in enriched
+        ],
+    )
     try:
         validate_brand_competitors(s)
     except HTTPException:
         db.rollback()
         raise
+    sync_subject_brands_from_setup(db, subject=s)
     db.commit()
     db.refresh(s)
     clear_analysis_entities_cache(subject_id)

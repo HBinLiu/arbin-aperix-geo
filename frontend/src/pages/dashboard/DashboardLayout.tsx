@@ -7,10 +7,15 @@ import { CitationDomainHeader } from "@/components/analysis/citation/CitationDom
 import { OpportunityBacklinkHeader } from "@/components/opportunity/OpportunityBacklinkHeader";
 import { DiagnosisContentHeader } from "@/components/diagnosis/DiagnosisContentHeader";
 import { OpportunityTabs } from "@/components/opportunity/OpportunityTabs";
+import { SamplingProgressSidebar } from "@/components/dashboard/SamplingProgressSidebar";
 import { SidebarSection } from "@/components/dashboard/SidebarSection";
 import { SubjectSwitcher } from "@/components/dashboard/SubjectSwitcher";
 import { AppShell } from "@/components/layouts/AppShell";
 import { useDashboardSidebar } from "@/hooks/useDashboardSidebar";
+import { useDashboardContext } from "@/hooks/useDashboardContext";
+import { useSamplingCompletionToast } from "@/hooks/useSamplingCompletionToast";
+import { SubjectPipelineProvider } from "@/hooks/SubjectPipelineProvider";
+import { useSubjectPipeline } from "@/hooks/useSubjectPipeline";
 import { AnalysisFiltersProvider } from "@/hooks/useAnalysisFiltersState";
 import { analysisDimensionFromPathname, citationDomainFromPathname, promptIdFromPathname } from "@/lib/analysis";
 import { opportunityTabFromPathname, backlinkOpportunityDomainFromPathname } from "@/lib/opportunity/nav";
@@ -24,7 +29,18 @@ import { cn } from "@/lib/utils";
 
 /** 控制台布局：侧栏 + 子路由 Outlet。 */
 export function DashboardLayout() {
+  const { subject } = useDashboardContext();
+  return (
+    <SubjectPipelineProvider subjectId={subject.id}>
+      <DashboardLayoutContent />
+    </SubjectPipelineProvider>
+  );
+}
+
+function DashboardLayoutContent() {
   const { pathname } = useLocation();
+  const pipeline = useSubjectPipeline();
+  useSamplingCompletionToast();
   const { collapsed: sidebarCollapsed, toggle: toggleSidebar } = useDashboardSidebar();
   const activeNavId = dashboardNavIdFromPath(pathname);
   const activeNav = getDashboardNavItem(activeNavId);
@@ -59,14 +75,7 @@ export function DashboardLayout() {
             ))}
           </div>
 
-          {!sidebarCollapsed ? (
-            <div className="border-border/80 mt-3 shrink-0 rounded-lg border bg-white p-3 shadow-[8px_10px_24px_-10px_rgba(15,23,42,0.12)]">
-              <p className="text-foreground text-sm font-medium">正在生成报告…</p>
-              <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-                基于您的初始数据生成首份监测报告，完成后将通知您。
-              </p>
-            </div>
-          ) : null}
+          {!sidebarCollapsed ? <SamplingProgressSidebar pipeline={pipeline} /> : null}
         </aside>
 
         <main className="bg-white border-border shadow-[8px_10px_24px_-10px_rgba(15,23,42,0.12)] flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border">

@@ -6,10 +6,12 @@ from typing import Any
 
 from aperix_geo.config import get_settings
 from aperix_geo.schemas.catalog import CompetitorItem
-from aperix_geo.services.competitor.enrich import resolve_summary_from_site_metadata
+from aperix_geo.services.competitor.enrich import enrich_entity_aliases, resolve_summary_from_site_metadata
+from aperix_geo.services.competitor.types import SiteHead
 from aperix_geo.services.competitor.profile import profile_from_dict
 from aperix_geo.services.prompts.context import entity_aliases
 from aperix_geo.services.providers import LLMProviderError
+from aperix_geo.utils.net import registrable_from
 
 
 def require_deepseek_api_key() -> None:
@@ -124,4 +126,47 @@ def subject_aliases_from_session(session: dict[str, Any]) -> list[str]:
         entity=entity,
         configured=configured,
         profile_company=str(profile.get("company") or ""),
+    )
+
+
+def _site_metadata_from_session(session: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not session:
+        return None
+    research = session.get("research_payload")
+    if not isinstance(research, dict) or research.get("mode") != "domain":
+        return None
+    site_data = research.get("site_data")
+    return site_data if isinstance(site_data, dict) else None
+
+
+def enrich_subject_aliases(
+    *,
+    brand: str,
+    domain: str,
+    website_url: str = "",
+    session: dict[str, Any] | None = None,
+    existing: list[str] | None = None,
+    heads: dict[str, SiteHead] | None = None,
+) -> list[str]:
+    """主体 aliases：会话/profile + site_data.title + head SEO（与竞品 enrich 同源）。"""
+    if session:
+        base = subject_aliases_from_session(session)
+        for alias in existing or []:
+            if alias not in base:
+                base.append(alias)
+    else:
+        base = list(existing or [])
+
+    reg = registrable_from(domain)
+    if not reg:
+        return base
+
+    site_metadata = _site_metadata_from_session(session)
+    head = heads.get(reg) if heads else None
+    return enrich_entity_aliases(
+        brand=brand,
+        domain=reg,
+        existing=base,
+        head=head,
+        site_metadata=site_metadata,
     )

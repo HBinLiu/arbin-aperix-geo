@@ -49,7 +49,13 @@ def _is_usable_result_url(url: str) -> bool:
     return True
 
 
-def _search_searxng(query: str, *, max_results: int, base_url: str) -> list[SearchHit]:
+def _search_searxng(
+    query: str,
+    *,
+    max_results: int,
+    base_url: str,
+    timeout_s: float = 30.0,
+) -> list[SearchHit]:
     q = query.strip()
     if not q:
         return []
@@ -61,7 +67,7 @@ def _search_searxng(query: str, *, max_results: int, base_url: str) -> list[Sear
             params={"q": q, "format": "json", "language": "zh-CN"},
             headers={**BROWSER_HEADERS, "Accept": "application/json"},
             follow_redirects=True,
-            timeout=30.0,
+            timeout=timeout_s,
         )
         resp.raise_for_status()
         payload = resp.json()
@@ -98,14 +104,27 @@ def _search_searxng(query: str, *, max_results: int, base_url: str) -> list[Sear
     return hits
 
 
-def search_text(query: str, *, max_results: int | None = None) -> list[SearchHit]:
+def search_text(
+    query: str,
+    *,
+    max_results: int | None = None,
+    timeout_s: float | None = None,
+) -> list[SearchHit]:
     """通用 SearXNG 文本搜索（须配置 SEARXNG_BASE_URL）。"""
     settings = get_settings()
     limit = max(3, min(max_results or 10, 50))
+    search_timeout = (
+        timeout_s if timeout_s is not None else settings.sampling_searxng_timeout_s
+    )
 
     base_url = settings.searxng_base_url.strip()
     if not base_url:
         logger.warning("SearXNG: 未配置 SEARXNG_BASE_URL，跳过搜索 查询=%r", query)
         return []
 
-    return _search_searxng(query, max_results=limit, base_url=base_url)
+    return _search_searxng(
+        query,
+        max_results=limit,
+        base_url=base_url,
+        timeout_s=search_timeout,
+    )

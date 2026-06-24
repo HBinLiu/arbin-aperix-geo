@@ -5,8 +5,8 @@ from __future__ import annotations
 import uuid
 
 from aperix_geo.db.models import Competitor, Subject, SubjectType
-from aperix_geo.services.analysis.entity import OWN_ENTITY_ID
-from aperix_geo.services.sampling.mentions import CompetitorEntry, absa_competitor_keys
+from aperix_geo.services.analysis.entity import OWN_ENTITY_ID, own_entity
+from aperix_geo.services.sampling.mentions import CompetitorEntry, absa_competitor_keys, absa_own_keys
 from aperix_geo.services.sampling.sentiment import apply_absa_to_drafts
 from aperix_geo.services.sampling.signal_draft import (
     build_mention_entity_signals,
@@ -45,6 +45,17 @@ def _subject_with_beta() -> Subject:
     return subject
 
 
+def test_absa_own_keys_includes_aliases() -> None:
+    names, keys = absa_own_keys(
+        own_brand="Aperix",
+        own_match_names=["艾佩克斯", "aperix.com"],
+        entity_label="Aperix",
+    )
+    assert "Aperix" in names
+    assert "艾佩克斯" in names
+    assert ("艾佩克斯", "Aperix") in keys
+
+
 def test_absa_competitor_keys_includes_aliases() -> None:
     entry = CompetitorEntry(
         label="beta.com",
@@ -57,6 +68,38 @@ def test_absa_competitor_keys_includes_aliases() -> None:
     assert "Beta" in names
     assert "贝塔" in names
     assert ("贝塔", "beta.com") in keys
+
+
+def test_merge_absa_own_alias_key_applies_sentiment() -> None:
+    subject = _subject()
+    drafts, _ = build_mention_entity_signals("ignored", subject=subject, url_hosts=[])
+    own = own_draft(drafts)
+    own.mentioned = False
+    own.mention_count = 0
+    own_entity_label = own_entity(subject).label
+    own_names_list, own_absa_keys = absa_own_keys(
+        own_brand="Aperix",
+        own_match_names=list(subject.aliases or []),
+        entity_label=own_entity_label,
+    )
+
+    response_absa = {
+        "analysis_source": "llm",
+        "brands_sentiment_absa": {
+            "艾佩克斯": {"mentioned": True, "score": 88, "evidence": "艾佩克斯很好"},
+        },
+    }
+    apply_absa_to_drafts(
+        drafts,
+        response_absa,
+        own_brand="Aperix",
+        own_absa_keys=own_absa_keys,
+        competitor_absa_keys=[],
+        text="推荐艾佩克斯",
+    )
+
+    assert own.mentioned is True
+    assert own.sentiment_score == 88.0
 
 
 def test_merge_absa_overrides_rule_when_absa_says_mentioned() -> None:
@@ -81,6 +124,7 @@ def test_merge_absa_overrides_rule_when_absa_says_mentioned() -> None:
         drafts,
         response_absa,
         own_brand="Aperix",
+        own_absa_keys=[("Aperix", "Aperix")],
         competitor_absa_keys=[("Beta", "beta.com")],
         competitors=competitors,
     )
@@ -112,6 +156,7 @@ def test_merge_absa_clears_rule_mention_when_absa_denies() -> None:
         drafts,
         response_absa,
         own_brand="Aperix",
+        own_absa_keys=[("Aperix", "Aperix")],
         competitor_absa_keys=[("Beta", "beta.com")],
         competitors=competitors,
     )
@@ -162,6 +207,7 @@ def test_merge_absa_preserves_host_only_competitor_mention() -> None:
         drafts,
         response_absa,
         own_brand="Aperix",
+        own_absa_keys=[("Aperix", "Aperix")],
         competitor_absa_keys=[("Beta", "beta.com")],
         url_hosts=["beta.com"],
         competitors=[entry],
@@ -193,6 +239,7 @@ def test_absa_only_mention_gets_mention_rank() -> None:
         drafts,
         response_absa,
         own_brand="Aperix",
+        own_absa_keys=[("Aperix", "Aperix")],
         competitor_absa_keys=[("Beta", "beta.com")],
         competitors=competitors,
         text=text,
@@ -223,6 +270,7 @@ def test_absa_denial_clears_mention_rank() -> None:
         drafts,
         response_absa,
         own_brand="Aperix",
+        own_absa_keys=[("Aperix", "Aperix")],
         competitor_absa_keys=[("Beta", "beta.com")],
         competitors=competitors,
         text=text,

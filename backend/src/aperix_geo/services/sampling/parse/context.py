@@ -16,6 +16,7 @@ from aperix_geo.services.sampling.citation import citation_root
 from aperix_geo.services.sampling.mentions import (
     CompetitorEntry,
     absa_competitor_keys,
+    absa_own_keys,
     own_names,
 )
 from aperix_geo.services.sampling.parse.types import CitationParseParams
@@ -34,9 +35,12 @@ class ParseContext:
     url_hosts: list[str]
     entity_signals: list[EntitySignalDraft]
     own_brand: str
+    own_brand_names: list[str]
+    own_absa_keys: list[tuple[str, str]]
     competitors: list[CompetitorEntry]
     competitor_brand_names: list[str]
     competitor_absa_keys: list[tuple[str, str]]
+    closed_brand_names: list[str]
     configured_brand_keys: frozenset[str]
     citation: CitationParseParams
     absa_needed: bool
@@ -74,11 +78,18 @@ def extract_parse_context(
     own = own_entity(subject)
     own_brand = subject.brand or own.label
     own_match_names = own_names(subject)
+    own_brand_names, own_absa_keys = absa_own_keys(
+        own_brand=own_brand,
+        own_match_names=own_match_names,
+        entity_label=own.label,
+    )
     competitor_brand_names, competitor_absa_keys = absa_competitor_keys(competitors)
+    closed_brand_names = list(dict.fromkeys([*own_brand_names, *competitor_brand_names]))
     brand_keys = frozenset(
         configured_brand_keys(
             own_brand=own_brand,
             own_match_names=own_match_names,
+            own_absa_keys=own_absa_keys,
             competitor_brand_names=competitor_brand_names,
             competitor_absa_keys=competitor_absa_keys,
         )
@@ -111,9 +122,12 @@ def extract_parse_context(
         url_hosts=url_hosts,
         entity_signals=entity_signals,
         own_brand=own_brand,
+        own_brand_names=own_brand_names,
+        own_absa_keys=own_absa_keys,
         competitors=competitors,
         competitor_brand_names=competitor_brand_names,
         competitor_absa_keys=competitor_absa_keys,
+        closed_brand_names=closed_brand_names,
         configured_brand_keys=brand_keys,
         citation=citation_params,
         absa_needed=absa_needed,

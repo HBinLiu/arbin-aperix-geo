@@ -4,9 +4,11 @@ import { AnalysisFilterBar } from "@/components/analysis/common/AnalysisFilterBa
 import { VisibilityMetricSection } from "@/components/analysis/visibility/VisibilityMetricSection";
 import { OverviewMetricCard } from "@/components/dashboard/OverviewMetricCard";
 import { OverviewTopicSection } from "@/components/dashboard/OverviewTopicSection";
+import { SamplingProgressOverview } from "@/components/dashboard/SamplingProgressOverview";
 import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
 import { useAnalysisFiltersState } from "@/hooks/useAnalysisFiltersState";
 import { useDashboardOverview } from "@/hooks/useDashboardOverview";
+import { useSubjectPipeline } from "@/hooks/useSubjectPipeline";
 import {
   entityChartLabels,
   formatRate,
@@ -24,8 +26,19 @@ type OverviewContentProps = {
   subjectId: string;
 };
 
-/** 控制台概述：核心指标、可见度趋势与主题表现。 */
+/** 控制台概述：采样未完成时展示进度；完成后展示核心指标、可见度趋势与主题表现。 */
 export function OverviewContent({ subjectId }: OverviewContentProps) {
+  const pipeline = useSubjectPipeline();
+  const showMetrics = pipeline.canShowMetrics;
+
+  if (!showMetrics) {
+    return <SamplingProgressOverview subjectId={subjectId} pipeline={pipeline} />;
+  }
+
+  return <OverviewMetricsContent subjectId={subjectId} />;
+}
+
+function OverviewMetricsContent({ subjectId }: { subjectId: string }) {
   const { filters, setFilters } = useAnalysisFiltersState();
   const { entities } = useAnalysisFilter();
   const entityLabels = useMemo(() => entityChartLabels(entities), [entities]);

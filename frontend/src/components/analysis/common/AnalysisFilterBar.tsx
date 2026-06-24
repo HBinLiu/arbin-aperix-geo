@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect, useMemo } from "react";
 import { type LucideIcon } from "lucide-react";
 
 import { BrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
@@ -14,6 +14,12 @@ import {
 } from "@/components/ui/select";
 import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
 import { ANALYSIS_ENTITY_OWN } from "@/lib/analysis";
+import {
+  faviconCandidateUrls,
+  faviconUrlFromHost,
+  getFaviconClientStatus,
+  markFaviconClientOk,
+} from "@/lib/favicon";
 import type { AnalysisEntityRef, AnalysisFilters } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -38,7 +44,7 @@ function EntityFilterOption({ entity }: { entity: AnalysisEntityRef }) {
 
   return (
     <span className="flex min-w-0 flex-1 items-center gap-2">
-      <BrandRankIcon label={entity.label} size="sm" />
+      <BrandRankIcon label={entity.label} size="sm" faviconLoadingSpinner={false} />
       <span className="min-w-0 flex-1 truncate">{entity.display_name}</span>
       {isOwn ? (
         <TextBadge variant="primary" className="shrink-0 px-2 py-0.5 text-xs font-semibold">
@@ -132,15 +138,30 @@ export function AnalysisFilterBar({
   const { from, to, entityId, platformIds, topicIds } = value;
   const selectedEntity = entities.find((entity) => entity.id === (entityId || ANALYSIS_ENTITY_OWN));
   const ownEntity = entities.find((entity) => entity.id === ANALYSIS_ENTITY_OWN);
+  const entityIconLabel = selectedEntity?.label ?? ownEntity?.label ?? null;
+
+  useEffect(() => {
+    if (!entityIconLabel) return;
+    const pageUrl = faviconUrlFromHost(entityIconLabel);
+    if (!pageUrl || getFaviconClientStatus(pageUrl) === "ok") return;
+    const src = faviconCandidateUrls(pageUrl)[0];
+    if (!src) return;
+    const img = new Image();
+    img.src = src;
+    img.onload = () => markFaviconClientOk(pageUrl);
+  }, [entityIconLabel]);
+
+  const entityLeading = useMemo(
+    () => <BrandRankIcon label={entityIconLabel} size="sm" faviconLoadingSpinner={false} />,
+    [entityIconLabel],
+  );
 
   return (
     <div className="sticky top-0 z-20 flex w-full max-w-full min-w-0 flex-wrap items-center gap-2 border-b bg-white px-4 py-3">
       {!hideEntityFilter ? (
         <FilterSelect
           variant="primary"
-          leading={
-            <BrandRankIcon label={selectedEntity?.label ?? ownEntity?.label ?? null} size="sm" />
-          }
+          leading={entityLeading}
           value={entityId || ANALYSIS_ENTITY_OWN}
           displayValue={selectedEntity?.display_name ?? "所有品牌"}
           placeholder="分析对象"

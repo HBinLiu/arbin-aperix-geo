@@ -5,7 +5,7 @@ from pathlib import Path
 
 from celery import Celery
 from celery.schedules import crontab
-from celery.signals import worker_ready
+from celery.signals import worker_process_init, worker_ready
 
 from aperix_geo.celery_queues import (
     celery_task_queues,
@@ -82,3 +82,12 @@ def _recover_stale_sampling_jobs_on_worker_start(**kwargs) -> None:
 
 
 worker_ready.connect(_recover_stale_sampling_jobs_on_worker_start)
+
+
+def _warmup_http_on_worker_process(**kwargs) -> None:
+    from aperix_geo.services.crawl._httpx import warmup_http_stack
+
+    warmup_http_stack()
+
+
+worker_process_init.connect(_warmup_http_on_worker_process)

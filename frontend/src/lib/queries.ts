@@ -411,7 +411,6 @@ export const queryKeys = {
     from: string,
     to: string,
   ) => ["diagnosis", subjectId, entityId, platformKey, topicKey, from, to] as const,
-  pipelineStatus: (subjectId: string) => ["pipeline-status", subjectId] as const,
   samplingJob: (jobId: string) => ["sampling-job", jobId] as const,
   samplingPlatforms: ["sampling", "platforms"] as const,
   subjectCompetitors: (subjectId: string) => ["subject-competitors", subjectId] as const,

@@ -11,6 +11,42 @@ from sqlalchemy.orm import Session
 from aperix_geo.db.models import LLMResponse, LLMResponseStatus, SamplingJobStatus
 from aperix_geo.services.sampling.workflow.schedule import get_latest_sampling_job
 
+_TERMINAL_JOB_STATUSES = frozenset(
+    {
+        SamplingJobStatus.succeed.value,
+        SamplingJobStatus.partial.value,
+        SamplingJobStatus.failed.value,
+    }
+)
+
+
+def is_pipeline_complete(status: dict[str, Any]) -> bool:
+    """True when sampling finished and all successful responses are parsed."""
+    job = status.get("latest_job")
+    if not job:
+        return False
+    if job.get("status") not in _TERMINAL_JOB_STATUSES:
+        return False
+    response_count = int(status.get("response_count") or 0)
+    parsed_count = int(status.get("parsed_count") or 0)
+    return response_count > 0 and parsed_count >= response_count
+
+
+def should_close_pipeline_stream(status: dict[str, Any]) -> bool:
+    """Stop SSE when there is nothing left to watch."""
+    if is_pipeline_complete(status):
+        return True
+    job = status.get("latest_job")
+    if not job:
+        return True
+    if job.get("status") not in _TERMINAL_JOB_STATUSES:
+        return False
+    response_count = int(status.get("response_count") or 0)
+    parsed_count = int(status.get("parsed_count") or 0)
+    if response_count == 0 and job.get("status") == SamplingJobStatus.failed.value:
+        return True
+    return response_count > 0 and parsed_count >= response_count
+
 
 def _response_counts_for_job(db: Session, job_id: UUID) -> dict[str, int]:
     pending = LLMResponseStatus.pending
@@ -35,7 +71,7 @@ def _response_counts_for_job(db: Session, job_id: UUID) -> dict[str, int]:
     }
 
 
-def _running_phase(
+def _running_worker_phase(
     *,
     llm_pending_count: int,
     llm_ready_count: int,
@@ -50,13 +86,31 @@ def _running_phase(
     return None
 
 
+def _pipeline_stage_for_active_job(
+    *,
+    llm_pending_count: int,
+    llm_ready_count: int,
+    crawl_ready_count: int,
+    response_count: int,
+    parsed_count: int,
+) -> str:
+    """Map in-flight response counts to Overview steps while job is still running."""
+    if llm_pending_count > 0:
+        return "dispatch"
+    if llm_ready_count > 0 or crawl_ready_count > 0:
+        return "clean"
+    if response_count > 0 and parsed_count < response_count:
+        return "clean"
+    return "analyze"
+
+
 def build_pipeline_status(db: Session, *, subject_id: UUID) -> dict[str, Any]:
     job = get_latest_sampling_job(db, subject_id)
 
     if not job:
         return {
             "stage": "verify",
-            "phase": None,
+            "worker_phase": None,
             "latest_job": None,
             "llm_pending_count": 0,
             "llm_ready_count": 0,
@@ -71,14 +125,20 @@ def build_pipeline_status(db: Session, *, subject_id: UUID) -> dict[str, Any]:
     crawl_ready_count = counts["crawl_ready_count"]
     response_count = counts["response_count"]
     parsed_count = counts["parsed_count"]
-    phase = _running_phase(
+    worker_phase = _running_worker_phase(
         llm_pending_count=llm_pending_count,
         llm_ready_count=llm_ready_count,
         crawl_ready_count=crawl_ready_count,
     )
 
     if job.status in (SamplingJobStatus.queued, SamplingJobStatus.running):
-        stage = "dispatch"
+        stage = _pipeline_stage_for_active_job(
+            llm_pending_count=llm_pending_count,
+            llm_ready_count=llm_ready_count,
+            crawl_ready_count=crawl_ready_count,
+            response_count=response_count,
+            parsed_count=parsed_count,
+        )
     elif job.status in (SamplingJobStatus.succeed, SamplingJobStatus.partial, SamplingJobStatus.failed):
         if response_count > 0 and parsed_count < response_count:
             stage = "clean"
@@ -93,7 +153,7 @@ def build_pipeline_status(db: Session, *, subject_id: UUID) -> dict[str, Any]:
 
     return {
         "stage": stage,
-        "phase": phase,
+        "worker_phase": worker_phase,
         "latest_job": {
             "id": str(job.id),
             "status": job.status.value,

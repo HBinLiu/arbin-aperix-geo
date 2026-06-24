@@ -1,3 +1,4 @@
+import { memo, type ReactNode } from "react";
 import { Globe } from "lucide-react";
 
 import { FaviconImage } from "@/components/common/FaviconImage";
@@ -52,6 +53,7 @@ function brandRankFavicon(
   label: string,
   size: BrandRankIconSize = "default",
   shape: BrandRankIconShape = "square",
+  showLoadingSpinner = true,
 ) {
   const config = SIZE_CONFIG[size];
   return (
@@ -60,6 +62,7 @@ function brandRankFavicon(
       size={config.faviconSize}
       className={cn(config.faviconClass, brandRankRoundedClass(shape))}
       iconClassName={config.iconClass}
+      showLoadingSpinner={showLoadingSpinner}
     />
   );
 }
@@ -68,26 +71,30 @@ export function buildBrandRankIcon(
   label: string,
   size: BrandRankIconSize = "default",
   shape: BrandRankIconShape = "square",
-): React.ReactNode | undefined {
+  showLoadingSpinner = true,
+): ReactNode | undefined {
   if (!DOMAIN_LABEL.test(label)) return undefined;
-  return brandRankFavicon(label, size, shape);
+  return brandRankFavicon(label, size, shape, showLoadingSpinner);
 }
 
 type BrandRankIconProps = {
   label: string | null;
-  icon?: React.ReactNode;
+  icon?: ReactNode;
   size?: BrandRankIconSize;
   shape?: BrandRankIconShape;
   className?: string;
+  /** 为 false 时 favicon 加载不显示转圈（用于 FilterBar 等） */
+  faviconLoadingSpinner?: boolean;
 };
 
 /** 品牌排名图标：域名 favicon 或首字母占位，与 AnalysisRankTable 一致 */
-export function BrandRankIcon({
+export const BrandRankIcon = memo(function BrandRankIcon({
   label,
   icon,
   size = "default",
   shape = "square",
   className,
+  faviconLoadingSpinner = true,
 }: BrandRankIconProps) {
   const config = SIZE_CONFIG[size];
   const roundedClass = brandRankRoundedClass(shape);
@@ -108,7 +115,7 @@ export function BrandRankIcon({
     );
   }
 
-  const resolvedIcon = icon ?? buildBrandRankIcon(label, size, shape);
+  const resolvedIcon = icon ?? buildBrandRankIcon(label, size, shape, faviconLoadingSpinner);
 
   if (resolvedIcon) {
     return (
@@ -139,7 +146,7 @@ export function BrandRankIcon({
       {label.slice(0, 1).toUpperCase()}
     </span>
   );
-}
+});
 
 const DEFAULT_MAX_VISIBLE = 3;
 

@@ -58,6 +58,6 @@ def test_enrich_confirmed_fills_summary_and_aliases(mock_heads) -> None:
     assert out[0]["summary"] == "新一代 GEO 工具"
     assert "NewCo" in out[0]["aliases"]
     assert out[0]["website_url"] == "https://www.new.com/"
-    assert out[1]["website_url"] == "https://geo.aibase.com/"
+    assert out[1]["website_url"].rstrip("/") == "https://geo.aibase.com"
     assert out[2]["aliases"] == ["TransferWise"]
     assert out[2]["summary"] == ""

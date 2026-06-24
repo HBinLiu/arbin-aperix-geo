@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import LLMResponse, LLMResponseStatus, Subject
 from aperix_geo.services.providers.result import SamplingChatResult
+from aperix_geo.services.sampling.parse.context import extract_citation_urls
 from aperix_geo.services.sampling.parsed import ParsedSamplingResult
 from aperix_geo.services.sampling.persist.artifacts import refresh_parsed_artifacts
 from aperix_geo.utils.sanitize import sanitize_json_value, sanitize_text
@@ -27,7 +28,11 @@ def persist_llm_result(
     )
     row.usage = sanitize_json_value(result.usage or {})
     row.latency_ms = result.latency_ms
-    row.status = LLMResponseStatus.llm_ready
+    urls, _ = extract_citation_urls(result.text, list(result.source_urls))
+    if not urls:
+        row.status = LLMResponseStatus.crawl_ready
+    else:
+        row.status = LLMResponseStatus.llm_ready
     row.error_text = ""
 
 

@@ -22,6 +22,9 @@ from aperix_geo.services.providers.errors import ProviderError, raise_provider_e
 
 logger = logging.getLogger(__name__)
 
+# Sampling LLM: no SDK auto-retry (avoids duplicate token spend on timeout/retry).
+_OPENAI_SAMPLING_MAX_RETRIES = 0
+
 
 def _raise_completion_error(
     error_cls: Type[Exception],
@@ -86,6 +89,7 @@ def openai_chat_completion(
         api_key=api_key.strip(),
         base_url=base_url.strip(),
         timeout=timeout_s,
+        max_retries=_OPENAI_SAMPLING_MAX_RETRIES,
     )
     kwargs: dict[str, Any] = {
         "model": model.strip(),
@@ -105,7 +109,7 @@ def openai_chat_completion(
         _raise_completion_error(
             error_cls,
             f"{provider_label} timeout: {e}",
-            retryable=True,
+            retryable=False,
             cause=e,
             provider_label=provider_label,
         )
@@ -214,6 +218,7 @@ def openai_web_search_chat(
         api_key=api_key.strip(),
         base_url=base_url.strip(),
         timeout=timeout_s,
+        max_retries=_OPENAI_SAMPLING_MAX_RETRIES,
     )
     kwargs: dict[str, Any] = {
         "model": model.strip(),
@@ -238,7 +243,7 @@ def openai_web_search_chat(
         _raise_completion_error(
             spec.error_cls,
             f"{spec.provider_label} timeout: {exc}",
-            retryable=True,
+            retryable=False,
             cause=exc,
             provider_label=spec.provider_label,
         )

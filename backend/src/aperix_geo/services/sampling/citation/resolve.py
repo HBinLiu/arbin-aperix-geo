@@ -20,6 +20,7 @@ from aperix_geo.services.sampling.citation.scope import (
 from aperix_geo.services.sampling.mentions import CompetitorEntry, collect_match_terms
 from aperix_geo.services.sampling.signal_draft import EntitySignalDraft
 from aperix_geo.utils.net import (
+    citation_from,
     filter_citation_urls,
     host_from,
     host_under_root,
@@ -59,6 +60,21 @@ def _url_target(url: str, *, root: str | None, competitors: list[CompetitorEntry
     return ""
 
 
+def _load_cached_page_meta(url: str, sampling_job_id: UUID | None) -> CitationPageMeta | None:
+    from aperix_geo.services.sampling.citation.cache.page_meta import get_job_citation_page
+    from aperix_geo.services.sampling.citation.cache.url_meta import get_url_citation_page
+
+    key = url.strip()
+    cached = None
+    if sampling_job_id is not None:
+        cached = get_job_citation_page(sampling_job_id, key)
+    if cached is None:
+        cached = get_url_citation_page(key)
+    if cached is None:
+        return None
+    return CitationPageMeta.from_dict(cached)
+
+
 def fetch_citation_pages_for_urls(
     urls: list[str],
     *,
@@ -70,14 +86,34 @@ def fetch_citation_pages_for_urls(
 ) -> list[CitationPageMeta]:
     """Fetch citation source pages (IO-bound; safe to run parallel to ABSA)."""
     safe_urls = filter_citation_urls(list(urls))
-    return fetch_citation_pages_parallel(
-        safe_urls,
-        crawl=crawl,
-        snippet_chars=snippet_chars,
-        sampling_job_id=sampling_job_id,
-        own_root=own_root,
-        competitor_roots=competitor_roots,
-    )
+    if not safe_urls:
+        return []
+
+    pages_by_url: dict[str, CitationPageMeta] = {}
+    missing: list[str] = []
+    for url in safe_urls:
+        cached = _load_cached_page_meta(url, sampling_job_id)
+        if cached is not None:
+            pages_by_url[url] = cached
+        else:
+            missing.append(url)
+
+    if missing:
+        fetched = fetch_citation_pages_parallel(
+            missing,
+            crawl=crawl,
+            snippet_chars=snippet_chars,
+            sampling_job_id=sampling_job_id,
+            own_root=own_root,
+            competitor_roots=competitor_roots,
+        )
+        for meta in fetched:
+            pages_by_url[meta.url] = meta
+
+    return [
+        pages_by_url.get(url) or CitationPageMeta(url=url, domain=citation_from(url))
+        for url in safe_urls
+    ]
 
 
 def build_citation_document(

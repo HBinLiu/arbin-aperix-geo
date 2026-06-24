@@ -80,7 +80,7 @@ export function OpportunityRoute() {
 }
 
 export function AgentRoute() {
-  return <DashboardPlaceholder title="智能体" />;
+  return <DashboardPlaceholder title="媒体发稿" />;
 }
 
 export function DiagnosisRoute() {

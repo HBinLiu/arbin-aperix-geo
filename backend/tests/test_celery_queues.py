@@ -23,7 +23,7 @@ def test_celery_task_routes_split_sampling_tasks() -> None:
     assert routes["aperix_geo.tasks.sampling.sampling_llm"]["queue"] == CELERY_SAMPLING_LLM_QUEUE
     assert routes["aperix_geo.tasks.sampling.sampling_crawl"]["queue"] == CELERY_SAMPLING_CRAWL_QUEUE
     assert routes["aperix_geo.tasks.sampling.sampling_parse"]["queue"] == CELERY_SAMPLING_PARSE_QUEUE
-    assert routes["aperix_geo.tasks.sampling.sampling_finalize"]["queue"] == CELERY_DEFAULT_QUEUE
+    assert routes["aperix_geo.tasks.sampling.sampling_dispatch"]["queue"] == CELERY_DEFAULT_QUEUE
 
 
 def test_celery_worker_queues_for_role() -> None:

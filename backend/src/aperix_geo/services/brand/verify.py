@@ -86,6 +86,25 @@ def verify_domain_homepage(domain: str, brand: str) -> bool:
     return site_head_matches_brand(head, brand)
 
 
+def homepage_matches_both_brands(
+    domain: str,
+    label: str,
+    existing_brand: str,
+    *,
+    head: SiteHead | None = None,
+) -> bool:
+    """同域开集合并：首页同时能识别新 label 与已有 canonical 品牌名。"""
+    normalized = brand_from(domain)
+    if not normalized or not (label or "").strip() or not (existing_brand or "").strip():
+        return False
+    if head is None:
+        heads = fetch_site_heads([normalized], seo_profile=SeoProfile.CROSS_VALIDATE)
+        head = heads.get(normalized)
+    if head is None or not head.reachable:
+        return False
+    return site_head_matches_brand(head, label) and site_head_matches_brand(head, existing_brand)
+
+
 def accept_discovered_domain(domain: str, brand: str) -> bool:
     """DNS-resolvable domain accepted when host matches brand or homepage verifies."""
     normalized = brand_from(domain)

@@ -16,3 +16,7 @@ def test_is_retryable_sampling_error_includes_single_flight_timeout() -> None:
 
 def test_is_retryable_sampling_error_includes_llm_rate_limit() -> None:
     assert is_retryable_sampling_error(SamplingRateLimitError("limited")) is True
+
+
+def test_is_not_retryable_llm_timeout() -> None:
+    assert is_retryable_sampling_error(TimeoutError("read timed out")) is False

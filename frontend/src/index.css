@@ -84,7 +84,7 @@
   }
 }
 
-@utility setup-panel-bg {
+.setup-panel-bg {
   background-color: var(--muted);
   background-image: url('/assets/imgs/setup-light.png');
   background-position: center;
@@ -92,7 +92,7 @@
   background-size: cover;
 }
 
-@utility setup-step-active {
+.setup-step-active {
   background-image: linear-gradient(
     90deg,
     transparent 0%,
@@ -209,36 +209,36 @@
   }
 }
 
-@utility shell-float {
+.shell-float {
   animation: shell-float 4s ease-in-out infinite;
 }
 
-@utility shell-fade-up {
+.shell-fade-up {
   animation: shell-fade-up 0.55s ease-out both;
 }
 
-@utility shell-pulse-glow {
+.shell-pulse-glow {
   animation: shell-pulse-glow 2.8s ease-in-out infinite;
 }
 
-@utility shell-shake {
+.shell-shake {
   transform-origin: center;
   animation: shell-shake 2.5s ease-in-out infinite;
 }
 
-@utility shell-drift {
+.shell-drift {
   animation: shell-drift 3s ease-in-out infinite;
 }
 
-@utility shell-bounce-soft {
+.shell-bounce-soft {
   animation: shell-bounce-soft 2.2s ease-in-out infinite;
 }
 
-@utility shell-spin-slow {
+.shell-spin-slow {
   animation: shell-spin-slow 8s linear infinite;
 }
 
-@utility shell-spin-reverse {
+.shell-spin-reverse {
   animation: shell-spin-reverse 5s linear infinite;
 }
 
@@ -253,7 +253,7 @@
   }
 }
 
-@utility toast-slide-in {
+.toast-slide-in {
   animation: toast-slide-in 0.35s ease-out both;
 }
 
@@ -272,10 +272,108 @@
   }
 }
 
-@utility auth-right-panel-bg {
+.auth-right-panel-bg {
   background-size: cover;
   background-position: center;
   animation: auth-panel-bg-pan 80s ease-in-out infinite;
+}
+
+@keyframes pipeline-active-shadow-flow {
+  0%,
+  100% {
+    box-shadow:
+      0 4px 14px -6px var(--hero-glow-14),
+      0 8px 28px -10px var(--hero-glow-28);
+  }
+  50% {
+    box-shadow:
+      0 6px 22px -5px var(--hero-glow-28),
+      0 14px 40px -8px var(--hero-glow-32);
+  }
+}
+
+@keyframes pipeline-active-glow-expand {
+  0% {
+    box-shadow:
+      0 0 0 0 var(--hero-glow-32),
+      0 6px 20px -8px var(--hero-glow-14);
+    opacity: 0.72;
+    transform: scale(1);
+  }
+  55% {
+    opacity: 0.22;
+  }
+  100% {
+    box-shadow:
+      0 0 0 12px transparent,
+      0 12px 32px -6px transparent;
+    opacity: 0;
+    transform: scale(1.006);
+  }
+}
+
+@keyframes pipeline-active-glow-expand-soft {
+  0% {
+    box-shadow: 0 0 0 0 var(--hero-glow-28);
+    opacity: 0.48;
+    transform: scale(1);
+  }
+  100% {
+    box-shadow: 0 0 0 18px transparent;
+    opacity: 0;
+    transform: scale(1.008);
+  }
+}
+
+@keyframes pipeline-progress-shimmer {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+@keyframes pipeline-progress-glow-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 6px var(--primary-shadow),
+      0 0 12px var(--hero-glow-12);
+  }
+  50% {
+    box-shadow:
+      0 0 10px var(--primary-shadow-strong),
+      0 0 20px var(--hero-glow-28);
+  }
+}
+
+.pipeline-active-frame {
+  isolation: isolate;
+}
+
+.pipeline-active-glow-pulse {
+  z-index: 0;
+  pointer-events: none;
+  filter: blur(0.35px);
+  animation: pipeline-active-glow-expand 3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.pipeline-active-glow-pulse-delay {
+  animation: pipeline-active-glow-expand-soft 3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation-delay: 1.5s;
+}
+
+.pipeline-active-glow-shadow {
+  animation: pipeline-active-shadow-flow 3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.pipeline-progress-shimmer {
+  animation: pipeline-progress-shimmer 3.5s ease-in-out infinite;
+}
+
+.pipeline-progress-glow-pulse {
+  animation: pipeline-progress-glow-pulse 2.2s ease-in-out infinite;
 }
 
 /*

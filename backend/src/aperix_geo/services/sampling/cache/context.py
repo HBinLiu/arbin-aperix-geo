@@ -103,9 +103,12 @@ def load_subject_with_competitors_cached(
         return _deserialize_subject(payload)
 
     subject = load_subject_with_competitors(db, subject_id, tenant_id=tenant_id)
-    if subject is not None:
-        _cache_subject(subject, ttl_s=ttl_s)
-    return subject
+    if subject is None:
+        return None
+    payload = _serialize_subject(subject)
+    _SUBJECT_CACHE.set(key, payload, ttl_s=ttl_s)
+    # Detached copy: safe to use after the prepare Session closes (sampling crawl/parse work phase).
+    return _deserialize_subject(payload)
 
 
 def load_prompt_text_cached(
@@ -137,7 +140,7 @@ def warm_sampling_job_context(
     job_id: UUID,
     ttl_s: int = _SAMPLING_CONTEXT_CACHE_TTL_S,
 ) -> None:
-    """Prefetch subject and prompt texts for pending rows before chord dispatch."""
+    """Prefetch subject and prompt texts for in-flight rows before fill dispatch."""
     job = db.get(SamplingJob, job_id)
     if job is None:
         return

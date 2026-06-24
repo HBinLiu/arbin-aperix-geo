@@ -16,6 +16,7 @@ from aperix_geo.db.models import (
     User,
 )
 from aperix_geo.schemas.catalog import CompetitorItem, SetupFinalizeBody
+from aperix_geo.services.competitor.types import SiteHead
 from aperix_geo.services.competitor.persist import apply_competitors
 from aperix_geo.services.prompts.taxonomy import normalize_funnel_stage, normalize_search_intent
 from aperix_geo.services.brand.sync import sync_subject_brands_from_setup
@@ -26,14 +27,14 @@ from aperix_geo.services.competitor.enrich import enrich_confirmed_competitors
 from aperix_geo.services.setup.helpers import (
     company_from_session,
     confirmed_competitors_from_session,
+    enrich_subject_aliases,
     profile_summary_from_session,
-    subject_aliases_from_session,
     subject_summary_from_session,
     validate_confirmed_competitors,
 )
 from aperix_geo.services.subject.domain_fields import apply_subject_domain_fields
 from aperix_geo.services.subject.rules import validate_brand_competitors, validate_subject_fields
-from aperix_geo.utils.net import ensure_brand
+from aperix_geo.utils.net import ensure_brand, registrable_from
 from aperix_geo.utils.text import prompt_text_hash
 
 logger = logging.getLogger(__name__)
@@ -82,7 +83,16 @@ def finalize_setup(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-    enriched_competitors = enrich_confirmed_competitors(session_competitors, session=setup_session)
+    heads_cache: dict[str, SiteHead] = {}
+    subject_reg = registrable_from(domain) if st == SubjectType.domain else ""
+    extra_urls = {subject_reg: website_url} if subject_reg and website_url else {}
+    enriched_competitors = enrich_confirmed_competitors(
+        session_competitors,
+        session=setup_session,
+        extra_head_domains=[subject_reg] if subject_reg else None,
+        extra_preferred_urls=extra_urls or None,
+        heads_out=heads_cache,
+    )
     competitors_for_persist = [
         CompetitorItem(
             domain=str(row.get("domain") or ""),
@@ -106,7 +116,13 @@ def finalize_setup(
         profile_company or brand_from_session,
         domain=domain if st == SubjectType.domain else None,
     )
-    aliases = subject_aliases_from_session(setup_session)
+    aliases = enrich_subject_aliases(
+        brand=brand,
+        domain=domain,
+        website_url=website_url,
+        session=setup_session,
+        heads=heads_cache,
+    )
     niche_profile_data = dict(setup_session.get("profile") or {})
 
     subject = Subject(

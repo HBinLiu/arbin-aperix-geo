@@ -47,6 +47,7 @@ def test_subject_summary_from_session_uses_research_site_data() -> None:
     assert summary == "全球跨境支付平台"
 
 
+@patch("aperix_geo.services.setup.finalize.enrich_subject_aliases", return_value=["Airwallex"])
 @patch("aperix_geo.services.setup.finalize.subject_summary_from_session", return_value="全球跨境支付")
 @patch("aperix_geo.services.competitor.enrich.enrich_confirmed_competitors")
 @patch("aperix_geo.services.setup.finalize.delete_session")
@@ -60,6 +61,7 @@ def test_finalize_setup_writes_aliases_and_deletes_session(
     mock_delete,
     mock_enrich,
     mock_subject_summary,
+    mock_subject_aliases,
 ) -> None:
     profile = normalize_niche_profile({"company": "Airwallex"}, entity="airwallex.com")
     mock_get_session.return_value = {
@@ -85,7 +87,7 @@ def test_finalize_setup_writes_aliases_and_deletes_session(
     }
     mock_platforms.return_value = ["openai"]
     mock_enqueue.return_value = MagicMock(id="job-1")
-    mock_enrich.side_effect = lambda items, *, session=None: items
+    mock_enrich.side_effect = lambda items, **kwargs: items
 
     db = MagicMock()
     user = MagicMock(tenant_id="tenant-1", id="user-1")

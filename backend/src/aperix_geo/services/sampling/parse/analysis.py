@@ -29,7 +29,9 @@ def _run_response_absa(ctx: ParseContext) -> dict[str, Any]:
     return analyze_response_absa(
         ctx.text,
         own_brand=ctx.own_brand,
-        competitors=ctx.competitor_brand_names,
+        competitors=ctx.closed_brand_names,
+        own_brand_names=ctx.own_brand_names,
+        competitor_brand_names=ctx.competitor_brand_names,
         excluded_keys=set(ctx.configured_brand_keys),
         cache_ttl_s=ctx.absa_cache_ttl_s,
     )

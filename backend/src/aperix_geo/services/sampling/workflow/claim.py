@@ -5,7 +5,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from aperix_geo.config import get_settings
-from aperix_geo.utils.cache.redis_kv import redis_delete, redis_expire, redis_set_nx_strict
+from aperix_geo.utils.cache.redis_kv import redis_delete, redis_expire, redis_set_nx_strict, shared_redis_client
 
 _CLAIM_PREFIX = "aperix:sampling:response_claim:"
 
@@ -30,3 +30,14 @@ def refresh_response_claim(response_id: UUID) -> None:
 
 def release_response_claim(response_id: UUID) -> None:
     redis_delete(_claim_key(response_id))
+
+
+def response_claim_active(response_id: UUID) -> bool:
+    """True when a worker still holds the Redis claim for this response."""
+    client = shared_redis_client()
+    if client is None:
+        return False
+    try:
+        return bool(client.exists(_claim_key(response_id)))
+    except Exception:
+        return False

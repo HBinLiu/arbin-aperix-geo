@@ -30,21 +30,3 @@ def log_sampling(
         **extra,
     }
     logger.log(level, message, extra=payload)
-
-
-def summarize_chord_results(results: list) -> dict[str, int]:
-    total = len(results)
-    ok = 0
-    skipped = 0
-    failed = 0
-    for item in results:
-        if not isinstance(item, dict):
-            failed += 1
-            continue
-        if item.get("skipped"):
-            skipped += 1
-        elif item.get("ok"):
-            ok += 1
-        else:
-            failed += 1
-    return {"total": total, "ok": ok, "skipped": skipped, "failed": failed}

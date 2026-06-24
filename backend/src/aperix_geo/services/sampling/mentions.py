@@ -119,10 +119,29 @@ def first_idx_any(text: str, terms: list[str] | tuple[str, ...]) -> int | None:
     return min(valid) if valid else None
 
 
-def _absa_keys_for_entry(entry: CompetitorEntry) -> list[str]:
+def absa_own_keys(
+    *,
+    own_brand: str,
+    own_match_names: list[str],
+    entity_label: str,
+) -> tuple[list[str], list[tuple[str, str]]]:
+    """主体闭集 ABSA 键（含 aliases），均映射到 entity_label。"""
+    own_brand_names: list[str] = []
+    own_absa_keys: list[tuple[str, str]] = []
+    seen_absa_keys: set[str] = set()
+    label = (entity_label or own_brand or "").strip()
+    for absa_key in _absa_keys_for_terms(own_brand, label, own_match_names):
+        own_absa_keys.append((absa_key, label))
+        if absa_key not in seen_absa_keys:
+            seen_absa_keys.add(absa_key)
+            own_brand_names.append(absa_key)
+    return own_brand_names, own_absa_keys
+
+
+def _absa_keys_for_terms(brand: str, label: str, extra_terms: list[str]) -> list[str]:
     ordered: list[str] = []
     seen: set[str] = set()
-    for term in [entry.brand, entry.label, *entry.aliases, *entry.terms]:
+    for term in [brand, label, *extra_terms]:
         text = (term or "").strip()
         if not text:
             continue
@@ -132,6 +151,10 @@ def _absa_keys_for_entry(entry: CompetitorEntry) -> list[str]:
         seen.add(key)
         ordered.append(text)
     return ordered
+
+
+def _absa_keys_for_entry(entry: CompetitorEntry) -> list[str]:
+    return _absa_keys_for_terms(entry.brand, entry.label, [*entry.aliases, *entry.terms])
 
 
 def absa_competitor_keys(

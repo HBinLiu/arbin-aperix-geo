@@ -63,6 +63,7 @@ class _ResponsesInWindowQuery:
         stmt = (
             select(LLMResponse)
             .join(SamplingJob, LLMResponse.sampling_job_id == SamplingJob.id)
+            .join(Prompt, LLMResponse.prompt_id == Prompt.id)
             .where(
                 and_(
                     SamplingJob.subject_id == subject_id,
@@ -75,9 +76,7 @@ class _ResponsesInWindowQuery:
         if platform:
             stmt = stmt.where(LLMResponse.platform.in_(platform))
         if topic_id:
-            stmt = stmt.join(Prompt, LLMResponse.prompt_id == Prompt.id).where(
-                Prompt.topic_id.in_(topic_id)
-            )
+            stmt = stmt.where(Prompt.topic_id.in_(topic_id))
         if prompt_id is not None:
             stmt = stmt.where(LLMResponse.prompt_id == prompt_id)
         return [r for r in db.execute(stmt).scalars().all() if r.parsed]
@@ -99,6 +98,7 @@ def response_ids_in_window_stmt(
     stmt = (
         select(LLMResponse.id)
         .join(SamplingJob, LLMResponse.sampling_job_id == SamplingJob.id)
+        .join(Prompt, LLMResponse.prompt_id == Prompt.id)
         .where(
             and_(
                 SamplingJob.subject_id == subject_id,
@@ -112,9 +112,7 @@ def response_ids_in_window_stmt(
     if platform:
         stmt = stmt.where(LLMResponse.platform.in_(platform))
     if topic_id:
-        stmt = stmt.join(Prompt, LLMResponse.prompt_id == Prompt.id).where(
-            Prompt.topic_id.in_(topic_id)
-        )
+        stmt = stmt.where(Prompt.topic_id.in_(topic_id))
     if prompt_id is not None:
         stmt = stmt.where(LLMResponse.prompt_id == prompt_id)
     return stmt
@@ -146,6 +144,7 @@ def subject_response_window(db: Session, *, subject: Subject) -> tuple[datetime,
     dt_min, dt_max = db.execute(
         select(func.min(LLMResponse.created_at), func.max(LLMResponse.created_at))
         .join(SamplingJob, LLMResponse.sampling_job_id == SamplingJob.id)
+        .join(Prompt, LLMResponse.prompt_id == Prompt.id)
         .where(
             and_(
                 SamplingJob.subject_id == subject.id,

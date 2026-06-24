@@ -83,13 +83,16 @@ def augmented_chat(
     hits: list[SearchHit] = []
     chat_messages = messages
     mode = "none"
+    search_ms = 0
 
     if web_search:
         if not query:
             logger.info("%s web search skipped: empty user query", provider_label)
             mode = "searxng_skipped"
         else:
+            search_t0 = time.perf_counter()
             hits = search_text(query, max_results=searxng_max_results)
+            search_ms = int((time.perf_counter() - search_t0) * 1000)
             if hits:
                 chat_messages = build_messages_with_search(messages, hits=hits, query=query)
                 mode = "searxng"
@@ -97,9 +100,9 @@ def augmented_chat(
                 logger.info("%s web search returned no hits for query=%r", provider_label, query[:120])
                 mode = "searxng_empty"
 
-    t0 = time.perf_counter()
+    llm_t0 = time.perf_counter()
     try:
-        text, usage, latency_ms = openai_chat_completion(
+        text, usage, llm_latency_ms = openai_chat_completion(
             base_url=base_url,
             api_key=api_key,
             model=model,
@@ -113,15 +116,17 @@ def augmented_chat(
         if isinstance(exc, error_cls):
             raise
         raise error_cls(str(exc)) from exc
-    total_latency_ms = int((time.perf_counter() - t0) * 1000)
+    llm_ms = int((time.perf_counter() - llm_t0) * 1000)
+    total_latency_ms = search_ms + llm_ms
 
     source_urls = tuple(hit.url for hit in hits)
     logger.info(
-        "%s SearXNG chat: mode=%s hits=%d latency_ms=%d chars=%d",
+        "%s SearXNG chat: mode=%s hits=%d search_ms=%d llm_ms=%d chars=%d",
         provider_label,
         mode,
         len(hits),
-        total_latency_ms,
+        search_ms,
+        llm_ms,
         len(text),
     )
     return SamplingChatResult(

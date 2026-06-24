@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from aperix_geo.services.brand.verify import (
     accept_discovered_domain,
+    homepage_matches_both_brands,
     site_head_matches_brand,
     verify_domain_homepage,
 )
@@ -35,6 +36,22 @@ def test_accept_discovered_domain_host_match_skips_homepage(
 ) -> None:
     assert accept_discovered_domain("stripe.com", "Stripe")
     mock_homepage.assert_not_called()
+
+
+def test_homepage_matches_both_brands() -> None:
+    head = SiteHead(
+        "wise.com",
+        "Wise | TransferWise 跨境汇款",
+        "",
+        True,
+        brand_names=("TransferWise",),
+    )
+    assert homepage_matches_both_brands("wise.com", "TransferWise", "Wise", head=head)
+
+
+def test_homepage_matches_both_brands_rejects_single_name() -> None:
+    head = SiteHead("zgswcn.com", "透镜GEO 官网", "", True)
+    assert not homepage_matches_both_brands("zgswcn.com", "智瞰引擎", "透镜GEO", head=head)
 
 
 @patch("aperix_geo.services.brand.verify.fetch_site_heads")

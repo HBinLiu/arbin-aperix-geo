@@ -3,7 +3,8 @@ import type { OpportunityTab } from "@/types";
 
 export const OPPORTUNITY_TABS: { id: OpportunityTab; label: string }[] = [
   { id: "backlink", label: "反向链接" },
-  { id: "social", label: "社交媒体" },
+  /*{ id: "competitor", label: "潜在竞品" },
+  { id: "prompt", label: "潜在提示词" },*/
 ];
 
 export const DEFAULT_OPPORTUNITY_TAB: OpportunityTab = "backlink";

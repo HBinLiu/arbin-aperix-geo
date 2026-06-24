@@ -98,6 +98,7 @@ def _apply_absa_mentions(
     brands: dict[str, Any],
     *,
     own_brand: str,
+    own_absa_keys: list[tuple[str, str]],
     competitor_absa_keys: list[tuple[str, str]],
     url_hosts: list[str] | None,
     competitors: list[CompetitorEntry] | None,
@@ -105,20 +106,26 @@ def _apply_absa_mentions(
 ) -> None:
     by_entity_label = {draft.entity_label: draft for draft in drafts}
     own_draft = next(draft for draft in drafts if draft.entity_kind == "own")
-    own_entry = brands.get(own_brand)
-    own_flag = absa_brand_mentioned(brands, own_brand)
-    if own_flag is True:
-        own_draft.mentioned = True
-        if own_draft.mention_count == 0:
-            own_draft.mention_count = 1
-        if own_draft.rank_hint_first_index is None:
-            own_draft.rank_hint_first_index = _rank_hint_from_absa(text, own_brand, own_entry)
+    own_keys = _competitor_keys_by_label(own_absa_keys).get(own_draft.entity_label, [own_brand])
+    own_flags = [absa_brand_mentioned(brands, key) for key in own_keys]
+    own_resolved = [flag for flag in own_flags if flag is not None]
+    if own_resolved:
+        if any(own_resolved):
+            own_draft.mentioned = True
+            if own_draft.mention_count == 0:
+                own_draft.mention_count = 1
             if own_draft.rank_hint_first_index is None:
-                own_draft.rank_hint_first_index = _fallback_rank_hint(text)
-    elif own_flag is False:
-        own_draft.mentioned = False
-        own_draft.mention_count = 0
-        own_draft.rank_hint_first_index = None
+                for key in own_keys:
+                    hint = _rank_hint_from_absa(text, key, brands.get(key))
+                    if hint is not None:
+                        own_draft.rank_hint_first_index = hint
+                        break
+                if own_draft.rank_hint_first_index is None:
+                    own_draft.rank_hint_first_index = _fallback_rank_hint(text)
+        else:
+            own_draft.mentioned = False
+            own_draft.mention_count = 0
+            own_draft.rank_hint_first_index = None
 
     entries_by_label = {entry.label: entry for entry in (competitors or [])}
     for output_label, keys in _competitor_keys_by_label(competitor_absa_keys).items():
@@ -176,11 +183,13 @@ def _apply_absa_sentiment_fields(
     brands: dict[str, Any],
     *,
     own_brand: str,
+    own_absa_keys: list[tuple[str, str]],
     competitor_absa_keys: list[tuple[str, str]],
 ) -> None:
     by_entity_label = {draft.entity_label: draft for draft in drafts}
     own_draft = next(draft for draft in drafts if draft.entity_kind == "own")
-    score, reason = absa_brand_sentiment(brands.get(own_brand))
+    own_keys = _competitor_keys_by_label(own_absa_keys).get(own_draft.entity_label, [own_brand])
+    score, reason = absa_brand_sentiment(_absa_entry_for_competitor(brands, own_keys))
     own_draft.sentiment_score = score
     own_draft.sentiment_reason = reason
 
@@ -198,6 +207,7 @@ def apply_absa_to_drafts(
     response_absa: dict[str, Any],
     *,
     own_brand: str,
+    own_absa_keys: list[tuple[str, str]] | None = None,
     competitor_absa_keys: list[tuple[str, str]],
     url_hosts: list[str] | None = None,
     competitors: list[CompetitorEntry] | None = None,
@@ -210,10 +220,12 @@ def apply_absa_to_drafts(
         return source
 
     brands = response_absa["brands_sentiment_absa"]
+    own_keys = own_absa_keys or [(own_brand, next(d.entity_label for d in drafts if d.entity_kind == "own"))]
     _apply_absa_mentions(
         drafts,
         brands,
         own_brand=own_brand,
+        own_absa_keys=own_keys,
         competitor_absa_keys=competitor_absa_keys,
         url_hosts=url_hosts,
         competitors=competitors,
@@ -223,6 +235,7 @@ def apply_absa_to_drafts(
         drafts,
         brands,
         own_brand=own_brand,
+        own_absa_keys=own_keys,
         competitor_absa_keys=competitor_absa_keys,
     )
     return "llm"
@@ -281,6 +294,7 @@ def apply_response_absa_to_drafts(
     subject: Subject | None = None,
     db: Session | None = None,
     own_brand: str,
+    own_absa_keys: list[tuple[str, str]] | None = None,
     competitor_brand_names: list[str],
     competitor_absa_keys: list[tuple[str, str]],
     url_hosts: list[str] | None = None,
@@ -293,6 +307,7 @@ def apply_response_absa_to_drafts(
         drafts,
         response_absa,
         own_brand=own_brand,
+        own_absa_keys=own_absa_keys,
         competitor_absa_keys=competitor_absa_keys,
         url_hosts=url_hosts,
         competitors=competitors,
@@ -306,6 +321,7 @@ def apply_response_absa_to_drafts(
             own_brand=own_brand,
             competitor_brand_names=competitor_brand_names,
             competitor_absa_keys=competitor_absa_keys,
+            own_absa_keys=own_absa_keys,
         )
 
     append_other_brand_drafts(

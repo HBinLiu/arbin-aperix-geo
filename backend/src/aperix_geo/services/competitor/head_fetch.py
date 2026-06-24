@@ -41,6 +41,10 @@ def _site_head_from_fetch(
         include_body=False,
         seo_profile=seo_profile,
     )
+    brand_names = list(parsed.brand_names)
+    site_name = (parsed.site_name or "").strip()
+    if site_name:
+        brand_names.append(site_name)
     return SiteHead(
         domain=domain,
         title=parsed.title,
@@ -48,7 +52,7 @@ def _site_head_from_fetch(
         reachable=True,
         seo=_cross_validate_seo_excerpt(parsed),
         resolved_url=resolved_url,
-        brand_names=tuple(parsed.brand_names),
+        brand_names=tuple(dict.fromkeys(brand_names)),
     )
 
 

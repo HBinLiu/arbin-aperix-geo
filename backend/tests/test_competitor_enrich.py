@@ -31,6 +31,7 @@ def test_enrich_does_not_rewrite_brand_from_title() -> None:
     out = enrich_discovered_competitors(competitors, heads=heads)
     assert out[0]["brand"] == "Wise"
     assert out[0]["summary"] == "跨境汇款"
+    assert "万里汇" in out[0]["aliases"]
     assert out[1]["brand"] == "PayPal"
     assert out[1]["summary"] == "在线支付"
     assert out[1]["aliases"] == ["PayPal Inc"]

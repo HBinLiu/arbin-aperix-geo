@@ -116,6 +116,37 @@ def redis_delete(key: str) -> None:
         logger.debug("Redis DEL 失败 key=%s", key, exc_info=True)
 
 
+def redis_incr(key: str, *, ttl_s: int) -> int | None:
+    """INCR with TTL refresh. Returns new value or None when Redis unavailable."""
+    client = _redis_client()
+    if client is None:
+        return None
+    try:
+        value = int(client.incr(key))
+        client.expire(key, max(1, ttl_s))
+        return value
+    except Exception:
+        logger.debug("Redis INCR 失败 key=%s", key, exc_info=True)
+        return None
+
+
+def redis_decr(key: str, *, ttl_s: int) -> int | None:
+    """DECR with TTL refresh. Clamps negative values back to zero."""
+    client = _redis_client()
+    if client is None:
+        return None
+    try:
+        value = int(client.decr(key))
+        if value < 0:
+            client.set(key, "0", ex=max(1, ttl_s))
+            return 0
+        client.expire(key, max(1, ttl_s))
+        return value
+    except Exception:
+        logger.debug("Redis DECR 失败 key=%s", key, exc_info=True)
+        return None
+
+
 def shared_redis_client() -> redis.Redis | None:
     """Process-wide Redis client (decode_responses=True)."""
     return _redis_client()

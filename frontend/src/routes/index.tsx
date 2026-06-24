@@ -1,6 +1,7 @@
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 
 import { RequireAuth } from "@/components/auth/RequireAuth";
+import { InsightOpsGate } from "@/components/dashboard/InsightOpsGate";
 import { LoginPage } from "@/pages/auth/LoginPage";
 import { RegisterPage } from "@/pages/auth/RegisterPage";
 import { DashboardLayout } from "@/pages/dashboard/DashboardLayout";
@@ -51,27 +52,29 @@ export function AppRoutes() {
         <Route element={<DashboardRoot />}>
           <Route element={<DashboardLayout />}>
             <Route index element={<OverviewRoute />} />
-            <Route path="analysis" element={<AnalysisRoute />}>
-              <Route index element={<Navigate to="visibility" replace />} />
-              <Route path="visibility" element={<AnalysisVisibilityRoute />} />
-              <Route path="prompt/:promptId" element={<AnalysisPromptDetailRoute />} />
-              <Route path="prompt" element={<AnalysisPromptRoute />} />
-              <Route path="platform" element={<AnalysisPlatformRoute />} />
-              <Route path="sentiment" element={<AnalysisSentimentRoute />} />
-              <Route path="citation" element={<AnalysisCitationRoute />} />
-              <Route path="citation/:domain" element={<AnalysisCitationDomainRoute />} />
-              <Route path="*" element={<Navigate to="visibility" replace />} />
-            </Route>
-            <Route path="rank" element={<RankRoute />} />
-            <Route path="opportunity">
-              <Route index element={<Navigate to="backlink" replace />} />
-              <Route path="backlink/:domain" element={<OpportunityBacklinkDetailRoute />} />
-              <Route path=":tab" element={<OpportunityRoute />} />
-            </Route>
-            <Route path="agent" element={<AgentRoute />} />
-            <Route path="diagnosis">
-              <Route index element={<DiagnosisRoute />} />
-              <Route path=":promptId" element={<DiagnosisContentDetailRoute />} />
+            <Route element={<InsightOpsGate />}>
+              <Route path="analysis" element={<AnalysisRoute />}>
+                <Route index element={<Navigate to="visibility" replace />} />
+                <Route path="visibility" element={<AnalysisVisibilityRoute />} />
+                <Route path="prompt/:promptId" element={<AnalysisPromptDetailRoute />} />
+                <Route path="prompt" element={<AnalysisPromptRoute />} />
+                <Route path="platform" element={<AnalysisPlatformRoute />} />
+                <Route path="sentiment" element={<AnalysisSentimentRoute />} />
+                <Route path="citation" element={<AnalysisCitationRoute />} />
+                <Route path="citation/:domain" element={<AnalysisCitationDomainRoute />} />
+                <Route path="*" element={<Navigate to="visibility" replace />} />
+              </Route>
+              <Route path="rank" element={<RankRoute />} />
+              <Route path="opportunity">
+                <Route index element={<Navigate to="backlink" replace />} />
+                <Route path="backlink/:domain" element={<OpportunityBacklinkDetailRoute />} />
+                <Route path=":tab" element={<OpportunityRoute />} />
+              </Route>
+              <Route path="agent" element={<AgentRoute />} />
+              <Route path="diagnosis">
+                <Route index element={<DiagnosisRoute />} />
+                <Route path=":promptId" element={<DiagnosisContentDetailRoute />} />
+              </Route>
             </Route>
             <Route path="prompt" element={<PromptRoute />} />
             <Route path="brand" element={<BrandRoute />} />

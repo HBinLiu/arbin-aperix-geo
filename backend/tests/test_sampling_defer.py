@@ -6,11 +6,11 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 from aperix_geo.services.sampling.workflow.defer import defer_sampling_persist
-from aperix_geo.tasks.sampling import _fail_pending_response
+from aperix_geo.services.sampling.workflow.phase_specs import _fail_pending
 
 
 @patch("aperix_geo.services.sampling.workflow.orchestrate.enqueue_sampling_continue")
-@patch("aperix_geo.services.sampling.workflow.recovery.try_schedule_sampling_resume", return_value=True)
+@patch("aperix_geo.services.sampling.workflow.dispatch.try_schedule_sampling_job_enqueue", return_value=True)
 def test_defer_persist_schedules_continue(mock_debounce: MagicMock, mock_continue: MagicMock) -> None:
     job_id = uuid4()
 
@@ -27,8 +27,8 @@ def test_defer_persist_schedules_continue(mock_debounce: MagicMock, mock_continu
     mock_continue.assert_called_once_with(job_id)
 
 
-@patch("aperix_geo.tasks.sampling.clear_cached_llm_result")
-@patch("aperix_geo.tasks.sampling.mark_response_failed_if_pending")
+@patch("aperix_geo.services.sampling.workflow.phase_specs.clear_cached_llm_result")
+@patch("aperix_geo.services.sampling.workflow.phase_specs.mark_response_failed_if_pending")
 def test_fail_pending_clears_cache_and_marks_failed(
     mock_mark: MagicMock,
     mock_clear: MagicMock,
@@ -36,7 +36,7 @@ def test_fail_pending_clears_cache_and_marks_failed(
     db = MagicMock()
     response_id = uuid4()
 
-    out = _fail_pending_response(db, response_id=response_id, error="bad data")
+    out = _fail_pending(db, response_id=response_id, error="bad data")
 
     assert out["ok"] is False
     assert "deferred" not in out

@@ -24,10 +24,10 @@ export const DASHBOARD_NAV_SECTIONS: DashboardNavSection[] = [
     ],
   },
   {
-    title: "操作",
+    title: "运营",
     items: [
-      { id: "agent", label: "智能体", icon: Bot },
       { id: "diagnosis", label: "诊断中心", icon: Stethoscope },
+      { id: "agent", label: "媒体发稿", icon: Bot },
     ],
   },
   {

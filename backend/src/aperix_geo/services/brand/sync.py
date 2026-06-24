@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import Brand, BrandSource, Competitor, Subject
 from aperix_geo.services.brand.catalog import BrandSyncContext
 from aperix_geo.services.brand.domain import resolve_brand_domain
-from aperix_geo.services.brand.resolve import resolve_or_create_brand
+from aperix_geo.services.brand.resolve import find_brand_by_name_or_alias, resolve_or_create_brand
 from aperix_geo.services.brand.types import BrandSyncEntity
 
 
@@ -96,15 +97,26 @@ def sync_brands_for_entities(
     sync_ctx = BrandSyncContext.load(db, subject_id=subject_id)
     brands: dict[str, Brand] = {}
     for entity in sorted(entities, key=_brand_sync_sort_key):
-        brands[entity.entity_id] = sync_brand_for_entity(
-            db,
-            subject_id=subject_id,
-            entity=entity,
-            raw_text=raw_text,
-            urls=urls,
-            allow_search=allow_search,
-            sync_ctx=sync_ctx,
-        )
+        try:
+            brands[entity.entity_id] = sync_brand_for_entity(
+                db,
+                subject_id=subject_id,
+                entity=entity,
+                raw_text=raw_text,
+                urls=urls,
+                allow_search=allow_search,
+                sync_ctx=sync_ctx,
+            )
+        except IntegrityError:
+            db.rollback()
+            fallback = find_brand_by_name_or_alias(
+                db,
+                subject_id=subject_id,
+                brand=entity.brand or entity.entity_label,
+            )
+            if fallback is None:
+                raise
+            brands[entity.entity_id] = fallback
     return brands
 
 

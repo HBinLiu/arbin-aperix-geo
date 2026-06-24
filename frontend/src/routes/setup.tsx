@@ -14,8 +14,7 @@ export function SetupRoute() {
     setStoredActiveSubjectId(subjectId);
     await queryClient.refetchQueries({ queryKey: queryKeys.subjects });
     clearQueries(queryClient, { queryKey: queryKeys.me });
-    clearQueries(queryClient, { queryKey: queryKeys.pipelineStatus(subjectId) });
-    navigate(dashboardNavToPath("brand"), { replace: true });
+    navigate(dashboardNavToPath("overview"), { replace: true });
   };
 
   return <SetupWizard onCompleted={onCompleted} />;

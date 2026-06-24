@@ -114,7 +114,6 @@ def _topic_entity_visibility_stmt(**window: Any) -> Select[tuple[Any, ...]]:
 def _daily_sentiment_rows_stmt(
     *,
     entity_id: str,
-    platform: list[str] | None,
     **window: Any,
 ) -> Select[tuple[Any, ...]]:
     day_expr = func.date(LLMResponseSignal.created_at)
@@ -129,8 +128,6 @@ def _daily_sentiment_rows_stmt(
         LLMResponseSignal.entity_id == entity_id,
         LLMResponseSignal.mentioned.is_(True),
     ]
-    if platform:
-        filters.append(LLMResponseSignal.platform.in_(platform))
     return (
         select(
             day_expr.label("day"),
@@ -571,7 +568,7 @@ def query_sentiment_distribution(
         prompt_id=prompt_id,
     )
     rows = db.execute(
-        _daily_sentiment_rows_stmt(entity_id=entity_id, platform=platform, **window)
+        _daily_sentiment_rows_stmt(entity_id=entity_id, **window)
     ).all()
     return _sentiment_distribution_from_rows(rows, platform_ids=platform_ids)
 

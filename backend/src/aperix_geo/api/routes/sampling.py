@@ -3,12 +3,15 @@
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
+from starlette.responses import StreamingResponse
 
 from aperix_geo.api.deps import CurrentUser, DbSession, get_subject_for_user
 from aperix_geo.db.models import SamplingJob
 from aperix_geo.schemas.sampling import SamplingJobOut, SamplingPlatformOut
-from aperix_geo.services.sampling.workflow.status import build_pipeline_status
 from aperix_geo.services.sampling.llm import list_sampling_platforms
+from aperix_geo.services.sampling.workflow.jobs import SamplingJobError
+from aperix_geo.services.sampling.workflow.pipeline import iter_pipeline_status_events
+from aperix_geo.services.sampling.workflow.retry_user import retry_subject_sampling
 
 router = APIRouter(tags=["sampling"])
 
@@ -19,15 +22,34 @@ def get_sampling_platforms(current: CurrentUser) -> list[dict[str, str]]:
     return list_sampling_platforms()
 
 
-@router.get("/subjects/{subject_id}/pipeline-status")
-def pipeline_status(subject_id: UUID, db: DbSession, current: CurrentUser) -> dict:
+@router.get("/subjects/{subject_id}/pipeline/stream")
+async def pipeline_status_stream(subject_id: UUID, db: DbSession, current: CurrentUser) -> StreamingResponse:
     get_subject_for_user(db, current, subject_id, with_competitors=True)
-    return build_pipeline_status(db, subject_id=subject_id)
 
+    async def event_source():
+        async for chunk in iter_pipeline_status_events(
+            subject_id=subject_id,
+            tenant_id=current.tenant_id,
+        ):
+            yield chunk
 
-@router.get("/sampling-jobs/{job_id}", response_model=SamplingJobOut)
-def get_sampling_job(job_id: UUID, db: DbSession, current: CurrentUser) -> SamplingJob:
-    job = db.get(SamplingJob, job_id)
-    if not job or job.tenant_id != current.tenant_id:
-        raise HTTPException(status_code=404, detail="Job not found")
-    return job
+    return StreamingResponse(
+        event_source(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+@router.post(
+    "/subjects/{subject_id}/sampling-jobs/retry",
+    response_model=SamplingJobOut,
+)
+def retry_sampling_job(subject_id: UUID, db: DbSession, current: CurrentUser) -> SamplingJob:
+    subject = get_subject_for_user(db, current, subject_id, with_competitors=True)
+    try:
+        return retry_subject_sampling(db, subject=subject, tenant_id=current.tenant_id)
+    except SamplingJobError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

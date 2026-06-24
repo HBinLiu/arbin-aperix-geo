@@ -8,6 +8,7 @@ from typing import Any
 from aperix_geo.services.competitor.head_fetch import fetch_site_heads
 from aperix_geo.services.competitor.types import DiscoveredCompetitor, SiteHead
 from aperix_geo.services.subject.domain_fields import prepare_domain_and_website_url
+from aperix_geo.utils.domains import title_alias_candidates
 from aperix_geo.utils.net import ensure_brand, parse_url, registrable_from
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,81 @@ def normalize_competitor_aliases(raw: Any, *, brand: str) -> list[str]:
         seen.add(key)
         out.append(alias)
     return out
+
+
+def alias_seed_from_site_head(
+    head: SiteHead | None,
+    *,
+    domain: str,
+    brand: str,
+) -> tuple[str, ...]:
+    """SEO brand_names + title 分段别名，供 merge_competitor_aliases 合并。"""
+    if head is None or not head.reachable:
+        return ()
+    seeds: list[str] = list(title_alias_candidates(head.title, domain=domain, brand=brand))
+    seeds.extend(head.brand_names)
+    return tuple(seeds)
+
+
+def alias_seed_from_site_metadata(
+    metadata: dict[str, Any] | None,
+    *,
+    domain: str,
+    brand: str,
+) -> tuple[str, ...]:
+    """research_payload.site_data 等：从 title 提取别名种子。"""
+    if not metadata:
+        return ()
+    title = str(metadata.get("title") or "").strip()
+    if not title:
+        return ()
+    return tuple(title_alias_candidates(title, domain=domain, brand=brand))
+
+
+def enrich_entity_aliases(
+    *,
+    brand: str,
+    domain: str,
+    existing: list[str] | None = None,
+    head: SiteHead | None = None,
+    site_metadata: dict[str, Any] | None = None,
+) -> list[str]:
+    """合并用户/会话别名与首页 title、SEO brand_names（自有品牌 / 开集品牌通用）。"""
+    reg = registrable_from(domain) or (domain or "").strip()
+    brand_display = ensure_brand(brand, domain=reg)
+    seeds: list[str] = []
+    if site_metadata:
+        seeds.extend(alias_seed_from_site_metadata(site_metadata, domain=reg, brand=brand_display))
+    if head is not None:
+        seeds.extend(alias_seed_from_site_head(head, domain=reg, brand=brand_display))
+    return merge_competitor_aliases(
+        brand=brand_display,
+        existing=existing,
+        brand_names=tuple(seeds),
+    )
+
+
+def enrich_open_set_brand_aliases(
+    *,
+    brand: str,
+    domain: str,
+    website_url: str = "",
+    existing: list[str] | None = None,
+    head: SiteHead | None = None,
+) -> list[str]:
+    """开集品牌：有域名时抓 head 补全 aliases。"""
+    reg = registrable_from(domain)
+    if not reg:
+        return normalize_competitor_aliases(existing, brand=brand)
+    if head is None:
+        preferred = {reg: website_url.strip()} if website_url.strip() else {}
+        head = fetch_site_heads([reg], preferred_urls=preferred).get(reg)
+    return enrich_entity_aliases(
+        brand=brand,
+        domain=reg,
+        existing=existing,
+        head=head,
+    )
 
 
 def merge_competitor_aliases(
@@ -120,10 +196,11 @@ def enrich_discovered_competitors(
         head = heads.get(registrable_from(domain)) if domain else None
         brand = resolve_competitor_brand(item)
         summary = resolve_competitor_summary(head)
-        aliases = merge_competitor_aliases(
+        aliases = enrich_entity_aliases(
             brand=brand,
+            domain=domain,
             existing=item.get("aliases"),
-            brand_names=head.brand_names if head else (),
+            head=head,
         )
         out.append(
             _discovered_item(
@@ -217,12 +294,18 @@ def enrich_confirmed_competitor_dict(
         summary = resolve_competitor_summary(head)
 
     cache_aliases = cache_seed.get("aliases") if cache_seed else None
-    aliases = merge_competitor_aliases(
+    aliases = enrich_entity_aliases(
         brand=brand,
+        domain=domain,
         existing=item.get("aliases") if isinstance(item.get("aliases"), list) else None,
-        seed_aliases=cache_aliases if isinstance(cache_aliases, list) else None,
-        brand_names=head.brand_names if head else (),
+        head=head,
     )
+    if cache_aliases and isinstance(cache_aliases, list):
+        aliases = merge_competitor_aliases(
+            brand=brand,
+            existing=aliases,
+            seed_aliases=cache_aliases,
+        )
 
     out = {
         "domain": domain,
@@ -232,6 +315,9 @@ def enrich_confirmed_competitor_dict(
     }
     if aliases:
         out["aliases"] = aliases
+    for key in ("cross_validate_score", "cross_validate_reason"):
+        if key in item:
+            out[key] = item[key]
     return out
 
 
@@ -239,6 +325,9 @@ def enrich_confirmed_competitors(
     competitors: list[dict[str, Any]],
     *,
     session: dict[str, Any] | None = None,
+    extra_head_domains: list[str] | None = None,
+    extra_preferred_urls: dict[str, str] | None = None,
+    heads_out: dict[str, SiteHead] | None = None,
 ) -> list[dict[str, Any]]:
     """Setup 批量确认竞品补全（有 domain 时抓取 head）。"""
     if not competitors:
@@ -246,7 +335,7 @@ def enrich_confirmed_competitors(
 
     cache_by_domain = _index_session_competitors_by_domain(session)
     domain_hosts: list[str] = []
-    preferred_urls: dict[str, str] = {}
+    preferred_urls: dict[str, str] = dict(extra_preferred_urls or {})
     for item in competitors:
         domain = registrable_from(str(item.get("domain") or ""))
         if not domain:
@@ -260,7 +349,14 @@ def enrich_confirmed_competitors(
             if cached_url:
                 preferred_urls[domain] = cached_url
 
+    for domain in extra_head_domains or []:
+        reg = registrable_from(domain)
+        if reg:
+            domain_hosts.append(reg)
+
     heads = fetch_site_heads(domain_hosts, preferred_urls=preferred_urls) if domain_hosts else {}
+    if heads_out is not None:
+        heads_out.update(heads)
 
     out: list[dict[str, Any]] = []
     for item in competitors:

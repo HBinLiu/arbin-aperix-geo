@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 
 
 def retry_if_transient(task, exc: BaseException) -> None:
+    from aperix_geo.services.sampling.retry_policy import is_llm_timeout_error
+
+    if is_llm_timeout_error(exc):
+        return
     max_retries = get_settings().sampling_retry_max
     if task.request.retries < max_retries and is_retryable_sampling_error(exc):
         raise task.retry(

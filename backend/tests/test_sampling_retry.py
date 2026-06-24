@@ -28,7 +28,8 @@ def test_is_not_retryable_db_data_error() -> None:
 
 
 def test_is_retryable_timeout_and_http_status() -> None:
-    assert is_retryable_sampling_error(SamplingLLMError("DeepSeek timeout: read timed out"))
+    assert not is_retryable_sampling_error(SamplingLLMError("DeepSeek timeout: read timed out"))
+    assert not is_retryable_sampling_error(SamplingLLMError("timeout", retryable=True))
     assert is_retryable_sampling_error(SamplingLLMError("Doubao HTTP 502: bad gateway"))
     assert is_retryable_sampling_error(SamplingLLMError("Qianwen HTTP 429: too many requests"))
     assert is_retryable_sampling_error(SamplingRateLimitError("LLM rate limit exceeded"))
@@ -36,7 +37,8 @@ def test_is_retryable_timeout_and_http_status() -> None:
 
 def test_is_retryable_structured_fields() -> None:
     assert is_retryable_sampling_error(SamplingLLMError("upstream", status_code=502))
-    assert is_retryable_sampling_error(SamplingLLMError("timeout", retryable=True))
+    assert not is_retryable_sampling_error(SamplingLLMError("timeout", retryable=True))
+    assert not is_retryable_sampling_error(SamplingLLMError("timeout", retryable=False))
     assert not is_retryable_sampling_error(SamplingLLMError("auth", status_code=401))
     assert not is_retryable_sampling_error(SamplingLLMError("config", retryable=False))
 
@@ -47,6 +49,14 @@ def test_sampling_llm_error_from_provider() -> None:
     )
     assert wrapped.status_code == 502
     assert is_retryable_sampling_error(wrapped)
+
+
+def test_sampling_llm_error_from_provider_timeout_sets_retryable_false() -> None:
+    wrapped = sampling_llm_error_from(
+        DoubaoProviderError("Kimi timeout: Request timed out.", retryable=None)
+    )
+    assert wrapped.retryable is False
+    assert not is_retryable_sampling_error(wrapped)
 
 
 def test_is_not_retryable_configuration_errors() -> None:

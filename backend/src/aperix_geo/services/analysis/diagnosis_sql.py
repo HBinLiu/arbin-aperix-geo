@@ -24,19 +24,22 @@ from aperix_geo.services.analysis.entity import competitor_entities, list_analys
 _SCOPED_CTES = """
 scoped AS (
     SELECT
-        prompt_id,
-        platform,
-        response_id,
-        entity_kind,
-        mentioned,
-        mention_count,
-        mention_rank,
-        has_domain_link
-    FROM tb_llm_response_signals
-    WHERE subject_id = :subject_id
-      AND created_at >= :dt_from
-      AND created_at <= :dt_to
-      AND entity_kind IN (:own_kind, :competitor_kind)
+        s.prompt_id,
+        s.platform,
+        s.response_id,
+        s.entity_id,
+        s.entity_kind,
+        s.entity_label,
+        s.mentioned,
+        s.mention_count,
+        s.mention_rank,
+        s.has_domain_link
+    FROM tb_llm_response_signals s
+    INNER JOIN tb_prompts p ON p.id = s.prompt_id AND p.deleted = false
+    WHERE s.subject_id = :subject_id
+      AND s.created_at >= :dt_from
+      AND s.created_at <= :dt_to
+      AND s.entity_kind IN (:own_kind, :competitor_kind)
 ),
 response_flags AS (
     SELECT
@@ -148,6 +151,10 @@ prompt_competitors AS (
         ARRAY_AGG(entity_label ORDER BY ord_key, entity_label) AS competitors
     FROM competitor_hits
     GROUP BY prompt_id
+),
+sampled_prompts AS (
+    SELECT DISTINCT prompt_id
+    FROM scoped
 )
 """
 
@@ -169,12 +176,14 @@ merged AS (
         COALESCE(om.mention_total_count, 0)::int AS mention_total_count,
         om.average_rank::float AS average_rank
     FROM tb_prompts p
+    INNER JOIN sampled_prompts sp ON sp.prompt_id = p.id
     LEFT JOIN gap_platforms gp ON gp.prompt_id = p.id
     LEFT JOIN brand_max bm ON bm.prompt_id = p.id
     LEFT JOIN source_max sm ON sm.prompt_id = p.id
     LEFT JOIN own_mention om ON om.prompt_id = p.id
     LEFT JOIN prompt_competitors pc ON pc.prompt_id = p.id
     WHERE p.subject_id = :subject_id
+      AND p.deleted = false
       AND (
           COALESCE(bm.brand_gap_rate, 0) > 0
           OR COALESCE(sm.source_gap_rate, 0) > 0
@@ -249,7 +258,7 @@ mention_rows AS (
             ELSE 2
         END AS mention_priority_rank
     FROM own_mention om
-    INNER JOIN tb_prompts p ON p.id = om.prompt_id AND p.subject_id = :subject_id
+    INNER JOIN tb_prompts p ON p.id = om.prompt_id AND p.subject_id = :subject_id AND p.deleted = false
 )
 SELECT
     (SELECT COUNT(*) FROM mention_rows) AS mention_prompt_count,
@@ -559,22 +568,23 @@ query_diagnosis_content_summary = _QueryDiagnosisContentSummary()
 _SCOPED_PROMPT_CTES = """
 scoped AS (
     SELECT
-        prompt_id,
-        platform,
-        response_id,
-        entity_id,
-        entity_kind,
-        entity_label,
-        mentioned,
-        mention_count,
-        mention_rank,
-        has_domain_link
-    FROM tb_llm_response_signals
-    WHERE subject_id = :subject_id
-      AND prompt_id = :prompt_id
-      AND created_at >= :dt_from
-      AND created_at <= :dt_to
-      AND entity_kind IN (:own_kind, :competitor_kind)
+        s.prompt_id,
+        s.platform,
+        s.response_id,
+        s.entity_id,
+        s.entity_kind,
+        s.entity_label,
+        s.mentioned,
+        s.mention_count,
+        s.mention_rank,
+        s.has_domain_link
+    FROM tb_llm_response_signals s
+    INNER JOIN tb_prompts p ON p.id = s.prompt_id AND p.deleted = false
+    WHERE s.subject_id = :subject_id
+      AND s.prompt_id = :prompt_id
+      AND s.created_at >= :dt_from
+      AND s.created_at <= :dt_to
+      AND s.entity_kind IN (:own_kind, :competitor_kind)
 ),
 response_flags AS (
     SELECT
@@ -834,12 +844,7 @@ ORDER BY er.contribution_rate DESC, er.entity_id ASC
 """
 
 _DIAGNOSIS_DETAIL_LINKED_ENTITIES_SQL = f"""
-WITH {_SCOPED_PROMPT_CTES},
-own_pool AS (
-    SELECT DISTINCT response_id
-    FROM scoped
-    WHERE entity_kind = :own_kind
-)
+WITH {_SCOPED_PROMPT_CTES}
 SELECT DISTINCT s.entity_id
 FROM scoped s
 INNER JOIN own_pool op ON op.response_id = s.response_id

@@ -508,6 +508,76 @@ def test_diagnosis_content_includes_mention_only_prompt():
     assert item["priority"] == "high"
     assert item["platforms"] == []
 
+
+def test_diagnosis_content_excludes_unsampled_and_deleted_prompts():
+    """Unsampled and soft-deleted prompts must not appear in diagnosis list or summary."""
+    from uuid import uuid4
+
+    from aperix_geo.db.models import Prompt
+
+    subject = _subject()
+    subject.competitors = []
+    sampled_prompt_id = uuid4()
+    unsampled_prompt_id = uuid4()
+    deleted_prompt_id = uuid4()
+    sampled_prompt = Prompt(
+        id=sampled_prompt_id,
+        subject_id=subject.id,
+        topic_id=uuid4(),
+        text="sampled prompt",
+    )
+    unsampled_prompt = Prompt(
+        id=unsampled_prompt_id,
+        subject_id=subject.id,
+        topic_id=uuid4(),
+        text="unsampled prompt",
+    )
+    deleted_prompt = Prompt(
+        id=deleted_prompt_id,
+        subject_id=subject.id,
+        topic_id=uuid4(),
+        text="deleted prompt",
+    )
+    deleted_prompt.deleted = True
+
+    class FakeDb:
+        def execute(self, stmt):
+            class R:
+                def scalars(self):
+                    class S:
+                        def all(self):
+                            sql = str(stmt)
+                            if "tb_prompts" in sql:
+                                return [sampled_prompt, unsampled_prompt, deleted_prompt]
+                            return []
+
+                    return S()
+
+            return R()
+
+        def get(self, _model, _id):
+            return subject
+
+    payload = parsed_payload(entity_signal(mentioned=False))
+    rows = [_row(payload)]
+    rows[0].prompt_id = sampled_prompt_id
+    signals = _signals_for_rows(rows, subject, [payload])
+
+    from datetime import UTC, datetime, timedelta
+
+    from aperix_geo.services.analysis import build_diagnosis_content, build_diagnosis_content_summary
+
+    dt_to = datetime.now(UTC)
+    dt_from = dt_to - timedelta(days=7)
+    with _patch_diagnosis_response_window(dt_from, dt_to):
+        with _patch_diagnosis_content_from_signals(signals):
+            list_out = build_diagnosis_content(FakeDb(), subject=subject)
+            summary_out = build_diagnosis_content_summary(FakeDb(), subject=subject)
+
+    assert list_out["total"] == 1
+    assert list_out["items"][0]["prompt_id"] == str(sampled_prompt_id)
+    assert summary_out["summary"]["mention"]["priority_counts"]["high"] == 1
+
     mention_counts = summary_out["summary"]["mention"]["priority_counts"]
     assert mention_counts["high"] == 1
     assert summary_out["summary"]["brand_gap"]["priority_counts"] == {"high": 0, "medium": 0, "low": 0}

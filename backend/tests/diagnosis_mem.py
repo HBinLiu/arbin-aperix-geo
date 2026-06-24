@@ -100,7 +100,7 @@ def _load_items(
     items: list[dict[str, Any]] = []
     for prompt_id, prompt_entity_signals in by_prompt.items():
         prompt = prompts.get(prompt_id)
-        if not prompt:
+        if not prompt or prompt.deleted:
             continue
 
         response_ids = {row.response_id for row in prompt_entity_signals}

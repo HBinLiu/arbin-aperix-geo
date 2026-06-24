@@ -15,10 +15,10 @@ def defer_sampling_persist(
     phase: str,
 ) -> dict:
     """Keep row state and schedule debounced continue when possible."""
+    from aperix_geo.services.sampling.workflow.dispatch import try_schedule_sampling_job_enqueue
     from aperix_geo.services.sampling.workflow.orchestrate import enqueue_sampling_continue
-    from aperix_geo.services.sampling.workflow.recovery import try_schedule_sampling_resume
 
     logger.warning("采样落库失败，保留 %s 阶段状态以待恢复 job=%s", phase, sampling_job_id)
-    if sampling_job_id is not None and try_schedule_sampling_resume(sampling_job_id):
+    if sampling_job_id is not None and try_schedule_sampling_job_enqueue(sampling_job_id):
         enqueue_sampling_continue(sampling_job_id)
     return {"ok": False, "error": error, "deferred": True, "phase": phase}

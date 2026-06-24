@@ -18,6 +18,7 @@ from aperix_geo.utils.domains import (
     normalize_host,
     registrable_domain,
     site_name_from_title,
+    title_alias_candidates,
     strip_hostname,
 )
 from aperix_geo.utils.text import headings_from_markdown, normalize_whitespace, prompt_text_hash, truncate_text
@@ -244,6 +245,30 @@ def test_site_name_from_title_chinese() -> None:
 def test_site_name_from_title_empty_falls_back_to_domain() -> None:
     assert site_name_from_title("", domain="wise.com") == "wise.com"
     assert site_name_from_title("", domain="business.wise.com") == "wise.com"
+
+
+def test_title_alias_candidates_from_chinese_title() -> None:
+    aliases = title_alias_candidates("万里汇 | 跨境支付平台", domain="wise.com", brand="Wise")
+    assert "万里汇" in aliases
+    assert "跨境支付平台" in aliases
+    assert "Wise" not in aliases
+
+
+def test_title_alias_candidates_space_separated_chinese() -> None:
+    aliases = title_alias_candidates("万里汇 跨境支付平台", domain="wise.com", brand="Wise")
+    assert "万里汇" in aliases
+    assert "跨境支付平台" in aliases
+
+
+def test_title_alias_candidates_space_separated_latin() -> None:
+    aliases = title_alias_candidates("NewCo Platform", domain="new.com", brand="new.com")
+    assert "NewCo" in aliases
+    assert "Platform" not in aliases
+
+
+def test_title_alias_candidates_skips_latin_descriptions() -> None:
+    aliases = title_alias_candidates("PayPal: Send Money", domain="paypal.com", brand="PayPal")
+    assert aliases == []
 
 
 def test_ensure_brand_uses_domain_fallback() -> None:

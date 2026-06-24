@@ -17,13 +17,17 @@ type FaviconImageProps = {
   size?: number;
   className?: string;
   iconClassName?: string;
+  /** 加载中是否显示转圈（筛选项等紧凑场景建议关闭，避免路由切换闪烁） */
+  showLoadingSpinner?: boolean;
 };
 
 type DisplayState = "loading" | "loaded" | "fallback";
 
 function resolveInitialState(url: string, candidates: string[]): DisplayState {
   if (!resolveFaviconInput(url) || candidates.length === 0) return "fallback";
-  if (getFaviconClientStatus(url) === "miss") return "fallback";
+  const status = getFaviconClientStatus(url);
+  if (status === "miss") return "fallback";
+  if (status === "ok") return "loaded";
   return "loading";
 }
 
@@ -82,6 +86,7 @@ export function FaviconImage({
   size = 20,
   className,
   iconClassName,
+  showLoadingSpinner = true,
 }: FaviconImageProps) {
   const cacheKey = React.useMemo(() => faviconCacheKey(url), [url]);
   const candidates = React.useMemo(() => faviconCandidateUrls(url), [url]);
@@ -134,7 +139,7 @@ export function FaviconImage({
 
   return (
     <IconShell size={size} className={className}>
-      {display === "loading" ? (
+      {display === "loading" && showLoadingSpinner ? (
         <FaviconSpinner size={size} iconClassName={iconClassName} />
       ) : null}
       <img

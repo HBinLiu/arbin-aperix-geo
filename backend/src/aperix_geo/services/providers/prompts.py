@@ -494,15 +494,27 @@ def citation_response_absa_user_content(
     *,
     raw_text: str,
     own_brand: str,
-    competitors: list[str],
+    own_brand_names: list[str] | None = None,
+    competitor_brand_names: list[str] | None = None,
+    competitors: list[str] | None = None,
 ) -> str:
-    comp_lines = "\n".join(f"  - {name}" for name in competitors if str(name).strip()) or "  - （无）"
-    closed_keys = [name for name in [own_brand, *competitors] if str(name).strip()]
+    """competitors: 闭集完整键（兼容旧参）；优先 own_brand_names + competitor_brand_names。"""
+    own_keys = list(own_brand_names or [])
+    if not own_keys and own_brand.strip():
+        own_keys = [own_brand.strip()]
+    comp_keys = list(competitor_brand_names or [])
+    if competitors and not own_brand_names and not competitor_brand_names:
+        closed_keys = list(dict.fromkeys([name for name in competitors if str(name).strip()]))
+    else:
+        closed_keys = list(dict.fromkeys([*own_keys, *comp_keys]))
+    own_lines = "\n".join(f"  - {name}" for name in own_keys if str(name).strip()) or "  - （无）"
+    comp_lines = "\n".join(f"  - {name}" for name in comp_keys if str(name).strip()) or "  - （无）"
     closed_text = "、".join(closed_keys) if closed_keys else own_brand
     header = (
         f"# 闭集名单（brands_sentiment_absa 的键必须且仅能是下列名称，顺序不限）\n"
-        f"- 本品牌：{own_brand}\n"
-        f"- 竞品列表：\n{comp_lines}\n"
+        f"- 本品牌（canonical）：{own_brand}\n"
+        f"- 本品牌闭集键（含别名/域名）：\n{own_lines}\n"
+        f"- 竞品闭集键：\n{comp_lines}\n"
         f"- 闭集完整键集合：[{closed_text}]\n\n"
     )
     open_set_block = (

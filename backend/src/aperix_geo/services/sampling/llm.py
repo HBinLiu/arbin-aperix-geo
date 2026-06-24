@@ -23,6 +23,11 @@ from aperix_geo.services.providers.yuanbao import yuanbao_chat
 logger = logging.getLogger(__name__)
 
 
+def _message_indicates_timeout(message: str) -> bool:
+    lower = message.lower()
+    return "timeout" in lower or "timed out" in lower
+
+
 class SamplingLLMError(Exception):
     """Any provider failure during sampling."""
 
@@ -51,7 +56,11 @@ def sampling_llm_error_from(exc: BaseException) -> SamplingLLMError:
         retryable = exc.retryable
         if status_code is None:
             status_code = parse_http_status_from_message(str(exc))
-    elif isinstance(exc, (TimeoutError, ConnectionError, OSError)):
+        if retryable is None and _message_indicates_timeout(str(exc)):
+            retryable = False
+    elif isinstance(exc, TimeoutError):
+        retryable = False
+    elif isinstance(exc, (ConnectionError, OSError)):
         retryable = True
     return SamplingLLMError(str(exc), status_code=status_code, retryable=retryable)
 

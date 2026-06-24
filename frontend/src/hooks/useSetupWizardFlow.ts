@@ -2,7 +2,6 @@ import * as React from "react";
 
 import { discoverSetup, finalizeSetup, generateSetupPrompts, generateSetupTopics } from "@/api/setup";
 import { hostnameFromWebsiteInput } from "@/lib/domain";
-import { setPendingJobId } from "@/lib/sampling";
 import {
   clearSetupCache,
   defaultSetupCache,
@@ -223,13 +222,12 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
   const runFinalize = async () => {
     setSubmitting(true);
     try {
-      const { subjectId, samplingJobId } = await finalizeSetup({
+      const { subjectId } = await finalizeSetup({
         sessionId,
         topicRows,
         promptRows,
       });
       clearSetupCache();
-      setPendingJobId(subjectId, samplingJobId);
       onCompleted(subjectId);
     } catch {
       /* API 拦截器已弹出 Toast */

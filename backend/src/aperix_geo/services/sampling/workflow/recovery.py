@@ -9,34 +9,9 @@ from aperix_geo.config import get_settings
 from aperix_geo.db.models import SamplingJob, SamplingJobStatus
 from aperix_geo.services.sampling.workflow.finalize import finalize_sampling_job_db
 from aperix_geo.services.sampling.workflow.queues import response_work_queues
-from aperix_geo.utils.cache.redis_kv import redis_set_nx_strict
 from aperix_geo.utils.datetime import ensure_utc
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-
-
-def pending_response_ids(db: Session, job_id: UUID) -> list[UUID]:
-    return list(response_work_queues(db, job_id).pending)
-
-
-def llm_ready_response_ids(db: Session, job_id: UUID) -> list[UUID]:
-    return list(response_work_queues(db, job_id).llm_ready)
-
-
-def crawl_ready_response_ids(db: Session, job_id: UUID) -> list[UUID]:
-    return list(response_work_queues(db, job_id).crawl_ready)
-
-
-def crawl_ready_response_id_strs(db: Session, job_id: UUID) -> list[str]:
-    return response_work_queues(db, job_id).crawl_ready_strs
-
-
-def llm_ready_response_id_strs(db: Session, job_id: UUID) -> list[str]:
-    return response_work_queues(db, job_id).llm_ready_strs
-
-
-def pending_response_id_strs(db: Session, job_id: UUID) -> list[str]:
-    return response_work_queues(db, job_id).pending_strs
 
 
 def sampling_job_activity_at(job: SamplingJob) -> datetime:
@@ -53,20 +28,7 @@ def is_sampling_job_stale(job: SamplingJob, *, now: datetime | None = None, stal
     return now - sampling_job_activity_at(job) >= timedelta(seconds=threshold)
 
 
-def _resume_debounce_key(job_id: UUID) -> str:
-    return f"aperix:sampling:resume:{job_id}"
-
-
-def try_schedule_sampling_resume(job_id: UUID) -> bool:
-    """Return True when a resume task was newly scheduled (Redis debounce)."""
-    settings = get_settings()
-    return redis_set_nx_strict(
-        _resume_debounce_key(job_id),
-        ttl_s=settings.sampling_resume_debounce_seconds,
-    )
-
-
-def reconcile_active_sampling_job(
+def recover_active_sampling_job(
     db: Session,
     job: SamplingJob,
     *,
@@ -85,16 +47,22 @@ def reconcile_active_sampling_job(
     if not force and not is_sampling_job_stale(job, now=now):
         return False
 
-    if not try_schedule_sampling_resume(job.id):
-        return False
-
+    from aperix_geo.services.sampling.workflow.dispatch import try_schedule_sampling_job_enqueue
     from aperix_geo.services.sampling.workflow.orchestrate import enqueue_sampling_continue
 
+    if not try_schedule_sampling_job_enqueue(job.id, force=force):
+        return False
+
+    if is_sampling_job_stale(job, now=now):
+        from aperix_geo.services.sampling.workflow.fill import reset_all_dispatch_markers, reset_all_inflight_slots
+
+        reset_all_inflight_slots(job.id)
+        reset_all_dispatch_markers(job.id)
     enqueue_sampling_continue(job.id)
     return True
 
 
-def reconcile_stale_sampling_jobs(db: Session, *, force: bool = False) -> int:
+def recover_stale_sampling_jobs(db: Session, *, force: bool = False) -> int:
     """Scan all active jobs and attempt recovery. Returns count of jobs touched."""
     jobs = list(
         db.execute(
@@ -103,6 +71,6 @@ def reconcile_stale_sampling_jobs(db: Session, *, force: bool = False) -> int:
     )
     touched = 0
     for job in jobs:
-        if reconcile_active_sampling_job(db, job, force=force):
+        if recover_active_sampling_job(db, job, force=force):
             touched += 1
     return touched

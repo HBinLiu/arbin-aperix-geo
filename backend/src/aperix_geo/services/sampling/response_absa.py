@@ -65,9 +65,10 @@ def normalize_response_absa(
 ) -> dict[str, Any]:
     brands_raw = data.get("brands_sentiment_absa") if isinstance(data.get("brands_sentiment_absa"), dict) else {}
     brands: dict[str, dict[str, Any]] = {}
-    for name in [own_brand, *competitors]:
-        if not name:
-            continue
+    closed_names = list(dict.fromkeys([name for name in competitors if str(name).strip()]))
+    if own_brand.strip() and own_brand not in closed_names:
+        closed_names.insert(0, own_brand.strip())
+    for name in closed_names:
         brands[name] = _brand_entry(brands_raw.get(name))
 
     if excluded_keys is None:
@@ -106,26 +107,37 @@ def analyze_response_absa(
     *,
     own_brand: str,
     competitors: list[str],
+    own_brand_names: list[str] | None = None,
+    competitor_brand_names: list[str] | None = None,
     excluded_keys: set[str] | None = None,
     cache_ttl_s: int = 0,
 ) -> dict[str, Any]:
-    """ABSA on the sampling LLM response text (once per LLM response)."""
+    """ABSA on the sampling LLM response text (once per LLM response).
+
+    competitors: 闭集完整键列表（own 别名 + 竞品键）。也可仅传 competitors，与旧调用兼容。
+    """
     if not own_brand.strip():
         return _empty_response_absa(reason="missing own brand")
     if not raw_text.strip():
         return _empty_response_absa(reason="empty ai response")
 
+    closed_brand_names = list(competitors)
+    if own_brand_names or competitor_brand_names:
+        closed_brand_names = list(
+            dict.fromkeys([*(own_brand_names or []), *(competitor_brand_names or [])])
+        )
+
     if excluded_keys is None:
         excluded_keys = configured_brand_keys(
             own_brand=own_brand,
-            competitor_brand_names=competitors,
+            competitor_brand_names=closed_brand_names,
         )
 
     def _read_cache() -> dict[str, Any] | None:
         return get_response_absa_cached(
             raw_text=raw_text,
             own_brand=own_brand,
-            competitors=competitors,
+            competitors=closed_brand_names,
             excluded_keys=excluded_keys,
             ttl_s=cache_ttl_s,
         )
@@ -142,7 +154,9 @@ def analyze_response_absa(
                 "content": citation_response_absa_user_content(
                     raw_text=raw_text,
                     own_brand=own_brand,
-                    competitors=competitors,
+                    own_brand_names=own_brand_names,
+                    competitor_brand_names=competitor_brand_names,
+                    competitors=closed_brand_names,
                 ),
             },
         ]
@@ -154,13 +168,13 @@ def analyze_response_absa(
             result = normalize_response_absa(
                 data,
                 own_brand=own_brand,
-                competitors=competitors,
+                competitors=closed_brand_names,
                 excluded_keys=excluded_keys,
             )
             set_response_absa_cached(
                 raw_text=raw_text,
                 own_brand=own_brand,
-                competitors=competitors,
+                competitors=closed_brand_names,
                 excluded_keys=excluded_keys,
                 result=result,
                 ttl_s=cache_ttl_s,
@@ -176,7 +190,7 @@ def analyze_response_absa(
     digest = response_absa_cache_digest(
         raw_text=raw_text,
         own_brand=own_brand,
-        competitors=competitors,
+        competitors=closed_brand_names,
         excluded_keys=excluded_keys,
     )
     try:

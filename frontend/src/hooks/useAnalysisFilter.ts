@@ -4,31 +4,36 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchAnalysisEntities } from "@/api/analysis";
 import { fetchSamplingPlatforms, fetchSubjectTopics } from "@/api/brand";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
+import { useAnalysisCatalogEnabled } from "@/hooks/useAnalysisCatalogEnabled";
 import {
   effectiveSamplingPlatforms,
 } from "@/lib/brand";
 import { queryKeys, sessionCatalogQueryOptions } from "@/lib/queries";
 
 /** 分析页筛选项：实体目录、主题列表、主体已选平台。 */
-export function useAnalysisFilter() {
+export function useAnalysisFilter(options?: { enabled?: boolean }) {
   const { subject } = useDashboardContext();
+  const catalogEnabled = useAnalysisCatalogEnabled(options?.enabled);
 
   const entitiesQuery = useQuery({
     queryKey: queryKeys.analysisEntities(subject.id),
     queryFn: () => fetchAnalysisEntities(subject.id),
     ...sessionCatalogQueryOptions,
+    enabled: catalogEnabled,
   });
 
   const topicsQuery = useQuery({
     queryKey: queryKeys.subjectTopics(subject.id),
     queryFn: () => fetchSubjectTopics(subject.id),
     ...sessionCatalogQueryOptions,
+    enabled: catalogEnabled,
   });
 
   const platformsQuery = useQuery({
     queryKey: queryKeys.samplingPlatforms,
     queryFn: fetchSamplingPlatforms,
     ...sessionCatalogQueryOptions,
+    enabled: catalogEnabled,
   });
 
   const platforms = useMemo(

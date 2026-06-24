@@ -91,6 +91,7 @@ def doubao_responses_chat(
         api_key=api_key.strip(),
         base_url=base_url.strip(),
         timeout=timeout_s,
+        max_retries=0,
     )
     kwargs: dict[str, Any] = {
         "model": model.strip(),
@@ -110,7 +111,7 @@ def doubao_responses_chat(
         raise_provider_error(
             DoubaoProviderError,
             f"Doubao timeout: {exc}",
-            retryable=True,
+            retryable=False,
             cause=exc,
         )
     except APIError as exc:

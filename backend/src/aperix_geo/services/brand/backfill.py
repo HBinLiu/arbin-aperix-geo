@@ -16,6 +16,7 @@ from aperix_geo.services.brand.resolve import (
     primary_domain_for_brand,
     resolve_or_create_brand,
 )
+from aperix_geo.services.competitor.enrich import enrich_open_set_brand_aliases
 from aperix_geo.utils.net import brand_from, is_brand_domain
 
 
@@ -83,6 +84,7 @@ def backfill_brand_domain_for_response(db: Session, response_id: UUID) -> int:
     sync_ctx = BrandSyncContext.load(db, subject_id=subject.id)
 
     updated = 0
+    enriched_aliases: dict[tuple[str, str], list[str]] = {}
     for signal in signals:
         if not _signal_needs_domain_backfill(db, signal):
             continue
@@ -111,6 +113,16 @@ def backfill_brand_domain_for_response(db: Session, response_id: UUID) -> int:
         if not domain:
             continue
 
+        alias_key = (brand_name.casefold(), brand_from(domain) or domain)
+        if alias_key not in enriched_aliases:
+            existing_aliases = list(linked.aliases or []) if linked is not None else []
+            enriched_aliases[alias_key] = enrich_open_set_brand_aliases(
+                brand=brand_name,
+                domain=domain,
+                website_url=(linked.website_url or "").strip() if linked is not None else "",
+                existing=existing_aliases,
+            )
+
         brand_row = resolve_or_create_brand(
             db,
             subject_id=subject.id,
@@ -120,6 +132,7 @@ def backfill_brand_domain_for_response(db: Session, response_id: UUID) -> int:
             source=BrandSource.sampling_open_set,
             catalog=sync_ctx.catalog,
             open_set_brand=True,
+            aliases=enriched_aliases[alias_key],
         )
         signal.brand_id = brand_row.id
         signal.primary_domain = primary_domain_for_brand(brand_row)

@@ -8,8 +8,33 @@ from functools import lru_cache
 from publicsuffix2 import PublicSuffixList
 from validators import domain as validators_domain
 
-_TITLE_SEP_RE = re.compile(r"[|｜\-—_/·]+")
+_TITLE_SEP_RE = re.compile(r"[\s|｜\-—_/·]+")
 _CJK_RE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]")
+_TITLE_ALIAS_SEP_RE = re.compile(r"[\s|｜\-—_/·+:：]+")
+_LATIN_ALIAS_BLOCKLIST = frozenset(
+    {
+        "send",
+        "money",
+        "home",
+        "online",
+        "payment",
+        "payments",
+        "global",
+        "official",
+        "welcome",
+        "website",
+        "app",
+        "platform",
+        "service",
+        "services",
+        "solutions",
+        "company",
+        "group",
+        "inc",
+        "ltd",
+        "corp",
+    }
+)
 _TITLE_NOISE = (
     "官网",
     "官方网站",
@@ -133,6 +158,65 @@ def ensure_brand(brand: str | None, *, domain: str | None = None) -> str:
     if dom:
         return brand_fallback(dom)[:255]
     return ""
+
+
+def _latin_title_token_as_alias(token: str) -> bool:
+    text = token.strip()
+    if len(text) < 3 or len(text) > 40:
+        return False
+    if text.casefold() in _LATIN_ALIAS_BLOCKLIST:
+        return False
+    if any(c.isupper() for c in text[1:]):
+        return True
+    if text[0].isupper() and not text.isupper():
+        return len(text) >= 6
+    return False
+
+
+def _clean_title_part(raw: str) -> str:
+    text = (raw or "").strip()
+    for noise in _TITLE_NOISE:
+        text = text.replace(noise, "").strip()
+    return text.strip(":：;；,.，。").strip()
+
+
+def title_alias_candidates(title: str, *, domain: str, brand: str) -> list[str]:
+    """从页面 title 提取可作竞品别名的候选（不含 canonical brand）。"""
+    brand_key = brand.casefold()
+    seen: set[str] = {brand_key}
+    out: list[str] = []
+
+    def add(candidate: str) -> None:
+        text = _clean_title_part(candidate)[:120]
+        if len(text) < 2:
+            return
+        key = text.casefold()
+        if key in seen:
+            return
+        seen.add(key)
+        out.append(text)
+
+    site = site_name_from_title(title, domain=domain)
+    if site and site.casefold() != brand_key:
+        if _CJK_RE.search(site):
+            add(site)
+        elif _latin_title_token_as_alias(site):
+            add(site)
+
+    for part in _TITLE_ALIAS_SEP_RE.split((title or "").strip()):
+        part = _clean_title_part(part)
+        if not part:
+            continue
+        if part.casefold() == brand_key:
+            continue
+        if _CJK_RE.search(part):
+            if len(part) <= 60:
+                add(part)
+            continue
+        if _latin_title_token_as_alias(part):
+            add(part)
+
+    return out
 
 
 def site_name_from_title(title: str, *, domain: str) -> str:

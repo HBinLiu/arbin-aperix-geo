@@ -1,4 +1,4 @@
-"""Reconcile sampling job counters and terminal status from LLMResponse rows."""
+"""Sampling job finalize: debounced Celery enqueue and DB terminal state."""
 
 from __future__ import annotations
 
@@ -8,8 +8,25 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from aperix_geo.config import get_settings
 from aperix_geo.db.models import LLMResponse, LLMResponseStatus, SamplingJob, SamplingJobStatus
 from aperix_geo.services.sampling.workflow.schedule import commit_schedule_anchor_if_due
+from aperix_geo.utils.cache.redis_kv import redis_set_nx_strict
+
+SAMPLING_FINALIZE = "aperix_geo.tasks.sampling.sampling_finalize"
+
+
+def schedule_job_finalize(job_id: UUID) -> None:
+    """Enqueue finalize_sampling_job_db after a short Redis debounce window."""
+    settings = get_settings()
+    if not redis_set_nx_strict(
+        f"aperix:sampling:finalize:{job_id}",
+        ttl_s=settings.sampling_finalize_debounce_seconds,
+    ):
+        return
+    from aperix_geo.celery_app import celery_app
+
+    celery_app.send_task(SAMPLING_FINALIZE, args=[str(job_id)])
 
 
 def _response_status_counts(db: Session, job_id: UUID) -> dict[LLMResponseStatus, int]:
@@ -39,10 +56,9 @@ def finalize_sampling_job_db(db: Session, job_id: UUID) -> SamplingJob | None:
     job.failed_items = fail
 
     if pending or llm_ready or crawl_ready:
-        # Another chord may still be processing; keep job active.
+        # In-flight responses may still be processing; keep job active.
         job.status = SamplingJobStatus.running
         job.error_message = ""
-        job.finished_at = None
     elif fail == 0:
         job.status = SamplingJobStatus.succeed
         job.error_message = ""

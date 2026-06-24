@@ -22,6 +22,7 @@ export function useDashboardOverview(
   subjectId: string,
   filters: AnalysisFilters,
   entities: AnalysisEntityRef[],
+  options?: { enabled?: boolean },
 ) {
   const queryFilters = useMemo(() => toAnalysisQueryFilters(filters), [filters]);
   const { from, to, entityId, platformIds, topicIds } = queryFilters;
@@ -31,6 +32,7 @@ export function useDashboardOverview(
   const query = useQuery({
     queryKey: queryKeys.dashboardOverview(subjectId, entityId, platformKey, topicKey, from, to),
     queryFn: () => fetchOverview(subjectId, queryFilters),
+    enabled: options?.enabled ?? true,
   });
 
   const data = query.data;

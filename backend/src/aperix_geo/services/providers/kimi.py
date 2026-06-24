@@ -15,7 +15,7 @@ def kimi_chat(
     model: str,
     web_search: bool = True,
     searxng_max_results: int = 8,
-    timeout_s: float = 120.0,
+    timeout_s: float = 180.0,
     temperature: float = 1.0,
 ) -> SamplingChatResult:
     return augmented_chat(
