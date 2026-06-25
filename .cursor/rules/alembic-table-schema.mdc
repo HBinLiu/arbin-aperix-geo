@@ -1,0 +1,33 @@
+---
+description: Alembic 建表必须包含 deleted、created_at、updated_at 三列
+alwaysApply: false
+---
+# 数据库表标准列
+
+新建表（Alembic migration + ORM model）必须包含以下三列，且均为 `nullable=False`：
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| `created_at` | `DateTime(timezone=True)` | `server_default=now()` |
+| `updated_at` | `DateTime(timezone=True)` | `server_default=now()`，ORM 加 `onupdate=utc_now` |
+| `deleted` | `Boolean` | `server_default=false`；继承自 `Base`，migration 中仍需显式声明 |
+
+## Migration 示例
+
+```python
+sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+sa.Column("deleted", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+```
+
+## ORM 示例
+
+```python
+created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
+updated_at: Mapped[datetime] = mapped_column(
+    DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
+)
+# deleted 由 Base 提供，无需重复定义
+```
+
+若表已存在但缺列，用独立 migration 补列（检查列是否存在后再 `add_column`）。

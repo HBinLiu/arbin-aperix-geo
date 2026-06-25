@@ -8,7 +8,6 @@ import type {
   AnalysisFilters,
   CitationDomainAnalysisData,
   CitationDomainDetailTab,
-  SamplingPlatform,
 } from "@/types";
 
 type CitationDomainDetailSectionProps = {
@@ -18,7 +17,6 @@ type CitationDomainDetailSectionProps = {
   data: CitationDomainAnalysisData | undefined;
   ownLabel: string;
   ownBrand?: string | null;
-  platformsMeta?: SamplingPlatform[];
   loading?: boolean;
 };
 
@@ -29,7 +27,6 @@ export function CitationDomainDetailSection({
   data,
   ownLabel,
   ownBrand,
-  platformsMeta = [],
   loading = false,
 }: CitationDomainDetailSectionProps) {
   const [activeTab, setActiveTab] = useState<CitationDomainDetailTab>("pages");
@@ -56,7 +53,6 @@ export function CitationDomainDetailSection({
           domain={domain}
           ownLabel={ownLabel}
           ownBrand={ownBrand}
-          platformsMeta={platformsMeta}
         />
       ) : activeTab === "prompt" ? (
         <CitationDomainBreakdownTable
@@ -77,7 +73,6 @@ export function CitationDomainDetailSection({
           rows={data?.platforms ?? []}
           nameHeader="平台"
           variant="platform"
-          platformsMeta={platformsMeta}
           loading={loading}
         />
       )}

@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, select, text
 from sqlalchemy.orm import Session
 
-from aperix_geo.db.models import EntityKind, Prompt, Subject
-from aperix_geo.services.analysis.diagnosis import _lookup_entity_citation_urls
+from aperix_geo.db.models import CitationUrl, EntityKind, Prompt, Subject
 from aperix_geo.services.analysis.diagnosis_rules import (
     diagnosis_issue_type,
     gap_action_priority,
@@ -20,6 +18,35 @@ from aperix_geo.services.analysis.diagnosis_rules import (
     overall_diagnosis_status,
 )
 from aperix_geo.services.analysis.entity import competitor_entities, list_analysis_entities
+from aperix_geo.utils.net import host_from, host_under_root
+
+
+def _scoped_extra_filters(
+    platform: list[str] | None,
+    topic_id: list[UUID] | None,
+) -> str:
+    clauses: list[str] = []
+    if platform:
+        clauses.append(" AND s.platform IN :platform")
+    if topic_id:
+        clauses.append(" AND p.topic_id IN :topic_id")
+    return "".join(clauses)
+
+
+def _diagnosis_text(
+    sql: str,
+    *,
+    platform: list[str] | None,
+    topic_id: list[UUID] | None,
+):
+    """Bind list filters with expanding IN (...) for psycopg."""
+    stmt = text(sql)
+    if platform:
+        stmt = stmt.bindparams(bindparam("platform", expanding=True))
+    if topic_id:
+        stmt = stmt.bindparams(bindparam("topic_id", expanding=True))
+    return stmt
+
 
 _SCOPED_CTES = """
 scoped AS (
@@ -39,7 +66,7 @@ scoped AS (
     WHERE s.subject_id = :subject_id
       AND s.created_at >= :dt_from
       AND s.created_at <= :dt_to
-      AND s.entity_kind IN (:own_kind, :competitor_kind)
+      AND s.entity_kind IN (:own_kind, :competitor_kind){scoped_filters}
 ),
 response_flags AS (
     SELECT
@@ -228,9 +255,9 @@ with_overall AS (
 )
 """
 
-_DIAGNOSIS_CONTENT_PAGE_SQL = f"""
-WITH {_SCOPED_CTES},
-{_GAP_ITEM_CTES},
+_DIAGNOSIS_CONTENT_PAGE_SQL = """
+WITH {scoped_ctes},
+{_gap_item_ctes},
 numbered AS (
     SELECT
         with_overall.*,
@@ -239,13 +266,13 @@ numbered AS (
 )
 SELECT *
 FROM numbered
-ORDER BY {{order_clause}}
+ORDER BY {order_clause}
 LIMIT :limit OFFSET :offset
 """
 
-_DIAGNOSIS_CONTENT_SUMMARY_SQL = f"""
-WITH {_SCOPED_CTES},
-{_GAP_ITEM_CTES},
+_DIAGNOSIS_CONTENT_SUMMARY_SQL = """
+WITH {scoped_ctes},
+{_gap_item_ctes},
 mention_rows AS (
     SELECT
         om.prompt_id,
@@ -346,8 +373,15 @@ _SORT_COLUMNS = {
 _EMPTY_PRIORITY_COUNTS = {"high": 0, "medium": 0, "low": 0}
 
 
-def _sql_bind_params(*, subject: Subject, dt_from: datetime, dt_to: datetime) -> dict[str, Any]:
-    return {
+def _sql_bind_params(
+    *,
+    subject: Subject,
+    dt_from: datetime,
+    dt_to: datetime,
+    platform: list[str] | None = None,
+    topic_id: list[UUID] | None = None,
+) -> dict[str, Any]:
+    params: dict[str, Any] = {
         "subject_id": subject.id,
         "dt_from": dt_from,
         "dt_to": dt_to,
@@ -355,6 +389,43 @@ def _sql_bind_params(*, subject: Subject, dt_from: datetime, dt_to: datetime) ->
         "competitor_kind": EntityKind.competitor.value,
         "competitor_entity_ids": [entity.id for entity in competitor_entities(subject)],
     }
+    if platform:
+        params["platform"] = platform
+    if topic_id:
+        params["topic_id"] = topic_id
+    return params
+
+
+def _scoped_ctes_sql(
+    *,
+    platform: list[str] | None,
+    topic_id: list[UUID] | None,
+) -> str:
+    return _SCOPED_CTES.format(scoped_filters=_scoped_extra_filters(platform, topic_id))
+
+
+def _content_page_sql(
+    *,
+    platform: list[str] | None,
+    topic_id: list[UUID] | None,
+    order_clause: str,
+) -> str:
+    return _DIAGNOSIS_CONTENT_PAGE_SQL.format(
+        scoped_ctes=_scoped_ctes_sql(platform=platform, topic_id=topic_id),
+        _gap_item_ctes=_GAP_ITEM_CTES,
+        order_clause=order_clause,
+    )
+
+
+def _content_summary_sql(
+    *,
+    platform: list[str] | None,
+    topic_id: list[UUID] | None,
+) -> str:
+    return _DIAGNOSIS_CONTENT_SUMMARY_SQL.format(
+        scoped_ctes=_scoped_ctes_sql(platform=platform, topic_id=topic_id),
+        _gap_item_ctes=_GAP_ITEM_CTES,
+    )
 
 
 def _order_clause(*, sort_by: str | None, order: str) -> str:
@@ -455,6 +526,8 @@ def _query_diagnosis_content_page(
     subject: Subject,
     dt_from: datetime,
     dt_to: datetime,
+    platform: list[str] | None,
+    topic_id: list[UUID] | None,
     sort_by: str | None,
     order: str,
     page: int,
@@ -463,9 +536,23 @@ def _query_diagnosis_content_page(
     safe_page = max(1, page)
     safe_page_size = max(1, page_size)
     offset = (safe_page - 1) * safe_page_size
-    sql = text(_DIAGNOSIS_CONTENT_PAGE_SQL.format(order_clause=_order_clause(sort_by=sort_by, order=order)))
+    sql = _diagnosis_text(
+        _content_page_sql(
+            platform=platform,
+            topic_id=topic_id,
+            order_clause=_order_clause(sort_by=sort_by, order=order),
+        ),
+        platform=platform,
+        topic_id=topic_id,
+    )
     params = {
-        **_sql_bind_params(subject=subject, dt_from=dt_from, dt_to=dt_to),
+        **_sql_bind_params(
+            subject=subject,
+            dt_from=dt_from,
+            dt_to=dt_to,
+            platform=platform,
+            topic_id=topic_id,
+        ),
         "limit": safe_page_size,
         "offset": offset,
     }
@@ -485,84 +572,28 @@ def _query_diagnosis_content_summary(
     subject: Subject,
     dt_from: datetime,
     dt_to: datetime,
+    platform: list[str] | None,
+    topic_id: list[UUID] | None,
 ) -> dict[str, Any]:
     row = db.execute(
-        text(_DIAGNOSIS_CONTENT_SUMMARY_SQL),
-        _sql_bind_params(subject=subject, dt_from=dt_from, dt_to=dt_to),
+        _diagnosis_text(
+            _content_summary_sql(platform=platform, topic_id=topic_id),
+            platform=platform,
+            topic_id=topic_id,
+        ),
+        _sql_bind_params(
+            subject=subject,
+            dt_from=dt_from,
+            dt_to=dt_to,
+            platform=platform,
+            topic_id=topic_id,
+        ),
     ).one()
     return _summary_from_row(row)
 
 
-class _QueryDiagnosisContentPage:
-    """Patchable DB page query (tests may assign `.override`)."""
-
-    override: Callable[..., tuple[list[dict[str, Any]], int]] | None = None
-
-    def __call__(
-        self,
-        db: Session,
-        *,
-        subject: Subject,
-        dt_from: datetime,
-        dt_to: datetime,
-        sort_by: str | None,
-        order: str,
-        page: int,
-        page_size: int,
-    ) -> tuple[list[dict[str, Any]], int]:
-        if self.override is not None:
-            return self.override(
-                db,
-                subject=subject,
-                dt_from=dt_from,
-                dt_to=dt_to,
-                sort_by=sort_by,
-                order=order,
-                page=page,
-                page_size=page_size,
-            )
-        return _query_diagnosis_content_page(
-            db,
-            subject=subject,
-            dt_from=dt_from,
-            dt_to=dt_to,
-            sort_by=sort_by,
-            order=order,
-            page=page,
-            page_size=page_size,
-        )
-
-
-class _QueryDiagnosisContentSummary:
-    """Patchable DB summary query (tests may assign `.override`)."""
-
-    override: Callable[..., dict[str, Any]] | None = None
-
-    def __call__(
-        self,
-        db: Session,
-        *,
-        subject: Subject,
-        dt_from: datetime,
-        dt_to: datetime,
-    ) -> dict[str, Any]:
-        if self.override is not None:
-            return self.override(
-                db,
-                subject=subject,
-                dt_from=dt_from,
-                dt_to=dt_to,
-            )
-        return _query_diagnosis_content_summary(
-            db,
-            subject=subject,
-            dt_from=dt_from,
-            dt_to=dt_to,
-        )
-
-
-query_diagnosis_content_page = _QueryDiagnosisContentPage()
-query_diagnosis_content_summary = _QueryDiagnosisContentSummary()
+query_diagnosis_content_page = _query_diagnosis_content_page
+query_diagnosis_content_summary = _query_diagnosis_content_summary
 
 
 _SCOPED_PROMPT_CTES = """
@@ -584,7 +615,7 @@ scoped AS (
       AND s.prompt_id = :prompt_id
       AND s.created_at >= :dt_from
       AND s.created_at <= :dt_to
-      AND s.entity_kind IN (:own_kind, :competitor_kind)
+      AND s.entity_kind IN (:own_kind, :competitor_kind){scoped_filters}
 ),
 response_flags AS (
     SELECT
@@ -695,10 +726,19 @@ aggregates AS (
 )
 """
 
-_DIAGNOSIS_DETAIL_SUMMARY_SQL = f"WITH {_SCOPED_PROMPT_CTES} SELECT * FROM aggregates"
+def _scoped_prompt_ctes_sql(
+    *,
+    platform: list[str] | None,
+    topic_id: list[UUID] | None,
+) -> str:
+    return _SCOPED_PROMPT_CTES.format(scoped_filters=_scoped_extra_filters(platform, topic_id))
 
-_DIAGNOSIS_DETAIL_BRAND_BREAKDOWN_SQL = f"""
-WITH {_SCOPED_PROMPT_CTES},
+
+def _detail_summary_sql(*, platform: list[str] | None, topic_id: list[UUID] | None) -> str:
+    return f"WITH {_scoped_prompt_ctes_sql(platform=platform, topic_id=topic_id)} SELECT * FROM aggregates"
+
+
+_DIAGNOSIS_DETAIL_BRAND_BREAKDOWN_BODY = """
 brand_gap_platforms AS (
     SELECT platform
     FROM platform_gap
@@ -772,8 +812,7 @@ ORDER BY
     er.entity_id ASC
 """
 
-_DIAGNOSIS_DETAIL_SOURCE_BREAKDOWN_SQL = f"""
-WITH {_SCOPED_PROMPT_CTES},
+_DIAGNOSIS_DETAIL_SOURCE_BREAKDOWN_BODY = """
 source_gap_platforms AS (
     SELECT platform
     FROM platform_gap
@@ -843,13 +882,27 @@ GROUP BY er.entity_id, er.contribution_rate
 ORDER BY er.contribution_rate DESC, er.entity_id ASC
 """
 
-_DIAGNOSIS_DETAIL_LINKED_ENTITIES_SQL = f"""
-WITH {_SCOPED_PROMPT_CTES}
+_DIAGNOSIS_DETAIL_LINKED_ENTITIES_BODY = """
 SELECT DISTINCT s.entity_id
 FROM scoped s
 INNER JOIN own_pool op ON op.response_id = s.response_id
 WHERE s.entity_kind = :competitor_kind AND s.has_domain_link
 """
+
+
+def _detail_brand_breakdown_sql(*, platform: list[str] | None, topic_id: list[UUID] | None) -> str:
+    scoped = _scoped_prompt_ctes_sql(platform=platform, topic_id=topic_id)
+    return f"WITH {scoped},\n{_DIAGNOSIS_DETAIL_BRAND_BREAKDOWN_BODY}"
+
+
+def _detail_source_breakdown_sql(*, platform: list[str] | None, topic_id: list[UUID] | None) -> str:
+    scoped = _scoped_prompt_ctes_sql(platform=platform, topic_id=topic_id)
+    return f"WITH {scoped},\n{_DIAGNOSIS_DETAIL_SOURCE_BREAKDOWN_BODY}"
+
+
+def _detail_linked_entities_sql(*, platform: list[str] | None, topic_id: list[UUID] | None) -> str:
+    scoped = _scoped_prompt_ctes_sql(platform=platform, topic_id=topic_id)
+    return f"WITH {scoped}\n{_DIAGNOSIS_DETAIL_LINKED_ENTITIES_BODY}"
 
 
 def _detail_bind_params(
@@ -858,8 +911,10 @@ def _detail_bind_params(
     prompt_id: UUID,
     dt_from: datetime,
     dt_to: datetime,
+    platform: list[str] | None = None,
+    topic_id: list[UUID] | None = None,
 ) -> dict[str, Any]:
-    return {
+    params: dict[str, Any] = {
         "subject_id": subject.id,
         "prompt_id": prompt_id,
         "dt_from": dt_from,
@@ -867,6 +922,11 @@ def _detail_bind_params(
         "own_kind": EntityKind.own.value,
         "competitor_kind": EntityKind.competitor.value,
     }
+    if platform:
+        params["platform"] = platform
+    if topic_id:
+        params["topic_id"] = topic_id
+    return params
 
 
 def _entity_catalog(subject: Subject) -> dict[str, Any]:
@@ -891,6 +951,36 @@ def _competitor_source_domain_count(
         if key:
             seen.add(key)
     return len(seen)
+
+
+def _lookup_entity_citation_urls(
+    db: Session,
+    *,
+    response_ids: set[UUID],
+    domain: str | None,
+    label: str,
+) -> list[str]:
+    if not response_ids:
+        return []
+    root = (domain or label or "").strip().lower()
+    if not root:
+        return []
+    rows = db.execute(
+        select(CitationUrl.url)
+        .where(CitationUrl.response_id.in_(response_ids))
+        .order_by(CitationUrl.url.asc())
+    ).scalars().all()
+    seen: set[str] = set()
+    urls: list[str] = []
+    for url in rows:
+        text_value = str(url or "").strip()
+        if not text_value or text_value in seen:
+            continue
+        host = host_from(text_value)
+        if host and host_under_root(host, root):
+            seen.add(text_value)
+            urls.append(text_value)
+    return urls
 
 
 def _brand_breakdown_rows(
@@ -958,29 +1048,61 @@ def _query_diagnosis_content_detail(
     prompt: Prompt,
     dt_from: datetime,
     dt_to: datetime,
+    platform: list[str] | None,
+    topic_id: list[UUID] | None,
 ) -> dict[str, Any]:
     params = _detail_bind_params(
         subject=subject,
         prompt_id=prompt.id,
         dt_from=dt_from,
         dt_to=dt_to,
+        platform=platform,
+        topic_id=topic_id,
     )
-    summary = db.execute(text(_DIAGNOSIS_DETAIL_SUMMARY_SQL), params).one()
+    summary = db.execute(
+        _diagnosis_text(
+            _detail_summary_sql(platform=platform, topic_id=topic_id),
+            platform=platform,
+            topic_id=topic_id,
+        ),
+        params,
+    ).one()
     brand_gap_rate = float(summary.brand_gap_rate or 0)
     source_gap_rate = float(summary.source_gap_rate or 0)
 
     brand_rows = _brand_breakdown_rows(
-        db.execute(text(_DIAGNOSIS_DETAIL_BRAND_BREAKDOWN_SQL), params).all(),
+        db.execute(
+            _diagnosis_text(
+                _detail_brand_breakdown_sql(platform=platform, topic_id=topic_id),
+                platform=platform,
+                topic_id=topic_id,
+            ),
+            params,
+        ).all(),
         subject=subject,
     )
     source_rows = _source_breakdown_rows(
         db,
-        db.execute(text(_DIAGNOSIS_DETAIL_SOURCE_BREAKDOWN_SQL), params).all(),
+        db.execute(
+            _diagnosis_text(
+                _detail_source_breakdown_sql(platform=platform, topic_id=topic_id),
+                platform=platform,
+                topic_id=topic_id,
+            ),
+            params,
+        ).all(),
         subject=subject,
     )
     linked_entity_ids = [
         str(row.entity_id)
-        for row in db.execute(text(_DIAGNOSIS_DETAIL_LINKED_ENTITIES_SQL), params).all()
+        for row in db.execute(
+            _diagnosis_text(
+                _detail_linked_entities_sql(platform=platform, topic_id=topic_id),
+                platform=platform,
+                topic_id=topic_id,
+            ),
+            params,
+        ).all()
     ]
 
     return {
@@ -1010,35 +1132,4 @@ def _query_diagnosis_content_detail(
     }
 
 
-class _QueryDiagnosisContentDetail:
-    """Patchable DB detail query (tests may assign `.override`)."""
-
-    override: Callable[..., dict[str, Any]] | None = None
-
-    def __call__(
-        self,
-        db: Session,
-        *,
-        subject: Subject,
-        prompt: Prompt,
-        dt_from: datetime,
-        dt_to: datetime,
-    ) -> dict[str, Any]:
-        if self.override is not None:
-            return self.override(
-                db,
-                subject=subject,
-                prompt=prompt,
-                dt_from=dt_from,
-                dt_to=dt_to,
-            )
-        return _query_diagnosis_content_detail(
-            db,
-            subject=subject,
-            prompt=prompt,
-            dt_from=dt_from,
-            dt_to=dt_to,
-        )
-
-
-query_diagnosis_content_detail = _QueryDiagnosisContentDetail()
+query_diagnosis_content_detail = _query_diagnosis_content_detail

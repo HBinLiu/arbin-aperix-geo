@@ -4,7 +4,6 @@ import { AnalysisFilterBar } from "@/components/analysis/common/AnalysisFilterBa
 import { CitationDomainDetailSection } from "@/components/analysis/citation/CitationDomainDetailSection";
 import { CitationDomainSection } from "@/components/analysis/citation/CitationDomainSection";
 import { useAnalysisOutletContext } from "@/hooks/useAnalysisContext";
-import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
 import { useAnalysisFiltersState } from "@/hooks/useAnalysisFiltersState";
 import { useCitationDomainAnalysis } from "@/hooks/useCitationDomainAnalysis";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
@@ -27,7 +26,6 @@ export function CitationDomainPage() {
   const { filters, setFilters } = useAnalysisFiltersState();
 
   const { isLoading, data } = useCitationDomainAnalysis(subjectId, domain, filters);
-  const { platforms: platformsMeta } = useAnalysisFilter();
   const ownLabel = subject.brand;
 
   return (
@@ -44,7 +42,6 @@ export function CitationDomainPage() {
           data={data}
           ownLabel={ownLabel}
           ownBrand={subject.brand}
-          platformsMeta={platformsMeta}
           loading={isLoading}
         />
       </div>

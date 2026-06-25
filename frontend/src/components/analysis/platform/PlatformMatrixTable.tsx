@@ -16,14 +16,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { PlatformMatrixMetricDefinition } from "@/lib/analysis/platform";
 import type { PlatformMatrixRow } from "@/lib/analysis/platform";
 import { resolvePlatformMeta } from "@/lib/analysis/shared";
-import type { PlatformMatrixRowDimension, SamplingPlatform } from "@/types";
+import { usePlatformCatalog } from "@/hooks/usePlatformCatalog";
+import type { PlatformMatrixRowDimension } from "@/types";
 
 type PlatformMatrixTableProps = {
   rowDimension: PlatformMatrixRowDimension;
   metric: PlatformMatrixMetricDefinition;
   rows: PlatformMatrixRow[];
   platforms: string[];
-  platformsMeta: SamplingPlatform[];
   loading?: boolean;
 };
 
@@ -151,9 +151,9 @@ export function PlatformMatrixTable({
   metric,
   rows,
   platforms,
-  platformsMeta,
   loading = false,
 }: PlatformMatrixTableProps) {
+  const platformCatalog = usePlatformCatalog();
   const rowHeader = rowDimension === "competitor" ? "竞争对手" : "主题";
   const scrollMinWidth = platformMatrixTableMinWidth(platforms.length);
   const [columnSort, setColumnSort] = useState<PlatformColumnSort | null>(null);
@@ -190,7 +190,7 @@ export function PlatformMatrixTable({
             <tr className="[&>th]:align-middle [&>th]:whitespace-nowrap [&>th]:px-4 [&>th]:py-2 [&>th]:font-medium">
               <th className="pl-5">{rowHeader}</th>
               {platforms.map((platform) => {
-                const meta = resolvePlatformMeta(platform, platformsMeta);
+                const meta = resolvePlatformMeta(platform, platformCatalog);
                 return (
                   <th key={platform} className="align-middle">
                     <PlatformColumnHeader

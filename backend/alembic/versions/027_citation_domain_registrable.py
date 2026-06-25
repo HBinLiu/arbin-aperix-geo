@@ -44,6 +44,8 @@ def upgrade() -> None:
             bucket["drop_ids"].append(row.id)
 
     for (_response_id, domain), data in merged.items():
+        for drop_id in data["drop_ids"]:
+            conn.execute(sa.text("DELETE FROM tb_citation_domains WHERE id = :id"), {"id": drop_id})
         conn.execute(
             sa.text(
                 "UPDATE tb_citation_domains "
@@ -56,8 +58,6 @@ def upgrade() -> None:
                 "cite_count": data["cite_count"],
             },
         )
-        for drop_id in data["drop_ids"]:
-            conn.execute(sa.text("DELETE FROM tb_citation_domains WHERE id = :id"), {"id": drop_id})
 
 
 def downgrade() -> None:

@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useBacklinkOpportunityPrompts } from "@/hooks/useBacklinkOpportunityDetail";
 import { formatRate } from "@/lib/analysis/format";
 import { cn } from "@/lib/utils";
-import type { AnalysisFilters, CitationDomainPromptSortField, SamplingPlatform } from "@/types";
+import type { AnalysisFilters, CitationDomainPromptSortField } from "@/types";
 
 const SKELETON_ROWS = 8;
 const COLUMN_COUNT = 5;
@@ -75,14 +75,12 @@ type OpportunityBacklinkPromptTableProps = {
   subjectId: string;
   domain: string;
   filters: AnalysisFilters;
-  platformsMeta: SamplingPlatform[];
 };
 
 export function OpportunityBacklinkPromptTable({
   subjectId,
   domain,
   filters,
-  platformsMeta,
 }: OpportunityBacklinkPromptTableProps) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
@@ -181,7 +179,6 @@ export function OpportunityBacklinkPromptTable({
                   <td className="px-4">
                     <PlatformLogoGroup
                       providers={row.platforms ?? []}
-                      platforms={platformsMeta}
                       logoClassName="size-5"
                     />
                   </td>

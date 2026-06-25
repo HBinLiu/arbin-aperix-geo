@@ -191,6 +191,9 @@ class Subject(Base):
     sampling_jobs: Mapped[list["SamplingJob"]] = relationship(
         back_populates="subject", cascade="all, delete-orphan"
     )
+    brand_report_exports: Mapped[list["BrandReportExport"]] = relationship(
+        back_populates="subject", cascade="all, delete-orphan"
+    )
     brands: Mapped[list["Brand"]] = relationship(back_populates="subject", cascade="all, delete-orphan")
 
     __table_args__ = (
@@ -342,6 +345,40 @@ class SamplingJob(Base):
     __table_args__ = (
         Index("ix_sampling_jobs_tenant_id", "tenant_id"),
         Index("ix_sampling_jobs_subject_created", "subject_id", "created_at"),
+    )
+
+
+class BrandReportExport(Base):
+    """Audit log for on-demand brand report PDF exports."""
+
+    __tablename__ = "tb_brand_report_exports"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    subject_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_subjects.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_users.id", ondelete="CASCADE"), nullable=False
+    )
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    entity_id: Mapped[str] = mapped_column(String(64), nullable=False, default="", server_default="")
+    platform: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default=sa_text("'[]'::jsonb"))
+    topic_ids: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default=sa_text("'[]'::jsonb"))
+    format: Mapped[str] = mapped_column(String(16), nullable=False, default="pdf", server_default="pdf")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
+    )
+
+    subject: Mapped[Subject] = relationship(back_populates="brand_report_exports")
+
+    __table_args__ = (
+        Index("ix_brand_report_exports_subject_created", "subject_id", "created_at"),
+        Index("ix_brand_report_exports_tenant_user_created", "tenant_id", "user_id", "created_at"),
     )
 
 

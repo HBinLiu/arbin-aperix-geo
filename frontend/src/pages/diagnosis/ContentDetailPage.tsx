@@ -1,7 +1,8 @@
 import { useParams } from "react-router-dom";
 
+import { AnalysisFilterBar } from "@/components/analysis/common/AnalysisFilterBar";
 import { DiagnosisContentDetailView } from "@/components/diagnosis/DiagnosisContentDetailView";
-import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
+import { useAnalysisFiltersState } from "@/hooks/useAnalysisFiltersState";
 
 type ContentDetailPageProps = {
   subjectId: string;
@@ -20,13 +21,17 @@ function decodeRoutePromptId(value: string | undefined): string {
 export function ContentDetailPage({ subjectId }: ContentDetailPageProps) {
   const { promptId: promptIdParam } = useParams<{ promptId: string }>();
   const promptId = decodeRoutePromptId(promptIdParam);
-  const { platforms: platformsMeta } = useAnalysisFilter();
+  const { filters, setFilters } = useAnalysisFiltersState();
 
   return (
-    <DiagnosisContentDetailView
-      subjectId={subjectId}
-      promptId={promptId}
-      platformsMeta={platformsMeta}
-    />
+    <div className="flex w-full max-w-full min-w-0 flex-col">
+      <AnalysisFilterBar value={filters} onChange={setFilters} hideEntityFilter hideTopicFilter />
+
+      <DiagnosisContentDetailView
+        subjectId={subjectId}
+        promptId={promptId}
+        filters={filters}
+      />
+    </div>
   );
 }

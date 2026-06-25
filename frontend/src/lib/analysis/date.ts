@@ -46,6 +46,22 @@ export function previousDateRange(from: string, to: string): { from: string; to:
   return { from: prevFrom.toISOString(), to: prevTo.toISOString() };
 }
 
+/** 本地时刻转 ISO 字符串（保留时区偏移，便于后端按日历日展示）。 */
+export function formatIsoWithLocalOffset(iso: string): string {
+  const date = new Date(iso);
+  const pad = (n: number, len = 2) => String(n).padStart(len, "0");
+  const offsetMin = -date.getTimezoneOffset();
+  const sign = offsetMin >= 0 ? "+" : "-";
+  const abs = Math.abs(offsetMin);
+  const oh = pad(Math.floor(abs / 60));
+  const om = pad(abs % 60);
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.` +
+    `${pad(date.getMilliseconds(), 3)}${sign}${oh}:${om}`
+  );
+}
+
 export function formatDateRangeLabel(from: string, to: string): string {
   const format = (iso: string) => {
     const d = new Date(iso);

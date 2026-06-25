@@ -13,7 +13,7 @@ const SENTIMENT_META = ANALYSIS_DIMENSIONS.find((d) => d.id === "sentiment")!;
 export function SentimentPage() {
   const { subjectId } = useAnalysisOutletContext();
   const { filters, setFilters } = useAnalysisFiltersState();
-  const { entities, platforms } = useAnalysisFilter();
+  const { entities } = useAnalysisFilter();
 
   const { isLoading, overview } = useSentimentAnalysis(subjectId, filters, entities);
 
@@ -29,16 +29,8 @@ export function SentimentPage() {
           </p>
         </header>
 
-        <SentimentOverviewSection
-          overview={overview}
-          platformsMeta={platforms}
-          loading={isLoading}
-        />
-        <SentimentResponsesSection
-          subjectId={subjectId}
-          filters={filters}
-          platformsMeta={platforms}
-        />
+        <SentimentOverviewSection overview={overview} loading={isLoading} />
+        <SentimentResponsesSection subjectId={subjectId} filters={filters} />
       </div>
     </>
   );

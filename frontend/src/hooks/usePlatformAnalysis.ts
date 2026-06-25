@@ -11,7 +11,7 @@ import {
   platformMatrixMetric,
 } from "@/lib/analysis/platform";
 import { queryKeys } from "@/lib/queries";
-import type { AnalysisFilters, PlatformMatrixMetricId, PlatformMatrixRowDimension, SamplingPlatform } from "@/types";
+import type { AnalysisFilters, PlatformMatrixMetricId, PlatformMatrixRowDimension } from "@/types";
 
 export function usePlatformAnalysis(
   subjectId: string,
@@ -19,14 +19,13 @@ export function usePlatformAnalysis(
   rowDimension: PlatformMatrixRowDimension,
   metricId: PlatformMatrixMetricId,
   chartPlatformIds: string[],
-  platformsMeta: SamplingPlatform[],
 ) {
   const queryFilters = useMemo(() => toAnalysisQueryFilters(filters), [filters]);
   const { from, to, entityId, platformIds, topicIds } = queryFilters;
   const topicKey = topicFilterKey(topicIds);
   const platformKey = platformFilterKey(platformIds);
   const metric = platformMatrixMetric(metricId);
-  const { entities, topics, isLoading: catalogLoading } = useAnalysisFilter();
+  const { entities, topics, platformCatalog, isLoading: catalogLoading } = useAnalysisFilter();
 
   const analysisQuery = useQuery({
     queryKey: queryKeys.platformAnalysis(
@@ -48,6 +47,6 @@ export function usePlatformAnalysis(
     data,
     metric,
     matrixRows: data ? buildPlatformMatrixRows(data, rowDimension, metricId, entities, topics) : [],
-    platformMetrics: buildPlatformMetricBundles(data, chartPlatformIds, platformsMeta),
+    platformMetrics: buildPlatformMetricBundles(data, chartPlatformIds, platformCatalog),
   };
 }

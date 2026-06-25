@@ -32,6 +32,8 @@ dependencies = [
     "publicsuffix2>=1.0.0",
     "validators>=0.34.0",
     "dnspython>=2.6.0",
+    "jinja2>=3.1.0",
+    "playwright>=1.49.0",
 ]
 
 [project.scripts]
@@ -48,6 +50,9 @@ where = ["src"]
 
 [tool.setuptools.package-dir]
 "" = "src"
+
+[tool.setuptools.package-data]
+aperix_geo = ["templates/**/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

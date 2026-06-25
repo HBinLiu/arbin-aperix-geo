@@ -41,10 +41,14 @@ export function useAnalysisFilter(options?: { enabled?: boolean }) {
     [subject.sampling_platforms, platformsQuery.data],
   );
 
+  /** 全量平台目录，与 FilterBar / GET /sampling/platforms 同源，用于展示 label。 */
+  const platformCatalog = platformsQuery.data ?? [];
+
   return {
     entities: entitiesQuery.data?.entities ?? [],
     topics: topicsQuery.data ?? [],
     platforms,
+    platformCatalog,
     isLoading: entitiesQuery.isLoading || topicsQuery.isLoading || platformsQuery.isLoading,
   };
 }

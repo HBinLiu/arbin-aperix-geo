@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ payload.meta.brand }} — 品牌 GEO 分析报告</title>
+  <style>
+    :root {
+      --brand: #ec783b;
+      --brand-deep: #ca5f25;
+      --brand-soft: #fff1e8;
+      --ink: #1d2433;
+      --muted: #627084;
+      --line: #eadfd6;
+      --paper: rgba(255, 255, 255, 0.92);
+      --shadow: 0 18px 45px rgba(92, 59, 36, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top right, rgba(236, 120, 59, 0.10), transparent 26%),
+        linear-gradient(180deg, #fffdfb 0%, #faf5f0 100%);
+    }
+    .page { max-width: 980px; margin: 0 auto; padding: 24px 20px 48px; }
+    h1, h2, h3, .brand-display {
+      letter-spacing: -0.02em;
+      font-weight: 800;
+    }
+    .context-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 18px;
+      margin-bottom: 18px;
+      border: 1px solid rgba(236, 120, 59, 0.12);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: var(--shadow);
+    }
+    .context-bar__eyebrow {
+      margin: 0;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--brand-deep);
+    }
+    .context-bar__meta { display: flex; flex-wrap: wrap; gap: 10px; }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: var(--brand-soft);
+      color: var(--brand-deep);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .chip span:last-child { color: var(--ink); font-weight: 600; }
+    .masthead {
+      padding: 24px;
+      margin-bottom: 22px;
+      border: 1px solid rgba(236, 120, 59, 0.10);
+      border-radius: 28px;
+      background: white;
+      box-shadow: var(--shadow);
+    }
+    .masthead-top { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 18px; }
+    .brand-logo {
+      width: 52px; height: 52px; flex-shrink: 0;
+      border-radius: 16px; border: 1px solid #f1f5f9;
+      background: white; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .brand-logo img { width: 100%; height: 100%; object-fit: contain; padding: 6px; }
+    .brand-logo-fallback {
+      font-size: 18px; font-weight: 900; color: var(--brand-deep);
+    }
+    .brand-gradient-text {
+      background: linear-gradient(135deg, var(--brand-deep) 0%, var(--brand) 42%, #f5aa72 100%);
+      background-clip: text;
+      -webkit-background-clip: text;
+      color: transparent;
+      -webkit-text-fill-color: transparent;
+      font-size: 28px;
+      line-height: 1.2;
+      margin: 0 0 3px;
+    }
+    .masthead-summary { margin: 0; color: var(--muted); font-size: 13px; max-width: 760px; }
+    .insight-card {
+      padding: 18px 20px;
+      margin-bottom: 18px;
+      border-radius: 24px;
+      background: #fef6f1;
+    }
+    .insight-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px; font-weight: 900; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #aa7355; margin-bottom: 8px;
+    }
+    .insight-icon {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+      color: var(--brand);
+    }
+    .insight-text {
+      margin: 0; color: #aa7355; font-size: 18px; font-weight: 700; line-height: 1.5;
+    }
+    .masthead-grid {
+      display: grid;
+      grid-template-columns: auto minmax(0, 2fr) minmax(0, 1fr);
+      gap: 12px;
+      align-items: stretch;
+    }
+    .panel {
+      padding: 16px;
+      border-radius: 20px;
+    }
+    .panel-orange {
+      background: rgba(255, 237, 213, 0.55);
+      justify-self: start;
+      width: max-content;
+      max-width: 100%;
+    }
+    .panel-green { background: rgba(236, 253, 245, 0.65); }
+    .panel-blue { background: rgba(239, 246, 255, 0.75); }
+    .panel-title {
+      font-size: 10px; font-weight: 800; letter-spacing: 0.08em;
+      text-transform: uppercase; opacity: 0.65; margin-bottom: 12px;
+    }
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, auto);
+      gap: 6px;
+    }
+    .stat-card {
+      padding: 8px 9px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.85);
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+      width: max-content;
+      min-width: 56px;
+    }
+    .stat-label {
+      font-size: 9px; font-weight: 800; color: #94a3b8;
+      text-transform: uppercase; white-space: nowrap;
+    }
+    .stat-value { font-size: 18px; font-weight: 900; color: #e46c26; line-height: 1.1; margin-top: 3px; }
+    .competitor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .competitor-item {
+      display: flex; gap: 8px; align-items: center;
+      padding: 8px; border-radius: 12px; background: white;
+      border: 1px solid rgba(16, 185, 129, 0.08);
+    }
+    .competitor-logo {
+      width: 32px; height: 32px; border-radius: 999px; overflow: hidden;
+      background: white; display: flex; align-items: center; justify-content: center;
+      border: 1px solid #f1f5f9; flex-shrink: 0;
+    }
+    .competitor-logo img { width: 100%; height: 100%; object-fit: contain; padding: 4px; }
+    .competitor-name { font-size: 12px; font-weight: 700; line-height: 1.2; }
+    .competitor-domain { font-size: 10px; color: #94a3b8; }
+    .platform-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .platform-item {
+      display: inline-flex; align-items: center; gap: 8px;
+      width: fit-content; max-width: 100%;
+      padding: 8px 10px; border-radius: 12px; background: white;
+      border: 1px solid rgba(59, 130, 246, 0.12);
+    }
+    .platform-logo {
+      width: 28px; height: 28px; border-radius: 8px; overflow: hidden;
+      background: white; display: flex; align-items: center; justify-content: center;
+      border: 1px solid rgba(59, 130, 246, 0.10); flex-shrink: 0;
+    }
+    .platform-logo img { width: 100%; height: 100%; object-fit: contain; padding: 3px; }
+    .platform-logo-fallback {
+      font-size: 11px; font-weight: 900; color: #1d4ed8;
+    }
+    .platform-name { font-size: 12px; font-weight: 700; color: #334155; white-space: nowrap; }
+    .section {
+      margin-bottom: 24px;
+      padding: 22px 24px;
+      border: 1px solid rgba(236, 120, 59, 0.10);
+      border-radius: 24px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+      break-inside: avoid;
+    }
+    .section-head { margin-bottom: 18px; }
+    .section-title { 
+      margin: 0 0 6px; 
+      font-size: 24px; 
+      color: var(--brand); 
+      font-weight: 900;
+    }
+    .section-sub { margin: 0; color: var(--muted); font-size: 13px; }
+    .layer-title {
+      display: flex; align-items: center; gap: 10px;
+      margin: 0 0 14px; font-size: 13px; font-weight: 900;
+      letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8;
+    }
+    .layer-bar { width: 6px; height: 22px; border-radius: 999px; }
+    .layer-exposure { background: var(--brand); }
+    .layer-authority { background: #f43f5e; }
+    .layer-conversion { background: #ef4444; }
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .metric-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .glass-card {
+      padding: 16px;
+      border-radius: 18px;
+      border: 1px solid rgba(236, 120, 59, 0.10);
+      background: rgba(255, 255, 255, 0.88);
+    }
+    .metric-card-header {
+      display: flex; justify-content: space-between; gap: 12px; align-items: flex-start;
+      margin-bottom: 10px;
+    }
+    .metric-card-title { font-size: 14px; font-weight: 800; margin-top: 6px; }
+    .metric-value { font-size: 28px; font-weight: 900; line-height: 1; color: var(--brand-deep); }
+    .status-tag {
+      display: inline-block;
+      font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .status-red { background: rgba(239,68,68,0.12); color: #dc2626; border: 1px solid rgba(239,68,68,0.25); }
+    .status-orange { background: rgba(236,120,59,0.14); color: var(--brand-deep); border: 1px solid rgba(236,120,59,0.25); }
+    .status-gray { background: rgba(100,116,139,0.08); color: #64748b; border: 1px solid rgba(100,116,139,0.16); }
+    .status-green { background: rgba(16,185,129,0.12); color: #059669; border: 1px solid rgba(16,185,129,0.25); }
+    .status-excellent { background: rgba(5,150,105,0.14); color: #047857; border: 1px solid rgba(5,150,105,0.3); }
+    .compare-caption {
+      font-size: 11px; color: #94a3b8; margin-bottom: 8px;
+      display: flex; justify-content: space-between; gap: 8px;
+    }
+    .compare-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .compare-label { width: 28px; font-size: 11px; font-weight: 700; color: #64748b; flex-shrink: 0; }
+    .bar-track {
+      flex: 1;
+      width: 100%;
+      height: 8px;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 999px;
+      overflow: hidden;
+      background: #f1f5f9;
+    }
+    .bar-svg {
+      display: block;
+      width: 100%;
+      height: 8px;
+    }
+    .bar-fill-brand { fill: #ec783b; }
+    .bar-fill-muted { fill: #cbd5e1; }
+    .compare-value { width: 52px; text-align: right; font-size: 12px; font-weight: 800; color: var(--brand-deep); }
+    .compare-value-muted { color: #94a3b8; font-weight: 700; }
+    .analysis-box {
+      margin-top: 12px; padding: 12px 14px; border-radius: 12px;
+      background: #fff7ed; border: 1px solid rgba(236, 120, 59, 0.12);
+      font-size: 12px; color: #7c2d12;
+    }
+    .snapshot-card {
+      display: grid; grid-template-columns: 140px 1fr; gap: 18px; align-items: center;
+      padding: 18px; border-radius: 20px; background: white;
+      border: 1px solid rgba(236, 120, 59, 0.12); margin-bottom: 16px;
+    }
+    .snapshot-score-circle {
+      width: 120px; height: 120px; border-radius: 999px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: radial-gradient(circle at 30% 20%, #fff7ed, #ffedd5);
+      border: 4px solid rgba(236, 120, 59, 0.18);
+    }
+    .snapshot-score-value { font-size: 34px; font-weight: 900; color: var(--brand-deep); line-height: 1; }
+    .snapshot-score-total { font-size: 12px; color: #94a3b8; font-weight: 700; }
+    .snapshot-badge {
+      display: inline-block; margin-bottom: 8px; padding: 4px 10px; border-radius: 999px;
+      background: var(--brand-soft); color: var(--brand-deep); font-size: 11px; font-weight: 800;
+    }
+    .snapshot-summary { font-size: 14px; color: #475569; line-height: 1.7; }
+    .dimension-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .dimension-card {
+      padding: 16px; border-radius: 16px; background: white;
+      border: 1px solid rgba(236, 120, 59, 0.10);
+    }
+    .dimension-title { font-size: 13px; font-weight: 800; margin-bottom: 8px; }
+    .dimension-score { font-size: 26px; font-weight: 900; color: var(--brand-deep); }
+    .priority-row { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+    .priority-pill {
+      font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 999px; background: #f8fafc;
+      border: 1px solid #e2e8f0; color: #64748b;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 10px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+    th { color: var(--muted); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
+    .rank-badge {
+      display: inline-flex; width: 24px; height: 24px; align-items: center; justify-content: center;
+      border-radius: 999px; font-size: 11px; font-weight: 900;
+      background: #f1f5f9; color: #64748b;
+    }
+    .rank-badge-top { background: var(--brand); color: white; }
+    .delta-up { color: #059669; font-weight: 700; }
+    .delta-down { color: #dc2626; font-weight: 700; }
+    .delta-flat { color: #94a3b8; font-weight: 700; }
+    .trend-wrap { margin-top: 8px; padding: 12px; border-radius: 16px; background: white; border: 1px solid var(--line); }
+    .trend-chart { width: 100%; height: auto; display: block; }
+    .chart-axis { font-size: 10px; fill: #94a3b8; }
+    .prompt-list { display: grid; gap: 10px; }
+    .prompt-item {
+      padding: 12px 14px; border-radius: 14px; background: white;
+      border: 1px solid rgba(236, 120, 59, 0.10);
+    }
+    .prompt-text { font-size: 13px; font-weight: 600; margin-bottom: 8px; line-height: 1.5; }
+    .prompt-meta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 11px; color: #64748b; }
+    .platform-rank-list { display: grid; gap: 8px; }
+    .platform-rank-item {
+      display: flex; justify-content: space-between; align-items: center; gap: 12px;
+      padding: 12px 14px; border-radius: 16px; background: #f8fafc;
+    }
+    .platform-rank-item-top { background: #fff7ed; border: 1px solid rgba(236, 120, 59, 0.18); }
+    .footer {
+      text-align: center; color: var(--muted); font-size: 12px; margin-top: 18px;
+    }
+    @media print {
+      @page {
+        size: A4;
+        margin: 0;
+      }
+      html, body {
+        width: 100%;
+        min-height: 100%;
+        margin: 0;
+        padding: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        background:
+          radial-gradient(circle at top right, rgba(236, 120, 59, 0.10), transparent 26%),
+          linear-gradient(180deg, #fffdfb 0%, #faf5f0 100%) !important;
+      }
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        background:
+          radial-gradient(circle at top right, rgba(236, 120, 59, 0.10), transparent 26%),
+          linear-gradient(180deg, #fffdfb 0%, #faf5f0 100%);
+      }
+      .page {
+        max-width: none;
+        width: 100%;
+        min-height: 100%;
+        padding: 12mm 12mm 14mm;
+        margin: 0;
+        box-sizing: border-box;
+      }
+      .section, .masthead, .context-bar {
+        box-shadow: none;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .masthead-grid {
+        grid-template-columns: 1fr;
+      }
+      .metric-grid, .metric-grid-3, .dimension-grid {
+        grid-template-columns: 1fr;
+      }
+      .snapshot-card {
+        grid-template-columns: 1fr;
+      }
+      .panel-orange, .stat-card, .platform-item {
+        width: 100%;
+        max-width: 100%;
+      }
+      .brand-gradient-text {
+        background: none !important;
+        color: var(--brand-deep) !important;
+        -webkit-text-fill-color: var(--brand-deep) !important;
+      }
+      .bar-fill-brand {
+        fill: var(--brand) !important;
+      }
+    }
+    @media (max-width: 820px) {
+      .masthead-grid, .metric-grid, .metric-grid-3, .dimension-grid { grid-template-columns: 1fr; }
+      .snapshot-card { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  {% set meta = payload.meta %}
+  {% set overview = payload.overview %}
+  {% set context = payload.context %}
+  {% set summary = payload.diagnosis.summary %}
+  {% set own_label = meta.own_entity_label %}
+
+  <div class="page">
+    <header class="context-bar">
+      <div>
+        <p class="context-bar__eyebrow">Aperix AI · GEO 品牌分析报告</p>
+      </div>
+      <div class="context-bar__meta">
+        <div class="chip"><span>生成日期</span><span>{{ fmt_date(meta.generated_at) }}</span></div>
+        <div class="chip"><span>数据区间</span><span>{{ fmt_date(meta.period_start) }} - {{ fmt_date(meta.period_end) }}</span></div>
+      </div>
+    </header>
+
+    <section class="masthead">
+      <div class="masthead-top">
+        <div class="brand-logo">
+          {% if meta.logo %}
+          <img src="{{ meta.logo }}" alt="{{ meta.brand }}" />
+          {% else %}
+          <span class="brand-logo-fallback">{{ meta.brand[:1] }}</span>
+          {% endif %}
+        </div>
+        <div>
+          <h1 class="brand-gradient-text">{{ meta.brand }} 品牌分析报告</h1>
+          <p class="masthead-summary">基于实时生成引擎数据的深度审计，评估品牌在AI平台的曝光度、权威性和竞争表现。</p>
+        </div>
+      </div>
+
+      <div class="insight-card">
+        <div class="insight-label">
+          <svg class="insight-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
+            <path d="M9 18h6" />
+            <path d="M10 22h4" />
+          </svg>
+          核心结论
+        </div>
+        <p class="insight-text">{{ context.key_insight }}</p>
+      </div>
+
+      <div class="masthead-grid">
+        <div class="panel panel-orange">
+          <div class="panel-title" style="color:#aa7355;">核心概览</div>
+          <div class="stat-grid">
+            <div class="stat-card">
+              <div class="stat-label">主题数</div>
+              <div class="stat-value">{{ context.topic_count }}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">提示词数</div>
+              <div class="stat-value">{{ context.prompt_count }}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">AI回复计数</div>
+              <div class="stat-value">{{ meta.response_count }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel panel-green">
+          <div class="panel-title" style="color:#047857;">主要竞品</div>
+          <div class="competitor-grid">
+            {% for competitor in context.competitors %}
+            <div class="competitor-item">
+              <div class="competitor-logo">
+                {% if competitor.logo %}
+                <img src="{{ competitor.logo }}" alt="{{ competitor.label }}" />
+                {% else %}
+                <span class="brand-logo-fallback" style="font-size:11px;">{{ competitor.label[:1] }}</span>
+                {% endif %}
+              </div>
+              <div>
+                <div class="competitor-name">{{ competitor.label }}</div>
+                <div class="competitor-domain">{{ competitor.domain or "—" }}</div>
+              </div>
+            </div>
+            {% else %}
+            <div class="competitor-domain">暂无配置竞品</div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="panel panel-blue">
+          <div class="panel-title" style="color:#1d4ed8;">模型覆盖</div>
+          <div class="platform-list">
+            {% for platform in context.platforms %}
+            <div class="platform-item">
+              <div class="platform-logo">
+                {% if platform.logo %}
+                <img src="{{ platform.logo }}" alt="{{ platform.label }}" />
+                {% else %}
+                <span class="platform-logo-fallback">{{ platform.label[:1] }}</span>
+                {% endif %}
+              </div>
+              <span class="platform-name">{{ platform.label }}</span>
+            </div>
+            {% else %}
+            <div class="platform-item">
+              <span class="platform-name">默认平台</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <div class="section-title">01 · 品牌AI指标分析</div>
+      </div>
+
+      {% macro metric_card(name, metric, benchmark, layer_note="") %}
+      {% set use_bars = name not in ["情感倾向", "平均排名"] %}
+      {% if name == "平均排名" %}
+      {% set status = metric_status_rank(metric.current, benchmark) %}
+      {% elif use_bars %}
+      {% set status = metric_status(metric.current, benchmark) %}
+      {% else %}
+      {% set status = {"class": "status-gray", "text": "暂无对比"} %}
+      {% endif %}
+      <div class="glass-card">
+        <div class="metric-card-header">
+          <div>
+            <span class="status-tag {{ status.class }}">{{ status.text }}</span>
+            <div class="metric-card-title">{{ name }}</div>
+          </div>
+          <div class="metric-value">
+            {% if name == "情感倾向" %}
+            {{ sentiment_zh(metric.label) }}
+            {% elif name == "平均排名" %}
+            {{ score(metric.current) }}
+            {% else %}
+            {{ pct(metric.current) }}
+            {% endif %}
+          </div>
+        </div>
+        {% if use_bars %}
+        <div class="compare-caption">
+          <span>对比分析</span>
+          <span>竞品均值 {{ pct(benchmark) }}</span>
+        </div>
+        <div class="compare-row">
+          <div class="compare-label">你</div>
+          <div class="bar-track">
+            <svg class="bar-svg" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true">
+              <rect class="bar-fill-brand" x="0" y="0" width="{{ bar_width(metric.current) }}" height="8" rx="4" />
+            </svg>
+          </div>
+          <div class="compare-value">{{ pct(metric.current) }}</div>
+        </div>
+        <div class="compare-row">
+          <div class="compare-label">竞品</div>
+          <div class="bar-track">
+            <svg class="bar-svg" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true">
+              <rect class="bar-fill-muted" x="0" y="0" width="{{ bar_width(benchmark) }}" height="8" rx="4" />
+            </svg>
+          </div>
+          <div class="compare-value compare-value-muted">{{ pct(benchmark) }}</div>
+        </div>
+        {% elif name == "情感倾向" %}
+        <div class="compare-caption"><span>情感得分</span><span>{{ score(metric.current) }} / 100</span></div>
+        {% elif name == "平均排名" %}
+        <div class="compare-caption"><span>对比分析</span><span>竞品均值 {{ score(benchmark) }}</span></div>
+        {% endif %}
+        <div class="analysis-box">
+          排名第 {{ metric.rank or "—" }} 位
+          {% if name == "平均排名" %}
+          {% set change = delta_score(metric.current, metric.get('previous')) %}
+          {% else %}
+          {% set change = delta_pct(metric.current, metric.get('previous')) %}
+          {% endif %}
+          {% if change %}
+          · 环比 {{ change }}
+          {% endif %}
+          {% if layer_note %} · {{ layer_note }}{% endif %}
+        </div>
+      </div>
+      {% endmacro %}
+
+      <div class="layer-title"><span class="layer-bar layer-exposure"></span>曝光层 · AI 有没有看到你？</div>
+      <div class="metric-grid">
+        {{ metric_card("可见度", overview.visibility, context.competitor_avg.visibility) }}
+        {{ metric_card("AI提及率", overview.mention, context.competitor_avg.mention) }}
+      </div>
+
+      <div class="layer-title"><span class="layer-bar layer-authority"></span>权威层 · AI 会更信任你吗？</div>
+      <div class="metric-grid">
+        {{ metric_card("引用率", overview.citation, context.competitor_avg.citation) }}
+        {{ metric_card("声量份额", overview.share_voice, context.competitor_avg.share_voice) }}
+      </div>
+
+      <div class="layer-title"><span class="layer-bar layer-conversion"></span>转化层 · AI 会不会优先推荐？</div>
+      <div class="metric-grid">
+        {{ metric_card("平均排名", overview.average_rank, context.competitor_avg.average_rank, "排名越靠前（数值越小）越好") }}
+        {{ metric_card("情感倾向", overview.sentiment, None, "影响推荐倾向与用户信任") }}
+      </div>
+
+      <div class="trend-wrap">
+        <div class="compare-caption"><span>可见度趋势</span><span>当前周期每日变化</span></div>
+        {{ svg_area_chart(overview.visibility_chart.cur_series, label=own_label) or '<p style="color:#94a3b8;margin:0;">暂无足够趋势数据</p>' }}
+      </div>
+    </section>
+
+    {% if summary %}
+    <section class="section">
+      <div class="section-head">
+        <div class="section-index">01 · 内容诊断</div>
+        <h2 class="section-title">Prompt 内容健康度</h2>
+        <p class="section-sub">从提及率、品牌差距、信源差距三个维度评估高意图 Prompt 的内容覆盖质量。</p>
+      </div>
+
+      <div class="snapshot-card">
+        <div class="snapshot-score-circle">
+          <span class="snapshot-score-value">{{ score(summary.overall_score) }}</span>
+          <span class="snapshot-score-total">/ 100</span>
+        </div>
+        <div>
+          <span class="snapshot-badge">{{ status_zh(summary.overall_status) }}</span>
+          <p class="snapshot-summary">
+            综合健康度由提及健康（40%）、品牌差距（30%）、信源差距（30%）加权得出。
+            当前状态为「{{ status_zh(summary.overall_status) }}」，建议优先处理高优先级 Prompt 缺口。
+          </p>
+        </div>
+      </div>
+
+      <div class="dimension-grid">
+        {% for key, title in [
+          ("mention", "提及健康"),
+          ("brand_gap", "品牌差距"),
+          ("source_gap", "信源差距")
+        ] %}
+        {% set dim = summary[key] %}
+        <div class="dimension-card">
+          <div class="dimension-title">{{ title }}</div>
+          <div class="dimension-score">{{ score(dim.health_score) }}</div>
+          <div class="priority-row">
+            {% for level in ["high", "medium", "low"] %}
+            <span class="priority-pill">{{ priority_zh(level) }} {{ dim.priority_counts[level] }}</span>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="section">
+      <div class="section-head">
+        <div class="section-index">03 · 竞争位置</div>
+        <h2 class="section-title">品牌竞争排名</h2>
+        <p class="section-sub">可见度、引用率、声量份额多维排名与环比变化。</p>
+      </div>
+
+      {% macro rank_table(title, rows) %}
+      <h3 style="margin:0 0 10px;font-size:16px;">{{ title }}</h3>
+      <table style="margin-bottom:18px;">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>品牌</th>
+            <th>当前值</th>
+            <th>环比</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td><span class="rank-badge {% if loop.index == 1 %}rank-badge-top{% endif %}">{{ loop.index }}</span></td>
+            <td>
+              <strong>{{ row.label }}</strong>
+              {% if row.domain %}<div style="font-size:11px;color:#94a3b8;">{{ row.domain }}</div>{% endif %}
+            </td>
+            <td>{{ pct(row.cur_value) }}</td>
+            <td>
+              {% set change = delta_pct(row.cur_value, row.get('pre_value')) %}
+              {% if change %}
+                {% if change.startswith('+') %}
+                <span class="delta-up">{{ change }}</span>
+                {% elif change.startswith('-') %}
+                <span class="delta-down">{{ change }}</span>
+                {% else %}
+                <span class="delta-flat">{{ change }}</span>
+                {% endif %}
+              {% else %}
+              <span class="delta-flat">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4">暂无数据</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endmacro %}
+
+      {{ rank_table("可见度排名", overview.visibility_table) }}
+      {{ rank_table("引用率排名", context.citation_table) }}
+      {{ rank_table("声量份额排名", context.share_voice_table) }}
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <div class="section-index">04 · 主题表现</div>
+        <h2 class="section-title">主题维度分析</h2>
+        <p class="section-sub">各主题下的可见度、引用率与情感表现，识别优势场景与缺口。</p>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>主题</th>
+            <th>可见度</th>
+            <th>引用率</th>
+            <th>情感</th>
+            <th>平均排名</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in overview.topic_table[:10] %}
+          <tr>
+            <td><strong>{{ row.topic_name }}</strong></td>
+            <td>{{ pct(row.visibility.current) }}</td>
+            <td>{{ pct(row.citation.current) }}</td>
+            <td>{{ sentiment_zh(row.sentiment.label) }}</td>
+            <td>{{ score(row.average_rank.current) if row.average_rank.current is not none else "—" }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5">暂无数据</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    {% if context.diagnosis_items %}
+    <section class="section">
+      <div class="section-head">
+        <div class="section-index">05 · 高优先级 Prompt</div>
+        <h2 class="section-title">内容缺口 Top 清单</h2>
+        <p class="section-sub">按综合优先级排序，展示最需要补齐覆盖的高意图 Prompt。</p>
+      </div>
+      <div class="prompt-list">
+        {% for item in context.diagnosis_items %}
+        <div class="prompt-item">
+          <div class="prompt-text">{{ item.prompt_text or "（无 Prompt 文本）" }}</div>
+          <div class="prompt-meta">
+            <span>提及率 {{ pct(item.mention_rate) }}</span>
+            <span>品牌差距 {{ pct(item.brand_gap_rate) }}</span>
+            <span>信源差距 {{ pct(item.source_gap_rate) }}</span>
+            <span>优先级 {{ priority_zh(item.priority) }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    {% if context.platform_metrics %}
+    <section class="section">
+      <div class="section-head">
+        <div class="section-index">06 · 平台差异</div>
+        <h2 class="section-title">大模型平台表现</h2>
+        <p class="section-sub">各采样平台的可见度与引用率差异，识别主战场与短板平台。</p>
+      </div>
+      <div class="platform-rank-list">
+        {% for row in context.platform_metrics %}
+        {% set platform = context.platforms | selectattr('key', 'equalto', row.platform) | list | first %}
+        <div class="platform-rank-item {% if loop.index == 1 %}platform-rank-item-top{% endif %}">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="rank-badge {% if loop.index == 1 %}rank-badge-top{% endif %}">{{ loop.index }}</span>
+            <strong>{{ platform.label if platform else row.platform }}</strong>
+          </div>
+          <div style="text-align:right;font-size:12px;color:#64748b;">
+            可见度 <strong style="color:var(--brand-deep);">{{ pct(row.visibility_rate) }}</strong>
+            · 引用率 <strong>{{ pct(row.citation_rate) }}</strong>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    <footer class="footer">Aperix AI · GEO 品牌分析报告 · {{ fmt_date(meta.generated_at) }}</footer>
+  </div>
+</body>
+</html>

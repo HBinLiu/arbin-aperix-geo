@@ -31,8 +31,9 @@ export function buildBrandRankRows(
     });
 }
 
-export function resolvePlatformMeta(platform: string, platforms: SamplingPlatform[]): SamplingPlatform {
-  const exact = platforms.find((p) => p.platform === platform);
-  if (exact) return exact;
-  return { platform, label: platform };
+export function resolvePlatformMeta(
+  platform: string,
+  catalog: SamplingPlatform[],
+): SamplingPlatform {
+  return catalog.find((item) => item.platform === platform) ?? { platform, label: platform };
 }

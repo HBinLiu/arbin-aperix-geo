@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link2, MessagesSquare, TrendingDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
+import { AnalysisFilterBar } from "@/components/analysis/common/AnalysisFilterBar";
 import { DEFAULT_TABLE_PAGE_SIZE } from "@/components/analysis/common/TablePagination";
 import { DiagnosisDimensionCard } from "@/components/diagnosis/DiagnosisDimensionCard";
 import {
@@ -10,7 +11,7 @@ import {
   type DiagnosisContentSortState,
 } from "@/components/diagnosis/DiagnosisContentTable";
 import { DiagnosisScoreGauge } from "@/components/diagnosis/DiagnosisScoreGauge";
-import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
+import { useAnalysisFiltersState } from "@/hooks/useAnalysisFiltersState";
 import { useDiagnosisContent } from "@/hooks/useDiagnosisContent";
 import { useDiagnosisContentSummary } from "@/hooks/useDiagnosisContentSummary";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
@@ -24,7 +25,7 @@ type DiagnosisContentProps = {
 /** 诊断中心：得分概览、维度摘要与提示词诊断明细表 */
 export function DiagnosisContent({ subjectId }: DiagnosisContentProps) {
   const { subject } = useDashboardContext();
-  const { platforms } = useAnalysisFilter();
+  const { filters, setFilters } = useAnalysisFiltersState();
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
@@ -39,7 +40,7 @@ export function DiagnosisContent({ subjectId }: DiagnosisContentProps) {
 
   useEffect(() => {
     setPage(1);
-  }, [contentSort, pageSize]);
+  }, [filters, contentSort, pageSize]);
 
   const contentListRequest = useMemo(() => {
     const apiSort =
@@ -57,7 +58,7 @@ export function DiagnosisContent({ subjectId }: DiagnosisContentProps) {
   const {
     isLoading: summaryLoading,
     overview,
-  } = useDiagnosisContentSummary(subjectId);
+  } = useDiagnosisContentSummary(subjectId, filters);
 
   const {
     loading: listLoading,
@@ -66,10 +67,12 @@ export function DiagnosisContent({ subjectId }: DiagnosisContentProps) {
     total,
     page: currentPage,
     pageSize: currentPageSize,
-  } = useDiagnosisContent(subjectId, contentListRequest);
+  } = useDiagnosisContent(subjectId, filters, contentListRequest);
 
   return (
     <div className="flex w-full max-w-full min-w-0 flex-col">
+      <AnalysisFilterBar value={filters} onChange={setFilters} hideEntityFilter />
+
       <div className="flex flex-col gap-4 px-4 py-4 sm:px-6">
         <div className="grid gap-4 xl:grid-cols-4">
           <DiagnosisScoreGauge
@@ -111,7 +114,6 @@ export function DiagnosisContent({ subjectId }: DiagnosisContentProps) {
 
         <DiagnosisContentTable
           rows={rows}
-          platformsMeta={platforms}
           loading={listLoading}
           fetching={listFetching}
           total={total}

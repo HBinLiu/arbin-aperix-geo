@@ -83,14 +83,12 @@ type CitationDomainTableProps = {
   subjectId: string;
   filters: AnalysisFilters;
   citationSearch?: string;
-  platformsMeta?: SamplingPlatform[];
 };
 
 export function CitationDomainTable({
   subjectId,
   filters,
   citationSearch = "",
-  platformsMeta = [],
 }: CitationDomainTableProps) {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
@@ -192,7 +190,6 @@ export function CitationDomainTable({
                   <td className="px-4" onClick={(event) => event.stopPropagation()}>
                     <PlatformLogoGroup
                       providers={row.platforms ?? []}
-                      platforms={platformsMeta}
                       logoClassName="size-5"
                     />
                   </td>

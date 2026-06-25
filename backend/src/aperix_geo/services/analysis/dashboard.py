@@ -195,6 +195,12 @@ def build_dashboard_overview(
             visibility_share,
             focus_label,
         ),
+        "mention": metric_with_rank(
+            focus_current.get("mention_rate"),
+            previous_value(focus_previous.get("mention_rate"), has_previous=has_previous),
+            rank.get("mention_rate") or {},
+            focus_label,
+        ),
         "citation": metric_with_rank(
             focus_current.get("citation_rate"),
             previous_value(focus_previous.get("citation_rate"), has_previous=has_previous),
@@ -205,6 +211,12 @@ def build_dashboard_overview(
             focus_current.get("share_voice"),
             previous_value(focus_previous.get("share_voice"), has_previous=has_previous),
             share_voice,
+            focus_label,
+        ),
+        "average_rank": metric_with_rank(
+            focus_current.get("average_rank"),
+            previous_value(focus_previous.get("average_rank"), has_previous=has_previous),
+            rank.get("average_rank") or {},
             focus_label,
         ),
         "sentiment": {

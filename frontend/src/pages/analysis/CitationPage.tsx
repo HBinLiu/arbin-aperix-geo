@@ -18,7 +18,7 @@ const CITATION_META = ANALYSIS_DIMENSIONS.find((d) => d.id === "citation")!;
 export function CitationPage() {
   const { subjectId } = useAnalysisOutletContext();
   const { filters, setFilters } = useAnalysisFiltersState();
-  const { entities, platforms } = useAnalysisFilter();
+  const { entities } = useAnalysisFilter();
   const { subject } = useDashboardContext();
   const chartLabels = useMemo(() => entityChartLabels(entities), [entities]);
   const [linkSearch, setLinkSearch] = useState("");
@@ -86,7 +86,6 @@ export function CitationPage() {
           ownLabel={ownLabel}
           ownBrand={subject.brand}
           citationSearch={debouncedLinkSearch}
-          platformsMeta={platforms}
         />
       </div>
     </>

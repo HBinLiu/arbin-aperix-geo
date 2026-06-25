@@ -23,7 +23,7 @@ export function SamplingProgressSidebar({ pipeline }: SamplingProgressSidebarPro
   const isActive = !isFailed;
 
   return (
-    <div className={cn("relative mt-3 shrink-0", isActive && "pipeline-active-frame")}>
+    <div className={cn("relative shrink-0", isActive && "pipeline-active-frame")}>
       <PipelineActiveGlow active={isActive} variant="sidebar" />
 
       <div

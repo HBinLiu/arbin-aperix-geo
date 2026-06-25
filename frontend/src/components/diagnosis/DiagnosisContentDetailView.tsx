@@ -14,7 +14,6 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePromptDetailChatResponses } from "@/hooks/useAnalysisResponses";
 import { useAnalysisFiltersState } from "@/hooks/useAnalysisFiltersState";
 import { useDiagnosisContentDetail } from "@/hooks/useDiagnosisContentDetail";
-import { DEFAULT_ANALYSIS_FILTERS } from "@/lib/analysis";
 import { formatRank, formatRate } from "@/lib/analysis/format";
 import { analysisDimensionPath } from "@/lib/analysis/nav";
 import { promptDetailResponseFromAnalysis } from "@/lib/analysis/promptDetail";
@@ -24,7 +23,7 @@ import type {
   ContentOpportunityDetailRow,
   ContentOpportunityDetailTab,
   OpportunityPriority,
-  SamplingPlatform,
+  AnalysisFilters,
 } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -47,7 +46,7 @@ type SummaryCard = {
 type DiagnosisContentDetailViewProps = {
   subjectId: string;
   promptId: string;
-  platformsMeta: SamplingPlatform[];
+  filters: AnalysisFilters;
 };
 
 function SummaryCards({ cards, loading }: { cards: SummaryCard[]; loading?: boolean }) {
@@ -84,12 +83,10 @@ function SummaryCards({ cards, loading }: { cards: SummaryCard[]; loading?: bool
 
 function BrandCompetitorTable({
   rows,
-  platformsMeta,
   loading,
   onBrandClick,
 }: {
   rows: ContentOpportunityDetailRow[];
-  platformsMeta: SamplingPlatform[];
   loading?: boolean;
   onBrandClick: (row: ContentOpportunityDetailRow) => void;
 }) {
@@ -148,7 +145,6 @@ function BrandCompetitorTable({
                 <td>
                   <PlatformLogoGroup
                     providers={row.platforms}
-                    platforms={platformsMeta}
                     logoClassName="size-5"
                   />
                 </td>
@@ -165,12 +161,10 @@ function BrandCompetitorTable({
 
 function SourceCompetitorTable({
   rows,
-  platformsMeta,
   loading,
   onWebsiteClick,
 }: {
   rows: ContentOpportunityDetailRow[];
-  platformsMeta: SamplingPlatform[];
   loading?: boolean;
   onWebsiteClick: (row: ContentOpportunityDetailRow) => void;
 }) {
@@ -222,7 +216,6 @@ function SourceCompetitorTable({
                   <td>
                     <PlatformLogoGroup
                       providers={row.platforms}
-                      platforms={platformsMeta}
                       logoClassName="size-5"
                     />
                   </td>
@@ -323,7 +316,7 @@ function sourceSummaryCards(data: ContentOpportunityDetailData | undefined): Sum
 export function DiagnosisContentDetailView({
   subjectId,
   promptId,
-  platformsMeta,
+  filters,
 }: DiagnosisContentDetailViewProps) {
   const navigate = useNavigate();
   const { setFilters } = useAnalysisFiltersState();
@@ -333,7 +326,7 @@ export function DiagnosisContentDetailView({
   const [rankSort, setRankSort] = useState<RankSortState>(null);
   const [sourceDialogRow, setSourceDialogRow] = useState<ContentOpportunityDetailRow | null>(null);
 
-  const detailQuery = useDiagnosisContentDetail(subjectId, {
+  const detailQuery = useDiagnosisContentDetail(subjectId, filters, {
     promptId,
     enabled: !!promptId,
   });
@@ -345,7 +338,7 @@ export function DiagnosisContentDetailView({
   const { loading: chatLoading, fetching: chatFetching, responses: chatRaw, total: chatTotal } = usePromptDetailChatResponses(
     subjectId,
     promptId,
-    DEFAULT_ANALYSIS_FILTERS,
+    filters,
     {
       page: chatPage,
       pageSize: chatPageSize,
@@ -369,7 +362,7 @@ export function DiagnosisContentDetailView({
 
   useEffect(() => {
     setChatPage(1);
-  }, [activeTab, chatPageSize, rankSort, promptId]);
+  }, [activeTab, chatPageSize, rankSort, promptId, filters]);
 
   useEffect(() => {
     if (activeTab !== "source") {
@@ -418,7 +411,6 @@ export function DiagnosisContentDetailView({
               setRankSort(nextSort);
               setChatPage(1);
             }}
-            platformsMeta={platformsMeta}
             promptText={promptText}
             loading={chatLoading}
             fetching={chatFetching}
@@ -429,7 +421,6 @@ export function DiagnosisContentDetailView({
           <SummaryCards cards={brandSummaryCards(detailQuery.data)} loading={loading} />
           <BrandCompetitorTable
             rows={detailQuery.data?.brand.rows ?? []}
-            platformsMeta={platformsMeta}
             loading={loading}
             onBrandClick={handleBrandCompetitorClick}
           />
@@ -439,7 +430,6 @@ export function DiagnosisContentDetailView({
           <SummaryCards cards={sourceSummaryCards(detailQuery.data)} loading={loading} />
           <SourceCompetitorTable
             rows={detailQuery.data?.source.rows ?? []}
-            platformsMeta={platformsMeta}
             loading={loading}
             onWebsiteClick={setSourceDialogRow}
           />

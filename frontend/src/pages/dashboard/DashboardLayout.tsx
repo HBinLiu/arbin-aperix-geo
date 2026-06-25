@@ -7,7 +7,7 @@ import { CitationDomainHeader } from "@/components/analysis/citation/CitationDom
 import { OpportunityBacklinkHeader } from "@/components/opportunity/OpportunityBacklinkHeader";
 import { DiagnosisContentHeader } from "@/components/diagnosis/DiagnosisContentHeader";
 import { OpportunityTabs } from "@/components/opportunity/OpportunityTabs";
-import { SamplingProgressSidebar } from "@/components/dashboard/SamplingProgressSidebar";
+import { DashboardSidebarFooter } from "@/components/dashboard/DashboardSidebarFooter";
 import { SidebarSection } from "@/components/dashboard/SidebarSection";
 import { SubjectSwitcher } from "@/components/dashboard/SubjectSwitcher";
 import { AppShell } from "@/components/layouts/AppShell";
@@ -75,7 +75,7 @@ function DashboardLayoutContent() {
             ))}
           </div>
 
-          {!sidebarCollapsed ? <SamplingProgressSidebar pipeline={pipeline} /> : null}
+          {!sidebarCollapsed ? <DashboardSidebarFooter pipeline={pipeline} /> : null}
         </aside>
 
         <main className="bg-white border-border shadow-[8px_10px_24px_-10px_rgba(15,23,42,0.12)] flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border">

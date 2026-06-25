@@ -14,9 +14,9 @@ from aperix_geo.services.analysis._query import responses_in_window
 from aperix_geo.services.analysis._rows import build_citation_response_row
 from aperix_geo.services.analysis._series import previous_date_range, single_value_series
 from aperix_geo.services.analysis.aggregate import metrics_from_signals
-from aperix_geo.services.analysis.diagnosis import diagnosis_gap_metrics
 from aperix_geo.services.analysis.diagnosis_rules import (
     diagnosis_mention_rate,
+    gap_action_priority,
     has_diagnosis_content_gap,
     mention_action_priority,
     overall_action_priority,
@@ -34,6 +34,157 @@ from aperix_geo.services.analysis.signal_load import (
     load_llm_response_signals,
     load_mention_brand_signals,
 )
+
+
+def _response_ids_with_competitor_signal(
+    response_ids: set[UUID],
+    all_signals: list[LLMResponseSignalRow],
+    competitor_ids: set[str],
+    *,
+    has_signal,
+) -> set[UUID]:
+    present: set[UUID] = set()
+    for row in all_signals:
+        if row.response_id not in response_ids or row.entity_id not in competitor_ids:
+            continue
+        if has_signal(row):
+            present.add(row.response_id)
+    return present
+
+
+def _own_signal_count_in_responses(
+    focus_rows: list[LLMResponseSignalRow],
+    response_ids: set[UUID],
+    *,
+    has_signal,
+) -> int:
+    return sum(
+        1
+        for row in focus_rows
+        if row.response_id in response_ids and has_signal(row)
+    )
+
+
+def _competitors_in_pool(
+    entities: list,
+    *,
+    focus_entity_id: str,
+    response_ids: set[UUID],
+    all_signals: list[LLMResponseSignalRow],
+    has_signal,
+) -> list[str]:
+    catalog_order = {entity.label: index for index, entity in enumerate(entities)}
+    labels: list[str] = []
+    seen: set[str] = set()
+    for entity in entities:
+        if entity.id == focus_entity_id:
+            continue
+        if not any(
+            has_signal(row)
+            for row in all_signals
+            if row.response_id in response_ids and row.entity_id == entity.id
+        ):
+            continue
+        label = entity.label
+        if label not in seen:
+            seen.add(label)
+            labels.append(label)
+    return sorted(labels, key=lambda item: catalog_order.get(item, 10_000))
+
+
+def _diagnosis_gap_metrics(
+    *,
+    focus_entity_id: str,
+    response_ids: set[UUID],
+    all_signals: list[LLMResponseSignalRow],
+    subject: Subject,
+) -> dict[str, Any]:
+    """Brand/source gap within a reply pool (prompt detail opportunity card)."""
+    if not response_ids:
+        return {
+            "brand_gap_rate": 0.0,
+            "brand_gap_priority": "low",
+            "source_gap_rate": 0.0,
+            "source_gap_priority": "low",
+            "competitors": [],
+            "brand_own_count": 0,
+            "brand_total_count": 0,
+            "source_own_count": 0,
+            "source_total_count": 0,
+        }
+
+    entities = list_analysis_entities(subject)
+    competitor_ids = {entity.id for entity in entities if entity.id != focus_entity_id}
+    focus_rows = [
+        row
+        for row in all_signals
+        if row.response_id in response_ids and row.entity_id == focus_entity_id
+    ]
+
+    brand_pool = _response_ids_with_competitor_signal(
+        response_ids,
+        all_signals,
+        competitor_ids,
+        has_signal=lambda row: row.mentioned,
+    )
+    brand_total = len(brand_pool)
+    brand_own = _own_signal_count_in_responses(
+        focus_rows,
+        brand_pool,
+        has_signal=lambda row: row.mentioned,
+    )
+    brand_gap_rate = round(1 - brand_own / brand_total, 4) if brand_total else 0.0
+
+    source_pool = _response_ids_with_competitor_signal(
+        response_ids,
+        all_signals,
+        competitor_ids,
+        has_signal=lambda row: row.has_domain_link,
+    )
+    source_total = len(source_pool)
+    source_own = _own_signal_count_in_responses(
+        focus_rows,
+        source_pool,
+        has_signal=lambda row: row.has_domain_link,
+    )
+    source_gap_rate = round(1 - source_own / source_total, 4) if source_total else 0.0
+
+    brand_competitors = _competitors_in_pool(
+        entities,
+        focus_entity_id=focus_entity_id,
+        response_ids=response_ids,
+        all_signals=all_signals,
+        has_signal=lambda row: row.mentioned,
+    )
+    source_competitors = _competitors_in_pool(
+        entities,
+        focus_entity_id=focus_entity_id,
+        response_ids=response_ids,
+        all_signals=all_signals,
+        has_signal=lambda row: row.has_domain_link,
+    )
+    competitors: list[str] = []
+    seen: set[str] = set()
+    catalog_order = {entity.label: index for index, entity in enumerate(entities)}
+    for label in sorted(
+        {*brand_competitors, *source_competitors},
+        key=lambda item: catalog_order.get(item, 10_000),
+    ):
+        if label not in seen:
+            seen.add(label)
+            competitors.append(label)
+
+    return {
+        "brand_gap_rate": brand_gap_rate,
+        "brand_gap_priority": gap_action_priority(brand_gap_rate),
+        "source_gap_rate": source_gap_rate,
+        "source_gap_priority": gap_action_priority(source_gap_rate),
+        "competitors": competitors,
+        "brand_own_count": brand_own,
+        "brand_total_count": brand_total,
+        "source_own_count": source_own,
+        "source_total_count": source_total,
+    }
 
 
 def _metrics_from_entity_row(entity_rows: list[dict[str, Any]], entity_id: str) -> dict[str, Any]:
@@ -54,7 +205,7 @@ def _opportunity_summary(
         return None
 
     response_ids = {row.response_id for row in entity_signals}
-    gap = diagnosis_gap_metrics(
+    gap = _diagnosis_gap_metrics(
         focus_entity_id=focus_entity_id,
         response_ids=response_ids,
         all_signals=all_signals,

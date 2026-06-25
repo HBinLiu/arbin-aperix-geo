@@ -23,7 +23,7 @@ import {
   type BacklinkOpportunityRow,
   type BacklinkOpportunitySortColumn,
 } from "@/lib/opportunity/backlink";
-import type { OpportunityPriority, SamplingPlatform } from "@/types";
+import type { OpportunityPriority } from "@/types";
 import { cn } from "@/lib/utils";
 
 type SortDir = "asc" | "desc";
@@ -132,7 +132,6 @@ function BacklinkSkeletonRows({ count = 8 }: { count?: number }) {
 
 type OpportunityBacklinkTableProps = {
   rows: BacklinkOpportunityRow[];
-  platformsMeta: SamplingPlatform[];
   loading?: boolean;
   fetching?: boolean;
   className?: string;
@@ -149,7 +148,6 @@ type OpportunityBacklinkTableProps = {
 /** 反向链接机会表：高权重引用域名与平台分布 */
 export function OpportunityBacklinkTable({
   rows,
-  platformsMeta,
   loading = false,
   fetching = false,
   className,
@@ -277,7 +275,6 @@ export function OpportunityBacklinkTable({
                 <td>
                   <PlatformLogoGroup
                     providers={row.platforms}
-                    platforms={platformsMeta}
                     logoClassName="size-5"
                   />
                 </td>

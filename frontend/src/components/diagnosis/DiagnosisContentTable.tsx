@@ -28,7 +28,7 @@ import {
   type DiagnosisContentRow,
   type DiagnosisContentSortColumn,
 } from "@/lib/diagnosis/content";
-import type { OpportunityPriority, SamplingPlatform } from "@/types";
+import type { OpportunityPriority } from "@/types";
 import { cn } from "@/lib/utils";
 
 type SortDir = "asc" | "desc";
@@ -217,7 +217,6 @@ function DiagnosisContentSkeletonRows({ count = 8 }: { count?: number }) {
 
 type DiagnosisContentTableProps = {
   rows: DiagnosisContentRow[];
-  platformsMeta: SamplingPlatform[];
   loading?: boolean;
   fetching?: boolean;
   className?: string;
@@ -234,7 +233,6 @@ type DiagnosisContentTableProps = {
 /** 诊断中心内容表：提示词差距与竞品对比 */
 export function DiagnosisContentTable({
   rows,
-  platformsMeta,
   loading = false,
   fetching = false,
   className,
@@ -381,7 +379,6 @@ export function DiagnosisContentTable({
                   <td>
                     <PlatformLogoGroup
                       providers={row.platforms}
-                      platforms={platformsMeta}
                       logoClassName="size-5"
                     />
                   </td>

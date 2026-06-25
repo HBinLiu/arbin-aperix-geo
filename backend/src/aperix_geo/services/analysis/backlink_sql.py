@@ -9,10 +9,11 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, exists, func, or_, select
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import CitationDomain, EntityKind, LLMResponse, LLMResponseSignal, Subject
+from aperix_geo.services.analysis._query import response_ids_in_window_stmt
 from aperix_geo.utils.net import registrable_from
 
 
@@ -241,18 +242,7 @@ def _backlink_eligible_response_ids_stmt(
     platform: list[str] | None = None,
     topic_id: list[UUID] | None = None,
 ):
-    from aperix_geo.services.analysis._query import response_ids_in_window_stmt
-
     own_kind = EntityKind.own.value
-    cited_on_source_ids = (
-        select(LLMResponseSignal.response_id)
-        .where(
-            LLMResponseSignal.subject_id == subject_id,
-            LLMResponseSignal.entity_kind == own_kind,
-            LLMResponseSignal.cited_on_source.is_(True),
-        )
-        .distinct()
-    )
     window = response_ids_in_window_stmt(
         subject_id=subject_id,
         dt_from=dt_from,
@@ -261,7 +251,15 @@ def _backlink_eligible_response_ids_stmt(
         topic_id=topic_id,
         prompt_id=None,
     )
-    return window.where(LLMResponse.id.not_in(cited_on_source_ids))
+    cited_on_source = exists(
+        select(1).where(
+            LLMResponseSignal.response_id == LLMResponse.id,
+            LLMResponseSignal.subject_id == subject_id,
+            LLMResponseSignal.entity_kind == own_kind,
+            LLMResponseSignal.cited_on_source.is_(True),
+        )
+    )
+    return window.where(~cited_on_source)
 
 
 class _BacklinkDomainPageQuery:
@@ -346,10 +344,6 @@ class _BacklinkDomainPageQuery:
             filters.append(grouped.c.domain.ilike(_backlink_ilike_pattern(search_needle)))
 
         filtered = select(grouped).where(*filters).subquery()
-        total = int(db.scalar(select(func.count()).select_from(filtered)) or 0)
-        if total == 0:
-            return [], 0
-
         priority_rank = _backlink_priority_rank_expr(filtered.c.prompt_count, filtered.c.chat_count)
         order_clauses = _backlink_sql_order_clauses(
             filtered, priority_rank, sort_by=sort_by, order=order
@@ -361,14 +355,20 @@ class _BacklinkDomainPageQuery:
                 filtered.c.citation_count,
                 filtered.c.chat_count,
                 filtered.c.prompt_count,
+                func.count().over().label("_total"),
             )
             .order_by(*order_clauses)
             .offset(offset)
             .limit(safe_page_size)
         ).all()
+        if not rows:
+            total = int(db.scalar(select(func.count()).select_from(filtered)) or 0)
+            return [], total
+
+        total = int(rows[0]._total)
 
         items: list[dict[str, Any]] = []
-        for domain, citation_count, chat_count, prompt_count in rows:
+        for domain, citation_count, chat_count, prompt_count, _row_total in rows:
             row = _backlink_row_from_sql(domain, citation_count, chat_count, prompt_count)
             if row is not None:
                 items.append(row)
@@ -477,24 +477,27 @@ class _BacklinkDomainContextQuery:
             topic_id=topic_id,
         )
         domain_filter = _backlink_domain_filter(domain, eligible)
-        citation_count, chat_count, prompt_count = db.execute(
+        citation_count, chat_count, prompt_count, platform_values = db.execute(
             select(
                 func.coalesce(func.sum(CitationDomain.cite_count), 0),
                 func.count(func.distinct(CitationDomain.response_id)),
                 func.count(func.distinct(CitationDomain.prompt_id)),
-            ).where(domain_filter)
+                func.array_agg(func.distinct(LLMResponse.platform)),
+            )
+            .join(LLMResponse, CitationDomain.response_id == LLMResponse.id)
+            .where(domain_filter)
         ).one()
         chat = int(chat_count or 0)
         if chat == 0:
             return None
 
-        platform_rows = db.execute(
-            select(LLMResponse.platform)
-            .join(CitationDomain, CitationDomain.response_id == LLMResponse.id)
-            .where(domain_filter)
-            .distinct()
-        ).all()
-        platforms = sorted({str(row[0]) for row in platform_rows if row[0]})
+        platforms = sorted(
+            {
+                str(value)
+                for value in (platform_values or [])
+                if value not in (None, "")
+            }
+        )
 
         return _BacklinkDomainContext(
             domain=domain,

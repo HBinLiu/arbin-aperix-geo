@@ -58,7 +58,7 @@ export function MentionedBrandsCell({ brands }: MentionedBrandsCellProps) {
         showArrow={false}
         className="border-border w-auto min-w-48 border bg-white px-3 py-2.5 text-foreground shadow-lg"
       >
-        <ul className="flex flex-col gap-2">
+        <ul className="flex max-h-60 flex-col gap-2 overflow-y-auto overscroll-contain pr-1">
           {brands.map((brand, index) => (
             <li
               key={`${brand.label}-${brand.domain ?? index}`}

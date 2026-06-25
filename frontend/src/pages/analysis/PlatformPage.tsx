@@ -46,7 +46,6 @@ export function PlatformPage() {
     rowDimension,
     metricId,
     matrixPlatforms,
-    configuredPlatforms,
   );
 
   return (
@@ -75,7 +74,6 @@ export function PlatformPage() {
           metric={metric}
           rows={matrixRows}
           platforms={matrixPlatforms}
-          platformsMeta={configuredPlatforms}
           loading={isLoading}
         />
 

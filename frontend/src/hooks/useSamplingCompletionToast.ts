@@ -28,7 +28,7 @@ export function useSamplingCompletionToast() {
     }
 
     if (sawRunningRef.current && !wasCompleteRef.current && isComplete) {
-      toast.success("首份监测报告已生成，概述数据已就绪。");
+      toast.success("品牌分析已完成，概述数据已就绪。");
       wasCompleteRef.current = true;
 
       const onOverview = pathname === "/app" || pathname === "/app/";

@@ -20,9 +20,10 @@ import {
   responseSources,
 } from "@/lib/analysis/responseDetail";
 import { resolvePlatformMeta } from "@/lib/analysis/shared";
+import { usePlatformCatalog } from "@/hooks/usePlatformCatalog";
 import { queryKeys } from "@/lib/queries";
 import { toast } from "@/lib/toast";
-import type { LlmResponseDialogRow, SamplingPlatform } from "@/types";
+import type { LlmResponseDialogRow } from "@/types";
 import { cn } from "@/lib/utils";
 
 type PromptDetailResponseDialogProps = {
@@ -30,7 +31,6 @@ type PromptDetailResponseDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   promptText: string;
-  platformsMeta: SamplingPlatform[];
 };
 
 function CopyButton({ text, className }: { text: string; className?: string }) {
@@ -176,8 +176,8 @@ export function PromptDetailResponseDialog({
   open,
   onOpenChange,
   promptText,
-  platformsMeta,
 }: PromptDetailResponseDialogProps) {
+  const platformCatalog = usePlatformCatalog();
   const responseId = row?.response_id ?? "";
 
   const detailQuery = useQuery({
@@ -186,7 +186,7 @@ export function PromptDetailResponseDialog({
     enabled: open && !!responseId,
   });
 
-  const platformMeta = resolvePlatformMeta(row?.platform ?? "", platformsMeta);
+  const platformMeta = resolvePlatformMeta(row?.platform ?? "", platformCatalog);
   const parsed = detailQuery.data?.parsed ?? null;
   const rawText = detailQuery.data?.raw_text ?? row?.reply_preview ?? "";
 

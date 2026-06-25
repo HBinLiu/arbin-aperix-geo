@@ -1,4 +1,5 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -67,11 +68,13 @@ function Dialog({ open, onOpenChange, closeDisabled = false, children }: DialogP
 
   if (!present) return null;
 
-  return (
+  const node = (
     <DialogContext.Provider value={{ closing, requestClose, closeDisabled }}>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">{children}</div>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">{children}</div>
     </DialogContext.Provider>
   );
+
+  return typeof document !== "undefined" ? createPortal(node, document.body) : node;
 }
 
 function DialogOverlay({ className, ...props }: React.ComponentProps<"button">) {

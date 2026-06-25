@@ -100,7 +100,6 @@ type CitationUrlTableProps = {
   ownBrand?: string | null;
   citationSearch?: string;
   domain?: string;
-  platformsMeta?: SamplingPlatform[];
 } & (
   | {
       subjectId: string;
@@ -167,7 +166,7 @@ function MentionStatusCell({ mentioned }: { mentioned: boolean | null }) {
 }
 
 export function CitationUrlTable(props: CitationUrlTableProps) {
-  const { ownLabel, ownBrand, platformsMeta = [] } = props;
+  const { ownLabel, ownBrand } = props;
   const citationSearch = "citationSearch" in props ? (props.citationSearch ?? "") : "";
   const filterDomain = "domain" in props ? (props.domain ?? "") : "";
   const staticMode = "rows" in props && props.rows != null;
@@ -344,7 +343,6 @@ export function CitationUrlTable(props: CitationUrlTableProps) {
                   <td className="px-4" onClick={(event) => event.stopPropagation()}>
                     <PlatformLogoGroup
                       providers={row.platforms ?? []}
-                      platforms={platformsMeta}
                       logoClassName="size-5"
                     />
                   </td>

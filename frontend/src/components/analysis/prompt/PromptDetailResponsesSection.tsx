@@ -10,7 +10,7 @@ import {
   promptDetailResponseFromAnalysis,
   type PromptDetailResponseTab,
 } from "@/lib/analysis/promptDetail";
-import type { AnalysisFilters, AnalysisResponseSortField, PromptDetailData, SamplingPlatform } from "@/types";
+import type { AnalysisFilters, AnalysisResponseSortField, PromptDetailData } from "@/types";
 
 type RankSortState = "asc" | "desc" | null;
 
@@ -29,7 +29,6 @@ type PromptDetailResponsesSectionProps = {
   promptId: string;
   filters: AnalysisFilters;
   data: PromptDetailData | null;
-  platformsMeta: SamplingPlatform[];
   detailLoading?: boolean;
 };
 
@@ -39,7 +38,6 @@ export function PromptDetailResponsesSection({
   promptId,
   filters,
   data,
-  platformsMeta,
   detailLoading = false,
 }: PromptDetailResponsesSectionProps) {
   const [activeTab, setActiveTab] = useState<PromptDetailResponseTab>("chat");
@@ -118,7 +116,6 @@ export function PromptDetailResponsesSection({
             setRankSort(nextSort);
             setChatPage(1);
           }}
-          platformsMeta={platformsMeta}
           promptText={data?.prompt_text ?? ""}
           loading={loading}
           fetching={fetching}

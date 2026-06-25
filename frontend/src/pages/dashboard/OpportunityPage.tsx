@@ -10,7 +10,6 @@ import {
   type BacklinkOpportunitySortState,
 } from "@/components/opportunity/OpportunityBacklinkTable";
 import { Input } from "@/components/ui/input";
-import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
 import { useAnalysisFiltersState } from "@/hooks/useAnalysisFiltersState";
 import { useBacklinkOpportunity } from "@/hooks/useBacklinkOpportunity";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
@@ -48,7 +47,6 @@ type OpportunityContentProps = {
 /** 机会页：反向链接 / 社交媒体 Tab */
 export function OpportunityContent({ subjectId }: OpportunityContentProps) {
   const { subject } = useDashboardContext();
-  const { platforms } = useAnalysisFilter();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const activeTab = opportunityTabFromPathname(pathname);
@@ -144,7 +142,6 @@ export function OpportunityContent({ subjectId }: OpportunityContentProps) {
         {activeTab === "backlink" ? (
           <OpportunityBacklinkTable
             rows={backlinkRows}
-            platformsMeta={platforms}
             loading={isBacklinkLoading}
             fetching={isBacklinkFetching}
             total={backlinkTotal}

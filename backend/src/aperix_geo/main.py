@@ -18,9 +18,9 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, Response
 
-from aperix_geo.api.routes import analysis, auth, competitors, diagnosis
+from aperix_geo.api.routes import analysis, auth, competitors, diagnosis, opportunity
 from aperix_geo.api.routes import favicon as favicon_routes
-from aperix_geo.api.routes import prompts, responses, sampling, subjects, topics
+from aperix_geo.api.routes import prompts, reports, responses, sampling, subjects, topics
 from aperix_geo.services.favicon import ensure_storage_dir
 
 
@@ -68,6 +68,8 @@ api_v1.include_router(sampling.router)
 api_v1.include_router(responses.router)
 api_v1.include_router(analysis.router)
 api_v1.include_router(diagnosis.router)
+api_v1.include_router(opportunity.router)
+api_v1.include_router(reports.router)
 api_v1.include_router(favicon_routes.router)
 
 app.include_router(api_v1)

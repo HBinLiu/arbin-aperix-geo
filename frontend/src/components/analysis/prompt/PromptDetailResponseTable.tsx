@@ -25,7 +25,8 @@ import {
 } from "@/lib/analysis/promptDetail";
 import { formatSentimentDateTime } from "@/lib/analysis/sentiment";
 import { resolvePlatformMeta } from "@/lib/analysis/shared";
-import type { PromptDetailData, PromptDetailResponseRow, SamplingPlatform } from "@/types";
+import { usePlatformCatalog } from "@/hooks/usePlatformCatalog";
+import type { PromptDetailData, PromptDetailResponseRow } from "@/types";
 import {
   performanceTableClasses,
   PROMPT_DETAIL_RESPONSE_TABLE_COLUMNS,
@@ -113,7 +114,6 @@ type PromptDetailResponseTableProps = {
   onChatPageSizeChange?: (pageSize: number) => void;
   rankSort?: RankSortState;
   onRankSortChange?: (sort: RankSortState) => void;
-  platformsMeta: SamplingPlatform[];
   promptText: string;
   loading?: boolean;
   fetching?: boolean;
@@ -161,14 +161,13 @@ function SkeletonRows() {
 
 function ResponseRow({
   row,
-  platformsMeta,
   onSelect,
 }: {
   row: PromptDetailResponseRow;
-  platformsMeta: SamplingPlatform[];
   onSelect: (row: PromptDetailResponseRow) => void;
 }) {
-  const platformMeta = resolvePlatformMeta(row.platform, platformsMeta);
+  const platformCatalog = usePlatformCatalog();
+  const platformMeta = resolvePlatformMeta(row.platform, platformCatalog);
 
   return (
     <tr
@@ -215,7 +214,6 @@ export function PromptDetailResponseTable({
   onChatPageSizeChange,
   rankSort = null,
   onRankSortChange,
-  platformsMeta,
   promptText,
   loading = false,
   fetching = false,
@@ -321,7 +319,6 @@ export function PromptDetailResponseTable({
               <ResponseRow
                 key={row.response_id}
                 row={row}
-                platformsMeta={platformsMeta}
                 onSelect={(nextRow) => {
                   setSelectedRow(nextRow);
                   setDialogOpen(true);
@@ -338,7 +335,6 @@ export function PromptDetailResponseTable({
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         promptText={promptText}
-        platformsMeta={platformsMeta}
       />
 
       {activeTab !== "queryExpansion" && paginationTotal > 0 ? (

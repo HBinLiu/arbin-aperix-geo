@@ -65,16 +65,16 @@ export function AppRoutes() {
                 <Route path="*" element={<Navigate to="visibility" replace />} />
               </Route>
               <Route path="rank" element={<RankRoute />} />
+              <Route path="diagnosis">
+                <Route index element={<DiagnosisRoute />} />
+                <Route path=":promptId" element={<DiagnosisContentDetailRoute />} />
+              </Route>
               <Route path="opportunity">
                 <Route index element={<Navigate to="backlink" replace />} />
                 <Route path="backlink/:domain" element={<OpportunityBacklinkDetailRoute />} />
                 <Route path=":tab" element={<OpportunityRoute />} />
               </Route>
               <Route path="agent" element={<AgentRoute />} />
-              <Route path="diagnosis">
-                <Route index element={<DiagnosisRoute />} />
-                <Route path=":promptId" element={<DiagnosisContentDetailRoute />} />
-              </Route>
             </Route>
             <Route path="prompt" element={<PromptRoute />} />
             <Route path="brand" element={<BrandRoute />} />

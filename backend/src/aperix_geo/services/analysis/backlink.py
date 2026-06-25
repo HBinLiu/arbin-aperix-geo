@@ -7,13 +7,15 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
-from aperix_geo.db.models import CitationUrl, LLMResponse, Prompt, Subject, Topic
+from aperix_geo.db.models import CitationDomain, CitationUrl, LLMResponse, Prompt, Subject, Topic
 from aperix_geo.services.analysis.backlink_sql import (
     _attach_backlink_platforms,
+    _backlink_domain_filter,
     _backlink_domain_response_ids_stmt,
+    _backlink_window_subquery,
     _query_backlink_domain_context,
     _query_backlink_domain_page,
     backlink_priority,
@@ -102,7 +104,7 @@ def _backlink_mentioned_competitors(
         own_keys.add(subject.brand.strip().lower())
 
     records = db.execute(
-        select(CitationUrl).where(
+        select(CitationUrl.llm_analysis).where(
             CitationUrl.response_id.in_(response_ids_stmt),
             _url_matches_registrable(CitationUrl.url, domain),
         )
@@ -110,8 +112,9 @@ def _backlink_mentioned_competitors(
     competitor_domains = _competitor_domain_map(subject)
     seen: set[str] = set()
     items: list[dict[str, str | None]] = []
-    for record in records:
-        analysis = record.llm_analysis if isinstance(record.llm_analysis, dict) else {}
+    for analysis in records:
+        if not isinstance(analysis, dict):
+            continue
         for name in page_mentioned_brand_names(analysis):
             key = name.lower()
             if key in own_keys or key in seen:
@@ -234,23 +237,25 @@ def build_backlink_opportunity_urls_page(
             "response_total": 0,
         }
 
-    response_ids_stmt = _backlink_domain_response_ids_stmt(
+    response_total = ctx.chat_count
+    eligible = _backlink_window_subquery(
         subject_id=subject.id,
-        domain=domain,
         dt_from=dt_from,
         dt_to=dt_to,
         platform=platform,
         topic_id=topic_id,
     )
-    response_total = ctx.chat_count
+    domain_filter = _backlink_domain_filter(domain, eligible)
     count_expr = func.count(CitationUrl.id)
     grouped = (
         select(
             CitationUrl.url.label("url"),
             count_expr.label("count"),
         )
+        .select_from(CitationUrl)
+        .join(CitationDomain, CitationDomain.response_id == CitationUrl.response_id)
         .where(
-            CitationUrl.response_id.in_(response_ids_stmt),
+            domain_filter,
             _url_matches_registrable(CitationUrl.url, domain),
         )
         .group_by(CitationUrl.url)
@@ -279,10 +284,13 @@ def build_backlink_opportunity_urls_page(
 
     joined = db.execute(
         select(CitationUrl, LLMResponse.platform)
+        .select_from(CitationUrl)
+        .join(CitationDomain, CitationDomain.response_id == CitationUrl.response_id)
         .join(LLMResponse, CitationUrl.response_id == LLMResponse.id)
         .where(
+            domain_filter,
             CitationUrl.url.in_(page_urls),
-            CitationUrl.response_id.in_(response_ids_stmt),
+            _url_matches_registrable(CitationUrl.url, domain),
         )
     ).all()
 
@@ -333,7 +341,7 @@ def build_backlink_opportunity_prompts_page(
     sort_by: str = "count",
     order: str = "desc",
 ) -> dict[str, Any]:
-    from aperix_geo.services.sampling.citation.aggregate import _normalize_pagination, _url_matches_registrable
+    from aperix_geo.services.sampling.citation.aggregate import _normalize_pagination
 
     domain = citation_registrable_key(domain)
     ctx = _query_backlink_domain_context(
@@ -355,26 +363,23 @@ def build_backlink_opportunity_prompts_page(
             "response_total": 0,
         }
 
-    response_ids_stmt = _backlink_domain_response_ids_stmt(
+    response_total = ctx.chat_count
+    eligible = _backlink_window_subquery(
         subject_id=subject.id,
-        domain=domain,
         dt_from=dt_from,
         dt_to=dt_to,
         platform=platform,
         topic_id=topic_id,
     )
-    response_total = ctx.chat_count
-    count_expr = func.count(CitationUrl.id)
+    domain_filter = _backlink_domain_filter(domain, eligible)
+    count_expr = func.sum(CitationDomain.cite_count)
     grouped = (
         select(
-            CitationUrl.prompt_id.label("prompt_id"),
+            CitationDomain.prompt_id.label("prompt_id"),
             count_expr.label("count"),
         )
-        .where(
-            CitationUrl.response_id.in_(response_ids_stmt),
-            _url_matches_registrable(CitationUrl.url, domain),
-        )
-        .group_by(CitationUrl.prompt_id)
+        .where(domain_filter)
+        .group_by(CitationDomain.prompt_id)
     ).subquery()
 
     total = int(db.scalar(select(func.count()).select_from(grouped)) or 0)
@@ -410,12 +415,12 @@ def build_backlink_opportunity_prompts_page(
     count_by_prompt = {prompt_id: int(count) for prompt_id, count in page_rows}
 
     platform_rows = db.execute(
-        select(CitationUrl.prompt_id, LLMResponse.platform)
-        .join(LLMResponse, CitationUrl.response_id == LLMResponse.id)
+        select(CitationDomain.prompt_id, LLMResponse.platform)
+        .join(LLMResponse, CitationDomain.response_id == LLMResponse.id)
         .where(
-            CitationUrl.response_id.in_(response_ids_stmt),
-            CitationUrl.prompt_id.in_(page_prompt_ids),
-            _url_matches_registrable(CitationUrl.url, domain),
+            domain_filter,
+            CitationDomain.prompt_id.in_(page_prompt_ids),
+            LLMResponse.platform != "",
         )
         .distinct()
     ).all()

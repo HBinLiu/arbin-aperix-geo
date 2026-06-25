@@ -20,12 +20,12 @@ import {
   promptDetailMetric,
   type PromptDetailMetricId,
 } from "@/lib/analysis/promptDetail";
-import type { PlatformPerformance, SamplingPlatform } from "@/types";
+import { usePlatformCatalog } from "@/hooks/usePlatformCatalog";
+import type { PlatformPerformance } from "@/types";
 import { cn } from "@/lib/utils";
 
 type PromptPlatformBarChartProps = {
   platforms: PlatformPerformance[];
-  platformsMeta: SamplingPlatform[];
   metricId: PromptDetailMetricId;
   className?: string;
   height?: number;
@@ -46,24 +46,24 @@ type BarTooltipPayload = {
 /** 提示词详情 · 按平台柱状图 */
 export function PromptPlatformBarChart({
   platforms,
-  platformsMeta,
   metricId,
   className,
   height = 270,
 }: PromptPlatformBarChartProps) {
+  const platformCatalog = usePlatformCatalog();
   const metric = promptDetailMetric(metricId);
 
   const data = useMemo(
     () =>
       platforms.map((row) => {
-        const meta = resolvePlatformMeta(row.platform, platformsMeta);
+        const meta = resolvePlatformMeta(row.platform, platformCatalog);
         return {
           platform: row.platform,
           label: meta.label,
           value: platformMetricValue(row, metricId),
         };
       }),
-    [platforms, platformsMeta, metricId],
+    [platforms, platformCatalog, metricId],
   );
 
   const yTickFormatter = useCallback(

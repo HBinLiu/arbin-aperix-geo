@@ -375,16 +375,23 @@ export async function fetchPromptDetail(
 
 export async function fetchDiagnosisContentSummary(
   subjectId: string,
+  filters: AnalysisQueryFilters,
 ): Promise<DiagnosisContentSummaryData> {
+  const params = buildAnalysisParams(filters);
+  const body: Record<string, string | string[]> = { ...params };
+  if (typeof body.platform === "string") {
+    body.platform = [body.platform];
+  }
   const { data } = await api.post<DiagnosisContentSummaryData>(
     `/subjects/${subjectId}/diagnosis/summary`,
-    {},
+    body,
   );
   return data;
 }
 
 export async function fetchDiagnosisContent(
   subjectId: string,
+  filters: AnalysisQueryFilters,
   options: {
     page?: number;
     pageSize?: number;
@@ -392,10 +399,13 @@ export async function fetchDiagnosisContent(
     order?: "asc" | "desc";
   } = {},
 ): Promise<DiagnosisContentListData> {
-  const body: Record<string, string | number | undefined> = {
-    page: options.page ?? 1,
-    page_size: options.pageSize ?? 10,
-  };
+  const params = buildAnalysisParams(filters);
+  const body: Record<string, string | number | string[] | undefined> = { ...params };
+  if (typeof body.platform === "string") {
+    body.platform = [body.platform];
+  }
+  body.page = options.page ?? 1;
+  body.page_size = options.pageSize ?? 10;
   if (options.sortBy) {
     body.sort_by = options.sortBy;
     body.order = options.order ?? "asc";
@@ -409,13 +419,22 @@ export async function fetchDiagnosisContent(
 
 export async function fetchDiagnosisContentDetail(
   subjectId: string,
+  filters: AnalysisQueryFilters,
   options: {
     promptId: string;
   },
 ): Promise<ContentOpportunityDetailData> {
+  const params = buildAnalysisParams(filters);
+  const body: Record<string, string | string[]> = {
+    ...params,
+    prompt_id: options.promptId,
+  };
+  if (typeof body.platform === "string") {
+    body.platform = [body.platform];
+  }
   const { data } = await api.post<ContentOpportunityDetailData>(
     `/subjects/${subjectId}/diagnosis/detail`,
-    { prompt_id: options.promptId },
+    body,
   );
   return data;
 }

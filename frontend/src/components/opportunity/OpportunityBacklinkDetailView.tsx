@@ -18,7 +18,6 @@ import type {
   AnalysisFilters,
   BacklinkOpportunityDetailTab,
   OpportunityPriority,
-  SamplingPlatform,
 } from "@/types";
 
 const PRIORITY_VARIANT: Record<OpportunityPriority, SemanticBadgeVariant> = {
@@ -33,7 +32,6 @@ type OpportunityBacklinkDetailViewProps = {
   filters: AnalysisFilters;
   ownLabel: string;
   ownBrand?: string | null;
-  platformsMeta: SamplingPlatform[];
 };
 
 function InfoField({ label, children }: { label: string; children: ReactNode }) {
@@ -60,7 +58,6 @@ export function OpportunityBacklinkDetailView({
   filters,
   ownLabel,
   ownBrand,
-  platformsMeta,
 }: OpportunityBacklinkDetailViewProps) {
   const [activeTab, setActiveTab] = useState<BacklinkOpportunityDetailTab>("pages");
   const { data, isLoading } = useBacklinkOpportunityDetail(subjectId, filters, { domain });
@@ -107,7 +104,6 @@ export function OpportunityBacklinkDetailView({
           ) : (
             <PlatformLogoGroup
               providers={data?.platforms ?? []}
-              platforms={platformsMeta}
               logoClassName="size-5"
             />
           )}
@@ -148,14 +144,12 @@ export function OpportunityBacklinkDetailView({
             filters={filters}
             ownLabel={ownLabel}
             ownBrand={ownBrand}
-            platformsMeta={platformsMeta}
           />
         ) : (
           <OpportunityBacklinkPromptTable
             subjectId={subjectId}
             domain={domain}
             filters={filters}
-            platformsMeta={platformsMeta}
           />
         )}
       </div>

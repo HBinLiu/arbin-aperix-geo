@@ -17,7 +17,8 @@ import { formatChartDayLabel, formatChartTooltipDate } from "@/lib/analysis/char
 import { formatSentimentScore } from "@/lib/analysis/format";
 import { SENTIMENT_BAR_COLORS } from "@/lib/analysis/sentiment";
 import { resolvePlatformMeta } from "@/lib/analysis/shared";
-import type { SamplingPlatform, SentimentDistributionPoint, SentimentTab } from "@/types";
+import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
+import type { SentimentDistributionPoint, SentimentTab } from "@/types";
 import { cn } from "@/lib/utils";
 
 const Y_TICKS = [0, 25, 50, 75, 100] as const;
@@ -27,7 +28,6 @@ const HOVER_CURSOR_FILL = "rgba(0,0,0,0.04)";
 
 type SentimentDistributionChartProps = {
   series?: SentimentDistributionPoint[];
-  platformsMeta?: SamplingPlatform[];
   className?: string;
 };
 
@@ -45,12 +45,10 @@ function barColor(label: SentimentTab | string | undefined): string {
 
 function sortedPlatformTooltipRows(
   platformScores: Record<string, number>,
-  platformsMeta: SamplingPlatform[],
+  platformOrder: string[],
 ): Array<{ platformId: string; score: number }> {
   const platformIds =
-    platformsMeta.length > 0
-      ? platformsMeta.map((platform) => platform.platform)
-      : Object.keys(platformScores);
+    platformOrder.length > 0 ? platformOrder : Object.keys(platformScores);
 
   return platformIds
     .map((platformId) => ({
@@ -62,9 +60,13 @@ function sortedPlatformTooltipRows(
 
 export function SentimentDistributionChart({
   series = [],
-  platformsMeta = [],
   className,
 }: SentimentDistributionChartProps) {
+  const { platformCatalog, platforms } = useAnalysisFilter();
+  const platformOrder = useMemo(
+    () => platforms.map((platform) => platform.platform),
+    [platforms],
+  );
   const data = useMemo<ChartRow[]>(
     () =>
       series.map((point) => ({
@@ -83,13 +85,13 @@ export function SentimentDistributionChart({
       if (!row) return null;
 
       const platformScores = row.platform_scores ?? {};
-      const platformRows = sortedPlatformTooltipRows(platformScores, platformsMeta);
+      const platformRows = sortedPlatformTooltipRows(platformScores, platformOrder);
 
       return (
         <ChartMetricTooltipPanel
           header={row.date ? formatChartTooltipDate(row.date) : undefined}
           rows={platformRows.map(({ platformId, score }) => {
-            const meta = resolvePlatformMeta(platformId, platformsMeta);
+            const meta = resolvePlatformMeta(platformId, platformCatalog);
             return {
               label: meta.label,
               value: formatSentimentScore(score),
@@ -105,7 +107,7 @@ export function SentimentDistributionChart({
         />
       );
     },
-    [platformsMeta],
+    [platformCatalog, platformOrder],
   );
 
   if (data.length === 0) {

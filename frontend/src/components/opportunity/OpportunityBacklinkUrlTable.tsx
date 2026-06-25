@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useBacklinkOpportunityUrls } from "@/hooks/useBacklinkOpportunityDetail";
 import { citationMentionsOwnBrand, citationUrlDisplayTitle } from "@/lib/analysis/citation";
 import { cn } from "@/lib/utils";
-import type { AnalysisFilters, BacklinkOpportunityUrlRow, CitationUrlSortField, SamplingPlatform } from "@/types";
+import type { AnalysisFilters, BacklinkOpportunityUrlRow, CitationUrlSortField } from "@/types";
 
 const SKELETON_ROWS = 8;
 const COLUMN_COUNT = 5;
@@ -128,7 +128,6 @@ type OpportunityBacklinkUrlTableProps = {
   filters: AnalysisFilters;
   ownLabel: string;
   ownBrand?: string | null;
-  platformsMeta: SamplingPlatform[];
 };
 
 export function OpportunityBacklinkUrlTable({
@@ -137,7 +136,6 @@ export function OpportunityBacklinkUrlTable({
   filters,
   ownLabel,
   ownBrand,
-  platformsMeta,
 }: OpportunityBacklinkUrlTableProps) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
@@ -221,7 +219,6 @@ export function OpportunityBacklinkUrlTable({
                   <td className="px-4">
                     <PlatformLogoGroup
                       providers={row.platforms}
-                      platforms={platformsMeta}
                       logoClassName="size-5"
                     />
                   </td>

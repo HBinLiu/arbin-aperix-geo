@@ -9,7 +9,6 @@ import {
 import { PromptDetailOpportunity } from "@/components/analysis/prompt/PromptDetailOpportunity";
 import { PromptDetailResponsesSection } from "@/components/analysis/prompt/PromptDetailResponsesSection";
 import { PromptPlatformBarChart } from "@/components/analysis/prompt/PromptPlatformBarChart";
-import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
 import { useAnalysisOutletContext } from "@/hooks/useAnalysisContext";
 import { useAnalysisFiltersState } from "@/hooks/useAnalysisFiltersState";
 import { usePromptDetailAnalysis } from "@/hooks/usePromptDetailAnalysis";
@@ -34,7 +33,6 @@ export function PromptDetailPage() {
   const { promptId: promptIdParam } = useParams<{ promptId: string }>();
   const promptId = decodeRoutePromptId(promptIdParam);
   const { subjectId } = useAnalysisOutletContext();
-  const { platforms: platformsMeta } = useAnalysisFilter();
   const { filters, setFilters } = useAnalysisFiltersState();
   const [activeMetricId, setActiveMetricId] = useState<PromptDetailMetricId>("visibility");
 
@@ -84,7 +82,6 @@ export function PromptDetailPage() {
               <h4 className="mb-4 text-sm font-semibold">按平台</h4>
               <PromptPlatformBarChart
                 platforms={platforms}
-                platformsMeta={platformsMeta}
                 metricId={activeMetricId}
                 height={CHART_HEIGHT}
               />
@@ -99,7 +96,6 @@ export function PromptDetailPage() {
           promptId={promptId}
           filters={filters}
           data={responses}
-          platformsMeta={platformsMeta}
           detailLoading={isLoading}
         />
       </div>

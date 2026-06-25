@@ -11,7 +11,6 @@ import {
   SENTIMENT_SECTION_HEIGHT,
   type SentimentOverviewData,
 } from "@/lib/analysis/sentiment";
-import type { SamplingPlatform } from "@/types";
 import { cn } from "@/lib/utils";
 
 const DISTRIBUTION_DESCRIPTION =
@@ -19,7 +18,6 @@ const DISTRIBUTION_DESCRIPTION =
 
 type SentimentOverviewSectionProps = {
   overview: SentimentOverviewData;
-  platformsMeta: SamplingPlatform[];
   loading?: boolean;
 };
 
@@ -59,7 +57,6 @@ type DistributionCardProps = {
   score: number | null | undefined;
   scoreLabel: string;
   series: SentimentOverviewData["distributionSeries"];
-  platformsMeta: SamplingPlatform[];
   loading?: boolean;
 };
 
@@ -67,7 +64,6 @@ function SentimentDistributionCard({
   score,
   scoreLabel,
   series,
-  platformsMeta,
   loading,
 }: DistributionCardProps) {
   const scoreText = score != null ? score.toFixed(1) : null;
@@ -97,11 +93,7 @@ function SentimentDistributionCard({
         {loading ? (
           <div className="bg-muted/60 min-h-[120px] flex-1 animate-pulse rounded-md" />
         ) : (
-          <SentimentDistributionChart
-            series={series}
-            platformsMeta={platformsMeta}
-            className="w-full"
-          />
+          <SentimentDistributionChart series={series} className="w-full" />
         )}
       </div>
     </div>
@@ -110,7 +102,6 @@ function SentimentDistributionCard({
 
 export function SentimentOverviewSection({
   overview,
-  platformsMeta,
   loading = false,
 }: SentimentOverviewSectionProps) {
   const rankRowsWithIcons = useMemo(
@@ -132,7 +123,6 @@ export function SentimentOverviewSection({
           score={overview.score}
           scoreLabel={overview.scoreLabel}
           series={overview.distributionSeries}
-          platformsMeta={platformsMeta}
           loading={loading}
         />
         <div

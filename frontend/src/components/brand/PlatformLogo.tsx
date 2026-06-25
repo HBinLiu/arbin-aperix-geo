@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 
 import { platformAccent, platformLogoSrc } from "@/lib/brand";
 import { resolvePlatformMeta } from "@/lib/analysis/shared";
+import { usePlatformCatalog } from "@/hooks/usePlatformCatalog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { SamplingPlatform } from "@/types";
 import { cn } from "@/lib/utils";
 
 type PlatformLogoProps = {
@@ -42,7 +42,6 @@ const DEFAULT_MAX_VISIBLE = 4;
 
 type PlatformLogoGroupProps = {
   providers: string[];
-  platforms?: SamplingPlatform[];
   maxVisible?: number;
   className?: string;
   logoClassName?: string;
@@ -52,18 +51,19 @@ type PlatformLogoGroupProps = {
 /** 多平台 logo 叠放；空列表显示 —，超出 maxVisible 显示 +N */
 export function PlatformLogoGroup({
   providers,
-  platforms = [],
   maxVisible = DEFAULT_MAX_VISIBLE,
   className,
   logoClassName,
   showTooltip = true,
 }: PlatformLogoGroupProps) {
+  const platformCatalog = usePlatformCatalog();
+
   let content: ReactNode;
 
   if (providers.length === 0) {
     content = "-";
   } else {
-    const resolved = providers.map((provider) => resolvePlatformMeta(provider, platforms));
+    const resolved = providers.map((provider) => resolvePlatformMeta(provider, platformCatalog));
     const visible = resolved.slice(0, maxVisible);
     const overflow = resolved.length - visible.length;
 

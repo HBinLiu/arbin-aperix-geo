@@ -20,13 +20,13 @@ import { PlatformLogo } from "@/components/brand/PlatformLogo";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSentimentTabResponses } from "@/hooks/useAnalysisResponses";
 import { resolvePlatformMeta } from "@/lib/analysis/shared";
+import { usePlatformCatalog } from "@/hooks/usePlatformCatalog";
 import { formatSentimentScore } from "@/lib/analysis/format";
 import { formatSentimentDateTime, SENTIMENT_LABELS } from "@/lib/analysis/sentiment";
 import type {
   AnalysisFilters,
   AnalysisResponseRow,
   LlmResponseDialogRow,
-  SamplingPlatform,
   SentimentTab,
 } from "@/types";
 import { cn } from "@/lib/utils";
@@ -89,7 +89,6 @@ type SentimentResponseTableProps = {
   subjectId: string;
   filters: AnalysisFilters;
   activeTab: SentimentTab;
-  platformsMeta: SamplingPlatform[];
 };
 
 function SentimentResponseSkeletonRows() {
@@ -123,8 +122,8 @@ export function SentimentResponseTable({
   subjectId,
   filters,
   activeTab,
-  platformsMeta,
 }: SentimentResponseTableProps) {
+  const platformCatalog = usePlatformCatalog();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
   const [sentimentSort, setSentimentSort] = useState<SentimentSortState>(null);
@@ -225,7 +224,7 @@ export function SentimentResponseTable({
               </tr>
             ) : (
               responses.map((row) => {
-                const platformMeta = resolvePlatformMeta(row.platform_id, platformsMeta);
+                const platformMeta = resolvePlatformMeta(row.platform_id, platformCatalog);
                 return (
                   <tr
                     key={row.response_id}
@@ -284,7 +283,6 @@ export function SentimentResponseTable({
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         promptText={promptText}
-        platformsMeta={platformsMeta}
       />
     </PaginatedTableCard>
   );

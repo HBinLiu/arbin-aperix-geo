@@ -1,10 +1,11 @@
 import { useMemo } from "react";
 
 import { fetchDiagnosisContent } from "@/api/analysis";
+import { platformFilterKey, topicFilterKey, toAnalysisQueryFilters } from "@/lib/analysis";
 import { buildDiagnosisContentRows } from "@/lib/diagnosis/content";
 import { paginatedListResult, usePaginatedQuery } from "@/hooks/usePaginatedQuery";
 import { queryKeys } from "@/lib/queries";
-import type { ContentOpportunitySortField } from "@/types";
+import type { AnalysisFilters, ContentOpportunitySortField } from "@/types";
 
 export type DiagnosisContentListRequest = {
   page: number;
@@ -15,16 +16,32 @@ export type DiagnosisContentListRequest = {
 
 export function useDiagnosisContent(
   subjectId: string,
+  filters: AnalysisFilters,
   listRequest: DiagnosisContentListRequest,
   enabled = true,
 ) {
+  const queryFilters = useMemo(() => toAnalysisQueryFilters(filters), [filters]);
+  const { from, to, entityId, platformIds, topicIds } = queryFilters;
+  const platformKey = platformFilterKey(platformIds);
+  const topicKey = topicFilterKey(topicIds);
   const { page, pageSize, sortBy, order } = listRequest;
   const sortKey = sortBy ?? "";
 
   const query = usePaginatedQuery({
-    queryKey: queryKeys.diagnosisContent(subjectId, page, pageSize, sortKey, order ?? ""),
+    queryKey: queryKeys.diagnosisContent(
+      subjectId,
+      entityId,
+      platformKey,
+      topicKey,
+      from,
+      to,
+      page,
+      pageSize,
+      sortKey,
+      order ?? "",
+    ),
     queryFn: () =>
-      fetchDiagnosisContent(subjectId, {
+      fetchDiagnosisContent(subjectId, queryFilters, {
         page,
         pageSize,
         sortBy,

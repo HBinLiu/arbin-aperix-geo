@@ -2,7 +2,6 @@ import { useParams } from "react-router-dom";
 
 import { AnalysisFilterBar } from "@/components/analysis/common/AnalysisFilterBar";
 import { OpportunityBacklinkDetailView } from "@/components/opportunity/OpportunityBacklinkDetailView";
-import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
 import { useAnalysisFiltersState } from "@/hooks/useAnalysisFiltersState";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
 
@@ -24,7 +23,6 @@ export function BacklinkDetailPage({ subjectId }: BacklinkDetailPageProps) {
   const { domain: domainParam } = useParams<{ domain: string }>();
   const domain = decodeRouteDomain(domainParam);
   const { subject } = useDashboardContext();
-  const { platforms: platformsMeta } = useAnalysisFilter();
   const { filters, setFilters } = useAnalysisFiltersState();
 
   return (
@@ -36,7 +34,6 @@ export function BacklinkDetailPage({ subjectId }: BacklinkDetailPageProps) {
         filters={filters}
         ownLabel={subject.brand}
         ownBrand={subject.brand}
-        platformsMeta={platformsMeta}
       />
     </div>
   );

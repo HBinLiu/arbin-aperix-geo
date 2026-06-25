@@ -77,22 +77,6 @@ def diagnosis_issue_type(mention_rate: float | None, average_rank: float | None)
     return "healthy"
 
 
-def priority_counts(items: list[dict[str, Any]], *, key: str = "priority") -> dict[str, int]:
-    counts = {"high": 0, "medium": 0, "low": 0}
-    for item in items:
-        value = item.get(key)
-        if value in counts:
-            counts[value] += 1
-    return counts
-
-
-def health_score_from_mention(items: list[dict[str, Any]]) -> float:
-    if not items:
-        return 0.0
-    total = sum((item.get("mention_rate") or 0) for item in items)
-    return round(total / len(items) * 100, 1)
-
-
 def overall_diagnosis_status(score: float) -> str:
     if score >= 80:
         return "excellent"

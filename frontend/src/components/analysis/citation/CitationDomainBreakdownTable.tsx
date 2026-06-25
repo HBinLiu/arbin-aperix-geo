@@ -15,12 +15,12 @@ import { useCitationDomainPrompts } from "@/hooks/useCitationList";
 import { DEFAULT_ANALYSIS_FILTERS } from "@/lib/analysis/filters";
 import { formatRate } from "@/lib/analysis/format";
 import { resolvePlatformMeta } from "@/lib/analysis/shared";
+import { usePlatformCatalog } from "@/hooks/usePlatformCatalog";
 import { cn } from "@/lib/utils";
 import type {
   AnalysisFilters,
   CitationDomainBreakdownRow,
   CitationDomainPromptSortField,
-  SamplingPlatform,
 } from "@/types";
 
 const SKELETON_ROWS = 8;
@@ -41,7 +41,6 @@ function sortParams(sort: SortState): { sortBy: CitationDomainPromptSortField; o
 type CitationDomainBreakdownTableProps = {
   nameHeader: string;
   variant?: "text" | "platform";
-  platformsMeta?: SamplingPlatform[];
   showTopicColumn?: boolean;
 } & (
   | {
@@ -142,9 +141,9 @@ export function CitationDomainBreakdownTable(props: CitationDomainBreakdownTable
   const {
     nameHeader,
     variant = "text",
-    platformsMeta = [],
     showTopicColumn = false,
   } = props;
+  const platformCatalog = usePlatformCatalog();
   const staticMode = "rows" in props && props.rows != null;
 
   const [page, setPage] = useState(1);
@@ -261,7 +260,7 @@ export function CitationDomainBreakdownTable(props: CitationDomainBreakdownTable
               rows.map((row) => {
                 const platformMeta =
                   variant === "platform"
-                    ? resolvePlatformMeta(row.id, platformsMeta)
+                    ? resolvePlatformMeta(row.id, platformCatalog)
                     : null;
 
                 return (
