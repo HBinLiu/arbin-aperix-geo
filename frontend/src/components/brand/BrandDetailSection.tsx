@@ -84,7 +84,7 @@ function CopyIdButton({ value }: { value: string }) {
 
 function DetailField({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="border-border min-w-0 space-y-1 rounded-lg border bg-white px-3 py-2.5">
+    <div className="border-border min-w-0 space-y-1 rounded-lg border bg-muted-background px-3 py-2.5">
       <p className="text-muted-foreground text-xs font-medium">{label}</p>
       <div className="text-muted-foreground text-sm font-medium">{children}</div>
     </div>
@@ -116,7 +116,7 @@ export function BrandDetailSection({ subject }: BrandDetailSectionProps) {
       >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="border-border flex size-11 shrink-0 items-center justify-center rounded-md border bg-white p-1.5">
+            <div className="border-border flex size-11 shrink-0 items-center justify-center rounded-md border bg-muted-background p-1.5">
               {faviconUrl ? (
                 <FaviconImage
                   url={faviconUrl}
@@ -157,7 +157,7 @@ export function BrandDetailSection({ subject }: BrandDetailSectionProps) {
                 {aliases.map((item) => (
                   <span
                     key={item}
-                    className="bg-muted text-muted-foreground inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm"
+                    className="bg-background text-muted-foreground inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm"
                   >
                     <Tag className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
                     <span>{item}</span>
@@ -185,7 +185,7 @@ export function BrandDetailSection({ subject }: BrandDetailSectionProps) {
           </DetailField>
         </div>
 
-        <div className="border-border mt-4 space-y-1 rounded-lg border bg-white px-3 py-2.5">
+        <div className="border-border mt-4 space-y-1 rounded-lg border bg-muted-background px-3 py-2.5">
           <p className="text-muted-foreground text-xs font-medium">摘要</p>
           <div className="h-40 overflow-y-auto pr-1 sm:h-44">
             {summary ? (

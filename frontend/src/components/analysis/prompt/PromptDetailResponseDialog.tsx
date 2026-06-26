@@ -53,7 +53,7 @@ function CopyButton({ text, className }: { text: string; className?: string }) {
       type="button"
       onClick={() => void onCopy()}
       className={cn(
-        "border-border text-foreground inline-flex shrink-0 items-center gap-1 rounded-md border bg-white px-2.5 py-1.5 text-xs leading-none transition-colors",
+        "border-border text-foreground inline-flex shrink-0 items-center gap-1 rounded-md border bg-muted-background px-2.5 py-1.5 text-xs leading-none transition-colors",
         className,
       )}
     >
@@ -65,7 +65,7 @@ function CopyButton({ text, className }: { text: string; className?: string }) {
 
 function UserPromptAvatar() {
   return (
-    <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
+    <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-background text-foreground">
       <UserRound className="size-5" strokeWidth={2} aria-hidden />
     </span>
   );
@@ -74,7 +74,7 @@ function UserPromptAvatar() {
 function UserPromptMessage({ text }: { text: string }) {
   return (
     <div className="flex w-full items-start justify-end gap-2.5">
-      <p className="bg-muted max-w-[85%] rounded-lg px-3 py-2 text-left text-sm font-medium leading-6 whitespace-pre-wrap">
+      <p className="bg-background max-w-[85%] rounded-lg px-3 py-2 text-left text-sm font-medium leading-6 whitespace-pre-wrap">
         {text.trim() || "—"}
       </p>
       <UserPromptAvatar />
@@ -152,7 +152,7 @@ function SidebarSection({
         </div>
         <div
           className={cn(
-            "pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-white from-40% via-white/70 to-transparent backdrop-blur-[1px] transition-opacity duration-200",
+            "pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-surface from-40% via-surface/70 to-transparent backdrop-blur-[1px] transition-opacity duration-200",
             SCROLL_FADE_SIZE,
             showTopFade ? "opacity-100" : "opacity-0",
           )}
@@ -160,7 +160,7 @@ function SidebarSection({
         />
         <div
           className={cn(
-            "pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-white from-40% via-white/70 to-transparent backdrop-blur-[1px] transition-opacity duration-200",
+            "pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-surface from-40% via-surface/70 to-transparent backdrop-blur-[1px] transition-opacity duration-200",
             SCROLL_FADE_SIZE,
             showBottomFade ? "opacity-100" : "opacity-0",
           )}

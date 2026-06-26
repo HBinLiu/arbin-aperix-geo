@@ -28,9 +28,9 @@ export function SamplingProgressSidebar({ pipeline }: SamplingProgressSidebarPro
 
       <div
         className={cn(
-          "border-border/80 relative z-[1] rounded-lg border bg-white p-3 transition-all duration-300",
+          "border-border/80 relative z-[1] rounded-lg border bg-muted-background p-3 transition-all duration-300",
           isActive && cn("border-primary/40", PIPELINE_ACTIVE_GLOW_SHADOW),
-          isFailed && "border-destructive/35",
+          isFailed && "border-error/35",
           !isActive && "shadow-[8px_10px_24px_-10px_rgba(15,23,42,0.12)]",
         )}
       >

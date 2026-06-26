@@ -145,9 +145,21 @@ export function sentimentResponseColumn(id: string): SentimentResponseTableColum
   return column;
 }
 
+/** 表格数据行 hover（与 TopicPerformanceTable 一致） */
+export const tableRowHoverClass = "transition-colors hover:bg-background/80";
+
+/** 宽行表格 tbody 行（引用 / 情感等） */
+export const wideTableRowClass = `border-border border-t [&>td]:py-3 ${tableRowHoverClass}`;
+
+/** 紧凑表格 tbody 行（排行榜等） */
+export const compactTableRowClass = `border-border border-t [&>td]:whitespace-nowrap [&>td]:py-2 ${tableRowHoverClass}`;
+
+/** 主题可见度排名表 tbody 行 */
+export const visibilityRankTableRowClass = `border-border border-t [&>td]:align-middle [&>td]:whitespace-nowrap [&>td]:px-4 [&>td]:py-3 ${tableRowHoverClass}`;
+
 export const performanceTableClasses = {
-  head: "text-muted-foreground bg-muted/80 text-left text-sm [&_th]:whitespace-nowrap [&_th]:px-4 [&_th]:py-3 [&_th]:font-medium",
-  row: "border-border h-11 border-t [&>td]:align-middle [&>td]:whitespace-nowrap [&>td]:px-4 [&>td]:py-1",
+  head: "text-muted-foreground bg-background/80 text-left text-sm [&_th]:whitespace-nowrap [&_th]:px-4 [&_th]:py-3 [&_th]:font-medium",
+  row: `border-border h-11 border-t [&>td]:align-middle [&>td]:whitespace-nowrap [&>td]:px-4 [&>td]:py-1 ${tableRowHoverClass}`,
   topicTable: "w-full table-fixed text-sm",
   promptTable: "w-full table-fixed text-sm",
 } as const;

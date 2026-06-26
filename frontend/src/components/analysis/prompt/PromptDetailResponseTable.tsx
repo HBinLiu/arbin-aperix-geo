@@ -33,6 +33,7 @@ import {
   PROMPT_DETAIL_RESPONSE_TABLE_MIN_WIDTH,
   promptDetailResponseColumnCellStyle,
   promptDetailResponseColumnColStyle,
+  wideTableRowClass,
 } from "@/components/analysis/prompt/performanceTableLayout";
 import { cn } from "@/lib/utils";
 
@@ -131,7 +132,7 @@ function SkeletonRows() {
   return (
     <>
       {Array.from({ length: SKELETON_ROWS }).map((_, index) => (
-        <tr key={index} className="border-border border-t [&>td]:py-3" aria-hidden>
+        <tr key={index} className={wideTableRowClass} aria-hidden>
           <td className="pl-5">
             <div className="flex items-center gap-2 whitespace-nowrap">
               <Skeleton className="size-6 rounded-md" />
@@ -171,7 +172,7 @@ function ResponseRow({
 
   return (
     <tr
-      className="border-border hover:bg-muted/40 cursor-pointer border-t [&>td]:py-3"
+      className={cn(wideTableRowClass, "cursor-pointer")}
       onClick={() => onSelect(row)}
     >
       <td className="pl-5">
@@ -299,7 +300,7 @@ export function PromptDetailResponseTable({
             <th style={DATE_CELL_STYLE}>日期</th>
           </tr>
         </thead>
-        <tbody className={performanceTableClasses.row}>
+        <tbody>
           {loading && displayRows.length === 0 ? (
             <SkeletonRows />
           ) : activeTab === "queryExpansion" ? (

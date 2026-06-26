@@ -189,7 +189,7 @@ export function OpportunityContent({ subjectId }: OpportunityContentProps) {
         onChange={(event) => setSearch(event.target.value)}
         placeholder={meta.searchPlaceholder}
         controlSize="sm"
-        className="border-border h-9 w-[min(100%,220px)] rounded-lg bg-white pr-3 pl-9 text-xs shadow-none"
+        className="border-border h-9 w-[min(100%,220px)] rounded-lg bg-muted-background pr-3 pl-9 text-xs"
         aria-label={meta.searchPlaceholder}
       />
     </div>
@@ -244,7 +244,7 @@ export function OpportunityContent({ subjectId }: OpportunityContentProps) {
             onPromote={(target) => setPromoteConfirm(target)}
           />
         ) : (
-          <div className="border-border text-muted-foreground flex min-h-[240px] items-center justify-center rounded-lg border bg-white px-6 py-10 text-sm">
+          <div className="border-border text-muted-foreground flex min-h-[240px] items-center justify-center rounded-lg border bg-muted-background px-6 py-10 text-sm">
             {meta.empty}
           </div>
         )}

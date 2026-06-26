@@ -79,7 +79,7 @@ export function SamplingProgressOverview({
           {isFailed ? (
             <>
               <h2
-                className="text-destructive mt-6 flex items-center justify-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl"
+                className="text-error mt-6 flex items-center justify-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl"
               >
                 <CircleX className="size-6 shrink-0 sm:size-7" aria-hidden />
                 品牌分析失败
@@ -120,7 +120,7 @@ export function SamplingProgressOverview({
             <PipelineStepCard key={step.id} step={step} />
           ))}
 
-          <div className="border-border/80 mt-1 flex flex-col gap-3 rounded-xl border bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="border-border/80 mt-1 flex flex-col gap-3 rounded-xl border bg-muted-background p-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-muted-foreground text-xs">预计完成时间：{etaLabel}。</p>
             <Button variant="default" size="sm" className="rounded-lg px-4" asChild>
               <Link to={dashboardNavToPath("brand")}>

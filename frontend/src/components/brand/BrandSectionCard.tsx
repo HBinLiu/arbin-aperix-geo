@@ -36,14 +36,14 @@ export function BrandSectionCard({
   return (
     <section
       className={cn(
-        "border-border w-full max-w-5xl rounded-lg border bg-white shadow-xs",
+        "border-border w-full max-w-5xl rounded-lg border bg-muted-background shadow-xs",
         hasBody && "p-5 sm:p-6",
         className,
       )}
     >
       <div
         className={cn(
-          "border-border bg-muted/50 flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-3.5",
+          "border-border bg-background/50 flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-3.5",
           hasBody
             ? "-mx-5 -mt-5 rounded-t-lg border-b sm:-mx-6 sm:-mt-6"
             : "rounded-lg",

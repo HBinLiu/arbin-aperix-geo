@@ -70,7 +70,7 @@ export function PromptDetailMetricCards({
             aria-pressed={active}
             onClick={() => onMetricChange(metric.id)}
             className={cn(
-              "border-border flex flex-col rounded-lg border bg-white px-6 py-4 text-left transition-colors",
+              "border-border flex flex-col rounded-lg border bg-muted-background px-6 py-4 text-left transition-colors",
               active
                 ? "border-primary shadow-[8px_10px_16px_-8px_rgba(15,23,42,0.12)]"
                 : "hover:border-primary/60 hover:shadow-[8px_10px_16px_-8px_rgba(15,23,42,0.12)]",
@@ -81,7 +81,7 @@ export function PromptDetailMetricCards({
               <MetricHelp label={metric.label} description={metric.description} />
             </div>
             {loading ? (
-              <div className="bg-muted mt-4 h-8 w-20 animate-pulse rounded-md" />
+              <div className="bg-background mt-4 h-8 w-20 animate-pulse rounded-md" />
             ) : (
               <p className="mt-4 text-2xl font-bold tracking-tight tabular-nums">
                 {values[metric.id] ?? "—"}

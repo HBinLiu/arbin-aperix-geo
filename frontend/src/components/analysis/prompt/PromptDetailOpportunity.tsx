@@ -40,11 +40,11 @@ function GapCard({
   const variant = PRIORITY_VARIANT[gapPriority];
 
   return (
-    <div className="border-border flex flex-1 flex-col rounded-lg border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+    <div className="border-border flex flex-1 flex-col rounded-lg border bg-muted-background p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
       <h4 className="text-sm font-semibold">{title}</h4>
       <div className="mt-5 flex flex-wrap items-center gap-4">
         {loading ? (
-          <div className="bg-muted h-16 w-28 animate-pulse rounded-3xl" />
+          <div className="bg-background h-16 w-28 animate-pulse rounded-3xl" />
         ) : (
           <div
             className={cn(
@@ -73,8 +73,8 @@ export function PromptDetailOpportunity({
   loading = false,
 }: PromptDetailOpportunityProps) {
   return (
-    <section className="border-border overflow-hidden rounded-lg border bg-white">
-      <div className="border-border border-b bg-muted px-5 py-3">
+    <section className="border-border overflow-hidden rounded-lg border bg-muted-background">
+      <div className="border-border border-b bg-background px-5 py-3">
         <h3 className="text-base font-semibold">机会</h3>
         <p className="text-muted-foreground mt-1 text-sm font-medium leading-relaxed">
           量化当前品牌相对其他竞品的 AI 提及与来源引用差距，识别高潜力增长空间。

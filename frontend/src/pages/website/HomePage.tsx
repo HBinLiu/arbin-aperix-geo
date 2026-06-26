@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { getStoredToken } from "@/api/client";
 import { Button } from "@/components/ui/button";
 
+import "./marketing.css";
+
 /** 官网进入控制台鉴权页时在新标签打开，保留当前营销页。 */
 const AUTH_LINK_PROPS = { target: "_blank" as const, rel: "noopener noreferrer" };
 
@@ -29,18 +31,18 @@ export function HomePage() {
               className="size-9 shrink-0 object-contain sm:size-10"
               decoding="async"
             />
-            <span className="text-[var(--navbar-link-hover)] text-lg font-semibold tracking-tight">
+            <span className="text-foreground text-lg font-semibold tracking-tight">
               Aperix <span className="text-primary">GEO</span>
             </span>
           </Link>
-          <nav className="hidden items-center gap-8 text-sm font-medium text-[var(--navbar-link)] md:flex">
-            <a href="#capabilities" className="transition-colors hover:text-[var(--navbar-link-hover)]">
+          <nav className="hidden items-center gap-8 text-sm font-medium text-foreground/80 md:flex">
+            <a href="#capabilities" className="transition-colors hover:text-foreground">
               能力
             </a>
-            <a href="#workflow" className="transition-colors hover:text-[var(--navbar-link-hover)]">
+            <a href="#workflow" className="transition-colors hover:text-foreground">
               工作方式
             </a>
-            <a href="#faq" className="transition-colors hover:text-[var(--navbar-link-hover)]">
+            <a href="#faq" className="transition-colors hover:text-foreground">
               常见问题
             </a>
           </nav>
@@ -48,7 +50,7 @@ export function HomePage() {
             <Button
               variant="ghost"
               size="sm"
-              className="text-[var(--navbar-link)] hover:bg-slate-100/90 hover:text-[var(--navbar-link-hover)] dark:hover:bg-white/10"
+              className="text-foreground/80 hover:bg-slate-100/90 hover:text-foreground dark:hover:bg-foreground/10"
               asChild
             >
               <Link to={loginEntryPath} {...AUTH_LINK_PROPS}>登录</Link>
@@ -61,42 +63,39 @@ export function HomePage() {
       </header>
 
       <main className="flex flex-1 flex-col">
-        {/* Hero — 深色条带（使用全局 --hero-* 变量） */}
-        <section className="from-[var(--hero-from)] via-[var(--hero-via)] to-[var(--hero-to)] relative overflow-hidden bg-linear-to-br text-[var(--hero-foreground)]">
+        {/* Hero — 深色条带 */}
+        <section className="marketing-hero relative overflow-hidden">
           <div
-            className="pointer-events-none absolute inset-0 opacity-[0.4]"
-            style={{
-              backgroundImage:
-                "radial-gradient(ellipse 80% 50% at 50% -20%, var(--hero-glow-32), transparent), radial-gradient(ellipse 55% 45% at 100% 0%, var(--hero-glow-14), transparent)",
-            }}
+            className="marketing-hero-glow pointer-events-none absolute inset-0 opacity-[0.4]"
+            aria-hidden
           />
           <div className="relative mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28">
-            <p className="mb-4 text-sm font-medium tracking-wide text-[var(--hero-muted)]">
+            <p className="marketing-muted mb-4 text-sm font-medium tracking-wide">
               品牌采样 · 解析 · 聚合 — 面向生成式对话与公开文本
             </p>
             <h1 className="max-w-4xl text-4xl font-semibold leading-[1.1] tracking-tight sm:text-5xl sm:leading-[1.08] lg:text-6xl">
               你的品牌，在 AI 与公开对话里
-              <span className="mt-2 block text-[var(--hero-subtle)]">被怎样描述、与谁同框？</span>
+              <span className="marketing-subtle mt-2 block">被怎样描述、与谁同框？</span>
             </h1>
-            <p className="mt-8 max-w-2xl text-lg leading-relaxed text-[var(--hero-muted)] sm:text-xl">
+            <p className="marketing-muted mt-8 max-w-2xl text-lg leading-relaxed sm:text-xl">
               Aperix AI 帮助团队按主体与竞品配置采样任务，统一提示词与证据链，把「被提及、被引用、情感与位次」沉淀为可复盘的数据——而不只是一次性截图。
             </p>
             <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center">
               <Button
                 size="lg"
-                className="h-12 border-0 bg-[var(--hero-cta-bg)] px-8 text-base font-semibold text-[var(--hero-cta-fg)] shadow-lg transition-opacity hover:opacity-90"
+                className="marketing-cta-btn h-12 border-0 px-8 text-base font-semibold shadow-lg transition-opacity hover:opacity-90"
                 asChild
               >
                 <Link to="/auth/register" {...AUTH_LINK_PROPS}>免费注册</Link>
               </Button>
             </div>
-            <ul className="mt-8 flex flex-wrap gap-x-8 gap-y-2 text-sm text-[var(--hero-subtle)]">
+            <ul className="marketing-subtle mt-8 flex flex-wrap gap-x-8 gap-y-2 text-sm">
               <li className="flex items-center gap-2">
-                <span className="size-1.5 shrink-0 rounded-full bg-[var(--hero-bullet)]" aria-hidden />
+                <span className="marketing-bullet size-1.5 shrink-0 rounded-full" aria-hidden />
                 邮箱注册 + 密码；手机号短信验证即可开通
               </li>
               <li className="flex items-center gap-2">
-                <span className="size-1.5 shrink-0 rounded-full bg-[var(--hero-bullet)]" aria-hidden />
+                <span className="marketing-bullet size-1.5 shrink-0 rounded-full" aria-hidden />
                 控制台与官网可同域部署
               </li>
             </ul>
@@ -104,7 +103,7 @@ export function HomePage() {
         </section>
 
         {/* 社会证明条 — 无虚构客户名，强调适用场景 */}
-        <section className="border-border bg-muted/40 border-y py-10">
+        <section className="border-border bg-background/40 border-y py-10">
           <div className="mx-auto max-w-6xl px-4 text-center sm:px-6">
             <p className="text-muted-foreground text-sm font-medium uppercase tracking-wider">适用团队</p>
             <p className="text-foreground mt-2 text-lg font-medium sm:text-xl">
@@ -134,18 +133,18 @@ export function HomePage() {
                   step: "02",
                   title: "理解 · 解析",
                   desc: "对原始回答做 v0 级解析：提及、URL、粗情感与简单位次等，为后续指标升级预留字段。",
-                  accent: "from-chart-2/25 to-transparent",
+                  accent: "from-muted-foreground/25 to-transparent",
                 },
                 {
                   step: "03",
                   title: "行动 · 聚合",
                   desc: "按任务与主体聚合只读视图，证据预览与全文可查，支撑内部分享与复盘会议。",
-                  accent: "from-chart-4/30 to-transparent",
+                  accent: "from-primary/30 to-transparent",
                 },
               ].map((item) => (
                 <div
                   key={item.step}
-                  className="border-border bg-card group relative overflow-hidden rounded-2xl border p-8 shadow-xs transition-shadow hover:shadow-md"
+                  className="border-border bg-background group relative overflow-hidden rounded-2xl border p-8 shadow-xs transition-shadow hover:shadow-md"
                 >
                   <div
                     className={`pointer-events-none absolute -right-8 -top-8 size-40 rounded-full bg-linear-to-br ${item.accent}`}
@@ -161,7 +160,7 @@ export function HomePage() {
         </section>
 
         {/* 痛点 + 方案 */}
-        <section id="capabilities" className="scroll-mt-20 bg-muted/30 border-y py-20 sm:py-24">
+        <section id="capabilities" className="scroll-mt-20 bg-background/30 border-y py-20 sm:py-24">
           <div className="mx-auto max-w-6xl space-y-16 px-4 sm:px-6">
             {[
               {
@@ -178,7 +177,7 @@ export function HomePage() {
                 className="grid items-start gap-8 lg:grid-cols-2 lg:gap-16"
               >
                 <div>
-                  <p className="text-destructive/90 text-sm font-semibold uppercase tracking-wide">常见痛点</p>
+                  <p className="text-error/90 text-sm font-semibold uppercase tracking-wide">常见痛点</p>
                   <p className="text-foreground mt-3 text-xl font-medium leading-snug sm:text-2xl">{block.pain}</p>
                 </div>
                 <div className="border-border bg-background rounded-2xl border p-8 shadow-xs lg:mt-8">
@@ -199,7 +198,7 @@ export function HomePage() {
               { k: "任务", v: "异步队列", d: "批量采样由 Worker 执行，状态可轮询。" },
               { k: "证据", v: "可追溯", d: "响应与解析结果落库，便于审计。" },
             ].map((s) => (
-              <div key={s.k} className="border-border rounded-xl border bg-card p-6 text-center shadow-xs">
+              <div key={s.k} className="border-border rounded-xl border bg-background p-6 text-center shadow-xs">
                 <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">{s.k}</p>
                 <p className="text-foreground mt-2 text-2xl font-semibold">{s.v}</p>
                 <p className="text-muted-foreground mt-2 text-sm leading-relaxed">{s.d}</p>
@@ -233,7 +232,7 @@ export function HomePage() {
               ].map((item) => (
                 <details
                   key={item.q}
-                  className="border-border group bg-card open:shadow-md rounded-xl border px-5 py-4 transition-shadow"
+                  className="border-border group bg-background open:shadow-md rounded-xl border px-5 py-4 transition-shadow"
                 >
                   <summary className="text-foreground cursor-pointer list-none text-left text-base font-medium [&::-webkit-details-marker]:hidden">
                     <span className="flex items-center justify-between gap-4">
@@ -249,16 +248,16 @@ export function HomePage() {
         </section>
 
         {/* 底部 CTA */}
-        <section className="from-[var(--hero-from)] to-[var(--hero-to)] bg-linear-to-r py-16 text-[var(--hero-foreground)] sm:py-20">
+        <section className="marketing-cta py-16 sm:py-20">
           <div className="mx-auto max-w-6xl px-4 text-center sm:px-6">
             <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">准备好把工作流搬进控制台了吗？</h2>
-            <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-[var(--hero-muted)]">
+            <p className="marketing-muted mx-auto mt-4 max-w-xl text-base leading-relaxed">
               从注册一个工作区开始，配置主体、竞品与主题，再发起你的第一条采样任务。
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-4">
               <Button
                 size="lg"
-                className="h-12 border-0 bg-[var(--hero-cta-bg)] px-8 font-semibold text-[var(--hero-cta-fg)] transition-opacity hover:opacity-90"
+                className="marketing-cta-btn h-12 border-0 px-8 font-semibold transition-opacity hover:opacity-90"
                 asChild
               >
                 <Link to="/auth/register" {...AUTH_LINK_PROPS}>开始免费试用</Link>
@@ -266,7 +265,7 @@ export function HomePage() {
               <Button
                 size="lg"
                 variant="outline"
-                className="h-12 border-[var(--hero-outline)] px-8 text-[var(--hero-foreground)] hover:bg-[var(--hero-foreground-10)] hover:text-[var(--hero-foreground)]"
+                className="marketing-outline-btn h-12 px-8"
                 asChild
               >
                 <Link to="/auth/register" {...AUTH_LINK_PROPS}>开始免费试用</Link>

@@ -3,6 +3,7 @@ import { Bot, ChevronDown } from "lucide-react";
 
 import { PlatformLogo } from "@/components/brand/PlatformLogo";
 import { Checkbox } from "@/components/ui/checkbox";
+import { analysisFilterTriggerClass, analysisFilterTriggerOpenClass } from "@/components/ui/input";
 import type { SamplingPlatform } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -24,15 +25,10 @@ function platformFilterLabel(platforms: SamplingPlatform[], platformIds: string[
   return "平台";
 }
 
-const triggerClassName = cn(
-  "border-border inline-flex h-9 w-auto items-center gap-2 rounded-lg border bg-white px-3 text-sm font-normal shadow-none",
-  "hover:border-border hover:shadow-none",
-  "focus:border-border focus:shadow-none focus:ring-0 focus:outline-hidden",
-  "focus-visible:border-border focus-visible:shadow-none focus-visible:ring-0",
-);
+const triggerClassName = analysisFilterTriggerClass;
 
 const optionClassName =
-  "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground relative flex w-full cursor-default select-none items-center justify-start gap-2 rounded-sm py-1.5 pr-2 pl-2 text-left text-sm outline-hidden";
+  "hover:bg-accent hover:text-foreground focus:bg-accent focus:text-foreground relative flex w-full cursor-default select-none items-center justify-start gap-2 rounded-sm py-1.5 pr-2 pl-2 text-left text-sm outline-hidden";
 
 function activateOption(event: KeyboardEvent, action: () => void) {
   if (event.key === "Enter" || event.key === " ") {
@@ -129,7 +125,7 @@ export function PlatformFilterSelect({
         onClick={() => setOpen((prev) => !prev)}
         className={cn(
           triggerClassName,
-          open && "border-border shadow-none ring-0",
+          open && analysisFilterTriggerOpenClass,
           disabled && "opacity-60",
         )}
       >
@@ -147,7 +143,7 @@ export function PlatformFilterSelect({
         <div
           role="listbox"
           aria-multiselectable
-          className="border-border absolute top-full left-0 z-50 mt-1 max-h-72 min-w-[var(--radix-select-trigger-width,12rem)] overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+          className="border-border absolute top-full left-0 z-50 mt-1 max-h-72 min-w-[var(--radix-select-trigger-width,12rem)] overflow-y-auto rounded-md border bg-muted-background p-1 text-foreground shadow-md"
         >
           <div
             role="option"

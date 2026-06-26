@@ -1,37 +1,35 @@
 /**
  * Aperix AI 全局设计 token（hex / rgb，供 Tailwind / shadcn 使用）。
- * 含浅色/深色两套与营销区（Hero、底部 CTA）专用变量。
+ * 含浅色/深色两套变量。
  */
 
 :root {
+  /** 圆角大小 **/
   --radius: 0.5rem;
 
-  --background: #f5f5f5;
+  /** 背景颜色 **/
+  --background: #fafafa;
+  /** 文本颜色 **/
   --foreground: #090909;
 
-  --card: #fafafa;
-  --card-foreground: #090909;
-
-  --popover: #ffffff;
-  --popover-foreground: #090909;
-
-  --primary: #ff6b35;
-  --primary-foreground: #ffffff;
-  --primary-shadow: rgb(255 107 53 / 0.28);
-  --primary-shadow-strong: rgb(255 107 53 / 0.45);
-
-  --secondary: #f1f5f9;
-  --secondary-foreground: #090909;
-
-  --muted: #fafafa;
+  /** 次要背景颜色 **/
+  --muted-background: #ffffff;
+  /** 次要文本颜色 **/
   --muted-foreground: #747474;
-  --foreground-shine: rgb(9 9 9 / 0.55);
+
+  --border: #e4e4e4;
+  --input: #e4e4e4;
+  --ring: #ff6b35;
 
   --accent: #fff0e6;
-  --accent-foreground: #090909;
+  --primary: #ff6b35;
+  --primary-foreground: #f8fafc;
+  --primary-shadow: #ff6b3547;
+  --primary-shadow-strong: #ff6b3573;
 
-  --destructive: #dc2626;
-  --destructive-foreground: #ffffff;
+  /** 输入框右下极浅投影（与 focus 光晕叠加） */
+  --input-elevation-shadow: 2px 3px 8px rgb(9 9 9 / 0.04);
+  --input-focus-shadow: 2px 3px 8px rgb(9 9 9 / 0.04), 0 0 8px 4px var(--primary-shadow);
 
   --doubao: #3370ff;
   --deepseek: #5471fa;
@@ -45,76 +43,30 @@
   --success: #16a34a;
   --warning: #d97706;
 
-  --border: #e4e4e4;
-  --input: #e4e4e4;
-  --ring: #ff6b35;
-  /** 输入框右下极浅投影（与 focus 光晕叠加） */
-  --input-elevation-shadow: 2px 3px 8px rgb(9 9 9 / 0.04);
-  --input-focus-shadow: 2px 3px 8px rgb(9 9 9 / 0.04), 0 0 8px 4px var(--primary-shadow);
-
-  --chart-1: #ff6b35;
-  --chart-2: #64748b;
-  --chart-3: #cbd5e1;
-  --chart-4: #f4a574;
-  --chart-5: #2f3d5c;
-
-  --hero-from: #0a0d18;
-  --hero-via: #0f131f;
-  --hero-to: #0c1019;
-  --hero-foreground: #f8fafc;
-  --hero-muted: #b8c0cc;
-  --hero-subtle: #8b95a5;
-  --hero-glow: #ff6b35;
-  --hero-glow-32: rgb(255 107 53 / 0.32);
-  --hero-glow-14: rgb(255 107 53 / 0.14);
-  --hero-glow-28: rgb(255 107 53 / 0.28);
-  --hero-glow-12: rgb(255 107 53 / 0.12);
-  --hero-foreground-10: rgb(248 250 252 / 0.1);
-  --hero-cta-bg: #ffffff;
-  --hero-cta-fg: #090909;
-  --hero-outline: #5a6b82;
-  --hero-bullet: #22c55e;
-
-  --navbar-link: #384252;
-  --navbar-link-hover: #090909;
-
-  --app-sidebar: #fafafa;
-  --sidebar-nav: #404040;
-
-  --app-card-shadow: 0 0 8px 0 rgb(0 0 0 / 0.1);
-
   --font-geist:
     "Geist Variable", ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial,
     "Noto Sans", sans-serif;
 }
 
 .dark {
-  --background: #0f1419;
-  --foreground: #f8fafc;
+  --background: hsl(0 0% 10%);
+  --foreground: hsl(0, 0%, 80%);
 
-  --card: #151a24;
-  --card-foreground: #f8fafc;
+  --muted-background: hsl(0 0% 16%);
+  --muted-foreground: hsl(0 0% 80%);
 
-  --popover: #151a24;
-  --popover-foreground: #f8fafc;
-
-  --primary: #ff6b35;
-  --primary-foreground: #ffffff;
-  --primary-shadow: rgb(255 107 53 / 0.28);
-  --primary-shadow-strong: rgb(255 107 53 / 0.45);
-
-  --secondary: #1e293b;
-  --secondary-foreground: #f8fafc;
-
-  --muted: #1e293b;
-  --muted-foreground: #94a3b8;
-  --foreground-shine: rgb(248 250 252 / 0.55);
+  --border: hsl(0 0% 28%);
+  --input: hsl(0 0% 24%);
+  --ring: #ff6b35;
 
   --accent: #3d2618;
-  --accent-foreground: #f8fafc;
+  --primary: #ff6b35;
+  --primary-foreground: #fcfcfc;
+  --primary-shadow: #ff6b3547;
+  --primary-shadow-strong: #ff6b3573;
 
-  --destructive: #b91c1c;
-  --destructive-foreground: #ffffff;
+  --input-elevation-shadow: 2px 3px 8px rgb(0 0 0 / 0.22);
+  --input-focus-shadow: 2px 3px 8px rgb(0 0 0 / 0.22), 0 0 8px 4px var(--primary-shadow);
 
   --doubao: #3370ff;
   --deepseek: #5471fa;
@@ -127,41 +79,4 @@
   --error: #b91c1c;
   --success: #16a34a;
   --warning: #d97706;
-
-  --border: #2a3444;
-  --input: #2a3444;
-  --ring: #ff6b35;
-  --input-elevation-shadow: 2px 3px 8px rgb(0 0 0 / 0.22);
-  --input-focus-shadow: 2px 3px 8px rgb(0 0 0 / 0.22), 0 0 8px 4px var(--primary-shadow);
-
-  --chart-1: #ff6b35;
-  --chart-2: #94a3b8;
-  --chart-3: #475569;
-  --chart-4: #e07a45;
-  --chart-5: #e2e8f0;
-
-  --hero-from: #080b14;
-  --hero-via: #0c1019;
-  --hero-to: #0a0e16;
-  --hero-foreground: #f8fafc;
-  --hero-muted: #b0b8c4;
-  --hero-subtle: #8a939f;
-  --hero-glow: #ff6b35;
-  --hero-glow-32: rgb(255 107 53 / 0.32);
-  --hero-glow-14: rgb(255 107 53 / 0.14);
-  --hero-glow-28: rgb(255 107 53 / 0.28);
-  --hero-glow-12: rgb(255 107 53 / 0.12);
-  --hero-foreground-10: rgb(248 250 252 / 0.1);
-  --hero-cta-bg: #ffffff;
-  --hero-cta-fg: #111827;
-  --hero-outline: #4a5a72;
-  --hero-bullet: #4ade80;
-
-  --navbar-link: #c4cdd8;
-  --navbar-link-hover: #f8fafc;
-
-  --app-sidebar: #151a24;
-  --sidebar-nav: #94a3b8;
-
-  --app-card-shadow: 0 0 8px 0 rgb(0 0 0 / 0.35);
 }

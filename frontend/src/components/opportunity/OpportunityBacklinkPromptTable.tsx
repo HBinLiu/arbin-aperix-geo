@@ -2,6 +2,7 @@ import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { PaginatedTableCard } from "@/components/analysis/common/PaginatedTableCard";
+import { wideTableRowClass } from "@/components/analysis/prompt/performanceTableLayout";
 import {
   DEFAULT_TABLE_PAGE_SIZE,
   TABLE_PAGE_SIZE_OPTIONS,
@@ -129,7 +130,7 @@ export function OpportunityBacklinkPromptTable({
             <col style={{ width: "15%" }} />
             <col style={{ width: "15%" }} />
           </colgroup>
-          <thead className="text-muted-foreground bg-muted/80 text-left">
+          <thead className="text-muted-foreground bg-background/80 text-left">
             <tr className="[&>th]:whitespace-nowrap [&>th]:px-4 [&>th]:py-2.5 [&>th]:font-medium">
               <th className="pl-5">提示词</th>
               <th>主题</th>
@@ -155,7 +156,7 @@ export function OpportunityBacklinkPromptTable({
           <tbody className="border-border border-t">
             {loading && rows.length === 0 ? (
               Array.from({ length: SKELETON_ROWS }).map((_, rowIndex) => (
-                <tr key={rowIndex} className="border-border border-t [&>td]:py-3" aria-hidden>
+                <tr key={rowIndex} className={wideTableRowClass} aria-hidden>
                   {Array.from({ length: COLUMN_COUNT }).map((__, cellIndex) => (
                     <td key={cellIndex} className={cellIndex === 0 ? "pl-5" : "px-4"}>
                       <Skeleton className="h-4 w-4/5" />
@@ -171,7 +172,7 @@ export function OpportunityBacklinkPromptTable({
               </tr>
             ) : (
               rows.map((row) => (
-                <tr key={row.id} className="border-border border-t [&>td]:py-3">
+                <tr key={row.id} className={wideTableRowClass}>
                   <td className="max-w-0 pl-5">
                     <span className="block truncate font-medium">{row.name}</span>
                   </td>

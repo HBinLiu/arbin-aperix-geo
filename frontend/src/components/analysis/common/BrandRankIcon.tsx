@@ -103,7 +103,7 @@ export const BrandRankIcon = memo(function BrandRankIcon({
     return (
       <span
         className={cn(
-          "bg-muted text-muted-foreground inline-flex shrink-0 items-center justify-center",
+          "bg-background text-muted-foreground inline-flex shrink-0 items-center justify-center",
           shape === "circle" && "overflow-hidden rounded-full",
           roundedClass,
           config.box,
@@ -136,7 +136,7 @@ export const BrandRankIcon = memo(function BrandRankIcon({
   return (
     <span
       className={cn(
-        "bg-muted text-muted-foreground flex shrink-0 items-center justify-center font-semibold",
+        "bg-background text-muted-foreground flex shrink-0 items-center justify-center font-semibold",
         roundedClass,
         config.box,
         config.letterText,
@@ -183,7 +183,7 @@ export function BrandRankIconGroup({
           label={label}
           size={size}
           shape={shape}
-          className={cn("ring-2 ring-white", iconClassName)}
+          className={cn("ring-2 ring-surface", iconClassName)}
         />
       ))}
       {overflow > 0 ? (

@@ -9,8 +9,11 @@ import {
   useDialog,
 } from "@/components/ui/dialog";
 
+type PromptFormMode = "create" | "edit";
+
 type PromptCreateDialogProps = {
   open: boolean;
+  mode?: PromptFormMode;
   topicId: string;
   onTopicIdChange: (value: string) => void;
   topicOptions: { value: string; label: string }[];
@@ -22,15 +25,18 @@ type PromptCreateDialogProps = {
 };
 
 function PromptCreateDialogFooter({
+  mode,
   submitting,
   canSubmit,
   onSubmit,
 }: {
+  mode: PromptFormMode;
   submitting: boolean;
   canSubmit: boolean;
   onSubmit: () => void;
 }) {
   const { requestClose } = useDialog();
+  const isEdit = mode === "edit";
 
   return (
     <DialogFooter>
@@ -38,15 +44,16 @@ function PromptCreateDialogFooter({
         取消
       </Button>
       <Button type="button" disabled={submitting || !canSubmit} onClick={onSubmit}>
-        {submitting ? "创建中…" : "创建"}
+        {submitting ? (isEdit ? "保存中…" : "创建中…") : isEdit ? "保存" : "创建"}
       </Button>
     </DialogFooter>
   );
 }
 
-/** 提示词管理 · 创建提示词对话框 */
+/** 提示词管理 · 创建 / 编辑提示词对话框 */
 export function PromptCreateDialog({
   open,
+  mode = "create",
   topicId,
   onTopicIdChange,
   topicOptions,
@@ -56,20 +63,22 @@ export function PromptCreateDialog({
   onOpenChange,
   onSubmit,
 }: PromptCreateDialogProps) {
+  const isEdit = mode === "edit";
   const canSubmit = Boolean(topicId && text.trim());
+  const titleId = isEdit ? "prompt-edit-dialog-title" : "prompt-create-dialog-title";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} closeDisabled={submitting}>
-      <DialogContent className="max-w-lg" aria-labelledby="prompt-create-dialog-title">
+      <DialogContent className="max-w-lg" aria-labelledby={titleId}>
         <div className="flex items-center justify-between px-5 pt-5 pb-2">
-          <DialogTitle id="prompt-create-dialog-title">创建提示词</DialogTitle>
+          <DialogTitle id={titleId}>{isEdit ? "编辑提示词" : "创建提示词"}</DialogTitle>
           <DialogClose />
         </div>
 
         <div className="space-y-4 p-5">
           <Field label="主题" required>
             <SetupSelect
-              id="create-prompt-topic"
+              id={isEdit ? "edit-prompt-topic" : "create-prompt-topic"}
               value={topicId}
               onChange={onTopicIdChange}
               options={topicOptions}
@@ -78,7 +87,7 @@ export function PromptCreateDialog({
 
           <Field label="提示词" required>
             <SetupTextInput
-              id="create-prompt-text"
+              id={isEdit ? "edit-prompt-text" : "create-prompt-text"}
               value={text}
               onChange={(event) => onTextChange(event.target.value)}
               placeholder="请输入提示词"
@@ -88,6 +97,7 @@ export function PromptCreateDialog({
         </div>
 
         <PromptCreateDialogFooter
+          mode={mode}
           submitting={submitting}
           canSubmit={canSubmit}
           onSubmit={onSubmit}
@@ -110,7 +120,7 @@ function Field({
     <div className="space-y-1.5">
       <label className="text-foreground px-1 text-sm font-medium">
         {label}
-        {required ? <span className="text-destructive"> *</span> : null}
+        {required ? <span className="text-error"> *</span> : null}
       </label>
       {children}
     </div>

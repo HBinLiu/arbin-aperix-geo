@@ -119,7 +119,7 @@ export function ShareVoiceDonutChart({
               innerRadius="58%"
               outerRadius="78%"
               paddingAngle={1}
-              stroke="#fff"
+              stroke="var(--surface)"
               strokeWidth={2}
             >
               {pieData.map((entry) => (

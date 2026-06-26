@@ -36,7 +36,7 @@ export function SetupStepFooter({ step, busy, submitting, onBack }: SetupStepFoo
       <Button
         type="submit"
         disabled={submitting}
-        className="group h-10 gap-0 rounded-lg px-6 text-sm font-medium shadow-none"
+        className="group h-10 gap-0 rounded-lg px-6 text-sm font-medium"
       >
         <span>{continueLabel}</span>
         {step !== 3 ? (

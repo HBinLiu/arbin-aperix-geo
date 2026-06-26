@@ -36,12 +36,12 @@ function GraphFrame({
   return (
     <div
       className={cn(
-        "border-border/80 relative mb-6 overflow-hidden rounded-xl border bg-linear-to-b from-muted/60 to-white px-6 py-8",
+        "border-border/80 relative mb-6 overflow-hidden rounded-xl border bg-linear-to-b from-background/60 to-surface px-6 py-8",
         backgroundImage && "bg-cover bg-center bg-no-repeat",
       )}
       style={backgroundImage ? { backgroundImage: `url(${backgroundImage})` } : undefined}
     >
-      {backgroundImage ? <div className="absolute inset-0 bg-white/85 backdrop-blur-[2px]" aria-hidden /> : null}
+      {backgroundImage ? <div className="absolute inset-0 bg-muted-background/85 backdrop-blur-[2px]" aria-hidden /> : null}
       <div className="relative">{children}</div>
     </div>
   );

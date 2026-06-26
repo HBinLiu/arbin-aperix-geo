@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type MouseEventHandler, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -20,7 +20,7 @@ import type { User } from "@/types";
 
 import { PROMPT_QUOTA_LIMIT } from "@/lib/prompt";
 const CREDIT_QUOTA_LIMIT = 24000;
-const MENU_PANEL_CLASS = "border-border w-72 overflow-hidden rounded-lg border bg-white py-1 shadow-[8px_10px_24px_-10px_rgba(15,23,42,0.18)]";
+const MENU_PANEL_CLASS = "border-border w-72 overflow-hidden rounded-lg border bg-muted-background py-1 shadow-[8px_10px_24px_-10px_rgba(15,23,42,0.18)]";
 const MENU_OFFSET = 5;
 
 type UserMenuProps = {
@@ -33,7 +33,7 @@ function UserAvatar({ size = "sm" }: { size?: "sm" | "md" }) {
   return (
     <span
       className={cn(
-        "flex shrink-0 items-center justify-center rounded-full bg-[#3d7aed] text-white",
+        "flex shrink-0 items-center justify-center rounded-full bg-[#3d7aed] text-primary-foreground",
         size === "sm" ? "size-7" : "size-9",
       )}
     >
@@ -55,7 +55,7 @@ function MenuRow({
 }: {
   label: string;
   icon?: ComponentType<{ className?: string }>;
-  onClick?: () => void;
+  onClick?: MouseEventHandler<HTMLButtonElement>;
   destructive?: boolean;
   trailing?: ReactNode;
 }) {
@@ -68,7 +68,7 @@ function MenuRow({
       disabled={!interactive}
       className={cn(
         "flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition-colors",
-        interactive ? "hover:bg-muted/60" : "cursor-default",
+        interactive ? "hover:bg-background/60" : "cursor-default",
         destructive ? "text-red-500" : "text-foreground",
       )}
     >
@@ -198,7 +198,11 @@ export function UserMenu({
 
       <MenuDivider />
       <MenuRow label="设置" icon={Settings} />
-      <MenuRow label="主题" icon={ThemeIcon} onClick={cycleTheme} />
+      <MenuRow
+        label="主题"
+        icon={ThemeIcon}
+        onClick={(event) => cycleTheme({ x: event.clientX, y: event.clientY })}
+      />
 
       <MenuDivider />
       <UsageRow label="提示词" used={promptUsed} limit={PROMPT_QUOTA_LIMIT} />
@@ -221,7 +225,7 @@ export function UserMenu({
         aria-haspopup="menu"
         aria-label="用户菜单"
         onClick={() => setOpen((value) => !value)}
-        className="hover:bg-muted/80 rounded-md p-1 outline-hidden"
+        className="hover:bg-background/80 rounded-md p-1 outline-hidden"
       >
         <UserAvatar />
       </button>

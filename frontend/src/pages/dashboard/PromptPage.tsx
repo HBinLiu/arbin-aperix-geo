@@ -1,11 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import {
-  PromptEnabledField,
-  PromptFormDialog,
-  PromptTextField,
-  PromptTopicField,
-} from "@/components/prompt/PromptFormDialog";
+import { PromptAddTopicDialog } from "@/components/prompt/PromptAddTopicDialog";
 import { PromptCreateDialog } from "@/components/prompt/PromptCreateDialog";
 import { PromptGenerateDialog } from "@/components/prompt/PromptGenerateDialog";
 import { PromptUploadDialog } from "@/components/prompt/PromptUploadDialog";
@@ -71,7 +66,7 @@ export function PromptContent() {
   const [topicName, setTopicName] = useState("");
   const [promptText, setPromptText] = useState("");
   const [promptTopicId, setPromptTopicId] = useState("");
-  const [promptEnabled, setPromptEnabled] = useState(true);
+  const [promptFormMode, setPromptFormMode] = useState<"create" | "edit">("create");
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -133,13 +128,14 @@ export function PromptContent() {
     setPromptTopicId(
       selectedTopicId === PROMPT_TOPIC_ALL ? (topics[0]?.id ?? "") : selectedTopicId,
     );
+    setPromptFormMode("create");
     setDialog({ type: "add-prompt" });
   };
 
   const openEditPrompt = (row: PromptTableRow) => {
     setPromptText(row.text);
     setPromptTopicId(row.topicId);
-    setPromptEnabled(row.enabled);
+    setPromptFormMode("edit");
     setDialog({ type: "edit-prompt", row });
   };
 
@@ -147,41 +143,16 @@ export function PromptContent() {
     if (!isMutating) setDialog(null);
   };
 
-  const handleSubmitDialog = async () => {
-    if (!dialog) return;
+  const handleAddTopic = async () => {
+    const name = topicName.trim();
+    if (!name) {
+      toast.error("请填写主题名称。");
+      return;
+    }
 
     try {
-      if (dialog.type === "add-topic") {
-        const name = topicName.trim();
-        if (!name) {
-          toast.error("请填写主题名称。");
-          return;
-        }
-        await createTopic.mutateAsync({ name });
-        toast.success("主题已添加。");
-      }
-
-      if (dialog.type === "add-prompt") {
-        return;
-      }
-
-      if (dialog.type === "edit-prompt") {
-        const text = promptText.trim();
-        if (!text) {
-          toast.error("请填写提示词内容。");
-          return;
-        }
-        await updatePrompt.mutateAsync({
-          promptId: dialog.row.id,
-          body: {
-            text,
-            topic_id: promptTopicId,
-            enabled: promptEnabled,
-          },
-        });
-        toast.success("提示词已更新。");
-      }
-
+      await createTopic.mutateAsync({ name });
+      toast.success("主题已添加。");
       setDialog(null);
     } catch {
       // API 层已处理 toast
@@ -220,7 +191,7 @@ export function PromptContent() {
     }
   };
 
-  const handleCreatePrompt = async () => {
+  const handleSavePrompt = async () => {
     const text = promptText.trim();
     if (!text) {
       toast.error("请填写提示词。");
@@ -230,18 +201,32 @@ export function PromptContent() {
       toast.error("请选择主题。");
       return;
     }
-    if (subjectPromptRemaining(prompts) <= 0) {
+
+    const isEdit = promptFormMode === "edit";
+    if (!isEdit && subjectPromptRemaining(prompts) <= 0) {
       toast.error(`提示词额度已用完（最多 ${PROMPT_QUOTA_LIMIT} 条）。`);
       return;
     }
 
     try {
-      await createPrompt.mutateAsync({
-        topic_id: promptTopicId,
-        text,
-        enabled: true,
-      });
-      toast.success("提示词已创建。");
+      if (isEdit) {
+        if (dialog?.type !== "edit-prompt") return;
+        await updatePrompt.mutateAsync({
+          promptId: dialog.row.id,
+          body: {
+            text,
+            topic_id: promptTopicId,
+          },
+        });
+        toast.success("提示词已更新。");
+      } else {
+        await createPrompt.mutateAsync({
+          topic_id: promptTopicId,
+          text,
+          enabled: true,
+        });
+        toast.success("提示词已创建。");
+      }
       setDialog(null);
     } catch {
       // handled by API
@@ -375,7 +360,7 @@ export function PromptContent() {
         loading={isLoading}
       />
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-muted-background">
         <PromptToolbar
           enabledFilter={enabledFilter}
           onEnabledFilterChange={setEnabledFilter}
@@ -456,59 +441,27 @@ export function PromptContent() {
         onConfirm={() => void handleConfirmToggleEnabled()}
       />
 
-      <PromptFormDialog
+      <PromptAddTopicDialog
         open={dialog?.type === "add-topic"}
-        title="添加主题"
-        submitLabel="添加主题"
+        name={topicName}
+        onNameChange={setTopicName}
         submitting={createTopic.isPending}
         onOpenChange={(open) => !open && closeDialog()}
-        onSubmit={() => void handleSubmitDialog()}
-      >
-        <PromptTextField
-          id="topic-name"
-          label="主题名称"
-          value={topicName}
-          onChange={setTopicName}
-          placeholder="请输入主题名称"
-        />
-      </PromptFormDialog>
+        onSubmit={() => void handleAddTopic()}
+      />
 
       <PromptCreateDialog
-        open={dialog?.type === "add-prompt"}
+        open={dialog?.type === "add-prompt" || dialog?.type === "edit-prompt"}
+        mode={promptFormMode}
         topicId={promptTopicId}
         onTopicIdChange={setPromptTopicId}
         topicOptions={topicOptions}
         text={promptText}
         onTextChange={setPromptText}
-        submitting={createPrompt.isPending}
+        submitting={createPrompt.isPending || updatePrompt.isPending}
         onOpenChange={(open) => !open && closeDialog()}
-        onSubmit={() => void handleCreatePrompt()}
+        onSubmit={() => void handleSavePrompt()}
       />
-
-      <PromptFormDialog
-        open={dialog?.type === "edit-prompt"}
-        title="编辑提示词"
-        submitLabel="保存"
-        submitting={updatePrompt.isPending}
-        onOpenChange={(open) => !open && closeDialog()}
-        onSubmit={() => void handleSubmitDialog()}
-      >
-        <PromptTextField
-          id="edit-prompt-text"
-          label="提示词"
-          value={promptText}
-          onChange={setPromptText}
-          multiline
-        />
-        <PromptTopicField
-          id="edit-prompt-topic"
-          label="主题"
-          value={promptTopicId}
-          onChange={setPromptTopicId}
-          options={topicOptions}
-        />
-        <PromptEnabledField enabled={promptEnabled} onChange={setPromptEnabled} />
-      </PromptFormDialog>
     </div>
   );
 }

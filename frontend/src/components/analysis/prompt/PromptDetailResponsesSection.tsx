@@ -98,7 +98,7 @@ export function PromptDetailResponsesSection({
         </TabsList>
       </Tabs>
 
-      <section className="border-border overflow-hidden rounded-lg border bg-white">
+      <section className="border-border overflow-hidden rounded-lg border bg-muted-background">
         <PromptDetailResponseTable
           activeTab={activeTab}
           data={data}

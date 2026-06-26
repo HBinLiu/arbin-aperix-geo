@@ -107,7 +107,7 @@ function DialogContent({ className, children, ...props }: DialogContentProps) {
         role="dialog"
         aria-modal="true"
         className={cn(
-          "border-border relative z-10 w-full rounded-xl border bg-white shadow-lg",
+          "border-border relative z-10 w-full rounded-xl border bg-muted-background shadow-lg",
           closing
             ? "animate-out fade-out-0 zoom-out-95 duration-200"
             : "animate-in fade-in-0 zoom-in-95 duration-200",

@@ -1,9 +1,7 @@
-import { CircleHelp } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import { LineChartSkeleton } from "@/components/analysis/common/MetricsSkeleton";
 import { SimpleLineChart } from "@/components/analysis/common/SimpleLineChart";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatCount, formatRate } from "@/lib/analysis/format";
 import type { CitationDomainAnalysisData } from "@/types";
 
@@ -16,32 +14,6 @@ type CitationDomainSectionProps = {
   data: CitationDomainAnalysisData | undefined;
   loading?: boolean;
 };
-
-function MetricTitleInfo({ title, description }: { title: string; description: string }) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <Tooltip open={open} onOpenChange={setOpen}>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground inline-flex shrink-0 rounded-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          aria-label={`了解${title}`}
-          onClick={() => setOpen((prev) => !prev)}
-        >
-          <CircleHelp className="size-4" aria-hidden />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent
-        side="top"
-        sideOffset={8}
-        className="w-[250px] min-w-[250px] max-w-[250px] px-3 py-2.5 text-sm font-medium leading-relaxed text-left text-wrap"
-      >
-        <p className="w-full text-wrap">{description}</p>
-      </TooltipContent>
-    </Tooltip>
-  );
-}
 
 export function CitationDomainSection({
   data,
@@ -58,7 +30,7 @@ export function CitationDomainSection({
 
   return (
     <div
-      className="border-border w-full overflow-hidden rounded-lg border bg-white"
+      className="border-border w-full overflow-hidden rounded-lg border bg-muted-background"
       aria-busy={loading}
     >
       <div className="@container flex flex-wrap items-stretch">
@@ -73,7 +45,7 @@ export function CitationDomainSection({
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1">
             {loading ? (
-              <div className="bg-muted h-8 w-20 animate-pulse rounded-md" />
+              <div className="bg-background h-8 w-20 animate-pulse rounded-md" />
             ) : (
               <>
                 <span className="text-3xl font-bold tracking-tight tabular-nums">

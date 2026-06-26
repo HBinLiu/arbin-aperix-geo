@@ -26,7 +26,7 @@ export function PerformanceTableShell({
   return (
     <section
       className={cn(
-        "border-border w-full max-w-full min-w-0 overflow-hidden rounded-lg border bg-white",
+        "border-border w-full max-w-full min-w-0 overflow-hidden rounded-lg border bg-muted-background",
         className,
       )}
       aria-busy={loading || fetching}

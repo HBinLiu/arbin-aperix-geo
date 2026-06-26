@@ -65,7 +65,7 @@ export function PlatformMetricSection({
 
   return (
     <div
-      className="border-border w-full overflow-hidden rounded-lg border bg-white"
+      className="border-border w-full overflow-hidden rounded-lg border bg-muted-background"
       aria-busy={loading}
     >
       <div className="@container flex flex-wrap items-stretch">

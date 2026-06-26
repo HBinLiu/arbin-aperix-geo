@@ -55,7 +55,7 @@ function SummaryCards({ cards, loading }: { cards: SummaryCard[]; loading?: bool
       {cards.map((card) => (
         <div
           key={card.label}
-          className="border-border flex flex-col gap-2 rounded-lg border bg-white px-4 py-3"
+          className="border-border flex flex-col gap-2 rounded-lg border bg-muted-background px-4 py-3"
         >
           <div className="inline-flex items-center gap-1">
             <span className="text-muted-foreground text-sm font-medium">{card.label}</span>
@@ -91,7 +91,7 @@ function BrandCompetitorTable({
   onBrandClick: (row: ContentOpportunityDetailRow) => void;
 }) {
   return (
-    <div className="border-border overflow-x-auto rounded-lg border bg-white">
+    <div className="border-border overflow-x-auto rounded-lg border bg-muted-background">
       <table className="w-full min-w-[640px] table-fixed text-sm">
         <thead className={performanceTableClasses.head}>
           <tr>
@@ -169,7 +169,7 @@ function SourceCompetitorTable({
   onWebsiteClick: (row: ContentOpportunityDetailRow) => void;
 }) {
   return (
-    <div className="border-border overflow-x-auto rounded-lg border bg-white">
+    <div className="border-border overflow-x-auto rounded-lg border bg-muted-background">
       <table className="w-full min-w-[560px] table-fixed text-sm">
         <thead className={performanceTableClasses.head}>
           <tr>
@@ -393,7 +393,7 @@ export function DiagnosisContentDetailView({
       </Tabs>
 
       {activeTab === "chat" ? (
-        <section className="border-border overflow-hidden rounded-lg border bg-white">
+        <section className="border-border overflow-hidden rounded-lg border bg-muted-background">
           <PromptDetailResponseTable
             activeTab="chat"
             data={null}

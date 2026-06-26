@@ -2,6 +2,7 @@ import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { compactTableRowClass } from "@/components/analysis/prompt/performanceTableLayout";
 import { RankTableSkeleton } from "@/components/analysis/common/MetricsSkeleton";
 import {
   RANK_TABLE_MIN_WIDTH,
@@ -229,7 +230,7 @@ export function AnalysisRankTable({
         className={cn(
           "flex flex-col",
           heightClass,
-          embedded ? "bg-transparent" : "border-border bg-card rounded-lg border p-4",
+          embedded ? "bg-transparent" : "border-border bg-background rounded-lg border p-4",
           className,
         )}
         style={heightStyle}
@@ -247,7 +248,7 @@ export function AnalysisRankTable({
       className={cn(
         "flex flex-col overflow-hidden",
         heightClass,
-        embedded ? "bg-transparent" : "border-border bg-card rounded-lg border",
+        embedded ? "bg-transparent" : "border-border bg-background rounded-lg border",
         className,
       )}
       style={heightStyle}
@@ -273,7 +274,7 @@ export function AnalysisRankTable({
               <thead
                 className={cn(
                   "text-muted-foreground sticky top-0 z-10 text-left text-xs",
-                  embedded ? "bg-white" : "bg-card",
+                  embedded ? "bg-muted-background" : "bg-background",
                 )}
               >
                 <tr className="border-border border-b [&>th]:whitespace-nowrap [&>th]:py-2">
@@ -301,7 +302,7 @@ export function AnalysisRankTable({
               </thead>
               <tbody>
                 {sortedRows.map((row, index) => (
-                  <tr key={row.id} className="border-border border-t [&>td]:whitespace-nowrap [&>td]:py-2">
+                  <tr key={row.id} className={compactTableRowClass}>
                     <td className="text-foreground px-2 pl-4 tabular-nums">
                       #{index + 1}
                     </td>
@@ -332,7 +333,7 @@ export function AnalysisRankTable({
             <div className="shrink-0 px-4 py-2">
               <Link
                 to={moreHref}
-                className="border-border text-foreground hover:bg-muted/40 block w-full rounded-lg border py-2 text-center text-sm font-semibold transition-colors"
+                className="border-border text-foreground hover:bg-background/40 block w-full rounded-lg border py-2 text-center text-sm font-semibold transition-colors"
               >
                 更多
               </Link>

@@ -60,8 +60,8 @@ export function PromptDetailPage() {
           loading={isLoading}
         />
 
-        <section className="border-border overflow-hidden rounded-lg border bg-white">
-          <div className="border-border bg-muted border-b px-5 py-3">
+        <section className="border-border overflow-hidden rounded-lg border bg-muted-background">
+          <div className="border-border bg-background border-b px-5 py-3">
             <p className="text-muted-foreground text-sm font-medium leading-relaxed">
               {activeMetric.chartDescription}
             </p>

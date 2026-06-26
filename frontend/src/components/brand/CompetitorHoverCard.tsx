@@ -146,7 +146,7 @@ function CollapsibleDescription({ text }: { text: string }) {
         ) : null}
       </p>
       {!expanded && canToggle ? (
-        <span className="absolute right-2 bottom-0 inline-flex items-baseline bg-gradient-to-l from-white from-50% to-transparent pl-4">
+        <span className="absolute right-2 bottom-0 inline-flex items-baseline bg-gradient-to-l from-surface from-50% to-transparent pl-4">
           <button type="button" className={toggleButtonClass} onClick={() => setExpanded(true)}>
             展开
           </button>
@@ -168,18 +168,18 @@ export function CompetitorHoverCard({ row, geoMetrics, className }: CompetitorHo
   return (
     <div
       className={cn(
-        "border-border w-[22rem] rounded-xl border bg-white p-4 shadow-lg sm:w-[26rem]",
+        "border-border w-[22rem] rounded-xl border bg-muted-background p-4 shadow-lg sm:w-[26rem]",
         className,
       )}
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center gap-3">
         {faviconUrl ? (
-          <div className="border-border flex size-12 shrink-0 items-center justify-center rounded-md border bg-white p-2">
+          <div className="border-border flex size-12 shrink-0 items-center justify-center rounded-md border bg-muted-background p-2">
             <FaviconImage url={faviconUrl} size={32} className="size-8" iconClassName="size-5" />
           </div>
         ) : (
-          <div className="bg-muted flex size-12 shrink-0 items-center justify-center rounded-full text-base font-semibold">
+          <div className="bg-background flex size-12 shrink-0 items-center justify-center rounded-full text-base font-semibold">
             {label.slice(0, 1)}
           </div>
         )}

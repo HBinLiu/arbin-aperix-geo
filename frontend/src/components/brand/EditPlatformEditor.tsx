@@ -31,7 +31,7 @@ function PlatformOption({
       onClick={onToggle}
       className={cn(
         "flex w-full items-center gap-3 rounded-lg border px-3 py-3 text-left transition-colors",
-        checked ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border hover:bg-muted/40",
+        checked ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border hover:bg-background/40",
         disabled && !checked && "cursor-not-allowed opacity-60",
       )}
     >

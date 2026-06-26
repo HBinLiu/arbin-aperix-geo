@@ -92,7 +92,7 @@ export function TablePagination({
               onValueChange={(value) => onPageSizeChange(Number(value))}
             >
               <SelectTrigger
-                className="border-border h-8 w-[4.5rem] rounded-lg bg-white px-2 text-xs shadow-none"
+                className="border-border h-8 w-[4.5rem] rounded-lg bg-muted-background px-2 text-xs"
                 aria-label="每页条数"
               >
                 <SelectValue />

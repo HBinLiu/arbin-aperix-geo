@@ -32,7 +32,7 @@ const semanticBadgeVariants = cva(
         info: "bg-info/12 text-info",
         success: "bg-success/12 text-success",
         error: "bg-error/12 text-error",
-        gray: "bg-muted text-muted-foreground",
+        gray: "bg-background text-muted-foreground",
         primary: "bg-primary/12 text-primary",
         warning: "bg-warning/12 text-warning",
       },

@@ -174,7 +174,7 @@ export function PlatformMatrixTable({
   }
 
   return (
-    <section className="border-border overflow-hidden rounded-lg border bg-white" aria-busy={loading}>
+    <section className="border-border overflow-hidden rounded-lg border bg-muted-background" aria-busy={loading}>
       <div className="overflow-x-auto">
         <table
           className="w-full table-fixed text-sm"
@@ -186,7 +186,7 @@ export function PlatformMatrixTable({
               <col key={platform} style={{ width: PLATFORM_MATRIX_PLATFORM_COLUMN_MIN }} />
             ))}
           </colgroup>
-          <thead className="text-muted-foreground bg-muted/80 text-left">
+          <thead className="text-muted-foreground bg-background/80 text-left">
             <tr className="[&>th]:align-middle [&>th]:whitespace-nowrap [&>th]:px-4 [&>th]:py-2 [&>th]:font-medium">
               <th className="pl-5">{rowHeader}</th>
               {platforms.map((platform) => {

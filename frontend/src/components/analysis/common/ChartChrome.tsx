@@ -112,7 +112,7 @@ export function ChartMetricTooltipPanel({
   if (rows.length === 0) return null;
 
   return (
-    <div className="border-border pointer-events-none min-w-[9rem] rounded-md border bg-white px-2 py-2 shadow-md">
+    <div className="border-border pointer-events-none min-w-[9rem] rounded-md border bg-muted-background px-2 py-2 shadow-md">
       {header ? (
         <p className="text-foreground py-1 mb-1 text-xs font-semibold">{header}</p>
       ) : null}

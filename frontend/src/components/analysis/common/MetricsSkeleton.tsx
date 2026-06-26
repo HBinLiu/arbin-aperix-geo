@@ -1,3 +1,4 @@
+import { compactTableRowClass } from "@/components/analysis/prompt/performanceTableLayout";
 import { rankTableColWidths, RANK_TABLE_MIN_WIDTH } from "@/components/analysis/common/analysisRankTableLayout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -93,7 +94,7 @@ export function RankTableSkeleton({
           </thead>
           <tbody>
             {Array.from({ length: 5 }).map((_, i) => (
-              <tr key={i} className="border-border border-t [&>td]:py-2">
+              <tr key={i} className={compactTableRowClass}>
                 <td className="px-2 pl-4">
                   <Skeleton className="h-3 w-5" />
                 </td>

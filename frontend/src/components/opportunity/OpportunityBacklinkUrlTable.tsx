@@ -2,6 +2,7 @@ import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { PaginatedTableCard } from "@/components/analysis/common/PaginatedTableCard";
+import { wideTableRowClass } from "@/components/analysis/prompt/performanceTableLayout";
 import {
   DEFAULT_TABLE_PAGE_SIZE,
   TABLE_PAGE_SIZE_OPTIONS,
@@ -78,7 +79,7 @@ function SkeletonRows() {
   return (
     <>
       {Array.from({ length: SKELETON_ROWS }).map((_, rowIndex) => (
-        <tr key={rowIndex} className="border-border border-t [&>td]:py-3" aria-hidden>
+        <tr key={rowIndex} className={wideTableRowClass} aria-hidden>
           {Array.from({ length: COLUMN_COUNT }).map((__, cellIndex) => (
             <td key={cellIndex} className={cellIndex === 0 ? "pl-5" : "px-4"}>
               <Skeleton className="h-4 w-4/5" />
@@ -184,7 +185,7 @@ export function OpportunityBacklinkUrlTable({
             <col style={{ width: "20%" }} />
             <col style={{ width: "15%" }} />
           </colgroup>
-          <thead className="text-muted-foreground bg-muted/80 text-left">
+          <thead className="text-muted-foreground bg-background/80 text-left">
             <tr className="[&>th]:whitespace-nowrap [&>th]:px-4 [&>th]:py-2.5 [&>th]:font-medium">
               <th className="pl-5 pr-10">URL</th>
               <th>
@@ -211,7 +212,7 @@ export function OpportunityBacklinkUrlTable({
               </tr>
             ) : (
               rows.map((row: BacklinkOpportunityUrlRow) => (
-                <tr key={row.url} className="border-border border-t [&>td]:py-3">
+                <tr key={row.url} className={wideTableRowClass}>
                   <td className="max-w-0 pl-5 pr-10">
                     <UrlCell url={row.url} title={citationUrlDisplayTitle(row.title, row.url)} />
                   </td>

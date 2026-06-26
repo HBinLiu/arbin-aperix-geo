@@ -45,7 +45,7 @@ function InfoField({ label, children }: { label: string; children: ReactNode }) 
 
 function GeoMetricCard({ label, children, loading }: { label: string; children: ReactNode; loading?: boolean }) {
   return (
-    <div className="border-border flex min-h-[96px] flex-col justify-between rounded-lg border bg-white px-4 py-3">
+    <div className="border-border flex min-h-[96px] flex-col justify-between rounded-lg border bg-muted-background px-4 py-3">
       <span className="text-muted-foreground text-sm font-medium">{label}</span>
       {loading ? <Skeleton className="mt-2 h-8 w-20" /> : children}
     </div>
@@ -81,7 +81,7 @@ export function OpportunityBacklinkDetailView({
 
   return (
     <div className="flex flex-col gap-4 px-4 py-4 sm:px-6">
-      <div className="border-border grid gap-4 rounded-lg border bg-white p-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="border-border grid gap-4 rounded-lg border bg-muted-background p-4 sm:grid-cols-2 lg:grid-cols-3">
         <InfoField label="域名">
           {isLoading ? (
             <Skeleton className="h-5 w-32" />

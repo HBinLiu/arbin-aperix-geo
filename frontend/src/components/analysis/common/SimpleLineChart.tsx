@@ -50,7 +50,7 @@ export type SimpleLineChartProps = {
 
 const AXIS_TICK = { fill: "#9ca3af", fontSize: 13 };
 const CHART_MARGIN = { top: 8, right: 8, left: 0, bottom: 4 };
-const ACTIVE_DOT = { r: 4, stroke: "#fff", strokeWidth: 2 };
+const ACTIVE_DOT = { r: 4, stroke: "var(--surface)", strokeWidth: 2 };
 
 function gradientDomId(prefix: string, key: string): string {
   let hash = 0;

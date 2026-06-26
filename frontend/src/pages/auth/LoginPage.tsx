@@ -112,13 +112,13 @@ export function LoginPage() {
 
   return (
     <AuthShell title="登录 Aperix AI" description={description}>
-      <div className="grid h-10 grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+      <div className="grid h-10 grid-cols-2 gap-1 rounded-lg bg-background p-1">
         <button
           type="button"
           className={cn(
             "rounded-md text-sm font-medium transition-all",
             channel === "phone"
-              ? "bg-white text-foreground shadow-xs"
+              ? "bg-muted-background text-foreground shadow-xs"
               : "text-muted-foreground hover:text-foreground",
           )}
           onClick={() => setChannelAndReset("phone")}
@@ -130,7 +130,7 @@ export function LoginPage() {
           className={cn(
             "rounded-md text-sm font-medium transition-all",
             channel === "email"
-              ? "bg-white text-foreground shadow-xs"
+              ? "bg-muted-background text-foreground shadow-xs"
               : "text-muted-foreground hover:text-foreground",
           )}
           onClick={() => setChannelAndReset("email")}
@@ -195,8 +195,8 @@ export function LoginPage() {
               />
               <Button
                 type="button"
-                variant="secondary"
-                className="bg-muted h-11 w-28 shrink-0 justify-center px-2 font-medium tabular-nums"
+                variant="background"
+                className="bg-background h-11 w-28 shrink-0 justify-center px-2 font-medium tabular-nums"
                 disabled={loading || cooldown > 0}
                 onClick={sendPhoneCode}
               >

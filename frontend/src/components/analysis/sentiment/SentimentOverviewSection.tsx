@@ -86,12 +86,12 @@ function SentimentDistributionCard({
             </span>
           </div>
         ) : loading ? (
-          <div className="bg-muted h-7 w-24 animate-pulse rounded-md" />
+          <div className="bg-background h-7 w-24 animate-pulse rounded-md" />
         ) : null}
       </div>
       <div className="mt-4 flex min-h-0 flex-1 flex-col w-full" aria-busy={loading}>
         {loading ? (
-          <div className="bg-muted/60 min-h-[120px] flex-1 animate-pulse rounded-md" />
+          <div className="bg-background/60 min-h-[120px] flex-1 animate-pulse rounded-md" />
         ) : (
           <SentimentDistributionChart series={series} className="w-full" />
         )}
@@ -115,7 +115,7 @@ export function SentimentOverviewSection({
 
   return (
     <div
-      className="border-border w-full overflow-hidden rounded-lg border bg-white"
+      className="border-border w-full overflow-hidden rounded-lg border bg-muted-background"
       aria-busy={loading}
     >
       <div className="@container flex flex-wrap items-stretch">

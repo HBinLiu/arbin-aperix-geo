@@ -1,4 +1,6 @@
-import { Button, type ButtonProps } from "@/components/ui/button";
+import type { VariantProps } from "class-variance-authority";
+
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogClose,
@@ -15,7 +17,7 @@ type PromptConfirmDialogProps = {
   title: string;
   description: string;
   confirmLabel?: string;
-  confirmVariant?: ButtonProps["variant"];
+  confirmVariant?: VariantProps<typeof buttonVariants>["variant"];
   submitting?: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
@@ -28,7 +30,7 @@ function PromptConfirmDialogFooter({
   onConfirm,
 }: {
   confirmLabel: string;
-  confirmVariant?: ButtonProps["variant"];
+  confirmVariant?: VariantProps<typeof buttonVariants>["variant"];
   submitting: boolean;
   onConfirm: () => void;
 }) {

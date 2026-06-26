@@ -57,7 +57,7 @@ export function CitationPage() {
               onChange={(event) => setLinkSearch(event.target.value)}
               placeholder="搜索引用链接"
               controlSize="sm"
-              className="border-border h-9 w-[min(100%,240px)] rounded-lg bg-white pr-3 pl-9 text-xs shadow-none"
+              className="border-border h-9 w-[min(100%,240px)] rounded-lg bg-muted-background pr-3 pl-9 text-xs"
               aria-label="搜索引用链接"
             />
           </div>

@@ -91,7 +91,7 @@ export function TopicPerformanceTable({
                   key={row.id}
                   className={cn(
                     performanceTableClasses.row,
-                    selectable && "cursor-pointer transition-colors hover:bg-muted/80",
+                    selectable && "cursor-pointer",
                     selected && "bg-primary/10 hover:bg-primary/10",
                   )}
                   aria-selected={selected || undefined}

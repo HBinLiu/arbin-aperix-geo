@@ -29,7 +29,7 @@ const promptCheckboxClass =
   "size-[18px] shrink-0 rounded-[4px] border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground [&_svg]:size-3";
 
 const promptMergedSelectClass =
-  "border-input min-w-0 border-l bg-white [&_button]:h-9 [&_button]:rounded-none [&_button]:rounded-r-md [&_button]:border-0 [&_button]:bg-white [&_button]:px-2 [&_button]:shadow-none [&_button]:focus:ring-0";
+  "border-input min-w-0 border-l bg-muted-background [&_button]:h-9 [&_button]:rounded-none [&_button]:rounded-r-md [&_button]:border-0 [&_button]:bg-muted-background [&_button]:px-2 [&_button]:shadow-none [&_button]:focus:ring-0";
 
 const promptRowActionsClass = "flex h-9 items-center gap-0";
 
@@ -157,7 +157,7 @@ export function SetupStepPrompt({ rows, topics, onChange }: SetupStepPromptProps
             <Button
               type="button"
               variant="outline"
-              className="text-muted-foreground h-9 shrink-0 gap-1.5 whitespace-nowrap rounded-md bg-white px-4 text-sm font-normal"
+              className="text-muted-foreground h-9 shrink-0 gap-1.5 whitespace-nowrap rounded-md bg-muted-background px-4 text-sm font-normal"
               onClick={addFromDraft}
             >
               <Plus className="size-4 shrink-0" />

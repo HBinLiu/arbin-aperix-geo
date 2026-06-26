@@ -1,3 +1,4 @@
+import { visibilityRankTableRowClass } from "@/components/analysis/prompt/performanceTableLayout";
 import { BrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
 import { CompetitorHoverCard } from "@/components/brand/CompetitorHoverCard";
 import { LabelHoverPortal } from "@/components/brand/LabelHoverPortal";
@@ -72,7 +73,7 @@ export function TopicVisibilityRankTable({
   return (
     <section
       className={cn(
-        "border-border overflow-hidden rounded-lg border bg-white",
+        "border-border overflow-hidden rounded-lg border bg-muted-background",
         className,
       )}
       aria-busy={loading}
@@ -92,7 +93,7 @@ export function TopicVisibilityRankTable({
               <col key={slot} style={{ width: RANK_COLUMN_WIDTH }} />
             ))}
           </colgroup>
-          <thead className="text-muted-foreground bg-muted/80 text-left">
+          <thead className="text-muted-foreground bg-background/80 text-left">
             <tr className="[&>th]:align-middle [&>th]:whitespace-nowrap [&>th]:px-4 [&>th]:py-3 [&>th]:font-medium">
               <th className="pl-5">主题</th>
               {RANK_SLOTS.map((slot) => (
@@ -119,13 +120,13 @@ export function TopicVisibilityRankTable({
               rows.map((row) => (
                 <tr
                   key={row.topicId}
-                  className="border-border border-t [&>td]:align-middle [&>td]:whitespace-nowrap [&>td]:px-4 [&>td]:py-3"
+                  className={visibilityRankTableRowClass}
                 >
                   <td className="text-foreground pl-5 font-medium">
                     <span className="inline-flex items-center gap-1.5">
                       <span>{row.topicName}</span>
                       {ownLabel && row.ranks[0] === ownLabel ? (
-                        <span className="inline-flex shrink-0 items-center rounded-full bg-primary px-2 py-0.5 text-xs font-bold text-white">
+                        <span className="inline-flex shrink-0 items-center rounded-full bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">
                           领先
                         </span>
                       ) : null}

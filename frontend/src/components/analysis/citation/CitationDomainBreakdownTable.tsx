@@ -9,6 +9,7 @@ import {
   TablePagination,
 } from "@/components/analysis/common/TablePagination";
 import { ColumnHelp } from "@/components/analysis/prompt/PerformanceMetricCells";
+import { wideTableRowClass } from "@/components/analysis/prompt/performanceTableLayout";
 import { PlatformLogo } from "@/components/brand/PlatformLogo";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCitationDomainPrompts } from "@/hooks/useCitationList";
@@ -125,7 +126,7 @@ function SkeletonRows({ columnCount }: { columnCount: number }) {
   return (
     <>
       {Array.from({ length: SKELETON_ROWS }).map((_, rowIndex) => (
-        <tr key={rowIndex} className="border-border border-t [&>td]:py-3" aria-hidden>
+        <tr key={rowIndex} className={wideTableRowClass} aria-hidden>
           {Array.from({ length: columnCount }).map((__, cellIndex) => (
             <td key={cellIndex} className={cellIndex === 0 ? "pl-5" : "px-4"}>
               <Skeleton className="h-4 w-4/5" />
@@ -223,7 +224,7 @@ export function CitationDomainBreakdownTable(props: CitationDomainBreakdownTable
               </>
             )}
           </colgroup>
-          <thead className="text-muted-foreground bg-muted/80 text-left">
+          <thead className="text-muted-foreground bg-background/80 text-left">
             <tr className="[&>th]:whitespace-nowrap [&>th]:px-4 [&>th]:py-2.5 [&>th]:font-medium">
               <th className="pl-5">{nameHeader}</th>
               {showTopicColumn ? <th>主题</th> : null}
@@ -264,7 +265,7 @@ export function CitationDomainBreakdownTable(props: CitationDomainBreakdownTable
                     : null;
 
                 return (
-                  <tr key={row.id} className="border-border border-t [&>td]:py-3">
+                  <tr key={row.id} className={wideTableRowClass}>
                     <td className="max-w-0 pl-5">
                       {variant === "platform" && platformMeta ? (
                         <div className="flex min-w-0 items-center gap-2">

@@ -9,7 +9,7 @@ import { DASHBOARD_APP_BASE } from "@/lib/dashboard";
 export function SamplingBlockedNotice() {
   return (
     <div className="flex min-h-[20rem] flex-1 flex-col items-center justify-center gap-4 px-6 py-16 text-center">
-      <div className="bg-muted flex size-12 items-center justify-center rounded-full">
+      <div className="bg-background flex size-12 items-center justify-center rounded-full">
         <Clock3 className="text-muted-foreground size-6" aria-hidden />
       </div>
       <div className="max-w-sm space-y-1">

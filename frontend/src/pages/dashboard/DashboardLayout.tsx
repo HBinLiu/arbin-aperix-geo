@@ -60,7 +60,7 @@ function DashboardLayoutContent() {
       <div className="flex min-h-0 min-w-0 w-full flex-1">
         <aside
           className={cn(
-            "bg-app-sidebar flex shrink-0 flex-col pb-3 transition-[width] duration-200 ease-out",
+            "bg-background flex shrink-0 flex-col pb-3 transition-[width] duration-200 ease-out",
             sidebarCollapsed ? "w-14 pr-2.5 pt-4" : "w-60 pr-2.5 pt-4",
           )}
         >
@@ -78,7 +78,7 @@ function DashboardLayoutContent() {
           {!sidebarCollapsed ? <DashboardSidebarFooter pipeline={pipeline} /> : null}
         </aside>
 
-        <main className="bg-white border-border shadow-[8px_10px_24px_-10px_rgba(15,23,42,0.12)] flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border">
+        <main className="bg-muted-background border-border shadow-[8px_10px_24px_-10px_rgba(15,23,42,0.12)] flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border">
           <div className="border-border flex h-[48px] min-w-0 shrink-0 items-stretch border-b px-4">
             <div className="flex shrink-0 items-center pr-2">
               <button
@@ -86,7 +86,7 @@ function DashboardLayoutContent() {
                 aria-label={sidebarCollapsed ? "展开侧栏" : "收起侧栏"}
                 aria-expanded={!sidebarCollapsed}
                 onClick={toggleSidebar}
-                className="text-foreground hover:bg-muted/80 -ml-1 flex size-7 items-center justify-center rounded-md transition-colors"
+                className="text-foreground hover:bg-background/80 -ml-1 flex size-7 items-center justify-center rounded-md transition-colors"
               >
                 <SidebarToggleIcon className="size-4" aria-hidden />
               </button>

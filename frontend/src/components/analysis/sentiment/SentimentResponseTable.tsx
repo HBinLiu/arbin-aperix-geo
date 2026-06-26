@@ -15,6 +15,7 @@ import {
   sentimentResponseColumn,
   sentimentResponseColumnCellStyle,
   sentimentResponseColumnColStyle,
+  wideTableRowClass,
 } from "@/components/analysis/prompt/performanceTableLayout";
 import { PlatformLogo } from "@/components/brand/PlatformLogo";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -95,7 +96,7 @@ function SentimentResponseSkeletonRows() {
   return (
     <>
       {Array.from({ length: SENTIMENT_RESPONSE_SKELETON_ROWS }).map((_, rowIndex) => (
-        <tr key={rowIndex} className="border-border border-t [&>td]:py-3" aria-hidden>
+        <tr key={rowIndex} className={wideTableRowClass} aria-hidden>
           {SENTIMENT_RESPONSE_TABLE_COLUMNS.map((column, columnIndex) => (
             <td
               key={column.id}
@@ -195,7 +196,7 @@ export function SentimentResponseTable({
               <col key={column.id} style={sentimentResponseColumnColStyle(column)} />
             ))}
           </colgroup>
-          <thead className="text-muted-foreground bg-muted/80 text-left">
+          <thead className="text-muted-foreground bg-background/80 text-left">
             <tr className="[&>th]:whitespace-nowrap [&>th]:px-4 [&>th]:py-2.5 [&>th]:font-medium">
               <th className="pl-5">平台</th>
               <th>提示词</th>
@@ -228,7 +229,7 @@ export function SentimentResponseTable({
                 return (
                   <tr
                     key={row.response_id}
-                    className="border-border hover:bg-muted/40 cursor-pointer border-t [&>td]:py-3"
+                    className={cn(wideTableRowClass, "cursor-pointer")}
                     onClick={() => openResponseDialog(row)}
                   >
                     <td

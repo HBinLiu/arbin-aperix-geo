@@ -28,11 +28,11 @@ export function PipelineStepCard({ step, compact = false }: PipelineStepCardProp
 
       <article
         className={cn(
-          "relative z-[1] rounded-xl border bg-white transition-all duration-300",
+          "relative z-[1] rounded-xl border bg-muted-background transition-all duration-300",
           compact ? "p-3" : "p-4",
           !isActive && !compact && "shadow-sm",
           isActive && cn("border-primary/40", PIPELINE_ACTIVE_GLOW_SHADOW),
-          isFailed && "border-destructive/35",
+          isFailed && "border-error/35",
           isDone && "border-emerald-200/80 bg-emerald-50/60",
         )}
       >
@@ -40,10 +40,10 @@ export function PipelineStepCard({ step, compact = false }: PipelineStepCardProp
           <div
             className={cn(
               "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full font-mono text-xs font-semibold",
-              isDone && "bg-emerald-500 text-white",
+              isDone && "bg-emerald-500 text-primary-foreground",
               isActive && "bg-primary text-primary-foreground shadow-[0_0_12px_var(--primary-shadow-strong)]",
-              step.status === "queued" && "bg-muted text-muted-foreground",
-              isFailed && "bg-destructive text-white",
+              step.status === "queued" && "bg-background text-muted-foreground",
+              isFailed && "bg-error text-primary-foreground",
             )}
           >
             {String(step.index + 1).padStart(2, "0")}

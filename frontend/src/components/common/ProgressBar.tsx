@@ -24,7 +24,7 @@ export function ProgressBar({
           key={index}
           className={cn(
             "h-1.5 min-w-0 flex-1 rounded-sm",
-            index < filled ? "bg-primary" : "bg-muted",
+            index < filled ? "bg-primary" : "bg-background",
           )}
         />
       ))}

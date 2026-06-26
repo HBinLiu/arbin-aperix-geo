@@ -25,7 +25,7 @@ export function PipelineProgressBar({
   return (
     <div
       className={cn(
-        "bg-muted overflow-hidden rounded-full",
+        "bg-background overflow-hidden rounded-full",
         active && "ring-primary/15 ring-1",
         trackClassName,
       )}
@@ -36,7 +36,7 @@ export function PipelineProgressBar({
           heightClass,
           done && "bg-emerald-500",
           active && "bg-primary pipeline-progress-glow-pulse",
-          failed && "bg-destructive",
+          failed && "bg-error",
           !active && !done && !failed && "bg-transparent",
           fillClassName,
         )}

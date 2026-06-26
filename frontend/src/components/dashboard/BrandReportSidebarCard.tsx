@@ -26,7 +26,7 @@ export function BrandReportSidebarCard({ pipeline }: BrandReportSidebarCardProps
   return (
     <>
       <div className="relative shrink-0">
-        <div className="border-border/80 rounded-lg border bg-white p-3 shadow-[8px_10px_24px_-10px_rgba(15,23,42,0.12)]">
+        <div className="border-border/80 rounded-lg border bg-muted-background p-3 shadow-[8px_10px_24px_-10px_rgba(15,23,42,0.12)]">
           <div className="flex items-start gap-2.5">
             <span className="bg-primary/10 text-primary mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg">
               <FileText className="size-4" aria-hidden />
@@ -40,7 +40,7 @@ export function BrandReportSidebarCard({ pipeline }: BrandReportSidebarCardProps
                   "mt-2.5 inline-flex h-8 items-center justify-center rounded-md px-3 text-xs font-medium transition-colors",
                   canOpen
                     ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                    : "bg-muted text-muted-foreground cursor-not-allowed",
+                    : "bg-background text-muted-foreground cursor-not-allowed",
                 )}
                 disabled={!canOpen}
                 onClick={() => setOpen(true)}

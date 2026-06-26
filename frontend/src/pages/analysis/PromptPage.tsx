@@ -86,7 +86,7 @@ export function PromptPage() {
               onChange={(event) => setSearch(event.target.value)}
               placeholder="搜索提示词"
               controlSize="sm"
-              className="border-border h-9 w-[min(100%,220px)] rounded-lg bg-white pr-3 pl-9 text-xs shadow-none"
+              className="border-border h-9 w-[min(100%,220px)] rounded-lg bg-muted-background pr-3 pl-9 text-xs"
               aria-label="搜索提示词"
             />
           </div>

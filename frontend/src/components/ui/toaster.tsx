@@ -19,10 +19,10 @@ const TYPE_STYLES: Record<
 > = {
   error: {
     icon: AlertCircle,
-    card: "border-destructive/50 bg-destructive/10 shadow-[0_8px_24px_rgb(220_38_38/0.18)]",
-    iconClass: "text-destructive",
-    titleClass: "text-destructive",
-    messageClass: "text-destructive/90",
+    card: "border-error/50 bg-error/10 shadow-[0_8px_24px_rgb(220_38_38/0.18)]",
+    iconClass: "text-error",
+    titleClass: "text-error",
+    messageClass: "text-error/90",
     title: "请求失败",
   },
   success: {
@@ -52,7 +52,7 @@ function ToastCard({ item, index }: { item: ToastItem; index: number }) {
       role="alert"
       className={cn(
         "toast-slide-in flex w-full max-w-sm gap-3 rounded-lg border p-4",
-        item.type === "error" ? style.card : cn("border-border bg-white shadow-lg", style.card),
+        item.type === "error" ? style.card : cn("border-border bg-muted-background shadow-lg", style.card),
       )}
       style={{ animationDelay: `${index * 40}ms` }}
     >
@@ -66,7 +66,7 @@ function ToastCard({ item, index }: { item: ToastItem; index: number }) {
         className={cn(
           "-mr-1 shrink-0 rounded p-1 transition-colors",
           item.type === "error"
-            ? "text-destructive/70 hover:bg-destructive/10 hover:text-destructive"
+            ? "text-error/70 hover:bg-error/10 hover:text-error"
             : "text-muted-foreground hover:text-foreground",
         )}
         aria-label="关闭提示"

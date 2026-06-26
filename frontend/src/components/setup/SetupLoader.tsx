@@ -12,7 +12,7 @@ export function SetupLoader() {
       <div
         className={cn(
           "size-10 shrink-0 animate-spin rounded-full border-[3px]",
-          "border-muted border-t-primary",
+          "border-background border-t-primary",
         )}
         aria-hidden
       />

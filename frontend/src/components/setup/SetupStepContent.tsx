@@ -82,13 +82,13 @@ export function SetupStepContent({ view, actions }: SetupStepContentProps) {
   if (step === 0) {
     return (
       <>
-        <div className="mb-4 grid h-9 max-w-md grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+        <div className="mb-4 grid h-9 max-w-md grid-cols-2 gap-1 rounded-lg bg-background p-1">
           <button
             type="button"
             className={cn(
               "rounded-md text-xs font-medium transition-all sm:text-sm",
               mode === "domain"
-                ? "bg-white text-foreground shadow-xs"
+                ? "bg-muted-background text-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground",
             )}
             onClick={() => onModeChange("domain")}
@@ -100,7 +100,7 @@ export function SetupStepContent({ view, actions }: SetupStepContentProps) {
             className={cn(
               "rounded-md text-xs font-medium transition-all sm:text-sm",
               mode === "brand"
-                ? "bg-white text-foreground shadow-xs"
+                ? "bg-muted-background text-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground",
             )}
             onClick={() => onModeChange("brand")}

@@ -157,7 +157,7 @@ export function PromptGenerateDialog({
                         onCountChange(Math.min(Math.max(next, 1), remaining));
                       }}
                       controlSize="sm"
-                      className="border-border h-9 rounded-lg pr-28 shadow-none"
+                      className="border-border h-9 rounded-lg pr-28"
                     />
                     <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs whitespace-nowrap">
                       剩余{remaining}个额度
@@ -305,7 +305,7 @@ function Field({
     <div className="space-y-1.5">
       <label className="text-foreground px-1 text-sm font-medium">
         {label}
-        {required ? <span className="text-destructive"> *</span> : null}
+        {required ? <span className="text-error"> *</span> : null}
       </label>
       {children}
     </div>

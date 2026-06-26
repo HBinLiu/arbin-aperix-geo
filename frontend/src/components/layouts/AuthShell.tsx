@@ -14,7 +14,7 @@ export type AuthShellProps = {
  */
 export function AuthShell({ title, description, children }: AuthShellProps) {
   return (
-    <div className="flex min-h-svh flex-col overflow-y-auto bg-white lg:flex-row">
+    <div className="flex min-h-svh flex-col overflow-y-auto bg-muted-background lg:flex-row">
       <main className="flex flex-1 flex-col justify-center px-5 py-10 sm:px-8 lg:px-14 xl:px-20">
         <div className="mx-auto w-full max-w-[400px]">
           <h1 className="text-2xl font-semibold tracking-tight sm:text-[1.75rem] sm:leading-tight">{title}</h1>
@@ -39,7 +39,7 @@ export function AuthShell({ title, description, children }: AuthShellProps) {
       <aside className="hidden w-full p-3 lg:block lg:h-svh lg:w-1/2 lg:shrink-0">
         <div className="relative h-full overflow-hidden rounded-lg">
           <div
-            className="auth-right-panel-bg bg-muted absolute inset-0"
+            className="auth-right-panel-bg bg-background absolute inset-0"
             style={{ backgroundImage: 'url("/assets/imgs/auth-light-bg.png")' }}
             aria-hidden
           />

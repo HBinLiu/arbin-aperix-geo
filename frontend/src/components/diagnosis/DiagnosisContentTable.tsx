@@ -354,7 +354,7 @@ export function DiagnosisContentTable({
                   key={row.id}
                   className={cn(
                     performanceTableClasses.row,
-                    onRowClick && "hover:bg-muted/40 cursor-pointer",
+                    onRowClick && "cursor-pointer",
                   )}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   onKeyDown={

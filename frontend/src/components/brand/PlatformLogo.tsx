@@ -104,7 +104,7 @@ export function PlatformLogoGroup({
           side="top"
           sideOffset={8}
           showArrow={false}
-          className="border-border w-auto min-w-48 border bg-white px-3 py-2.5 text-foreground shadow-lg"
+          className="border-border w-auto min-w-48 border bg-muted-background px-3 py-2.5 text-foreground shadow-lg"
         >
           <ul className="flex flex-col gap-2">
             {resolved.map((meta) => (

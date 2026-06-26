@@ -63,7 +63,7 @@ function OverviewCardLayout({
   return (
     <div
       className={cn(
-        "border-border relative flex min-h-[120px] min-w-0 w-full flex-col rounded-lg border bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
+        "border-border relative flex min-h-[120px] min-w-0 w-full flex-col rounded-lg border bg-muted-background p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
         className,
       )}
       aria-busy={loading}
@@ -77,7 +77,7 @@ function OverviewCardLayout({
 
       <div className="mt-auto flex flex-col">
         <div
-          className="bg-secondary mt-4 h-1 w-full overflow-hidden rounded-full"
+          className="bg-background mt-4 h-1 w-full overflow-hidden rounded-full"
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={100}
@@ -85,7 +85,7 @@ function OverviewCardLayout({
           aria-label={progressAriaLabel}
         >
           {loading ? (
-            <div className="bg-muted h-full w-full animate-pulse rounded-full" />
+            <div className="bg-background h-full w-full animate-pulse rounded-full" />
           ) : (
             <div
               className={cn("h-full rounded-full transition-all duration-500", progressFillClassName)}
@@ -193,7 +193,7 @@ export function OverviewMetricCard({
         progressFillClassName={sentimentBarClass(label)}
         value={
           loading ? (
-            <div className="bg-muted h-8 w-16 max-w-full animate-pulse rounded-md" />
+            <div className="bg-background h-8 w-16 max-w-full animate-pulse rounded-md" />
           ) : (
             <div className="flex min-w-0 items-center gap-2">
               <span
@@ -207,7 +207,7 @@ export function OverviewMetricCard({
         }
         bottomLeft={
           loading ? (
-            <div className="bg-muted h-full w-20 max-h-5 max-w-full animate-pulse rounded" />
+            <div className="bg-background h-full w-20 max-h-5 max-w-full animate-pulse rounded" />
           ) : bottomLeft ? (
             <p className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs leading-none">
               <span className="truncate">{bottomLeft}</span>
@@ -242,7 +242,7 @@ export function OverviewMetricCard({
       progressAriaLabel={`${title}进度`}
       value={
         loading ? (
-          <div className="bg-muted h-8 w-16 max-w-full animate-pulse rounded-md" />
+          <div className="bg-background h-8 w-16 max-w-full animate-pulse rounded-md" />
         ) : (
           <div className="flex min-w-0 items-center gap-2">
             <p className="text-2xl font-bold leading-none tracking-tight tabular-nums">{value}</p>
@@ -256,7 +256,7 @@ export function OverviewMetricCard({
       }
       bottomLeft={
         loading ? (
-          <div className="bg-muted h-full w-24 max-h-5 max-w-full animate-pulse rounded" />
+          <div className="bg-background h-full w-24 max-h-5 max-w-full animate-pulse rounded" />
         ) : bottomLeft ? (
           <p className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs leading-none">
             <span className="truncate">{bottomLeft}</span>

@@ -125,7 +125,7 @@ export function BrandReportDialog({
                 type="button"
                 size="default"
                 variant="outline"
-                className="h-9 rounded-lg px-3 py-0 shadow-none"
+                className="h-9 rounded-lg px-3 py-0"
                 disabled={previewLoading}
                 onClick={() => setPreviewKey((k) => k + 1)}
               >
@@ -161,7 +161,7 @@ export function BrandReportDialog({
           ) : null}
 
           {previewError ? (
-            <div className="text-destructive flex flex-1 items-center justify-center p-8 text-sm">
+            <div className="text-error flex flex-1 items-center justify-center p-8 text-sm">
               {previewError}
             </div>
           ) : null}
@@ -170,7 +170,7 @@ export function BrandReportDialog({
             <iframe
               title="品牌分析报告预览"
               srcDoc={previewHtml}
-              className="min-h-0 flex-1 w-full border-0 bg-white"
+              className="min-h-0 flex-1 w-full border-0 bg-muted-background"
               sandbox="allow-same-origin"
             />
           ) : null}

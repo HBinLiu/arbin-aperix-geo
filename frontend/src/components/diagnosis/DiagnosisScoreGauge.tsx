@@ -40,7 +40,7 @@ export function DiagnosisScoreGauge({
   return (
     <div
       className={cn(
-        "border-border flex min-h-[220px] flex-col rounded-lg border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
+        "border-border flex min-h-[220px] flex-col rounded-lg border bg-muted-background p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
         className,
       )}
       aria-busy={loading}
@@ -49,7 +49,7 @@ export function DiagnosisScoreGauge({
 
       <div className="relative mx-auto mt-2 flex w-full max-w-[220px] flex-1 flex-col items-center justify-center">
         {loading ? (
-          <div className="bg-muted size-28 animate-pulse rounded-full" />
+          <div className="bg-background size-28 animate-pulse rounded-full" />
         ) : (
           <>
             <svg viewBox="0 0 200 120" className="h-auto w-full" aria-hidden>

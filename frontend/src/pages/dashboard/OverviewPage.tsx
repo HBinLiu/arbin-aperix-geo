@@ -52,7 +52,7 @@ function OverviewMetricsContent({ subjectId }: { subjectId: string }) {
     <>
       <AnalysisFilterBar value={filters} onChange={setFilters} />
 
-      <div className="bg-muted/30 flex flex-col gap-4 px-4 py-4 sm:px-6">
+      <div className="bg-background/30 flex flex-col gap-4 px-4 py-4 sm:px-6">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <OverviewMetricCard
             title="可见度"

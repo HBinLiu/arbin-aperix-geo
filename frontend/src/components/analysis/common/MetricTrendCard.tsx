@@ -157,7 +157,7 @@ export function MetricTrendCard({
   return (
     <div
       className={cn(
-        embedded ? "bg-transparent" : "border-border bg-card rounded-lg border p-6",
+        embedded ? "bg-transparent" : "border-border bg-background rounded-lg border p-6",
         (fixedChart || fillChart) && "flex h-full flex-col",
         className,
       )}

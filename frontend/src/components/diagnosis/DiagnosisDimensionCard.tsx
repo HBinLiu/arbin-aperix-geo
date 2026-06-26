@@ -39,9 +39,9 @@ function healthScoreTone(score: number): "success" | "warning" | "error" {
 }
 
 const HEALTH_SCORE_GRADIENT_CLASS: Record<"success" | "warning" | "error", string> = {
-  success: "bg-gradient-to-b from-success/20 via-success/8 to-white",
-  warning: "bg-gradient-to-b from-warning/20 via-warning/8 to-white",
-  error: "bg-gradient-to-b from-error/20 via-error/8 to-white",
+  success: "bg-gradient-to-b from-success/20 via-success/8 to-surface",
+  warning: "bg-gradient-to-b from-warning/20 via-warning/8 to-surface",
+  error: "bg-gradient-to-b from-error/20 via-error/8 to-surface",
 };
 
 const HEALTH_SCORE_TEXT_CLASS: Record<"success" | "warning" | "error", string> = {
@@ -77,7 +77,7 @@ export function DiagnosisDimensionCard({
       className={cn(
         "flex h-full min-h-[220px] flex-col",
         embedded ? "min-w-0 flex-1" : "rounded-lg border border-border/60 shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
-        loading ? "bg-white" : HEALTH_SCORE_GRADIENT_CLASS[scoreTone],
+        loading ? "bg-muted-background" : HEALTH_SCORE_GRADIENT_CLASS[scoreTone],
         className,
       )}
       aria-busy={loading}
@@ -87,7 +87,7 @@ export function DiagnosisDimensionCard({
         <div
           className={cn(
             "flex size-10 shrink-0 items-center justify-center rounded-lg",
-            active ? "bg-primary text-primary-foreground" : "bg-white/80 text-foreground shadow-sm",
+            active ? "bg-primary text-primary-foreground" : "bg-muted-background/80 text-foreground shadow-sm",
           )}
         >
           <Icon className="size-5" aria-hidden />
@@ -106,7 +106,7 @@ export function DiagnosisDimensionCard({
         <div className="mb-2 flex h-4 items-center justify-between gap-2">
           <p className="text-muted-foreground text-xs">健康评分</p>
           {loading ? (
-            <div className="bg-muted h-4 w-14 animate-pulse rounded" />
+            <div className="bg-background h-4 w-14 animate-pulse rounded" />
           ) : (
             <p className={cn("text-xs font-semibold tabular-nums", HEALTH_SCORE_TEXT_CLASS[scoreTone])}>
               {healthScore.toFixed(1)}
@@ -116,7 +116,7 @@ export function DiagnosisDimensionCard({
         </div>
 
         <div
-          className="bg-secondary h-1 w-full overflow-hidden rounded-full"
+          className="bg-background h-1 w-full overflow-hidden rounded-full"
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={100}
@@ -124,7 +124,7 @@ export function DiagnosisDimensionCard({
           aria-label={`${title}健康评分 ${loading ? "加载中" : healthScore.toFixed(1)}`}
         >
           {loading ? (
-            <div className="bg-muted h-full w-full animate-pulse rounded-full" />
+            <div className="bg-background h-full w-full animate-pulse rounded-full" />
           ) : (
             <div
               className={cn("h-full rounded-full transition-all duration-500", HEALTH_SCORE_PROGRESS_CLASS[scoreTone])}
@@ -138,7 +138,7 @@ export function DiagnosisDimensionCard({
       <section className="flex min-h-9 shrink-0 flex-wrap items-center gap-2 px-5 pt-4 pb-5">
         <span className="text-muted-foreground shrink-0 text-xs">行动优先级</span>
         {loading ? (
-          <div className="bg-muted h-5 w-24 animate-pulse rounded-full" />
+          <div className="bg-background h-5 w-24 animate-pulse rounded-full" />
         ) : (
           visiblePriorities.map((item) => (
             <TextBadge

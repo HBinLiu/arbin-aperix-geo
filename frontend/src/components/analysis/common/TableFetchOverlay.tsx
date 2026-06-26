@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 export function TableFetchOverlay() {
   return (
     <div
-      className="absolute inset-0 z-20 flex items-center justify-center bg-white/75 backdrop-blur-[2px]"
+      className="absolute inset-0 z-20 flex items-center justify-center bg-muted-background/75 backdrop-blur-[2px]"
       role="status"
       aria-label="加载中"
     >

@@ -230,10 +230,7 @@ export function PromptPerformanceTable({
             rows.map((row) => (
               <tr
                 key={row.id}
-                className={cn(
-                  performanceTableClasses.row,
-                  "cursor-pointer transition-colors hover:bg-muted/80",
-                )}
+                className={cn(performanceTableClasses.row, "cursor-pointer")}
                 onClick={() => navigate(promptDetailPath(row.id))}
               >
                 <td

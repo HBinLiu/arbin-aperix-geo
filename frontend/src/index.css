@@ -6,6 +6,20 @@
 
 @custom-variant dark (&:is(.dark *));
 
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 2147483646;
+}
+
 @theme inline {
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
@@ -13,31 +27,15 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
 
-  --shadow-app-card: var(--app-card-shadow);
-
   --color-background: var(--background);
+  --color-muted-background: var(--muted-background);
+
   --color-foreground: var(--foreground);
-
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-
-  --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
 
   --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
 
   --color-doubao: var(--doubao);
   --color-deepseek: var(--deepseek);
@@ -54,16 +52,6 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-
-  --color-app-sidebar: var(--app-sidebar);
-  --color-sidebar: var(--app-sidebar);
-  --color-sidebar-nav: var(--sidebar-nav);
 }
 
 /*
@@ -85,7 +73,7 @@
 }
 
 .setup-panel-bg {
-  background-color: var(--muted);
+  background-color: var(--background);
   background-image: url('/assets/imgs/setup-light.png');
   background-position: center;
   background-repeat: no-repeat;
@@ -96,7 +84,7 @@
   background-image: linear-gradient(
     90deg,
     transparent 0%,
-    var(--foreground-shine) 50%,
+    var(--muted-foreground) 50%,
     transparent 100%
   );
   background-size: 100px 100%;
@@ -111,7 +99,7 @@
     border-color: var(--border);
   }
   body {
-    background-color: #fff;
+    background-color: var(--background);
     color: var(--foreground);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -285,21 +273,21 @@
   0%,
   100% {
     box-shadow:
-      0 4px 14px -6px var(--hero-glow-14),
-      0 8px 28px -10px var(--hero-glow-28);
+      0 4px 14px -6px var(--primary-shadow),
+      0 8px 28px -10px var(--primary-shadow);
   }
   50% {
     box-shadow:
-      0 6px 22px -5px var(--hero-glow-28),
-      0 14px 40px -8px var(--hero-glow-32);
+      0 6px 22px -5px var(--primary-shadow),
+      0 14px 40px -8px var(--primary-shadow-strong);
   }
 }
 
 @keyframes pipeline-active-glow-expand {
   0% {
     box-shadow:
-      0 0 0 0 var(--hero-glow-32),
-      0 6px 20px -8px var(--hero-glow-14);
+      0 0 0 0 var(--primary-shadow-strong),
+      0 6px 20px -8px var(--primary-shadow);
     opacity: 0.72;
     transform: scale(1);
   }
@@ -317,7 +305,7 @@
 
 @keyframes pipeline-active-glow-expand-soft {
   0% {
-    box-shadow: 0 0 0 0 var(--hero-glow-28);
+    box-shadow: 0 0 0 0 var(--primary-shadow);
     opacity: 0.48;
     transform: scale(1);
   }
@@ -342,12 +330,12 @@
   100% {
     box-shadow:
       0 0 6px var(--primary-shadow),
-      0 0 12px var(--hero-glow-12);
+      0 0 12px var(--primary-shadow);
   }
   50% {
     box-shadow:
       0 0 10px var(--primary-shadow-strong),
-      0 0 20px var(--hero-glow-28);
+      0 0 20px var(--primary-shadow-strong);
   }
 }
 

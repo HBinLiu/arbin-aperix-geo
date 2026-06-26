@@ -1,18 +1,23 @@
 import { useCallback, useState } from "react";
 
-import { nextTheme, persistTheme, readStoredTheme, type ThemeMode } from "@/lib/theme";
+import { nextTheme, persistThemeWithTransition, readStoredTheme, type ThemeMode, type ThemeTransitionOrigin } from "@/lib/theme";
+
+export type { ThemeTransitionOrigin };
 
 export function useTheme() {
   const [theme, setThemeState] = useState<ThemeMode>(() => readStoredTheme());
 
-  const setTheme = useCallback((mode: ThemeMode) => {
-    persistTheme(mode);
-    setThemeState(mode);
+  const setTheme = useCallback((mode: ThemeMode, origin?: ThemeTransitionOrigin) => {
+    persistThemeWithTransition(mode, origin, () => setThemeState(mode));
   }, []);
 
-  const cycleTheme = useCallback(() => {
-    setTheme(nextTheme(theme));
-  }, [setTheme, theme]);
+  const cycleTheme = useCallback(
+    (origin?: ThemeTransitionOrigin) => {
+      const next = nextTheme(theme);
+      persistThemeWithTransition(next, origin, () => setThemeState(next));
+    },
+    [theme],
+  );
 
   return {
     theme,

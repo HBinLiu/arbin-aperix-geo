@@ -64,7 +64,7 @@ export function VisibilityMetricSection({
 
   return (
     <div
-      className="border-border w-full overflow-hidden rounded-lg border bg-white"
+      className="border-border w-full overflow-hidden rounded-lg border bg-muted-background"
       aria-busy={loading}
       aria-label={loading ? definition.loadingAriaLabel : undefined}
     >

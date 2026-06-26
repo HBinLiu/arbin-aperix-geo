@@ -28,7 +28,7 @@ function FieldLabel({ children, required }: { children: React.ReactNode; require
   return (
     <label className="text-foreground text-sm font-medium">
       {children}
-      {required ? <span className="text-destructive ml-0.5">*</span> : null}
+      {required ? <span className="text-error ml-0.5">*</span> : null}
     </label>
   );
 }
@@ -63,7 +63,7 @@ function AliasTagsInput({
       {aliases.map((alias, index) => (
         <span
           key={`${alias}-${index}`}
-          className="border-border bg-muted/60 inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-sm"
+          className="border-border bg-background/60 inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-sm"
         >
           {alias}
           <button

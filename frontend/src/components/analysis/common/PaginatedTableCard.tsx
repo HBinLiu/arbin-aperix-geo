@@ -19,7 +19,7 @@ export function PaginatedTableCard({
 }: PaginatedTableCardProps) {
   return (
     <div
-      className={cn("border-border overflow-hidden rounded-lg border bg-white", className)}
+      className={cn("border-border overflow-hidden rounded-lg border bg-muted-background", className)}
       aria-busy={loading || fetching}
     >
       <TableScrollOverlay fetching={fetching}>{children}</TableScrollOverlay>

@@ -33,7 +33,7 @@ export function PipelineProgressRing({ value, className, label }: PipelineProgre
           fill="none"
           stroke="currentColor"
           strokeWidth="8"
-          className="text-muted/80"
+          className="text-background/80"
         />
         <circle
           cx="64"

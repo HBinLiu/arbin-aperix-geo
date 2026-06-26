@@ -21,7 +21,7 @@ export function OverviewTopicSection({
   return (
     <section
       className={cn(
-        "border-border w-full overflow-hidden rounded-lg border bg-white",
+        "border-border w-full overflow-hidden rounded-lg border bg-muted-background",
         className,
       )}
       aria-busy={loading}

@@ -5,6 +5,7 @@ import type { DateRange } from "react-day-picker";
 
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
+import { analysisFilterTriggerClass, analysisFilterTriggerOpenClass } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   ANALYSIS_DATE_PRESETS,
@@ -28,12 +29,7 @@ type DraftAnchors = {
   end?: Date;
 };
 
-const triggerClassName = cn(
-  "border-border inline-flex h-9 w-auto items-center gap-2 rounded-lg border bg-white px-3 text-sm font-normal shadow-none",
-  "hover:border-border hover:shadow-none",
-  "focus:border-border focus:shadow-none focus:ring-0 focus:outline-hidden",
-  "focus-visible:border-border focus-visible:shadow-none focus-visible:ring-0",
-);
+const triggerClassName = analysisFilterTriggerClass;
 
 function sameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -133,7 +129,7 @@ export function DateRangeFilterSelect({
           type="button"
           className={cn(
             triggerClassName,
-            open && "border-border shadow-none ring-0",
+            open && analysisFilterTriggerOpenClass,
             disabled && "opacity-60",
             className,
           )}
@@ -146,8 +142,8 @@ export function DateRangeFilterSelect({
           />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-auto min-w-[17.5rem] bg-white p-0">
-        <Card className="gap-0 border-0 bg-white py-0 shadow-none">
+      <PopoverContent align="start" className="w-auto min-w-[17.5rem] bg-muted-background p-0">
+        <Card className="gap-0 border-0 bg-muted-background shadow-none py-0">
           <CardContent className="p-0">
             <Calendar
               mode="range"
@@ -166,7 +162,7 @@ export function DateRangeFilterSelect({
                 month: "flex w-full flex-col gap-2",
                 week: "mt-1 flex w-full",
               }}
-              className="w-full bg-white p-2 [--cell-size:--spacing(9)]"
+              className="w-full bg-muted-background p-2 [--cell-size:--spacing(9)]"
             />
           </CardContent>
           <CardFooter className="flex flex-col items-center gap-1 border-t">

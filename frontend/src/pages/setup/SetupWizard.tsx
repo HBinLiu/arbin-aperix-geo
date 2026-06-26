@@ -94,9 +94,9 @@ export function SetupWizard({ onCompleted }: SetupWizardProps) {
 
   return (
     <AppShell>
-      <section className="bg-white border-border shadow-[8px_10px_24px_-10px_rgba(15,23,42,0.12)] flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
+      <section className="bg-muted-background border-border shadow-[8px_10px_24px_-10px_rgba(15,23,42,0.12)] flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
         <div className="mx-auto flex h-full min-h-0 w-full max-w-[calc(40px+60rem)] flex-1 flex-col overflow-auto px-6 pb-10 pt-6">
-          <div className="my-auto grid w-full min-h-[min(669px,calc(100vh-8rem))] grid-cols-1 rounded-lg border border-gray-200 shadow-[10px_12px_28px_-14px_rgba(15,23,42,0.22)] md:grid-cols-[minmax(0,1fr)_20rem]">
+          <div className="my-auto grid w-full min-h-[min(669px,calc(100vh-8rem))] grid-cols-1 rounded-lg border shadow-[10px_12px_28px_-14px_rgba(15,23,42,0.22)] md:grid-cols-[minmax(0,1fr)_20rem]">
             <div className="flex min-h-0 flex-col p-6 md:p-8 lg:p-10">
               <form className="flex h-full min-h-0 w-full flex-col" onSubmit={handleSubmit}>
                 <SetupWizardHeader title={shellHeader?.title} subtitle={shellHeader?.subtitle} />

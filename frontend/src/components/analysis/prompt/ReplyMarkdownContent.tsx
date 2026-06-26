@@ -121,7 +121,7 @@ function buildMarkdownComponents(mentionTerms: ResponseMentionTerm[]): Component
           className={cn(
             isBlock
               ? "block text-[0.9em]"
-              : "bg-muted rounded px-1 py-0.5 text-[0.9em]",
+              : "bg-background rounded px-1 py-0.5 text-[0.9em]",
             className,
           )}
           {...props}
@@ -132,7 +132,7 @@ function buildMarkdownComponents(mentionTerms: ResponseMentionTerm[]): Component
     },
     pre: ({ children, node: _node, ...props }) => (
       <pre
-        className="bg-muted text-muted-foreground mb-3 overflow-x-auto rounded-lg p-3 text-sm last:mb-0"
+        className="bg-background text-muted-foreground mb-3 overflow-x-auto rounded-lg p-3 text-sm last:mb-0"
         {...props}
       >
         {children}
@@ -145,7 +145,7 @@ function buildMarkdownComponents(mentionTerms: ResponseMentionTerm[]): Component
         </table>
       </div>
     ),
-    thead: wrap("thead", "bg-muted/50"),
+    thead: wrap("thead", "bg-background/50"),
     th: wrap("th", "border-border border px-3 py-2 text-left font-semibold"),
     td: wrap("td", "border-border border px-3 py-2 align-top"),
   };

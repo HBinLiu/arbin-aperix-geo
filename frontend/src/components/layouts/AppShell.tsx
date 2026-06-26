@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { UserMenu } from "@/components/layouts/UserMenu";
 import { queryKeys } from "@/lib/queries";
 
-export const HEADER_ICON_BTN_CLASS = "border-border bg-white size-8 rounded-md border";
+export const HEADER_ICON_BTN_CLASS = "border-border bg-muted-background size-8 rounded-md border";
 
 type AppShellProps = {
   children: ReactNode;
@@ -26,7 +26,7 @@ export function AppShell({ children, headerStart }: AppShellProps) {
   });
 
   return (
-    <div className="bg-app-sidebar text-foreground flex h-svh flex-col overflow-hidden">
+    <div className="bg-background text-foreground flex h-svh flex-col overflow-hidden">
       <header className="relative z-50 flex h-12 w-full shrink-0 items-center justify-between pr-2.5">
         {headerStart ?? (
           <div className="flex items-center pl-2.5">

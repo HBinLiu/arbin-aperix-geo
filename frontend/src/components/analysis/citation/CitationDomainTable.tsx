@@ -9,6 +9,7 @@ import {
   TablePagination,
 } from "@/components/analysis/common/TablePagination";
 import { ColumnHelp } from "@/components/analysis/prompt/PerformanceMetricCells";
+import { wideTableRowClass } from "@/components/analysis/prompt/performanceTableLayout";
 import { PlatformLogoGroup } from "@/components/brand/PlatformLogo";
 import { FaviconImage } from "@/components/common/FaviconImage";
 import { faviconUrlFromHost } from "@/lib/favicon";
@@ -137,7 +138,7 @@ export function CitationDomainTable({
             <col style={{ width: COL_COUNT_WIDTH }} />
             <col style={{ width: COL_RATE_WIDTH }} />
           </colgroup>
-          <thead className="text-muted-foreground bg-muted/80 text-left">
+          <thead className="text-muted-foreground bg-background/80 text-left">
             <tr className="[&>th]:whitespace-nowrap [&>th]:px-4 [&>th]:py-2.5 [&>th]:font-medium">
               <th className="pl-5">域名</th>
               <th>平台</th>
@@ -165,7 +166,7 @@ export function CitationDomainTable({
               rows.map((row) => (
                 <tr
                   key={row.domain}
-                  className="border-border hover:bg-muted/40 cursor-pointer border-t [&>td]:py-3"
+                  className={cn(wideTableRowClass, "cursor-pointer")}
                   role="link"
                   tabIndex={0}
                   onClick={() => navigate(citationDomainDetailPath(row.domain))}
@@ -210,7 +211,7 @@ function SkeletonRows() {
   return (
     <>
       {Array.from({ length: SKELETON_ROWS }).map((_, rowIndex) => (
-        <tr key={rowIndex} className="border-border border-t [&>td]:py-3" aria-hidden>
+        <tr key={rowIndex} className={wideTableRowClass} aria-hidden>
           {Array.from({ length: COLUMN_COUNT }).map((__, cellIndex) => (
             <td key={cellIndex} className={cellIndex === 0 ? "pl-5" : "px-4"}>
               <Skeleton className="h-4 w-4/5" />

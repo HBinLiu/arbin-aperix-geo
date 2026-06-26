@@ -28,7 +28,7 @@ function ConfigOption({
   return (
     <button
       type="button"
-      className="hover:bg-muted/80 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors"
+      className="hover:bg-background/80 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors"
       onClick={onSelect}
     >
       <span className="flex size-4 shrink-0 items-center justify-center">
@@ -81,7 +81,7 @@ export function PlatformMatrixConfig({
       {open ? (
         <div
           role="menu"
-          className="border-border absolute top-[calc(100%+0.375rem)] right-0 z-20 w-45 rounded-lg border bg-white p-2 shadow-lg"
+          className="border-border absolute top-[calc(100%+0.375rem)] right-0 z-20 w-45 rounded-lg border bg-muted-background p-2 shadow-lg"
         >
           <p className="text-foreground p-1 text-sm font-bold">行</p>
           <div className="mb-2">

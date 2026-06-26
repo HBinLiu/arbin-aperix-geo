@@ -1,5 +1,7 @@
 /** 平台矩阵表：行标签列固定 minWidth，平台列等宽 minWidth；过窄时横向滚动。 */
 
+import { tableRowHoverClass } from "@/components/analysis/prompt/performanceTableLayout";
+
 export const PLATFORM_MATRIX_ROW_COLUMN_MIN = 240;
 export const PLATFORM_MATRIX_PLATFORM_COLUMN_MIN = 120;
 
@@ -16,7 +18,7 @@ export function platformMatrixSkeletonGridColumns(platformCount: number): string
 }
 
 export const platformMatrixTableClasses = {
-  row: "border-border h-11 border-t [&>td]:align-middle [&>td]:whitespace-nowrap [&>td]:px-4 [&>td]:py-0",
+  row: `border-border h-11 border-t [&>td]:align-middle [&>td]:whitespace-nowrap [&>td]:px-4 [&>td]:py-0 ${tableRowHoverClass}`,
   skeletonRow: "border-border grid h-11 items-center border-t",
   skeletonHeader: "border-border grid h-11 items-center border-b",
 } as const;

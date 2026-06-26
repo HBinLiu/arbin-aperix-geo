@@ -26,8 +26,8 @@ export function SetupStepVertical({ steps, currentStep }: SetupStepVerticalProps
                   ) : (
                     <span
                       className={cn(
-                        "h-1.5 w-1.5 rounded-full transition-colors",
-                        isPast ? "bg-primary" : "bg-muted-foreground/40",
+                        "h-1.5 w-1.5 rounded-full",
+                        isPast ? "bg-primary" : "bg-muted-foreground/80 dark:bg-background/40",
                       )}
                       aria-hidden
                     />
@@ -35,7 +35,7 @@ export function SetupStepVertical({ steps, currentStep }: SetupStepVerticalProps
                 </div>
                 {!isLast ? (
                   <div
-                    className={cn("my-1 w-px flex-1", isPast || isActive ? "bg-primary" : "bg-border")}
+                    className={cn("my-1 w-px flex-1", isPast || isActive ? "bg-primary" : "bg-muted-foreground/80 dark:bg-background/40")}
                     aria-hidden
                   />
                 ) : null}
@@ -43,10 +43,10 @@ export function SetupStepVertical({ steps, currentStep }: SetupStepVerticalProps
               <div className="flex flex-1 items-start pt-0.5">
                 <span
                   className={cn(
-                    "font-mono text-sm leading-5 transition-colors",
+                    "font-mono text-sm leading-5",
                     isActive && "setup-step-active text-primary font-bold",
                     !isActive && isPast && "text-primary",
-                    !isActive && !isPast && "text-foreground",
+                    !isActive && !isPast && "text-foreground dark:text-background",
                   )}
                 >
                   {label}

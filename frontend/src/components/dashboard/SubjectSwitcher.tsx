@@ -54,7 +54,7 @@ export function SubjectSwitcher() {
         aria-expanded={open}
         aria-haspopup="listbox"
         onClick={() => setOpen((v) => !v)}
-        className="hover:bg-muted/80 flex min-w-0 max-w-[min(100vw-12rem,16rem)] items-center gap-2 rounded-md px-1.5 py-1 outline-hidden"
+        className="hover:bg-background/80 flex min-w-0 max-w-[min(100vw-12rem,16rem)] items-center gap-2 rounded-md px-1.5 py-1 outline-hidden"
       >
         {activeFaviconUrl ? (
           <FaviconImage
@@ -64,7 +64,7 @@ export function SubjectSwitcher() {
             iconClassName="size-6"
           />
         ) : (
-          <span className="bg-muted text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded text-xs font-semibold">
+          <span className="bg-background text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded text-xs font-semibold">
             {subjectDisplayLabel(subject).slice(0, 1).toUpperCase()}
           </span>
         )}
@@ -76,7 +76,7 @@ export function SubjectSwitcher() {
         <div
           role="listbox"
           aria-label="切换项目"
-          className="border-border absolute left-4 top-full z-50 mt-1 w-[min(calc(100vw-2rem),16rem)] overflow-hidden rounded-lg border bg-white py-1 shadow-[8px_10px_24px_-10px_rgba(15,23,42,0.18)]"
+          className="border-border absolute left-4 top-full z-50 mt-1 w-[min(calc(100vw-2rem),16rem)] overflow-hidden rounded-lg border bg-muted-background py-1 shadow-[8px_10px_24px_-10px_rgba(15,23,42,0.18)]"
         >
           <div className="max-h-64 overflow-y-auto p-2">
             {subjects.map((item) => {
@@ -91,7 +91,7 @@ export function SubjectSwitcher() {
                   onClick={() => onSelect(item.id)}
                   className={cn(
                     "flex w-full min-w-0 items-center gap-2 rounded-md px-3 py-2 text-left text-sm",
-                    active && "bg-muted",
+                    active && "bg-background",
                   )}
                 >
                   {faviconUrl ? (
@@ -102,7 +102,7 @@ export function SubjectSwitcher() {
                       iconClassName="size-5"
                     />
                   ) : (
-                    <span className="bg-muted text-muted-foreground flex size-5 shrink-0 items-center justify-center rounded text-[10px] font-semibold">
+                    <span className="bg-background text-muted-foreground flex size-5 shrink-0 items-center justify-center rounded text-[10px] font-semibold">
                       {subjectDisplayLabel(item).slice(0, 1).toUpperCase()}
                     </span>
                   )}

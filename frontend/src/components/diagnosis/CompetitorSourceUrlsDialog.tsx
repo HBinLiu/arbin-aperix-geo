@@ -84,7 +84,7 @@ export function CompetitorSourceUrlsDialog({
                 {urls.map((url) => (
                   <li
                     key={url}
-                    className="bg-muted flex min-w-0 items-center gap-2 rounded-lg px-3 py-2.5"
+                    className="bg-background flex min-w-0 items-center gap-2 rounded-lg px-3 py-2.5"
                   >
                     <a
                       href={url}

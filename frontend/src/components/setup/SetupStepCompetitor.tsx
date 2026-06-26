@@ -168,7 +168,7 @@ function CompetitorDomainTable({
           <Button
             type="button"
             variant="outline"
-            className="text-muted-foreground h-9 shrink-0 gap-1.5 whitespace-nowrap rounded-md bg-white px-4 text-sm font-normal"
+            className="text-muted-foreground h-9 shrink-0 gap-1.5 whitespace-nowrap rounded-md bg-muted-background px-4 text-sm font-normal"
             onClick={onAddFromDraft}
           >
             <Plus className="size-4 shrink-0" />

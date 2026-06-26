@@ -281,7 +281,7 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
             : ""
         }
         confirmLabel="删除"
-        confirmVariant="destructive"
+        confirmVariant="default"
         submitting={removeMutation.isPending}
         onOpenChange={(open) => {
           if (!open && !removeMutation.isPending) {

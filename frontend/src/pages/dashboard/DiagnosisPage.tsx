@@ -81,7 +81,7 @@ export function DiagnosisContent({ subjectId }: DiagnosisContentProps) {
             status={overview.overallStatus}
             loading={summaryLoading}
           />
-          <div className="border-border flex min-h-[220px] min-w-0 flex-col divide-y divide-border overflow-hidden rounded-lg border bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] xl:col-span-3 xl:flex-row xl:divide-x xl:divide-y-0">
+          <div className="border-border flex min-h-[220px] min-w-0 flex-col divide-y divide-border overflow-hidden rounded-lg border bg-muted-background shadow-[0_1px_2px_rgba(15,23,42,0.04)] xl:col-span-3 xl:flex-row xl:divide-x xl:divide-y-0">
             <DiagnosisDimensionCard
               embedded
               title="AI 提及"

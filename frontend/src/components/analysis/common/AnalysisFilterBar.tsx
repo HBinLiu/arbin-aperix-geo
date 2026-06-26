@@ -76,17 +76,13 @@ export function FilterSelect({
       <SelectTrigger
         title={title}
         className={cn(
-          "border-border h-9 w-auto gap-2 rounded-lg bg-white px-3 text-xs font-normal shadow-none",
-          "hover:border-border hover:shadow-none",
-          "focus:border-border focus:shadow-none focus:ring-0",
-          "focus-visible:border-border focus-visible:shadow-none focus-visible:ring-0",
-          "data-[state=open]:border-border data-[state=open]:shadow-none data-[state=open]:ring-0",
+          "h-9 w-auto gap-2 rounded-lg px-3 text-xs font-normal",
           isPrimary && [
-            "border-primary bg-primary text-white",
+            "border-primary bg-primary text-primary-foreground",
             "hover:border-primary hover:bg-primary",
             "focus:border-primary focus-visible:border-primary",
             "data-[state=open]:border-primary",
-            "[&>svg:last-child]:size-4 [&>svg:last-child]:stroke-[2.5] [&>svg:last-child]:text-white [&>svg:last-child]:opacity-100",
+            "[&>svg:last-child]:size-4 [&>svg:last-child]:stroke-[2.5] [&>svg:last-child]:text-primary-foreground [&>svg:last-child]:opacity-100",
           ],
           disabled && "opacity-60",
           className,
@@ -95,11 +91,11 @@ export function FilterSelect({
         {leading ??
           (Icon ? (
             <Icon
-              className={cn("size-3.5 shrink-0", isPrimary ? "text-white" : "text-muted-foreground")}
+              className={cn("size-3.5 shrink-0", isPrimary ? "text-primary-foreground" : "text-muted-foreground")}
               aria-hidden
             />
           ) : null)}
-        <span className={cn("truncate", isPrimary ? "font-medium text-white" : "text-foreground")}>
+        <span className={cn("truncate", isPrimary ? "font-medium text-primary-foreground" : "text-foreground")}>
           {displayValue ?? placeholder}
         </span>
       </SelectTrigger>
@@ -157,7 +153,7 @@ export function AnalysisFilterBar({
   );
 
   return (
-    <div className="sticky top-0 z-20 flex w-full max-w-full min-w-0 flex-wrap items-center gap-2 border-b bg-white px-4 py-3">
+    <div className="sticky top-0 z-20 flex w-full max-w-full min-w-0 flex-wrap items-center gap-2 border-b bg-muted-background px-4 py-3">
       {!hideEntityFilter ? (
         <FilterSelect
           variant="primary"

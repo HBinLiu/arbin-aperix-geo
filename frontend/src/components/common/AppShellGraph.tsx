@@ -15,14 +15,14 @@ export function WorkspaceErrorGraph({ className }: AppShellGraphProps) {
       aria-hidden
     >
       <ellipse cx="100" cy="148" rx="56" ry="8" className="fill-primary/10 shell-pulse-glow" />
-      <rect x="44" y="36" width="112" height="88" rx="12" className="fill-white stroke-border stroke-[1.5]" />
-      <rect x="56" y="52" width="64" height="8" rx="4" className="fill-muted" />
-      <rect x="56" y="68" width="88" height="6" rx="3" className="fill-muted/80" />
-      <rect x="56" y="80" width="72" height="6" rx="3" className="fill-muted/60" />
-      <circle cx="132" cy="44" r="18" className="fill-destructive/10 stroke-destructive/40 stroke-[1.5]" />
+      <rect x="44" y="36" width="112" height="88" rx="12" className="fill-muted-background stroke-border stroke-[1.5]" />
+      <rect x="56" y="52" width="64" height="8" rx="4" className="fill-background" />
+      <rect x="56" y="68" width="88" height="6" rx="3" className="fill-background/80" />
+      <rect x="56" y="80" width="72" height="6" rx="3" className="fill-background/60" />
+      <circle cx="132" cy="44" r="18" className="fill-error/10 stroke-error/40 stroke-[1.5]" />
       <path
         d="M126 44h12M132 38v12"
-        className="stroke-destructive stroke-[2] shell-shake"
+        className="stroke-error stroke-[2] shell-shake"
         strokeLinecap="round"
       />
       <g className="shell-drift">
@@ -48,16 +48,16 @@ export function ProfileErrorGraph({ className }: AppShellGraphProps) {
       aria-hidden
     >
       <ellipse cx="100" cy="148" rx="52" ry="8" className="fill-primary/10 shell-pulse-glow" />
-      <circle cx="100" cy="68" r="36" className="fill-white stroke-border stroke-[1.5]" />
-      <circle cx="100" cy="60" r="14" className="fill-muted" />
+      <circle cx="100" cy="68" r="36" className="fill-muted-background stroke-border stroke-[1.5]" />
+      <circle cx="100" cy="60" r="14" className="fill-background" />
       <path
         d="M68 96c6-14 20-22 32-22s26 8 32 22"
-        className="stroke-muted stroke-[1.5] fill-muted/30"
+        className="stroke-background stroke-[1.5] fill-background/30"
         strokeLinecap="round"
       />
       <g className="shell-bounce-soft">
-        <rect x="138" y="28" width="40" height="40" rx="10" className="fill-destructive/10 stroke-destructive/35 stroke-[1.5]" />
-        <path d="M150 48h16M158 40v16" className="stroke-destructive stroke-[2]" strokeLinecap="round" />
+        <rect x="138" y="28" width="40" height="40" rx="10" className="fill-error/10 stroke-error/35 stroke-[1.5]" />
+        <path d="M150 48h16M158 40v16" className="stroke-error stroke-[2]" strokeLinecap="round" />
       </g>
     </svg>
   );

@@ -33,7 +33,7 @@ export function PromptTopicSidebar({
   );
 
   return (
-    <aside className="border-border flex min-h-0 w-[240px] shrink-0 flex-col self-stretch border-r bg-white">
+    <aside className="border-border flex min-h-0 w-[240px] shrink-0 flex-col self-stretch border-r bg-muted-background">
       <div className="border-border border-b p-3">
         <div className="relative">
           <Search
@@ -46,7 +46,7 @@ export function PromptTopicSidebar({
             onChange={(event) => setSearch(event.target.value)}
             placeholder="搜索主题..."
             controlSize="sm"
-            className="border-border h-9 rounded-lg bg-white pr-3 pl-9 text-xs shadow-none"
+            className="border-border h-9 rounded-lg bg-muted-background pr-3 pl-9 text-xs"
             aria-label="搜索主题"
           />
         </div>
@@ -102,7 +102,7 @@ function TopicNavItem({
       onClick={onClick}
       className={cn(
         "flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors",
-        active ? "bg-muted text-foreground font-medium" : "text-foreground hover:bg-muted/60",
+        active ? "bg-background text-foreground font-medium" : "text-foreground hover:bg-background/60",
       )}
     >
       <span className="truncate">{label}</span>

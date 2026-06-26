@@ -11,6 +11,7 @@ import {
 import { MentionedBrandsCell } from "@/components/analysis/common/MentionedBrandsCell";
 import { CitationUrlPromptsDialog } from "@/components/analysis/citation/CitationUrlPromptsDialog";
 import { ColumnHelp } from "@/components/analysis/prompt/PerformanceMetricCells";
+import { wideTableRowClass } from "@/components/analysis/prompt/performanceTableLayout";
 import { PlatformLogoGroup } from "@/components/brand/PlatformLogo";
 import { FaviconImage } from "@/components/common/FaviconImage";
 import { DotBadge } from "@/components/ui/badge";
@@ -121,7 +122,7 @@ function SkeletonRows() {
   return (
     <>
       {Array.from({ length: SKELETON_ROWS }).map((_, rowIndex) => (
-        <tr key={rowIndex} className="border-border border-t [&>td]:py-3" aria-hidden>
+        <tr key={rowIndex} className={wideTableRowClass} aria-hidden>
           {Array.from({ length: COLUMN_COUNT }).map((__, cellIndex) => (
             <td key={cellIndex} className={cellIndex === 0 ? "pl-5" : "px-4"}>
               <Skeleton className="h-4 w-4/5" />
@@ -271,7 +272,7 @@ export function CitationUrlTable(props: CitationUrlTableProps) {
             <col style={{ width: "13%" }} />
             <col style={{ width: "13%" }} />
           </colgroup>
-          <thead className="text-muted-foreground bg-muted/80 text-left">
+          <thead className="text-muted-foreground bg-background/80 text-left">
             <tr className="[&>th]:whitespace-nowrap [&>th]:px-4 [&>th]:py-2.5 [&>th]:font-medium">
               <th className="pl-5 pr-10">URL</th>
               <th>
@@ -334,7 +335,7 @@ export function CitationUrlTable(props: CitationUrlTableProps) {
               rows.map((row) => (
                 <tr
                   key={row.url}
-                  className="border-border hover:bg-muted/40 cursor-pointer border-t [&>td]:py-3"
+                  className={cn(wideTableRowClass, "cursor-pointer")}
                   onClick={() => openPromptsDialog(row)}
                 >
                   <td className="max-w-0 pl-5 pr-10">

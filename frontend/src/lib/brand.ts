@@ -40,7 +40,7 @@ export function platformAccent(provider: string): string {
     case "ernie":
       return "bg-ernie/10 text-ernie border-ernie/20";
     default:
-      return "bg-muted text-foreground border-border";
+      return "bg-background text-foreground border-border";
   }
 }
 

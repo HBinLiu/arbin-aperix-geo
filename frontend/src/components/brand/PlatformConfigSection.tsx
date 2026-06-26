@@ -109,7 +109,7 @@ export function PlatformConfigSection({ subject }: PlatformConfigSectionProps) {
         )
       }
     >
-      <div className="border-border bg-muted/40 rounded-lg border px-3 py-2 text-sm">
+      <div className="border-border bg-background/40 rounded-lg border px-3 py-2 text-sm">
         <div className="flex flex-col gap-1 text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <span>
             当前计划：{PLATFORM_PLAN_LABEL}，最多可选择 {PLATFORM_MAX_SELECTION} 个平台。

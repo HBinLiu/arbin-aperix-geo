@@ -122,7 +122,7 @@ export function RegisterPage() {
             />
             <Button
               type="button"
-              variant="secondary"
+              variant="background"
               className="h-11 w-32 shrink-0 px-4 font-medium whitespace-nowrap"
               disabled={loading || cooldown > 0}
               onClick={sendCode}
