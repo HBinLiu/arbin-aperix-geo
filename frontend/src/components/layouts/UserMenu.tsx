@@ -50,13 +50,13 @@ function MenuRow({
   label,
   icon: Icon,
   onClick,
-  destructive = false,
+  primary = false,
   trailing,
 }: {
   label: string;
   icon?: ComponentType<{ className?: string }>;
   onClick?: MouseEventHandler<HTMLButtonElement>;
-  destructive?: boolean;
+  primary?: boolean;
   trailing?: ReactNode;
 }) {
   const interactive = Boolean(onClick);
@@ -69,12 +69,12 @@ function MenuRow({
       className={cn(
         "flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition-colors",
         interactive ? "hover:bg-background/60" : "cursor-default",
-        destructive ? "text-red-500" : "text-foreground",
+        primary ? "text-primary" : "text-foreground",
       )}
     >
       <span>{label}</span>
       {trailing ?? (Icon ? (
-        <Icon className={cn("size-4 shrink-0", destructive ? "text-red-500" : "text-muted-foreground")} />
+        <Icon className={cn("size-4 shrink-0", primary ? "text-primary" : "text-muted-foreground")} />
       ) : null)}
     </button>
   );
@@ -213,7 +213,7 @@ export function UserMenu({
       <MenuRow label="计划与账单" icon={Wallet} />
 
       <MenuDivider />
-      <MenuRow label="退出登录" icon={LogOut} destructive onClick={onLogout} />
+      <MenuRow label="退出登录" icon={LogOut} primary onClick={onLogout} />
     </div>
   );
 
