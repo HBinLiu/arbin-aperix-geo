@@ -2,15 +2,15 @@
 
 export const SETUP_REGIONS: { value: string; label: string; flag: string }[] = [
   { value: "CN", label: "CN (中国大陆)", flag: "🇨🇳" },
-  { value: "HK", label: "HK (Hong Kong, China)", flag: "🇭🇰" },
-  { value: "TW", label: "TW (Taiwan, China)", flag: "🇹🇼" },
+  //{ value: "HK", label: "HK (Hong Kong, China)", flag: "🇭🇰" },
+  //{ value: "TW", label: "TW (Taiwan, China)", flag: "🇹🇼" },
   //{ value: "GLOBAL", label: "全球 / 不限", flag: "🌐" },
 ];
 
 export const SETUP_LANGUAGES: { value: string; label: string; flag: string }[] = [
   { value: "zh-CN", label: "简体中文", flag: "🇨🇳" },
-  { value: "zh-HK", label: "繁體中文（中国香港）", flag: "🇭🇰" },
-  { value: "zh-TW", label: "繁體中文（中国台湾）", flag: "🇹🇼" },
+  //{ value: "zh-HK", label: "繁體中文（中国香港）", flag: "🇭🇰" },
+  //{ value: "zh-TW", label: "繁體中文（中国台湾）", flag: "🇹🇼" },
   //{ value: "en", label: "English", flag: "🇺🇸" },
 ];
 

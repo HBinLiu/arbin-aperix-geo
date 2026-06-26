@@ -54,16 +54,20 @@ class CompetitorItem(BaseModel):
         return validate_optional_http_url(v)
 
 
+class ConfiguredCompetitorItem(CompetitorItem):
+    id: UUID
+
+
 class CompetitorsUpdate(BaseModel):
     competitors: list[CompetitorItem] = Field(default_factory=list)
 
 
 class CompetitorsOut(BaseModel):
-    competitors: list[CompetitorItem] = Field(default_factory=list)
+    competitors: list[ConfiguredCompetitorItem] = Field(default_factory=list)
 
 
 class PromoteBrandOut(BaseModel):
-    competitor: CompetitorItem
+    competitor: ConfiguredCompetitorItem
     brand_id: UUID
     entity_label: str
     signals_migrated: int

@@ -5,21 +5,37 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, status
 
 from aperix_geo.api.deps import CurrentUser, DbSession, get_subject_for_user
-from aperix_geo.db.models import Brand, Competitor, Subject
-from aperix_geo.schemas.catalog import CompetitorItem, CompetitorsOut, CompetitorsUpdate, PromoteBrandOut
+from aperix_geo.db.models import Competitor, Subject
+from aperix_geo.schemas.catalog import (
+    CompetitorItem,
+    CompetitorsOut,
+    ConfiguredCompetitorItem,
+    PromoteBrandOut,
+)
 from aperix_geo.services.brand.sync import sync_subject_brands_from_setup
 from aperix_geo.services.catalog import clear_analysis_entities_cache
 from aperix_geo.services.competitor.enrich import enrich_confirmed_competitors
-from aperix_geo.services.competitor.persist import apply_competitors
+from aperix_geo.services.competitor.persist import (
+    DuplicateCompetitorError,
+    InvalidCompetitorError,
+    CompetitorLimitError,
+    CompetitorNotFoundError,
+    add_competitor,
+    remove_competitor_by_id,
+    update_competitor_by_id,
+)
 from aperix_geo.services.competitor.promote import PromoteBrandError, promote_open_brand_to_competitor
+from aperix_geo.services.competitor.reconcile import demote_competitor_signals, realign_competitor_signal_entity_ids
+from aperix_geo.services.sampling.cache import clear_subject_sampling_cache
 from aperix_geo.services.subject.rules import validate_brand_competitors
 from aperix_geo.utils.net import ensure_brand
 
 router = APIRouter(tags=["competitors"])
 
 
-def _serialize_competitor(c: Competitor) -> CompetitorItem:
-    return CompetitorItem(
+def _serialize_competitor(c: Competitor) -> ConfiguredCompetitorItem:
+    return ConfiguredCompetitorItem(
+        id=c.id,
         domain=(c.domain or "").strip(),
         website_url=(c.website_url or "").strip(),
         brand=ensure_brand(c.brand, domain=c.domain),
@@ -34,6 +50,39 @@ def _serialize_competitors(s: Subject) -> CompetitorsOut:
     )
 
 
+def _finalize_competitor_mutation(db: DbSession, subject: Subject, subject_id: UUID) -> None:
+    sync_subject_brands_from_setup(db, subject=subject)
+    db.commit()
+    db.refresh(subject)
+    clear_analysis_entities_cache(subject_id)
+    clear_subject_sampling_cache(subject_id)
+
+
+def _enrich_competitor_item(item: CompetitorItem) -> CompetitorItem:
+    raw = {
+        "domain": item.domain,
+        "website_url": item.website_url,
+        "brand": item.brand,
+        "aliases": list(item.aliases),
+        "summary": item.summary,
+        "cross_validate_score": item.cross_validate_score,
+        "cross_validate_reason": item.cross_validate_reason,
+    }
+    enriched = enrich_confirmed_competitors([raw], session=None)
+    if not enriched:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid competitor fields")
+    row = enriched[0]
+    return CompetitorItem(
+        domain=row["domain"],
+        website_url=row["website_url"],
+        brand=row["brand"],
+        aliases=list(row.get("aliases") or []),
+        summary=str(row.get("summary") or ""),
+        cross_validate_score=row.get("cross_validate_score"),
+        cross_validate_reason=str(row.get("cross_validate_reason") or ""),
+    )
+
+
 @router.get("/subjects/{subject_id}/competitors", response_model=CompetitorsOut)
 def get_competitors(
     subject_id: UUID,
@@ -44,56 +93,74 @@ def get_competitors(
     return _serialize_competitors(s)
 
 
-@router.put("/subjects/{subject_id}/competitors", response_model=CompetitorsOut)
-def put_competitors(
+@router.post(
+    "/subjects/{subject_id}/competitors",
+    response_model=ConfiguredCompetitorItem,
+    status_code=status.HTTP_201_CREATED,
+)
+def post_competitor(
     subject_id: UUID,
-    body: CompetitorsUpdate,
+    body: CompetitorItem,
     db: DbSession,
     current: CurrentUser,
-) -> CompetitorsOut:
-    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
-    for c in list(s.competitors):
-        db.delete(c)
-    db.flush()
-
-    raw_items = [
-        {
-            "domain": c.domain,
-            "website_url": c.website_url,
-            "brand": c.brand,
-            "aliases": list(c.aliases),
-            "summary": c.summary,
-            "cross_validate_score": c.cross_validate_score,
-            "cross_validate_reason": c.cross_validate_reason,
-        }
-        for c in body.competitors
-    ]
-    enriched = enrich_confirmed_competitors(raw_items, session=None)
-    apply_competitors(
-        s,
-        competitors=[
-            CompetitorItem(
-                domain=row["domain"],
-                website_url=row["website_url"],
-                brand=row["brand"],
-                aliases=list(row.get("aliases") or []),
-                summary=str(row.get("summary") or ""),
-                cross_validate_score=row.get("cross_validate_score"),
-                cross_validate_reason=str(row.get("cross_validate_reason") or ""),
-            )
-            for row in enriched
-        ],
-    )
+) -> ConfiguredCompetitorItem:
+    subject = get_subject_for_user(db, current, subject_id, with_competitors=True)
+    item = _enrich_competitor_item(body)
     try:
-        validate_brand_competitors(s)
+        competitor = add_competitor(db, subject, item=item)
+        realign_competitor_signal_entity_ids(db, subject=subject)
+        validate_brand_competitors(subject)
+    except CompetitorLimitError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except DuplicateCompetitorError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except InvalidCompetitorError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except HTTPException:
         db.rollback()
         raise
-    sync_subject_brands_from_setup(db, subject=s)
-    db.commit()
-    db.refresh(s)
-    clear_analysis_entities_cache(subject_id)
-    return _serialize_competitors(s)
+    _finalize_competitor_mutation(db, subject, subject_id)
+    return _serialize_competitor(competitor)
+
+
+@router.patch(
+    "/subjects/{subject_id}/competitors/{competitor_id}",
+    response_model=ConfiguredCompetitorItem,
+)
+def patch_competitor(
+    subject_id: UUID,
+    competitor_id: UUID,
+    body: CompetitorItem,
+    db: DbSession,
+    current: CurrentUser,
+) -> ConfiguredCompetitorItem:
+    subject = get_subject_for_user(db, current, subject_id, with_competitors=True)
+    try:
+        competitor = update_competitor_by_id(
+            db,
+            subject,
+            competitor_id=competitor_id,
+            item=body,
+        )
+        realign_competitor_signal_entity_ids(db, subject=subject)
+        validate_brand_competitors(subject)
+    except CompetitorNotFoundError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except DuplicateCompetitorError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except InvalidCompetitorError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except HTTPException:
+        db.rollback()
+        raise
+    _finalize_competitor_mutation(db, subject, subject_id)
+    return _serialize_competitor(competitor)
 
 
 @router.post(
@@ -111,20 +178,37 @@ def promote_brand_to_competitor(
     try:
         result = promote_open_brand_to_competitor(db, subject=subject, brand_id=brand_id)
     except PromoteBrandError as exc:
+        db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-    competitor = next(c for c in subject.competitors if c.id == result.competitor_id)
-    db.commit()
-    db.refresh(competitor)
-    clear_analysis_entities_cache(subject_id)
-    brand = db.get(Brand, result.brand_id)
-    if brand is None:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="brand missing after promote")
+    _finalize_competitor_mutation(db, subject, subject_id)
 
     return PromoteBrandOut(
-        competitor=_serialize_competitor(competitor),
-        brand_id=brand.id,
+        competitor=_serialize_competitor(result.competitor),
+        brand_id=result.brand_id,
         entity_label=result.entity_label,
         signals_migrated=result.signals_migrated,
         signals_dropped=result.signals_dropped,
     )
+
+
+@router.delete("/subjects/{subject_id}/competitors/{competitor_id}", response_model=CompetitorsOut)
+def delete_competitor(
+    subject_id: UUID,
+    competitor_id: UUID,
+    db: DbSession,
+    current: CurrentUser,
+) -> CompetitorsOut:
+    subject = get_subject_for_user(db, current, subject_id, with_competitors=True)
+    try:
+        removed_id = remove_competitor_by_id(db, subject, competitor_id=competitor_id)
+        demote_competitor_signals(db, subject_id=subject.id, competitor_id=removed_id)
+        validate_brand_competitors(subject)
+    except CompetitorNotFoundError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except HTTPException:
+        db.rollback()
+        raise
+    _finalize_competitor_mutation(db, subject, subject_id)
+    return _serialize_competitors(subject)

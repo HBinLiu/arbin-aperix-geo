@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 
 import { BrandRankLabel } from "@/components/brand/BrandRankLabel";
 import { SentimentValue } from "@/components/analysis/sentiment/SentimentValue";
@@ -8,9 +8,9 @@ import { performanceTableClasses } from "@/components/analysis/prompt/performanc
 import { DotBadge, TextBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useBrandGeoMetrics } from "@/hooks/useBrandGeoMetrics";
-import { brandRowLabel } from "@/lib/brand/hoverRow";
 import type { BrandGeoMetrics } from "@/lib/brand/geoMetrics";
-import { faviconUrlFromHost, faviconUrlFromWebsite } from "@/lib/favicon";
+import { brandFaviconUrl, brandListIcon, brandWebsiteUrl } from "@/lib/brand/display";
+import { brandRowLabel } from "@/lib/brand/hoverRow";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { CompetitorItem } from "@/types";
@@ -19,7 +19,7 @@ import type { CompetitorItem } from "@/types";
 export const COMPETITOR_TABLE_MIN_WIDTH = 480;
 
 /** 操作列固定宽度 */
-export const COMPETITOR_ACTION_COL_WIDTH = "6rem";
+export const COMPETITOR_ACTION_COL_WIDTH = "8.5rem";
 
 type CompetitorHoverCardProps = {
   row: CompetitorItem;
@@ -91,11 +91,7 @@ function SectionBadge({ children }: { children: string }) {
 }
 
 function competitorWebsiteUrl(row: CompetitorItem): string | null {
-  const url = row.website_url?.trim();
-  if (url) return url;
-  const domain = row.domain?.trim();
-  if (domain) return faviconUrlFromHost(domain);
-  return null;
+  return brandWebsiteUrl(row);
 }
 
 /** 简介：两行截断，展开/收起按钮紧贴正文末尾。 */
@@ -165,7 +161,7 @@ export function CompetitorHoverCard({ row, geoMetrics, className }: CompetitorHo
   const label = brandRowLabel(row);
   const domain = row.domain.trim();
   const websiteUrl = competitorWebsiteUrl(row);
-  const faviconUrl = faviconUrlFromWebsite(row.website_url, domain);
+  const faviconUrl = brandFaviconUrl(row);
   const description = row.summary.trim() || "暂无简介。";
   const { metrics, isLoading } = useBrandGeoMetrics(row, geoMetrics);
 
@@ -236,17 +232,18 @@ export function CompetitorHoverCard({ row, geoMetrics, className }: CompetitorHo
 
 type CompetitorTableRowProps = {
   row: CompetitorItem;
+  onEdit: () => void;
   onRemove: () => void;
-  removeDisabled?: boolean;
+  actionDisabled?: boolean;
 };
 
 function competitorBrandIcon(row: CompetitorItem) {
-  const faviconUrl = faviconUrlFromWebsite(row.website_url, row.domain);
-  if (!faviconUrl) return undefined;
+  const faviconUrl = brandFaviconUrl(row);
+  if (!faviconUrl) return brandListIcon(brandRowLabel(row), row.domain);
   return <FaviconImage url={faviconUrl} size={20} className="size-5 shrink-0 rounded-md" />;
 }
 
-export function CompetitorTableRow({ row, onRemove, removeDisabled }: CompetitorTableRowProps) {
+export function CompetitorTableRow({ row, onEdit, onRemove, actionDisabled }: CompetitorTableRowProps) {
   const label = brandRowLabel(row);
 
   return (
@@ -267,19 +264,34 @@ export function CompetitorTableRow({ row, onRemove, removeDisabled }: Competitor
       </td>
 
       <td>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          className={cn(
-            "size-8 shrink-0 text-foreground hover:text-foreground",
-            removeDisabled && "pointer-events-none opacity-50",
-          )}
-          aria-label="删除"
-          onClick={onRemove}
-        >
-          <Trash2 className="size-4 stroke-[1.5]" aria-hidden />
-        </Button>
+        <div className="flex gap-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className={cn(
+              "size-8 shrink-0 text-foreground hover:text-foreground",
+              actionDisabled && "pointer-events-none opacity-50",
+            )}
+            aria-label="编辑"
+            onClick={onEdit}
+          >
+            <Pencil className="size-4 stroke-[1.5]" aria-hidden />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className={cn(
+              "size-8 shrink-0 text-foreground hover:text-foreground",
+              actionDisabled && "pointer-events-none opacity-50",
+            )}
+            aria-label="删除"
+            onClick={onRemove}
+          >
+            <Trash2 className="size-4 stroke-[1.5]" aria-hidden />
+          </Button>
+        </div>
       </td>
     </tr>
   );

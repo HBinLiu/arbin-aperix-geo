@@ -3,7 +3,7 @@ import {
   formatRankMetric,
   formatSentimentScore,
 } from "@/lib/analysis/format";
-import { buildBrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
+import { brandListIcon } from "@/lib/brand/display";
 import type { RankData } from "@/types";
 import type { ReactNode } from "react";
 
@@ -71,7 +71,7 @@ export function buildRankBoardRows(data: RankData): RankBoardRow[] {
       id: item.entity_id,
       label: displayName,
       domain: item.domain || null,
-      icon: buildBrandRankIcon(item.domain || item.label),
+      icon: brandListIcon(displayName, item.domain || null),
       isOwn: item.is_own,
       visibility: formatRate(visibilityNum),
       visibilityNum,

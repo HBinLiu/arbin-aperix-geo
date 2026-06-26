@@ -21,6 +21,8 @@ type BrandRankLabelProps = {
   isFocus?: boolean;
   /** 已知竞品行时直接传入，否则按 label + 主体解析 */
   hoverRow?: CompetitorItem;
+  /** 列表已有 domain 时传入，保证悬停卡 favicon 与列表一致 */
+  domain?: string | null;
   /** 悬停展示详情卡，默认 true */
   showHover?: boolean;
   /** 页面已有 rank 行数据时可传入，悬停卡直接展示 */
@@ -40,11 +42,12 @@ export function BrandRankLabel({
   isOwn,
   isFocus,
   hoverRow,
+  domain,
   showHover = true,
   geoMetrics,
   className,
 }: BrandRankLabelProps) {
-  const resolvedHoverRow = useBrandHoverRow(label, hoverRow);
+  const resolvedHoverRow = useBrandHoverRow(label, hoverRow, domain);
 
   return (
     <div className={cn("flex min-w-0 w-full items-center gap-2", className)}>

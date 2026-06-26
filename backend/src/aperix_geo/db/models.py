@@ -76,14 +76,12 @@ class Brand(Base):
         Uuid(as_uuid=True), ForeignKey("tb_subjects.id", ondelete="CASCADE"), nullable=False
     )
     entity_kind: Mapped[str] = mapped_column(String(16), nullable=False, default="other", server_default="other")
+    entity_id: Mapped[str] = mapped_column(String(64), nullable=False, default="", server_default="")
     brand: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     domain: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     website_url: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     aliases: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default=sa_text("'[]'::jsonb"))
     summary: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
-    cross_validate_score: Mapped[float | None] = mapped_column(Float, nullable=True)
-    cross_validate_reason: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
-    cross_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     source: Mapped[str] = mapped_column(String(32), nullable=False, default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
     updated_at: Mapped[datetime] = mapped_column(
@@ -97,18 +95,25 @@ class Brand(Base):
         Index("ix_brands_subject_id", "subject_id"),
         Index("ix_brands_subject_brand", "subject_id", "brand"),
         Index(
-            "uq_brands_subject_domain",
+            "uq_brands_domain_nonempty",
             "subject_id",
             "domain",
             unique=True,
             postgresql_where=sa_text("domain <> '' AND deleted = false"),
         ),
         Index(
-            "uq_brands_subject_brand_no_domain",
+            "uq_brands_domain_empty_by_brand",
             "subject_id",
             "brand",
             unique=True,
             postgresql_where=sa_text("domain = '' AND deleted = false"),
+        ),
+        Index(
+            "uq_brands_subject_entity_id",
+            "subject_id",
+            "entity_id",
+            unique=True,
+            postgresql_where=sa_text("entity_id <> '' AND deleted = false"),
         ),
     )
 
@@ -226,14 +231,14 @@ class Competitor(Base):
     __table_args__ = (
         Index("ix_competitors_subject_id", "subject_id"),
         Index(
-            "uq_competitors_subject_domain",
+            "uq_competitors_domain_nonempty",
             "subject_id",
             "domain",
             unique=True,
             postgresql_where=sa_text("domain <> '' AND deleted = false"),
         ),
         Index(
-            "uq_competitors_subject_brand_no_domain",
+            "uq_competitors_domain_empty_by_brand",
             "subject_id",
             "brand",
             unique=True,

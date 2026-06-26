@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from aperix_geo.utils.coerce import pick_str, safe_float, safe_int
-from aperix_geo.utils.contact import normalize_email, normalize_phone_cn
+from aperix_geo.utils.contact import normalize_email, normalize_phone_cn, mask_phone_cn
 from aperix_geo.utils.datetime import parse_iso_datetime
 from aperix_geo.utils.domains import (
     brand_from,
@@ -184,6 +184,13 @@ def test_normalize_phone_cn() -> None:
 def test_normalize_phone_cn_invalid() -> None:
     with pytest.raises(ValueError):
         normalize_phone_cn("12345")
+
+
+def test_mask_phone_cn() -> None:
+    assert mask_phone_cn("13800138000") == "138****8000"
+    assert mask_phone_cn("+86 13800138000") == "138****8000"
+    assert mask_phone_cn("") == ""
+    assert mask_phone_cn("not-a-phone") == "not-a-phone"
 
 
 # --- datetime ---

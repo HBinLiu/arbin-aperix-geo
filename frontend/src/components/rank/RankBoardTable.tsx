@@ -171,6 +171,7 @@ export function RankBoardTable({ rows, loading = false, className }: RankBoardTa
                   <BrandRankLabel
                     label={row.label}
                     icon={row.icon}
+                    domain={row.domain}
                     isOwn={row.isOwn}
                     geoMetrics={rankBoardRowToBrandGeoMetrics(row)}
                   />

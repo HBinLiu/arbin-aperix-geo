@@ -18,5 +18,3 @@ class BrandSyncEntity:
     aliases: tuple[str, ...] = ()
     summary: str = ""
     source: str = ""
-    cross_validate_score: float | None = None
-    cross_validate_reason: str = ""

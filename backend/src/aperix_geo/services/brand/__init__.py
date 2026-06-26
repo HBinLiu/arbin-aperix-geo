@@ -14,8 +14,8 @@ from aperix_geo.services.brand.domain import (
 )
 from aperix_geo.services.brand.keys import configured_brand_keys
 from aperix_geo.services.brand.resolve import (
-    brand_passes_cross_validate,
     find_brand_by_domain,
+    find_brand_by_entity_id,
     find_brand_by_name,
     find_brand_by_name_or_alias,
     normalize_brand_key,
@@ -40,11 +40,11 @@ __all__ = [
     "BrandCatalog",
     "BrandSyncContext",
     "BrandSyncEntity",
-    "brand_passes_cross_validate",
     "clear_brand_domain_cache",
     "configured_brand_keys",
     "extract_domain_from_text_for_brand",
     "find_brand_by_domain",
+    "find_brand_by_entity_id",
     "find_brand_by_name",
     "find_brand_by_name_or_alias",
     "get_brand_domain_cached",

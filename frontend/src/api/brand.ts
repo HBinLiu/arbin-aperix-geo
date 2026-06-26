@@ -1,5 +1,5 @@
 import { api } from "@/api/client";
-import type { CompetitorsData, SamplingPlatform, SubjectPrompt, SubjectTopic } from "@/types";
+import type { CompetitorItem, CompetitorsData, PromoteBrandData, SamplingPlatform, SubjectPrompt, SubjectTopic } from "@/types";
 
 export async function fetchSamplingPlatforms(): Promise<SamplingPlatform[]> {
   const { data } = await api.get<SamplingPlatform[]>("/sampling/platforms");
@@ -21,12 +21,47 @@ export async function fetchSubjectCompetitors(subjectId: string): Promise<Compet
   return data;
 }
 
-export async function saveSubjectCompetitors(
+export async function addSubjectCompetitor(
   subjectId: string,
-  body: Pick<CompetitorsData, "competitors">,
-): Promise<CompetitorsData> {
-  const { data } = await api.put<CompetitorsData>(`/subjects/${subjectId}/competitors`, body, {
+  body: Omit<CompetitorItem, "id">,
+): Promise<CompetitorItem> {
+  const { data } = await api.post<CompetitorItem>(`/subjects/${subjectId}/competitors`, body, {
     skipErrorToast: true,
   });
+  return data;
+}
+
+export async function deleteSubjectCompetitor(
+  subjectId: string,
+  competitorId: string,
+): Promise<CompetitorsData> {
+  const { data } = await api.delete<CompetitorsData>(
+    `/subjects/${subjectId}/competitors/${competitorId}`,
+    { skipErrorToast: true },
+  );
+  return data;
+}
+
+export async function updateSubjectCompetitor(
+  subjectId: string,
+  competitorId: string,
+  body: Omit<CompetitorItem, "id">,
+): Promise<CompetitorItem> {
+  const { data } = await api.patch<CompetitorItem>(
+    `/subjects/${subjectId}/competitors/${competitorId}`,
+    body,
+    { skipErrorToast: true },
+  );
+  return data;
+}
+
+export async function promoteSubjectBrand(
+  subjectId: string,
+  brandId: string,
+): Promise<PromoteBrandData> {
+  const { data } = await api.post<PromoteBrandData>(
+    `/subjects/${subjectId}/brands/${brandId}/promote`,
+    {},
+  );
   return data;
 }

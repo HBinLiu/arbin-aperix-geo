@@ -18,3 +18,15 @@ def normalize_phone_cn(value: str) -> str:
     if len(digits) != 11 or not digits.startswith("1"):
         raise ValueError("invalid phone")
     return digits
+
+
+def mask_phone_cn(value: str) -> str:
+    """大陆 11 位手机号中间 4 位脱敏，如 138****5678。"""
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    try:
+        digits = normalize_phone_cn(raw)
+    except ValueError:
+        return raw
+    return f"{digits[:3]}****{digits[7:]}"

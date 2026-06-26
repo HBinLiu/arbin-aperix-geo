@@ -143,19 +143,11 @@ def enrich_subject_aliases(
     *,
     brand: str,
     domain: str,
-    website_url: str = "",
-    session: dict[str, Any] | None = None,
-    existing: list[str] | None = None,
+    session: dict[str, Any],
     heads: dict[str, SiteHead] | None = None,
 ) -> list[str]:
-    """主体 aliases：会话/profile + site_data.title + head SEO（与竞品 enrich 同源）。"""
-    if session:
-        base = subject_aliases_from_session(session)
-        for alias in existing or []:
-            if alias not in base:
-                base.append(alias)
-    else:
-        base = list(existing or [])
+    """Setup finalize：从 session/profile + site_data + head SEO 合并主体 aliases。"""
+    base = subject_aliases_from_session(session)
 
     reg = registrable_from(domain)
     if not reg:

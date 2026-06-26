@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { preloadGeistFonts } from "@/lib/fonts";
+import { initTheme } from "@/lib/theme";
 import { installRechartsMeasurementSpanFix } from "@/lib/recharts";
 
 import "@/styles/geist.css";
@@ -11,6 +12,7 @@ import "./index.css";
 
 preloadGeistFonts();
 installRechartsMeasurementSpanFix();
+initTheme();
 
 async function mount() {
   try {

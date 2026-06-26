@@ -24,6 +24,8 @@ import type {
   PromptPerformancePage,
   PromptPerformanceSortField,
   PromptDetailData,
+  BrandData,
+  BrandSortField,
   RankData,
   SentimentAnalysisData,
   AnalysisResponsesPage,
@@ -467,6 +469,39 @@ export async function fetchBacklinkOpportunities(
   }
   const { data } = await api.post<BacklinkOpportunityData>(
     `/subjects/${subjectId}/opportunity/backlink`,
+    body,
+  );
+  return data;
+}
+
+export async function fetchBrands(
+  subjectId: string,
+  filters: AnalysisQueryFilters,
+  options: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    sortBy?: BrandSortField | null;
+    order?: "asc" | "desc";
+  } = {},
+): Promise<BrandData> {
+  const params = buildAnalysisParams(filters);
+  const body: Record<string, string | number | string[] | undefined> = { ...params };
+  if (typeof body.platform === "string") {
+    body.platform = [body.platform];
+  }
+  body.page = options.page ?? 1;
+  body.page_size = options.pageSize ?? 10;
+  const search = options.search?.trim();
+  if (search) {
+    body.search = search;
+  }
+  if (options.sortBy) {
+    body.sort_by = options.sortBy;
+    body.order = options.order ?? "desc";
+  }
+  const { data } = await api.post<BrandData>(
+    `/subjects/${subjectId}/opportunity/brand`,
     body,
   );
   return data;

@@ -11,7 +11,6 @@ from aperix_geo.db.models import Subject, SubjectType
 from aperix_geo.schemas.catalog import SubjectOut, SubjectUpdate
 from aperix_geo.services.brand.sync import sync_subject_brands_from_setup
 from aperix_geo.services.catalog import clear_analysis_entities_cache, get_analysis_entities
-from aperix_geo.services.setup.helpers import enrich_subject_aliases
 from aperix_geo.services.sampling.platforms import (
     SamplingPlatformError,
     validate_explicit_sampling_platforms,
@@ -63,32 +62,27 @@ def update_subject(
     current: CurrentUser,
 ) -> Subject:
     sub = get_subject_for_user(db, current, subject_id)
-    entity_catalog_dirty = False
+    brand_catalog_dirty = False
     if body.brand is not None:
         sub.brand = ensure_brand(
             body.brand,
             domain=sub.domain if sub.type == SubjectType.domain else None,
         )
-        entity_catalog_dirty = True
+        brand_catalog_dirty = True
     if body.aliases is not None:
         sub.aliases = list(body.aliases)
-        entity_catalog_dirty = True
+        brand_catalog_dirty = True
     if body.profile_summary is not None:
         sub.profile_summary = body.profile_summary
+        brand_catalog_dirty = True
     if body.sampling_platforms is not None:
         sub.sampling_platforms = _validate_sampling_platforms(body.sampling_platforms)
-    if entity_catalog_dirty and sub.type == SubjectType.domain and (sub.domain or "").strip():
-        sub.aliases = enrich_subject_aliases(
-            brand=sub.brand,
-            domain=sub.domain,
-            website_url=sub.website_url or "",
-            existing=list(sub.aliases or []),
-        )
+    if brand_catalog_dirty:
         sync_subject_brands_from_setup(db, subject=sub)
     validate_subject_fields(sub)
     db.commit()
     db.refresh(sub)
-    if entity_catalog_dirty:
+    if brand_catalog_dirty:
         clear_analysis_entities_cache(subject_id)
     return sub
 

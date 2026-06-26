@@ -119,7 +119,6 @@ def finalize_setup(
     aliases = enrich_subject_aliases(
         brand=brand,
         domain=domain,
-        website_url=website_url,
         session=setup_session,
         heads=heads_cache,
     )

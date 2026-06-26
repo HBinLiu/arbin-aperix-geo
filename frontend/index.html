@@ -7,6 +7,15 @@
     <link rel="apple-touch-icon" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Aperix AI</title>
+    <script>
+      (function () {
+        try {
+          var key = "aperix-theme";
+          var stored = localStorage.getItem(key);
+          if (stored === "dark") document.documentElement.classList.add("dark");
+        } catch (_) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

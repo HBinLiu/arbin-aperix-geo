@@ -28,6 +28,7 @@ from aperix_geo.services.analysis.backlink import (
     build_backlink_opportunity_prompts_page,
     build_backlink_opportunity_urls_page,
 )
+from aperix_geo.services.analysis.brand import build_brands
 from aperix_geo.services.analysis.performance import (
     build_platform_performance,
     build_prompts_performance,
@@ -73,6 +74,7 @@ __all__ = [
     "build_backlink_opportunity_detail",
     "build_backlink_opportunity_prompts_page",
     "build_backlink_opportunity_urls_page",
+    "build_brands",
     "list_analysis_entities",
     "resolve_analysis_entity",
     "build_analysis_entities",

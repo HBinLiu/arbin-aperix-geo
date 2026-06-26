@@ -309,6 +309,7 @@ export function AnalysisRankTable({
                       <BrandRankLabel
                         label={row.label}
                         icon={row.icon}
+                        domain={row.domain}
                         isOwn={row.isOwn}
                         isFocus={row.isFocus}
                         showHover={showEntityHover}

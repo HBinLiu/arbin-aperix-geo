@@ -136,14 +136,6 @@ def _is_usable_brand_domain(domain: str) -> bool:
     return True
 
 
-def _discovered_domain_if_resolvable(domain: str) -> str:
-    """Accept inferred domains only when DNS resolves (root or www)."""
-    normalized = brand_from(domain)
-    if not normalized or not registrable_domain(normalized):
-        return ""
-    return normalized
-
-
 def _verified_domain(candidate: str, brand: str) -> str:
     """Return registrable domain when DNS + host/homepage checks pass."""
     normalized = brand_from(candidate)

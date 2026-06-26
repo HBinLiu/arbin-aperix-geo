@@ -11,6 +11,7 @@ from aperix_geo.api.schemas.analysis_query import (
     BacklinkOpportunityPromptsParams,
     BacklinkOpportunityUrlsParams,
     OpportunityWindowParams,
+    BrandParams,
 )
 from aperix_geo.services import analysis as analysis_svc
 from aperix_geo.utils.datetime import parse_iso_datetime
@@ -89,6 +90,30 @@ def backlink_opportunity_urls(
         page_size=params.page_size,
         sort_by=params.sort_by,
         order=params.order,
+    )
+
+
+@router.post("/subjects/{subject_id}/opportunity/brand")
+def brand_opportunity(
+    subject_id: UUID,
+    params: BrandParams,
+    db: DbSession,
+    current: CurrentUser,
+) -> dict:
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
+    dt_from, dt_to = _parse_window(params)
+    return analysis_svc.build_brands(
+        db,
+        subject=s,
+        platform=params.platform,
+        topic_id=params.topic_id,
+        search=params.search,
+        sort_by=params.sort_by,
+        order=params.order,
+        dt_from=dt_from,
+        dt_to=dt_to,
+        page=params.page,
+        page_size=params.page_size,
     )
 
 

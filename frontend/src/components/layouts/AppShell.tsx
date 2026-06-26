@@ -5,7 +5,7 @@ import { Bell, Gem, Headphones } from "lucide-react";
 
 import { fetchMe } from "@/api/auth";
 import { Button } from "@/components/ui/button";
-import { UserMenuDropdown } from "@/components/layouts/UserMenuDropdown";
+import { UserMenu } from "@/components/layouts/UserMenu";
 import { queryKeys } from "@/lib/queries";
 
 export const HEADER_ICON_BTN_CLASS = "border-border bg-white size-8 rounded-md border";
@@ -64,7 +64,7 @@ export function AppShell({ children, headerStart }: AppShellProps) {
           >
             <Headphones className="size-4" />
           </Button>
-          <UserMenuDropdown user={user} />
+          <UserMenu user={user} />
         </div>
       </header>
 

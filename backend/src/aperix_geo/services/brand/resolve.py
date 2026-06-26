@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -74,6 +73,15 @@ def find_brand_by_name_or_alias(db: Session, *, subject_id: UUID, brand: str) ->
     return None
 
 
+def find_brand_by_entity_id(db: Session, *, subject_id: UUID, entity_id: str) -> Brand | None:
+    key = (entity_id or "").strip()
+    if not key:
+        return None
+    return db.execute(
+        select(Brand).where(Brand.subject_id == subject_id, Brand.entity_id == key)
+    ).scalar_one_or_none()
+
+
 def _find_brand(
     db: Session,
     *,
@@ -126,19 +134,6 @@ def _apply_domain_update(brand: Brand, domain: str, *, subject_id: UUID | None =
         remember_brand_row_domains(subject_id=subject_id, brand=brand)
 
 
-def _apply_cross_validate_fields(
-    brand: Brand,
-    *,
-    cross_validate_score: float | None,
-    cross_validate_reason: str | None,
-) -> None:
-    if cross_validate_score is None:
-        return
-    brand.cross_validate_score = cross_validate_score
-    brand.cross_validate_reason = (cross_validate_reason or "").strip()
-    brand.cross_validated_at = datetime.now(UTC)
-
-
 def resolve_or_create_brand(
     db: Session,
     *,
@@ -148,10 +143,9 @@ def resolve_or_create_brand(
     website_url: str = "",
     aliases: list[str] | None = None,
     summary: str = "",
+    entity_id: str = "",
     entity_kind: str = "other",
     source: str = "",
-    cross_validate_score: float | None = None,
-    cross_validate_reason: str | None = None,
     catalog: BrandCatalog | None = None,
     open_set_brand: bool = False,
 ) -> Brand:
@@ -160,20 +154,26 @@ def resolve_or_create_brand(
     normalized_domain = brand_from(domain)
     match_by_domain = not open_set_brand
     canonical_name_only = open_set_brand
+    entity_key = (entity_id or "").strip()
 
-    row = _find_brand(
-        db,
-        subject_id=subject_id,
-        brand=display_name,
-        domain=domain,
-        catalog=catalog,
-        match_by_domain=match_by_domain,
-        canonical_name_only=canonical_name_only,
-    )
+    row = None
+    if entity_key:
+        row = find_brand_by_entity_id(db, subject_id=subject_id, entity_id=entity_key)
+    if row is None:
+        row = _find_brand(
+            db,
+            subject_id=subject_id,
+            brand=display_name,
+            domain=domain,
+            catalog=catalog,
+            match_by_domain=match_by_domain,
+            canonical_name_only=canonical_name_only,
+        )
 
     if row is None:
         created = Brand(
             subject_id=subject_id,
+            entity_id=entity_key,
             entity_kind=entity_kind,
             brand=display_name,
             domain=normalized_domain,
@@ -182,11 +182,6 @@ def resolve_or_create_brand(
             summary=(summary or "").strip(),
             source=(source or "").strip(),
         )
-        _apply_cross_validate_fields(
-            created,
-            cross_validate_score=cross_validate_score,
-            cross_validate_reason=cross_validate_reason,
-        )
         db.add(created)
         try:
             with db.begin_nested():
@@ -194,15 +189,19 @@ def resolve_or_create_brand(
         except IntegrityError:
             if inspect(created).session is db:
                 db.expunge(created)
-            row = _find_brand(
-                db,
-                subject_id=subject_id,
-                brand=display_name,
-                domain=domain,
-                catalog=catalog,
-                match_by_domain=match_by_domain,
-                canonical_name_only=canonical_name_only,
-            )
+            row = None
+            if entity_key:
+                row = find_brand_by_entity_id(db, subject_id=subject_id, entity_id=entity_key)
+            if row is None:
+                row = _find_brand(
+                    db,
+                    subject_id=subject_id,
+                    brand=display_name,
+                    domain=domain,
+                    catalog=catalog,
+                    match_by_domain=match_by_domain,
+                    canonical_name_only=canonical_name_only,
+                )
             if row is None:
                 row = find_brand_by_name(db, subject_id=subject_id, brand=display_name)
             if row is None:
@@ -215,6 +214,8 @@ def resolve_or_create_brand(
 
     _clear_invalid_stored_domain(row)
 
+    if entity_key:
+        row.entity_id = entity_key
     if entity_kind and row.entity_kind == "other" and entity_kind != "other":
         row.entity_kind = entity_kind
     if (source or "").strip() and not row.source:
@@ -236,25 +237,26 @@ def resolve_or_create_brand(
     _apply_domain_update(row, domain, subject_id=subject_id)
     if not row.brand:
         row.brand = display_name
-    _apply_cross_validate_fields(
-        row,
-        cross_validate_score=cross_validate_score,
-        cross_validate_reason=cross_validate_reason,
-    )
     row_id = row.id
     try:
         with db.begin_nested():
             db.flush()
     except IntegrityError:
-        row = db.get(Brand, row_id) or _find_brand(
-            db,
-            subject_id=subject_id,
-            brand=display_name,
-            domain=domain,
-            catalog=catalog,
-            match_by_domain=match_by_domain,
-            canonical_name_only=canonical_name_only,
+        row = db.get(Brand, row_id) or (
+            find_brand_by_entity_id(db, subject_id=subject_id, entity_id=entity_key)
+            if entity_key
+            else None
         )
+        if row is None:
+            row = _find_brand(
+                db,
+                subject_id=subject_id,
+                brand=display_name,
+                domain=domain,
+                catalog=catalog,
+                match_by_domain=match_by_domain,
+                canonical_name_only=canonical_name_only,
+            )
         if row is None:
             raise
     if catalog is not None:
@@ -265,8 +267,3 @@ def resolve_or_create_brand(
 
 def primary_domain_for_brand(brand: Brand) -> str:
     return brand_from(brand.domain)
-
-
-def brand_passes_cross_validate(brand: Brand, *, min_score: float) -> bool:
-    score = brand.cross_validate_score
-    return score is not None and score >= min_score

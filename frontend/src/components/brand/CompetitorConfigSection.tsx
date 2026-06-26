@@ -4,6 +4,7 @@ import { Plus, Search } from "lucide-react";
 
 import { BrandSectionCard } from "@/components/brand/BrandSectionCard";
 import { AddCompetitorDialog } from "@/components/brand/AddCompetitorDialog";
+import { EditCompetitorDialog } from "@/components/brand/EditCompetitorDialog";
 import {
   COMPETITOR_ACTION_COL_WIDTH,
   COMPETITOR_TABLE_MIN_WIDTH,
@@ -11,11 +12,17 @@ import {
 } from "@/components/brand/CompetitorHoverCard";
 import { PerformanceTableShell } from "@/components/analysis/prompt/PerformanceTableShell";
 import { performanceTableClasses } from "@/components/analysis/prompt/performanceTableLayout";
+import { PromptConfirmDialog } from "@/components/prompt/PromptConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatApiError } from "@/api/client";
-import { fetchSubjectCompetitors, saveSubjectCompetitors } from "@/api/brand";
+import {
+  addSubjectCompetitor,
+  deleteSubjectCompetitor,
+  fetchSubjectCompetitors,
+  updateSubjectCompetitor,
+} from "@/api/brand";
 import { MAX_SETUP_COMPETITORS, displayNameFromDomainInput } from "@/lib/setup";
 import { registrableDomain, websiteUrlFromInput } from "@/lib/domain";
 import { clearAnalysisCatalog, queryKeys, sessionCatalogQueryOptions } from "@/lib/queries";
@@ -28,6 +35,7 @@ type CompetitorConfigSectionProps = {
 };
 
 function rowKey(item: CompetitorItem): string {
+  if (item.id) return item.id;
   return item.domain ? `d:${item.domain}` : `b:${item.brand}`;
 }
 
@@ -39,6 +47,8 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
   const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
   const [addOpen, setAddOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<CompetitorItem | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<CompetitorItem | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.subjectCompetitors(subjectId),
@@ -59,21 +69,70 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
     });
   }, [rows, query]);
 
-  const saveMutation = useMutation({
-    mutationFn: (next: CompetitorItem[]) => saveSubjectCompetitors(subjectId, { competitors: next }),
+  const invalidateCompetitors = () => {
+    clearAnalysisCatalog(queryClient, subjectId);
+  };
+
+  const addMutation = useMutation({
+    mutationFn: (item: Omit<CompetitorItem, "id">) => addSubjectCompetitor(subjectId, item),
     onSuccess: () => {
-      clearAnalysisCatalog(queryClient, subjectId);
+      invalidateCompetitors();
       setAddOpen(false);
+    },
+    onError: (e: unknown) => {
+      toast.error(formatApiError(e, "添加竞品失败。"));
+    },
+  });
+
+  const editMutation = useMutation({
+    mutationFn: ({ id, item }: { id: string; item: Omit<CompetitorItem, "id"> }) =>
+      updateSubjectCompetitor(subjectId, id, item),
+    onSuccess: () => {
+      invalidateCompetitors();
+      setEditTarget(null);
     },
     onError: (e: unknown) => {
       toast.error(formatApiError(e, "保存竞品失败。"));
     },
   });
 
-  const removeRow = (item: CompetitorItem) => {
-    const key = rowKey(item);
-    const next = rows.filter((r) => rowKey(r) !== key);
-    saveMutation.mutate(next);
+  const removeMutation = useMutation({
+    mutationFn: (competitorId: string) => deleteSubjectCompetitor(subjectId, competitorId),
+    onSuccess: () => {
+      invalidateCompetitors();
+      setRemoveTarget(null);
+    },
+    onError: (e: unknown) => {
+      toast.error(formatApiError(e, "删除竞品失败。"));
+    },
+  });
+
+  const isMutating = addMutation.isPending || editMutation.isPending || removeMutation.isPending;
+
+  const requestRemove = (item: CompetitorItem) => {
+    if (!item.id) {
+      toast.error("无法删除：缺少竞品 ID。");
+      return;
+    }
+    setRemoveTarget(item);
+  };
+
+  const confirmRemove = () => {
+    if (!removeTarget?.id) return;
+    removeMutation.mutate(removeTarget.id);
+  };
+
+  const openEdit = (item: CompetitorItem) => {
+    if (!item.id) {
+      toast.error("无法编辑：缺少竞品 ID。");
+      return;
+    }
+    setEditTarget(item);
+  };
+
+  const submitEdit = (item: Omit<CompetitorItem, "id">) => {
+    if (!editTarget?.id) return;
+    editMutation.mutate({ id: editTarget.id, item });
   };
 
   const submitAdd = (raw: string) => {
@@ -84,10 +143,7 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
     }
 
     if (subjectType === "brand") {
-      saveMutation.mutate([
-        ...rows,
-        { domain: "", website_url: "", brand: raw.trim(), summary: "" },
-      ]);
+      addMutation.mutate({ domain: "", website_url: "", brand: raw.trim(), summary: "" });
       return;
     }
 
@@ -96,15 +152,12 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
       toast.error("请填写有效的网站域名。");
       return;
     }
-    saveMutation.mutate([
-      ...rows,
-      {
-        domain,
-        website_url: websiteUrlFromInput(raw) || `https://${domain}/`,
-        brand: displayNameFromDomainInput(domain),
-        summary: "",
-      },
-    ]);
+    addMutation.mutate({
+      domain,
+      website_url: websiteUrlFromInput(raw) || `https://${domain}/`,
+      brand: displayNameFromDomainInput(domain),
+      summary: "",
+    });
   };
 
   const existingValues = useMemo(
@@ -117,7 +170,7 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
   return (
     <BrandSectionCard
       title="竞争对手"
-      description="管理您关注的竞争对手列表。系统将基于此列表进行数据对标，为您生成专属的分析、洞察及评估报告。更改预计需 10 分钟生效。"
+      description="管理您关注的竞争对手列表。系统将基于此列表进行数据对标，为您生成专属的分析、洞察及评估报告。"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative min-w-0 flex-1 sm:max-w-xs">
@@ -136,7 +189,7 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
           type="button"
           variant="brandout"
           className="shrink-0 gap-1.5"
-          disabled={saveMutation.isPending || rows.length >= MAX_SETUP_COMPETITORS}
+          disabled={isMutating || rows.length >= MAX_SETUP_COMPETITORS}
           onClick={() => setAddOpen(true)}
         >
           <Plus className="size-4" aria-hidden />
@@ -188,8 +241,9 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
                 <CompetitorTableRow
                   key={rowKey(row)}
                   row={row}
-                  removeDisabled={saveMutation.isPending}
-                  onRemove={() => removeRow(row)}
+                  actionDisabled={isMutating}
+                  onEdit={() => openEdit(row)}
+                  onRemove={() => requestRemove(row)}
                 />
               ))
             )}
@@ -203,7 +257,38 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
         existingValues={existingValues}
         onOpenChange={setAddOpen}
         onSubmit={submitAdd}
-        submitting={saveMutation.isPending}
+        submitting={addMutation.isPending}
+      />
+
+      <EditCompetitorDialog
+        open={editTarget !== null}
+        subjectType={subjectType}
+        competitor={editTarget}
+        existingValues={existingValues}
+        onOpenChange={(open) => {
+          if (!open) setEditTarget(null);
+        }}
+        onSubmit={submitEdit}
+        submitting={editMutation.isPending}
+      />
+
+      <PromptConfirmDialog
+        open={removeTarget !== null}
+        title="删除竞争对手"
+        description={
+          removeTarget
+            ? `确定删除「${rowLabel(removeTarget)}」吗？删除后该品牌将从竞品列表移除，历史采样信号将回退为开集品牌。`
+            : ""
+        }
+        confirmLabel="删除"
+        confirmVariant="destructive"
+        submitting={removeMutation.isPending}
+        onOpenChange={(open) => {
+          if (!open && !removeMutation.isPending) {
+            setRemoveTarget(null);
+          }
+        }}
+        onConfirm={confirmRemove}
       />
     </BrandSectionCard>
   );

@@ -392,7 +392,7 @@ export type SentimentTab = "positive" | "neutral" | "negative";
 
 export type OpportunityPriority = "high" | "medium" | "low";
 
-export type OpportunityTab = "backlink" | "social";
+export type OpportunityTab = "backlink" | "competitor" | "social";
 
 export type ContentOpportunityItem = {
   id: string;
@@ -516,6 +516,37 @@ export type BacklinkOpportunityData = {
 };
 
 export type BacklinkOpportunitySortField = "priority" | "prompt_count" | "chat_count" | "citation_count";
+
+export type BrandItem = {
+  brand_id: string;
+  label: string;
+  display_name: string;
+  domain: string;
+  visibility_rate: number | null;
+  mention_rate: number | null;
+  share_voice: number | null;
+  average_rank: number | null;
+  citation_rate: number | null;
+  sentiment_score: number | null;
+  sentiment_label: string | null;
+  response_count: number;
+};
+
+export type BrandData = {
+  items: BrandItem[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
+export type BrandSortField =
+  | "visibility_rate"
+  | "mention_rate"
+  | "share_voice"
+  | "average_rank"
+  | "citation_rate"
+  | "sentiment_score"
+  | "brand";
 
 export type BacklinkOpportunityDetailData = {
   domain: string;

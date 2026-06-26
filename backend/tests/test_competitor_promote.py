@@ -10,6 +10,7 @@ import pytest
 from aperix_geo.db.models import Brand, Competitor, EntityKind, LLMResponseSignal, Subject, SubjectType
 from aperix_geo.services.competitor.promote import (
     PromoteBrandError,
+    backfill_competitor_signal_grid,
     migrate_open_brand_signals_to_competitor,
     promote_open_brand_to_competitor,
 )
@@ -99,6 +100,100 @@ def test_migrate_open_brand_signals_drops_conflicting_competitor_row() -> None:
     db.delete.assert_called_once_with(other)
 
 
+def test_backfill_competitor_signal_grid_adds_unmentioned_rows() -> None:
+    from aperix_geo.services.analysis.entity import OWN_ENTITY_ID
+
+    subject_id = uuid.uuid4()
+    competitor_id = uuid.uuid4()
+    brand_id = uuid.uuid4()
+    response_a = uuid.uuid4()
+    response_b = uuid.uuid4()
+    own_a = _signal(
+        subject_id=subject_id,
+        response_id=response_a,
+        entity_id=OWN_ENTITY_ID,
+        entity_kind=EntityKind.own.value,
+        mentioned=True,
+    )
+    own_b = _signal(
+        subject_id=subject_id,
+        response_id=response_b,
+        entity_id=OWN_ENTITY_ID,
+        entity_kind=EntityKind.own.value,
+        mentioned=False,
+    )
+    promoted = _signal(
+        subject_id=subject_id,
+        response_id=response_a,
+        brand_id=brand_id,
+        entity_id=str(competitor_id),
+        entity_kind=EntityKind.competitor.value,
+        mentioned=True,
+    )
+
+    db = MagicMock()
+    db.execute.return_value.scalars.return_value.all.return_value = [own_a, own_b, promoted]
+
+    created = backfill_competitor_signal_grid(
+        db,
+        subject_id=subject_id,
+        competitor_id=competitor_id,
+        brand_id=brand_id,
+        entity_label="stripe.com",
+        primary_domain="stripe.com",
+    )
+
+    assert created == 1
+    db.add.assert_called_once()
+    db.flush.assert_called_once()
+    row = db.add.call_args.args[0]
+    assert row.response_id == response_b
+    assert row.entity_id == str(competitor_id)
+    assert row.mentioned is False
+    assert row.mention_count == 0
+
+
+def test_backfill_skips_when_migrated_row_still_in_session() -> None:
+    """After migrate (pre-flush), sibling grid already carries competitor entity_id."""
+    from aperix_geo.services.analysis.entity import OWN_ENTITY_ID
+
+    subject_id = uuid.uuid4()
+    competitor_id = uuid.uuid4()
+    brand_id = uuid.uuid4()
+    response_id = uuid.uuid4()
+    own = _signal(
+        subject_id=subject_id,
+        response_id=response_id,
+        entity_id=OWN_ENTITY_ID,
+        entity_kind=EntityKind.own.value,
+        mentioned=True,
+    )
+    migrated = _signal(
+        subject_id=subject_id,
+        response_id=response_id,
+        brand_id=brand_id,
+        entity_id=str(competitor_id),
+        entity_kind=EntityKind.competitor.value,
+        mentioned=True,
+    )
+
+    db = MagicMock()
+    db.execute.return_value.scalars.return_value.all.return_value = [own, migrated]
+
+    created = backfill_competitor_signal_grid(
+        db,
+        subject_id=subject_id,
+        competitor_id=competitor_id,
+        brand_id=brand_id,
+        entity_label="openi.cn",
+        primary_domain="openi.cn",
+    )
+
+    assert created == 0
+    db.add.assert_not_called()
+    db.flush.assert_not_called()
+
+
 def _subject_with_brand() -> tuple[Subject, Brand]:
     subject_id = uuid.uuid4()
     subject = Subject(
@@ -119,18 +214,16 @@ def _subject_with_brand() -> tuple[Subject, Brand]:
         website_url="https://stripe.com",
         aliases=["斯特里普"],
         summary="支付",
-        cross_validate_score=8.0,
-        cross_validate_reason="同类竞品",
         source="sampling_open_set",
     )
     return subject, brand
 
 
-@patch("aperix_geo.services.competitor.promote.clear_subject_sampling_cache")
+@patch("aperix_geo.services.competitor.promote.backfill_competitor_signal_grid", return_value=2)
 @patch("aperix_geo.services.competitor.promote.migrate_open_brand_signals_to_competitor", return_value=(3, 1))
 def test_promote_open_brand_to_competitor_creates_competitor_and_updates_brand(
     _mock_migrate: MagicMock,
-    _mock_clear: MagicMock,
+    _mock_backfill: MagicMock,
 ) -> None:
     subject, brand = _subject_with_brand()
     db = MagicMock()
@@ -139,13 +232,12 @@ def test_promote_open_brand_to_competitor_creates_competitor_and_updates_brand(
     result = promote_open_brand_to_competitor(db, subject=subject, brand_id=brand.id)
 
     assert len(subject.competitors) == 1
-    competitor = subject.competitors[0]
+    competitor = result.competitor
     assert isinstance(competitor, Competitor)
     assert competitor.brand == "Stripe"
     assert competitor.domain == "stripe.com"
-    assert competitor.cross_validate_score == 8.0
     assert brand.entity_kind == EntityKind.competitor.value
-    assert result.competitor_id == competitor.id
+    assert brand.entity_id == str(competitor.id)
     assert result.signals_migrated == 3
     assert result.signals_dropped == 1
     db.flush.assert_called()

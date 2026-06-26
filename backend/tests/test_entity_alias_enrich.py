@@ -17,7 +17,6 @@ def test_enrich_subject_aliases_from_site_data_title() -> None:
     aliases = enrich_subject_aliases(
         brand="Wise",
         domain="wise.com",
-        website_url="https://wise.com",
         session=session,
     )
     assert "万里汇" in aliases

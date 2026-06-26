@@ -22,6 +22,7 @@ export type SubjectPrompt = {
 };
 
 export type CompetitorItem = {
+  id?: string;
   domain: string;
   website_url: string;
   brand: string;
@@ -31,4 +32,12 @@ export type CompetitorItem = {
 
 export type CompetitorsData = {
   competitors: CompetitorItem[];
+};
+
+export type PromoteBrandData = {
+  competitor: CompetitorItem;
+  brand_id: string;
+  entity_label: string;
+  signals_migrated: number;
+  signals_dropped: number;
 };

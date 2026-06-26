@@ -21,6 +21,7 @@ from aperix_geo.schemas.auth import (
 from aperix_geo.security.jwt import create_access_token
 from aperix_geo.security.password import hash_password, verify_password
 from aperix_geo.services.auth import otp as otp_svc
+from aperix_geo.utils.contact import mask_phone_cn
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -206,8 +207,13 @@ def login_with_otp(body: LoginWithOtpRequest, db: DbSession) -> TokenResponse:
 
 
 @router.get("/me", response_model=UserOut)
-def me(current: CurrentUser) -> User:
-    return current
+def me(current: CurrentUser) -> UserOut:
+    return UserOut(
+        id=current.id,
+        tenant_id=current.tenant_id,
+        email=current.email,
+        phone=mask_phone_cn(current.phone),
+    )
 
 
 @router.get("/tenant", response_model=TenantOut)

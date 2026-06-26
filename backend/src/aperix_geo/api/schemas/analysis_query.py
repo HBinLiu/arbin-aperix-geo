@@ -150,3 +150,22 @@ class BacklinkOpportunityPromptsParams(BacklinkOpportunityDetailParams):
     page_size: int = Field(default=10, ge=1, le=100)
     sort_by: Literal["count", "citation_rate"] = "count"
     order: Literal["asc", "desc"] = "desc"
+
+
+BrandSortField = Literal[
+    "visibility_rate",
+    "mention_rate",
+    "share_voice",
+    "average_rank",
+    "citation_rate",
+    "sentiment_score",
+    "brand",
+]
+
+
+class BrandParams(OpportunityWindowParams):
+    page: int = Field(default=1, ge=1)
+    page_size: int = Field(default=10, ge=1, le=100)
+    search: str | None = None
+    sort_by: BrandSortField | None = None
+    order: Literal["asc", "desc"] = "desc"
