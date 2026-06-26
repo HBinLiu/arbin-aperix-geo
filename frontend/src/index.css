@@ -108,10 +108,13 @@
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: var(--border);
   }
   body {
-    @apply bg-white text-foreground antialiased;
+    background-color: #fff;
+    color: var(--foreground);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     font-family: var(--font-geist);
     font-feature-settings: "rlig" 1, "calt" 1;
   }
