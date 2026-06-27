@@ -12,7 +12,7 @@ from aperix_geo.utils.contact import normalize_email, normalize_phone_cn
 
 logger = logging.getLogger(__name__)
 
-Purpose = Literal["register", "login"]
+Purpose = Literal["register", "login", "bind"]
 Channel = Literal["email", "phone"]
 
 

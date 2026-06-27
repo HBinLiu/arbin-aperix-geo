@@ -1,20 +1,21 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type MouseEventHandler, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   LogOut,
   Moon,
   Settings,
-  Smile,
   Sun,
-  Ticket,
-  Wallet,
 } from "lucide-react";
+
+import { UserAvatar } from "@/components/user/UserAvatar";
 
 import { clearStoredToken } from "@/api/client";
 import { ProgressBar } from "@/components/common/ProgressBar";
 import { useTheme } from "@/hooks/useTheme";
 import { userPrimaryLabel, userSecondaryLabel } from "@/lib/auth";
+import { dashboardNavToPath } from "@/lib/dashboard";
 import { cn } from "@/lib/utils";
 import type { User } from "@/types";
 
@@ -28,19 +29,6 @@ type UserMenuProps = {
   promptUsed?: number;
   creditUsed?: number;
 };
-
-function UserAvatar({ size = "sm" }: { size?: "sm" | "md" }) {
-  return (
-    <span
-      className={cn(
-        "flex shrink-0 items-center justify-center rounded-full bg-[#3d7aed] text-primary-foreground",
-        size === "sm" ? "size-7" : "size-9",
-      )}
-    >
-      <Smile className={size === "sm" ? "size-4" : "size-5"} strokeWidth={2} aria-hidden />
-    </span>
-  );
-}
 
 function MenuDivider() {
   return <div className="border-border border-t" />;
@@ -62,21 +50,25 @@ function MenuRow({
   const interactive = Boolean(onClick);
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={!interactive}
-      className={cn(
-        "flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition-colors",
-        interactive ? "hover:bg-background/60" : "cursor-default",
-        primary ? "text-primary" : "text-foreground",
-      )}
-    >
-      <span>{label}</span>
-      {trailing ?? (Icon ? (
-        <Icon className={cn("size-4 shrink-0", primary ? "text-primary" : "text-muted-foreground")} />
-      ) : null)}
-    </button>
+    <div className="px-2 py-1">
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={!interactive}
+        className={cn(
+          "flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm cursor-pointer",
+          primary ? "text-primary hover:bg-primary/5" : "text-foreground hover:bg-foreground/5",
+        )}
+      >
+        <span className="min-w-0 flex-1 font-medium">{label}</span>
+        {trailing ?? (Icon ? (
+          <Icon
+            className={cn("size-4 shrink-0", primary ? "text-primary" : "text-muted-foreground")}
+            aria-hidden
+          />
+        ) : null)}
+      </button>
+    </div>
   );
 }
 
@@ -90,9 +82,9 @@ function UsageRow({
   limit: number;
 }) {
   return (
-    <div className="px-4 py-2.5">
+    <div className="px-5 py-2.5">
       <div className="flex items-center justify-between text-sm">
-        <span>{label}</span>
+        <span className="font-medium">{label}</span>
         <span className="text-muted-foreground tabular-nums">
           {used}/{limit}
         </span>
@@ -108,6 +100,7 @@ export function UserMenu({
   creditUsed = 0,
 }: UserMenuProps) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -187,7 +180,7 @@ export function UserMenu({
       }
     >
       <div className="flex items-center gap-3 px-4 py-4">
-        <UserAvatar size="md" />
+        <UserAvatar size="md" seed={user?.id} />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{primary}</p>
           {secondary ? (
@@ -197,7 +190,14 @@ export function UserMenu({
       </div>
 
       <MenuDivider />
-      <MenuRow label="设置" icon={Settings} />
+      <MenuRow
+        label="设置"
+        icon={Settings}
+        onClick={() => {
+          setOpen(false);
+          navigate(dashboardNavToPath("profile"));
+        }}
+      />
       <MenuRow
         label="主题"
         icon={ThemeIcon}
@@ -207,10 +207,6 @@ export function UserMenu({
       <MenuDivider />
       <UsageRow label="提示词" used={promptUsed} limit={PROMPT_QUOTA_LIMIT} />
       <UsageRow label="Token额度" used={creditUsed} limit={CREDIT_QUOTA_LIMIT} />
-
-      <MenuDivider />
-      <MenuRow label="订阅" icon={Ticket} />
-      <MenuRow label="计划与账单" icon={Wallet} />
 
       <MenuDivider />
       <MenuRow label="退出登录" icon={LogOut} primary onClick={onLogout} />
@@ -225,9 +221,9 @@ export function UserMenu({
         aria-haspopup="menu"
         aria-label="用户菜单"
         onClick={() => setOpen((value) => !value)}
-        className="hover:bg-background/80 rounded-md p-1 outline-hidden"
+        className="hover:bg-background/80 inline-flex items-center justify-center rounded-md p-1 outline-hidden"
       >
-        <UserAvatar />
+        <UserAvatar seed={user?.id} />
       </button>
 
       {open && typeof document !== "undefined"

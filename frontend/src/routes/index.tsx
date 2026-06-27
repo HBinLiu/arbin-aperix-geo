@@ -24,6 +24,8 @@ import {
   OverviewRoute,
   PromptRoute,
   RankRoute,
+  ProfileRoute,
+  BillingRoute,
 } from "@/routes/dashboard";
 import { SetupRoute } from "@/routes/setup";
 import { AboutPage } from "@/pages/website/AboutPage";
@@ -78,6 +80,11 @@ export function AppRoutes() {
             </Route>
             <Route path="prompt" element={<PromptRoute />} />
             <Route path="brand" element={<BrandRoute />} />
+            <Route path="profile" element={<ProfileRoute />} />
+            <Route path="billing">
+              <Route index element={<Navigate to="plan" replace />} />
+              <Route path=":tab" element={<BillingRoute />} />
+            </Route>
             <Route path="*" element={<Navigate to={DASHBOARD_APP_BASE} replace />} />
           </Route>
         </Route>

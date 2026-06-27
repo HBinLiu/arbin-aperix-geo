@@ -106,7 +106,7 @@ export function BrandDetailSection({ subject }: BrandDetailSectionProps) {
       <BrandSectionCard
         title="品牌详情"
         description="定义您的品牌以跟踪相关性能指标。"
-        actionLabel="创建新项目"
+        actionLabel="添加新品牌"
         actionIcon={<Plus className="size-4" aria-hidden />}
         actionVariant="default"
         onAction={() => {

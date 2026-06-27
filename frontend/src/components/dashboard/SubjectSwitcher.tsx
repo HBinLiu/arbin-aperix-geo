@@ -121,7 +121,7 @@ export function SubjectSwitcher() {
               className="w-full"
             >
               <Plus className="size-4 shrink-0" aria-hidden />
-              创建新项目
+              添加新品牌
             </Button>
           </div>
         </div>

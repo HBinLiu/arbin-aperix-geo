@@ -1,5 +1,6 @@
 import axios, { isAxiosError } from "axios";
 
+import { clearStoredAvatarSeed } from "@/lib/avatar";
 import { sanitizeReturnPath } from "@/lib/auth";
 import { toast } from "@/lib/toast";
 
@@ -41,6 +42,7 @@ export function setStoredToken(token: string) {
 
 export function clearStoredToken() {
   localStorage.removeItem(TOKEN_KEY);
+  clearStoredAvatarSeed();
 }
 
 api.interceptors.request.use((config) => {

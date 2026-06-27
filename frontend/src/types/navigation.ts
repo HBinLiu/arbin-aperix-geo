@@ -8,7 +8,9 @@ export type DashboardNavId =
   | "agent"
   | "diagnosis"
   | "prompt"
-  | "brand";
+  | "brand"
+  | "profile"
+  | "billing";
 
 export type DashboardNavItem = {
   id: DashboardNavId;
@@ -23,3 +25,5 @@ export type DashboardNavSection = {
 };
 
 export type AnalysisDimension = "visibility" | "prompt" | "platform" | "sentiment" | "citation";
+
+export type BillingTab = "plan" | "invoices";

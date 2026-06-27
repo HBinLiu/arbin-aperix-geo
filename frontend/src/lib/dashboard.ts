@@ -4,9 +4,11 @@ import {
   LayoutGrid,
   Lightbulb,
   MessageSquare,
+  Settings,
   Stethoscope,
   Tag,
   Trophy,
+  Wallet,
 } from "lucide-react";
 import type { DashboardNavId, DashboardNavItem, DashboardNavSection } from "@/types";
 
@@ -37,6 +39,13 @@ export const DASHBOARD_NAV_SECTIONS: DashboardNavSection[] = [
       { id: "prompt", label: "提示词", icon: MessageSquare },
     ],
   },
+  {
+    title: "账户",
+    items: [
+      { id: "profile", label: "账户设置", icon: Settings },
+      { id: "billing", label: "订阅与账单", icon: Wallet },
+    ],
+  },
 ];
 
 export const DEFAULT_DASHBOARD_NAV_ID: DashboardNavId = "overview";
@@ -54,6 +63,8 @@ export const DASHBOARD_NAV_SEGMENT: Record<Exclude<DashboardNavId, "overview">, 
   diagnosis: "diagnosis",
   prompt: "prompt",
   brand: "brand",
+  profile: "profile",
+  billing: "billing",
 };
 
 const SEGMENT_TO_NAV_ID = new Map<string, DashboardNavId>(
@@ -69,6 +80,9 @@ export function dashboardNavToPath(id: DashboardNavId): string {
   }
   if (id === "opportunity") {
     return `${DASHBOARD_APP_BASE}/opportunity/backlink`;
+  }
+  if (id === "billing") {
+    return `${DASHBOARD_APP_BASE}/billing/plan`;
   }
   return `${DASHBOARD_APP_BASE}/${DASHBOARD_NAV_SEGMENT[id]}`;
 }

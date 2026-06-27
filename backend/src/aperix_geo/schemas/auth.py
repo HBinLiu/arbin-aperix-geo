@@ -25,9 +25,36 @@ class LoginRequest(BaseModel):
 
 
 class SendCodeRequest(BaseModel):
-    purpose: Literal["register", "login"]
+    purpose: Literal["register", "login", "bind"]
     channel: Literal["email", "phone"]
     target: str = Field(..., min_length=3, max_length=320)
+
+
+class SendBindCodeRequest(BaseModel):
+    channel: Literal["email", "phone"]
+    target: str = Field(..., min_length=3, max_length=320)
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str | None = Field(default=None, max_length=128)
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
+class BindPhoneRequest(BaseModel):
+    target: str = Field(..., min_length=3, max_length=320)
+    code: str = Field(..., min_length=4, max_length=16)
+
+
+class BindEmailRequest(BaseModel):
+    target: str = Field(..., min_length=3, max_length=320)
+    code: str = Field(..., min_length=4, max_length=16)
+    password: str | None = Field(default=None, min_length=8, max_length=128)
+
+
+class WechatBindDevRequest(BaseModel):
+    nick_name: str = Field(..., min_length=1, max_length=128)
+    open_id: str = Field(default="", max_length=128)
+    union_id: str = Field(default="", max_length=128)
 
 
 class SendCodeResponse(BaseModel):
@@ -65,11 +92,33 @@ class LoginWithOtpRequest(BaseModel):
     )
 
 
+class UserWechatOut(BaseModel):
+    nick_name: str = ""
+    open_id: str = ""
+    union_id: str = ""
+
+
+class UserNotificationSettingsOut(BaseModel):
+    in_app: bool = True
+    email: bool = True
+    wechat: bool = False
+
+
+class UserNotificationSettingsUpdate(BaseModel):
+    in_app: bool | None = None
+    email: bool | None = None
+    wechat: bool | None = None
+
+
 class UserOut(BaseModel):
     id: UUID
     tenant_id: UUID
     email: str
     phone: str
+    has_password: bool = False
+    created_at: datetime
+    wechat: UserWechatOut
+    notifications: UserNotificationSettingsOut
 
     model_config = {"from_attributes": True}
 

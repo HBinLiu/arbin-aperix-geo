@@ -7,6 +7,8 @@ import { ContentDetailPage } from "@/pages/diagnosis/ContentDetailPage";
 import { BacklinkDetailPage } from "@/pages/opportunity/BacklinkDetailPage";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
 import { RankContent } from "@/pages/dashboard/RankPage";
+import { ProfilePage } from "@/pages/dashboard/ProfilePage";
+import { BillingContent } from "@/pages/dashboard/BillingPage";
 import { OverviewContent } from "@/pages/dashboard/OverviewPage";
 import { AnalysisPage } from "@/pages/dashboard/AnalysisPage";
 import { CitationPage } from "@/pages/analysis/CitationPage";
@@ -90,4 +92,12 @@ export function DiagnosisRoute() {
 
 export function PromptRoute() {
   return <PromptContent />;
+}
+
+export function ProfileRoute() {
+  return <ProfilePage />;
+}
+
+export function BillingRoute() {
+  return <BillingContent />;
 }

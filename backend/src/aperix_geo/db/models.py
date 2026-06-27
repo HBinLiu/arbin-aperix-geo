@@ -129,6 +129,12 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(320), nullable=False, default="", server_default="")
     password: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    nick_name: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
+    open_id: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
+    union_id: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
+    notify_in_app: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    notify_email: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    notify_wechat: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
@@ -150,6 +156,18 @@ class User(Base):
             "email",
             unique=True,
             postgresql_where=sa_text("email <> '' AND deleted = false"),
+        ),
+        Index(
+            "uq_users_wechat_open_id",
+            "open_id",
+            unique=True,
+            postgresql_where=sa_text("open_id <> '' AND deleted = false"),
+        ),
+        Index(
+            "uq_users_wechat_union_id",
+            "union_id",
+            unique=True,
+            postgresql_where=sa_text("union_id <> '' AND deleted = false"),
         ),
     )
 

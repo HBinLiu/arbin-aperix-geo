@@ -7,6 +7,7 @@ import { CitationDomainHeader } from "@/components/analysis/citation/CitationDom
 import { OpportunityBacklinkHeader } from "@/components/opportunity/OpportunityBacklinkHeader";
 import { DiagnosisContentHeader } from "@/components/diagnosis/DiagnosisContentHeader";
 import { OpportunityTabs } from "@/components/opportunity/OpportunityTabs";
+import { BillingTabs } from "@/components/billing/BillingTabs";
 import { DashboardSidebarFooter } from "@/components/dashboard/DashboardSidebarFooter";
 import { SidebarSection } from "@/components/dashboard/SidebarSection";
 import { SubjectSwitcher } from "@/components/dashboard/SubjectSwitcher";
@@ -19,6 +20,7 @@ import { useSubjectPipeline } from "@/hooks/useSubjectPipeline";
 import { AnalysisFiltersProvider } from "@/hooks/useAnalysisFiltersState";
 import { analysisDimensionFromPathname, citationDomainFromPathname, promptIdFromPathname } from "@/lib/analysis";
 import { opportunityTabFromPathname, backlinkOpportunityDomainFromPathname } from "@/lib/opportunity/nav";
+import { billingTabFromPathname } from "@/lib/billing/nav";
 import { diagnosisContentPromptIdFromPathname } from "@/lib/diagnosis/nav";
 import {
   DASHBOARD_NAV_SECTIONS,
@@ -47,11 +49,13 @@ function DashboardLayoutContent() {
   const SidebarToggleIcon = sidebarCollapsed ? PanelLeftOpen : PanelLeftClose;
   const isAnalysisPage = activeNav.id === "analysis";
   const isOpportunityPage = activeNav.id === "opportunity";
+  const isBillingPage = activeNav.id === "billing";
   const isDiagnosisPage = activeNav.id === "diagnosis";
   const analysisDimension = analysisDimensionFromPathname(pathname);
   const citationDomain = citationDomainFromPathname(pathname);
   const promptDetailId = promptIdFromPathname(pathname);
   const opportunityTab = opportunityTabFromPathname(pathname);
+  const billingTab = billingTabFromPathname(pathname);
   const diagnosisContentPromptId = diagnosisContentPromptIdFromPathname(pathname);
   const backlinkOpportunityDomain = backlinkOpportunityDomainFromPathname(pathname);
 
@@ -101,6 +105,8 @@ function DashboardLayoutContent() {
               <OpportunityBacklinkHeader domain={backlinkOpportunityDomain} />
             ) : isOpportunityPage ? (
               <OpportunityTabs embedded value={opportunityTab} />
+            ) : isBillingPage ? (
+              <BillingTabs embedded value={billingTab} />
             ) : isDiagnosisPage && diagnosisContentPromptId ? (
               <DiagnosisContentHeader promptId={diagnosisContentPromptId} />
             ) : (
