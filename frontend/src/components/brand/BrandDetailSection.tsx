@@ -8,6 +8,7 @@ import { FaviconImage } from "@/components/common/FaviconImage";
 import { Button } from "@/components/ui/button";
 import { DASHBOARD_SETUP_PATH } from "@/lib/dashboard";
 import { clearSetupCache } from "@/lib/setup";
+import { useTenantSubscription } from "@/hooks/useTenantSubscription";
 import {
   subjectDisplayLabel,
   subjectEditAliases,
@@ -94,6 +95,10 @@ function DetailField({ label, children }: { label: string; children: ReactNode }
 export function BrandDetailSection({ subject }: BrandDetailSectionProps) {
   const navigate = useNavigate();
   const [editOpen, setEditOpen] = useState(false);
+  const { data: subscription } = useTenantSubscription();
+  const atSubjectLimit =
+    subscription != null &&
+    subscription.usage.subjects_count >= subscription.limits.max_subjects;
   const displayName = subjectDisplayLabel(subject);
   const faviconUrl = subjectFaviconUrl(subject);
   const brandName = subject.brand.trim();
@@ -109,6 +114,12 @@ export function BrandDetailSection({ subject }: BrandDetailSectionProps) {
         actionLabel="添加新品牌"
         actionIcon={<Plus className="size-4" aria-hidden />}
         actionVariant="default"
+        actionDisabled={atSubjectLimit}
+        footer={
+          atSubjectLimit
+            ? `品牌数量已达上限（${subscription?.limits.max_subjects ?? 0} 个），请升级计划后再添加。`
+            : undefined
+        }
         onAction={() => {
           clearSetupCache();
           navigate(DASHBOARD_SETUP_PATH);

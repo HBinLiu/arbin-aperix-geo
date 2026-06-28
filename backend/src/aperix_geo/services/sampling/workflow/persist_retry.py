@@ -8,6 +8,7 @@ from uuid import UUID
 
 from sqlalchemy.exc import DBAPIError
 
+from aperix_geo.services.billing.exceptions import QuotaExceededError
 from aperix_geo.config import get_settings
 from aperix_geo.services.sampling.retry_policy import is_retryable_sampling_error, retry_countdown_seconds
 from aperix_geo.services.sampling.workflow.defer import defer_sampling_persist
@@ -50,6 +51,10 @@ def run_persist_with_db_retry(
             if not persist():
                 return on_skipped()
             return success_result()
+        except QuotaExceededError as exc:
+            db.rollback()
+            fail()
+            return {"ok": False, "error": str(exc), "quota_exhausted": True}
         except DBAPIError as exc:
             if is_retryable_db_error(exc) and attempt < db_attempts - 1:
                 db.rollback()

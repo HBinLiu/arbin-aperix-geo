@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import LLMResponse, SamplingJob
 from aperix_geo.services.providers.result import SamplingChatResult
+from aperix_geo.services.billing.exceptions import QuotaExceededError
+from aperix_geo.services.billing.quota import ai_usage_available
 from aperix_geo.services.sampling.cache import (
     clear_cached_llm_result,
     load_prompt_text_cached,
@@ -62,11 +64,16 @@ def build_llm_phase_spec(task, response_id: str) -> SamplingPhaseSpec:
         if load_subject_with_competitors_cached(db, job.subject_id) is None:
             mark_response_failed(db, row=row, error_text="missing subject")
             return {"ok": False, "error": "missing subject"}
+        if ai_usage_available(db, job.tenant_id) <= 0:
+            mark_response_failed(db, row=row, error_text="AI 调用额度已用尽")
+            return {"ok": False, "error": "ai quota exceeded", "quota_exhausted": True}
         ctx["platform"] = row.platform
         ctx["prompt_text"] = prompt_text
+        ctx["tenant_id"] = job.tenant_id
+        ctx["subject_id"] = job.subject_id
         return None
 
-    def work() -> SamplingChatResult:
+    def work() -> tuple[SamplingChatResult, bool]:
         return prepare_sample_chat_result(
             platform=str(ctx["platform"]),
             prompt_text=str(ctx["prompt_text"]),
@@ -88,10 +95,13 @@ def build_llm_phase_spec(task, response_id: str) -> SamplingPhaseSpec:
         expected_status=phase_expected_status("llm"),
         prepare=prepare,
         work=work,
-        persist=lambda db, response_id, chat_result: persist_llm_sample(
+        persist=lambda db, response_id, work_result: persist_llm_sample(
             db,
             response_id=response_id,
-            chat_result=chat_result,
+            chat_result=work_result[0],
+            tenant_id=ctx["tenant_id"],  # type: ignore[arg-type]
+            subject_id=ctx["subject_id"],  # type: ignore[arg-type]
+            live_call=work_result[1],
         ),
         fail=_fail_pending,
         on_skipped=lambda: (clear_cached_llm_result(rid), {"ok": True, "skipped": True, "reason": "no_longer_pending"})[1],
@@ -150,6 +160,7 @@ def build_parse_phase_spec(_task, response_id: str) -> SamplingPhaseSpec:
         ctx["chat_result"] = chat_result_from_row(row)
         ctx["subject"] = subject
         ctx["sampling_job_id"] = row.sampling_job_id
+        ctx["tenant_id"] = job.tenant_id
         return None
 
     def work():
@@ -171,9 +182,11 @@ def build_parse_phase_spec(_task, response_id: str) -> SamplingPhaseSpec:
         return persist_parsed_sample(
             db,
             response_id=response_id,
-            subject=ctx["subject"],
+            subject=ctx["subject"],  # type: ignore[arg-type]
             chat_result=chat_result,
             parsed=parsed,
+            tenant_id=ctx["tenant_id"],  # type: ignore[arg-type]
+            absa_live_call=parsed.absa_live_call,
         )
 
     def on_success() -> SamplingTaskResult:

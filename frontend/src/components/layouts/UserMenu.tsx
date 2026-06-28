@@ -13,21 +13,18 @@ import { UserAvatar } from "@/components/user/UserAvatar";
 
 import { clearStoredToken } from "@/api/client";
 import { ProgressBar } from "@/components/common/ProgressBar";
+import { useTenantSubscription } from "@/hooks/useTenantSubscription";
 import { useTheme } from "@/hooks/useTheme";
 import { userPrimaryLabel, userSecondaryLabel } from "@/lib/auth";
 import { dashboardNavToPath } from "@/lib/dashboard";
 import { cn } from "@/lib/utils";
 import type { User } from "@/types";
 
-import { PROMPT_QUOTA_LIMIT } from "@/lib/prompt";
-const CREDIT_QUOTA_LIMIT = 24000;
 const MENU_PANEL_CLASS = "border-border w-72 overflow-hidden rounded-lg border bg-muted-background py-1 shadow-[8px_10px_24px_-10px_rgba(15,23,42,0.18)]";
 const MENU_OFFSET = 5;
 
 type UserMenuProps = {
   user?: User;
-  promptUsed?: number;
-  creditUsed?: number;
 };
 
 function MenuDivider() {
@@ -81,26 +78,24 @@ function UsageRow({
   used: number;
   limit: number;
 }) {
+  const safeLimit = Math.max(limit, 1);
   return (
     <div className="px-5 py-2.5">
-      <div className="flex items-center justify-between text-sm">
+      <div className="flex items-center justify-between gap-2 text-sm">
         <span className="font-medium">{label}</span>
-        <span className="text-muted-foreground tabular-nums">
-          {used}/{limit}
+        <span className="text-muted-foreground shrink-0 tabular-nums">
+          {used.toLocaleString("zh-CN")}/{limit.toLocaleString("zh-CN")}
         </span>
       </div>
-      <ProgressBar value={used} max={limit} className="mt-2" />
+      <ProgressBar value={used} max={safeLimit} className="mt-2" />
     </div>
   );
 }
 
-export function UserMenu({
-  user,
-  promptUsed = 0,
-  creditUsed = 0,
-}: UserMenuProps) {
+export function UserMenu({ user }: UserMenuProps) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { data: subscription } = useTenantSubscription();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -108,6 +103,11 @@ export function UserMenu({
   const { theme, cycleTheme } = useTheme();
 
   const ThemeIcon = theme === "dark" ? Moon : Sun;
+
+  const promptUsed = subscription?.usage.prompts_count ?? 0;
+  const promptLimit = subscription?.limits.max_prompts_total ?? 0;
+  const aiUsed = subscription?.usage.monthly_used ?? 0;
+  const aiLimit = subscription?.usage.monthly_limit ?? 0;
 
   useLayoutEffect(() => {
     if (!open || !rootRef.current) {
@@ -204,9 +204,13 @@ export function UserMenu({
         onClick={(event) => cycleTheme({ x: event.clientX, y: event.clientY })}
       />
 
-      <MenuDivider />
-      <UsageRow label="提示词" used={promptUsed} limit={PROMPT_QUOTA_LIMIT} />
-      <UsageRow label="Token额度" used={creditUsed} limit={CREDIT_QUOTA_LIMIT} />
+      {subscription ? (
+        <>
+          <MenuDivider />
+          <UsageRow label="提示词" used={promptUsed} limit={promptLimit} />
+          <UsageRow label="AI 配额" used={aiUsed} limit={aiLimit} />
+        </>
+      ) : null}
 
       <MenuDivider />
       <MenuRow label="退出登录" icon={LogOut} primary onClick={onLogout} />

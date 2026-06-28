@@ -5,7 +5,13 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from uuid import UUID
+
+from sqlalchemy.orm import Session
+
 from aperix_geo.services.competitor.profile import profile_from_dict
+from aperix_geo.services.billing.quota import assert_ai_usage_available, consume_ai_usage, usage_reference
+from aperix_geo.services.billing.usage_tokens import SETUP_LLM_PLATFORM
 from aperix_geo.services.prompts.context import entity_aliases
 from aperix_geo.services.prompts.setup import PROMPT_PER_TOPIC, generate_setup_prompts
 from aperix_geo.services.setup.cache.prompts import cached_prompts, prompts_generation_hash
@@ -60,6 +66,8 @@ def _session_prompt_context(
 
 def generate_setup_prompts_for_session(
     *,
+    db: Session,
+    tenant_id: UUID,
     user_id: str,
     session_id: str,
     topics: list[str],
@@ -67,6 +75,7 @@ def generate_setup_prompts_for_session(
 ) -> list[dict[str, Any]]:
     """按 session 生成初始提示词；同时写入用户确认后的 monitoring_topics。"""
     require_deepseek_api_key()
+    assert_ai_usage_available(db, tenant_id)
 
     session = get_session(user_id=user_id, session_id=session_id)
     if session is None:
@@ -103,6 +112,16 @@ def generate_setup_prompts_for_session(
         )
         return cached
 
+    def _bill(stage: str, usage: dict) -> None:
+        consume_ai_usage(
+            db,
+            tenant_id=tenant_id,
+            source="setup",
+            reference_id=usage_reference("setup_prompts", session_id, prompts_hash, stage),
+            platform=SETUP_LLM_PLATFORM,
+            usage=usage,
+        )
+
     items = generate_setup_prompts(
         entity=ctx["entity"],
         topics=ctx["confirmed_topics"],
@@ -112,6 +131,7 @@ def generate_setup_prompts_for_session(
         competitors=ctx["competitors"],
         aliases=ctx["aliases"],
         exclude_prompts=ctx["excluded"],
+        on_live_call=_bill,
     )
     update_session(
         user_id=user_id,
@@ -128,4 +148,5 @@ def generate_setup_prompts_for_session(
         len(ctx["confirmed_topics"]),
         sum(len(row.get("prompts") or []) for row in items),
     )
+    db.commit()
     return items

@@ -8,13 +8,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import Prompt, Subject, Topic
-from aperix_geo.services.prompts import PROMPT_QUOTA_LIMIT, generate_setup_prompts
 from aperix_geo.services.prompts.context import prompt_context_from_subject
 from aperix_geo.services.prompts.persist import (
     PromptValidationError,
     get_topic_for_subject,
-    remaining_prompt_slots,
+    remaining_prompt_slots_for_subject,
 )
+from aperix_geo.services.billing.exceptions import QuotaExceededError
+from aperix_geo.services.billing.quota import assert_ai_usage_available, consume_ai_usage, usage_reference
+from aperix_geo.services.billing.usage_tokens import SETUP_LLM_PLATFORM
 from aperix_geo.services.providers import LLMProviderError
 
 
@@ -26,15 +28,32 @@ def generate_subject_prompt_candidates(
     count: int,
 ) -> list[dict[str, str]]:
     """Call LLM and return up to ``count`` prompt rows for the topic (not persisted)."""
-    remaining = remaining_prompt_slots(db, subject.id)
+    remaining = remaining_prompt_slots_for_subject(db, subject.id)
     if remaining <= 0:
-        raise PromptValidationError(f"提示词已达上限（{PROMPT_QUOTA_LIMIT} 条）")
+        raise PromptValidationError("提示词已达租户总量上限")
+
+    assert_ai_usage_available(db, subject.tenant_id)
 
     take = min(count, remaining)
     ctx = prompt_context_from_subject(subject)
     existing_prompts = list(
-        db.execute(select(Prompt.text).where(Prompt.subject_id == subject.id)).scalars().all()
+        db.execute(
+            select(Prompt.text).where(Prompt.subject_id == subject.id, Prompt.deleted.is_(False))
+        ).scalars().all()
     )
+
+    from aperix_geo.services.prompts import generate_setup_prompts
+
+    def _bill(stage: str, usage: dict) -> None:
+        consume_ai_usage(
+            db,
+            tenant_id=subject.tenant_id,
+            subject_id=subject.id,
+            source="prompt",
+            reference_id=usage_reference("prompt", subject.id, topic.id, take, stage),
+            platform=SETUP_LLM_PLATFORM,
+            usage=usage,
+        )
 
     items = generate_setup_prompts(
         entity=str(ctx["entity"]),
@@ -46,7 +65,9 @@ def generate_subject_prompt_candidates(
         aliases=[str(a) for a in ctx["aliases"] if str(a).strip()],
         prompts_per_topic=take,
         exclude_prompts=existing_prompts,
+        on_live_call=_bill,
     )
+    db.commit()
 
     generated = items[0]["prompts"] if items else []
     rows: list[dict[str, str]] = []
@@ -81,6 +102,8 @@ def generate_subject_prompt_candidates_for_topic(
 def map_generate_error(exc: Exception) -> tuple[int, str]:
     if isinstance(exc, LLMProviderError):
         return 502, f"提示词生成失败：{exc}"
+    if isinstance(exc, QuotaExceededError):
+        return 402, str(exc)
     if isinstance(exc, PromptValidationError):
         return 400, str(exc)
     if isinstance(exc, ValueError):

@@ -5,11 +5,12 @@ from __future__ import annotations
 from typing import Mapping, Protocol
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from aperix_geo.db.models import Prompt, Topic
-from aperix_geo.services.prompts import PROMPT_QUOTA_LIMIT
+from aperix_geo.db.models import Prompt, Subject, Topic
+from aperix_geo.services.billing.exceptions import QuotaExceededError
+from aperix_geo.services.billing.quota import assert_can_add_prompts, remaining_prompt_slots
 from aperix_geo.services.prompts.taxonomy import normalize_funnel_stage, normalize_search_intent
 from aperix_geo.utils.text import prompt_text_hash
 
@@ -41,26 +42,33 @@ def get_topic_for_subject(db: Session, subject_id: UUID, topic_id: UUID) -> Topi
     return topic
 
 
-def remaining_prompt_slots(db: Session, subject_id: UUID) -> int:
-    count = db.execute(
-        select(func.count(Prompt.id)).where(Prompt.subject_id == subject_id),
-    ).scalar_one()
-    return max(0, PROMPT_QUOTA_LIMIT - int(count))
+def _tenant_id_for_subject(db: Session, subject_id: UUID) -> UUID:
+    tenant_id = db.scalar(
+        select(Subject.tenant_id).where(Subject.id == subject_id, Subject.deleted.is_(False)).limit(1)
+    )
+    if tenant_id is None:
+        raise PromptValidationError("主体不存在")
+    return tenant_id
+
+
+def remaining_prompt_slots_for_subject(db: Session, subject_id: UUID) -> int:
+    tenant_id = _tenant_id_for_subject(db, subject_id)
+    return remaining_prompt_slots(db, tenant_id)
 
 
 def _assert_can_add(db: Session, subject_id: UUID, *, count: int) -> None:
-    remaining = remaining_prompt_slots(db, subject_id)
-    if remaining <= 0:
-        raise PromptValidationError(f"提示词已达上限（{PROMPT_QUOTA_LIMIT} 条）")
-    if count > remaining:
-        raise PromptValidationError(f"仅剩 {remaining} 个提示词额度")
+    tenant_id = _tenant_id_for_subject(db, subject_id)
+    try:
+        assert_can_add_prompts(db, tenant_id, count=count)
+    except QuotaExceededError as exc:
+        raise PromptValidationError(str(exc)) from exc
 
 
 def _text_hash_exists(db: Session, subject_id: UUID, text_hash: str) -> bool:
     return (
         db.execute(
             select(Prompt.id)
-            .where(Prompt.subject_id == subject_id, Prompt.text_hash == text_hash)
+            .where(Prompt.subject_id == subject_id, Prompt.text_hash == text_hash, Prompt.deleted.is_(False))
             .limit(1),
         ).scalar_one_or_none()
         is not None

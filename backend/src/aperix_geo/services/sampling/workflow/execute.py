@@ -27,17 +27,17 @@ def prepare_sample_chat_result(
     prompt_text: str,
     response_id: UUID | None = None,
     cache: bool = False,
-) -> SamplingChatResult:
-    """Call platform LLM once; optionally read/write Redis cache keyed by response_id."""
+) -> tuple[SamplingChatResult, bool]:
+    """Call platform LLM once. Returns ``(result, live_call)``; cache hits are not billed."""
     if cache and response_id is not None:
         cached = load_cached_llm_result(response_id)
         if cached is not None:
-            return cached
+            return cached, False
     with llm_sampling_slot(platform):
         result = chat_for_platform(platform, [{"role": "user", "content": prompt_text}])
     if cache and response_id is not None:
         save_cached_llm_result(response_id, result)
-    return result
+    return result, True
 
 
 def chat_result_from_row(row: LLMResponse) -> SamplingChatResult:
@@ -135,13 +135,32 @@ def persist_llm_sample(
     *,
     response_id: UUID,
     chat_result: SamplingChatResult,
+    tenant_id: UUID,
+    subject_id: UUID,
+    live_call: bool,
 ) -> bool:
-    """Persist LLM output when the row is still pending."""
+    """Persist LLM output when the row is still pending; bill on live provider calls."""
+
+    def _mutate(row: LLMResponse) -> None:
+        if live_call:
+            from aperix_geo.services.billing.quota import consume_ai_usage
+
+            consume_ai_usage(
+                db,
+                tenant_id=tenant_id,
+                subject_id=subject_id,
+                source="sampling",
+                reference_id=response_id,
+                platform=row.platform,
+                usage=chat_result.usage,
+            )
+        persist_llm_result(db, row=row, result=chat_result)
+
     return _with_locked_response(
         db,
         response_id=response_id,
         expected_status=LLMResponseStatus.pending,
-        mutate=lambda row: persist_llm_result(db, row=row, result=chat_result),
+        mutate=_mutate,
     )
 
 
@@ -167,19 +186,37 @@ def persist_parsed_sample(
     subject: Subject,
     chat_result: SamplingChatResult,
     parsed: ParsedSamplingResult,
+    tenant_id: UUID,
+    absa_live_call: bool,
 ) -> bool:
     """Persist citation/ABSA artifacts when the row awaits parse."""
-    return _with_locked_response(
-        db,
-        response_id=response_id,
-        expected_status=LLMResponseStatus.crawl_ready,
-        mutate=lambda row: persist_successful_response(
+
+    def _mutate(row: LLMResponse) -> None:
+        if absa_live_call:
+            from aperix_geo.services.billing.quota import consume_ai_usage
+
+            consume_ai_usage(
+                db,
+                tenant_id=tenant_id,
+                subject_id=subject.id,
+                source="parse",
+                reference_id=response_id,
+                platform=row.platform,
+                usage=chat_result.usage,
+            )
+        persist_successful_response(
             db,
             row=row,
             result=chat_result,
             parsed=parsed,
             subject=subject,
-        ),
+        )
+
+    return _with_locked_response(
+        db,
+        response_id=response_id,
+        expected_status=LLMResponseStatus.crawl_ready,
+        mutate=_mutate,
     )
 
 

@@ -27,6 +27,8 @@ from aperix_geo.schemas.catalog import (
     TopicPromptsOut,
 )
 from aperix_geo.services.providers import LLMProviderError
+from aperix_geo.services.billing.exceptions import QuotaExceededError
+from aperix_geo.services.billing.http import quota_exceeded_http_exception
 from aperix_geo.services.setup.prompts import generate_setup_prompts_for_session
 from aperix_geo.services.setup.discover import discover_setup
 from aperix_geo.services.setup.finalize import finalize_setup
@@ -38,10 +40,13 @@ router = APIRouter(prefix="/setup", tags=["setup"])
 @router.post("/discover", response_model=SetupDiscoverResponse)
 def discover_setup_endpoint(
     body: SetupDiscoverRequest,
+    db: DbSession,
     current: CurrentUser,
 ) -> SetupDiscoverResponse:
     try:
         result = discover_setup(
+            db=db,
+            tenant_id=current.tenant_id,
             user_id=current.id,
             session_id=body.session_id,
             subject_type=body.type.value,
@@ -50,6 +55,8 @@ def discover_setup_endpoint(
             region=body.region,
             language=body.language,
         )
+    except QuotaExceededError as e:
+        raise quota_exceeded_http_exception(e) from e
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     except (LLMProviderError, json.JSONDecodeError, TypeError) as e:
@@ -63,14 +70,19 @@ def discover_setup_endpoint(
 @router.post("/topics", response_model=SetupTopicsResponse)
 def generate_setup_topics_endpoint(
     body: SetupTopicsRequest,
+    db: DbSession,
     current: CurrentUser,
 ) -> SetupTopicsResponse:
     try:
         topics = run_setup_topics_step(
+            db=db,
+            tenant_id=current.tenant_id,
             user_id=str(current.id),
             session_id=body.session_id.strip(),
             competitors=body.competitors,
         )
+    except QuotaExceededError as e:
+        raise quota_exceeded_http_exception(e) from e
     except ValueError as e:
         status_code = status.HTTP_404_NOT_FOUND if "not found" in str(e) else status.HTTP_400_BAD_REQUEST
         raise HTTPException(status_code=status_code, detail=str(e)) from e
@@ -85,15 +97,20 @@ def generate_setup_topics_endpoint(
 @router.post("/prompts", response_model=SetupPromptsGenerateResponse)
 def generate_setup_prompts_endpoint(
     body: SetupPromptsGenerateRequest,
+    db: DbSession,
     current: CurrentUser,
 ) -> SetupPromptsGenerateResponse:
     try:
         items = generate_setup_prompts_for_session(
+            db=db,
+            tenant_id=current.tenant_id,
             user_id=str(current.id),
             session_id=body.session_id.strip(),
             topics=body.topics,
             exclude_prompts=body.exclude_prompts,
         )
+    except QuotaExceededError as e:
+        raise quota_exceeded_http_exception(e) from e
     except ValueError as e:
         status_code = status.HTTP_404_NOT_FOUND if "not found" in str(e) else status.HTTP_400_BAD_REQUEST
         raise HTTPException(status_code=status_code, detail=str(e)) from e

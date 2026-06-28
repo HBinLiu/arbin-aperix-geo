@@ -7,7 +7,11 @@ import time
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy.orm import Session
+
 from aperix_geo.utils.net import registrable_from
+from aperix_geo.services.billing.quota import assert_ai_usage_available, consume_ai_usage, usage_reference
+from aperix_geo.services.billing.usage_tokens import SETUP_LLM_PLATFORM
 from aperix_geo.services.competitor.profile import keywords_list, profile_from_dict, profile_to_dict
 from aperix_geo.services.setup.cache import (
     create_session,
@@ -77,6 +81,8 @@ def _session_matches_request(
 
 def _load_or_build_profile(
     *,
+    db: Session,
+    tenant_id: UUID,
     user_id: str,
     subject_type: str,
     target: str,
@@ -92,13 +98,23 @@ def _load_or_build_profile(
         keywords = keywords_list(profile_from_dict(profile_dict)) or ([target] if target else [])
         return profile_dict, research_payload, keywords, True
 
-    profile, research_payload = run_niche_profile_stage(
+    assert_ai_usage_available(db, tenant_id)
+    profile, research_payload, usage = run_niche_profile_stage(
         subject_type=subject_type,
         target=target,
         region=region,
         language=language,
         website_url=website_url,
     )
+    consume_ai_usage(
+        db,
+        tenant_id=tenant_id,
+        source="setup",
+        reference_id=usage_reference("niche_profile", profile_hash),
+        platform=SETUP_LLM_PLATFORM,
+        usage=usage,
+    )
+    db.commit()
     profile_dict = profile_to_dict(profile)
     set_profile_cache(
         user_id=user_id,
@@ -112,6 +128,8 @@ def _load_or_build_profile(
 
 def discover_setup(
     *,
+    db: Session,
+    tenant_id: UUID,
     user_id: UUID,
     subject_type: str,
     domain: str | None,
@@ -172,6 +190,8 @@ def discover_setup(
         )
     else:
         profile_dict, research_payload, keywords, from_cache = _load_or_build_profile(
+            db=db,
+            tenant_id=tenant_id,
             user_id=user_key,
             subject_type=subject_type,
             target=target,

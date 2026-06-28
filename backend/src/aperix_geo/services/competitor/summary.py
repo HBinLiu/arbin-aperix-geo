@@ -83,9 +83,9 @@ def generate_niche_profile_via_llm(
     entity_key: str,
     user_payload: dict[str, Any],
     temperature: float = 0.15,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """Setup 1a: 微观利基结构化画像。"""
-    text, _, latency_ms = chat_completion(
+    text, usage, latency_ms = chat_completion(
         [
             {"role": "system", "content": SUBJECT_PROFILE_SYSTEM},
             {
@@ -106,7 +106,7 @@ def generate_niche_profile_via_llm(
         len(data.get("keywords") or []),
         latency_ms,
     )
-    return data
+    return data, usage
 
 
 def generate_profile_summary_via_llm(
@@ -114,9 +114,9 @@ def generate_profile_summary_via_llm(
     entity_key: str,
     user_payload: dict[str, Any],
     temperature: float = 0.2,
-) -> str:
+) -> tuple[str, dict[str, Any]]:
     """Setup Step2：竞品搜索后生成完整主体 Markdown 摘要。"""
-    text, _, latency_ms = chat_completion(
+    text, usage, latency_ms = chat_completion(
         [
             {"role": "system", "content": SUBJECT_PROFILE_SUMMARY_SYSTEM},
             {
@@ -138,7 +138,7 @@ def generate_profile_summary_via_llm(
         len(summary),
         latency_ms,
     )
-    return summary
+    return summary, usage
 
 
 def generate_monitoring_topics_via_llm(
@@ -146,9 +146,9 @@ def generate_monitoring_topics_via_llm(
     entity_key: str,
     user_payload: dict[str, Any],
     temperature: float = 0.25,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """Setup Step1b：独立生成 monitoring_topics。"""
-    text, _, latency_ms = chat_completion(
+    text, usage, latency_ms = chat_completion(
         [
             {"role": "system", "content": SUBJECT_MONITORING_TOPICS_SYSTEM},
             {
@@ -169,7 +169,7 @@ def generate_monitoring_topics_via_llm(
         len(data.get("monitoring_topics") or []),
         latency_ms,
     )
-    return data
+    return data, usage
 
 
 def fallback_profile_summary(profile: NicheProfile, *, entity: str, region_label: str) -> str:

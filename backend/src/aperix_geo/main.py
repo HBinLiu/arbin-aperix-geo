@@ -18,7 +18,7 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, Response
 
-from aperix_geo.api.routes import analysis, auth, competitors, diagnosis, opportunity
+from aperix_geo.api.routes import analysis, auth, billing, competitors, diagnosis, notifications, opportunity
 from aperix_geo.api.routes import favicon as favicon_routes
 from aperix_geo.api.routes import prompts, reports, responses, sampling, subjects, topics
 from aperix_geo.services.favicon import ensure_storage_dir
@@ -60,6 +60,8 @@ def health() -> dict[str, str]:
 
 api_v1 = APIRouter(prefix="/api/v1")
 api_v1.include_router(auth.router)
+api_v1.include_router(billing.router)
+api_v1.include_router(notifications.router)
 api_v1.include_router(subjects.router)
 api_v1.include_router(competitors.router)
 api_v1.include_router(topics.router)

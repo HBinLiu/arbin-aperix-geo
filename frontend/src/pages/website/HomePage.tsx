@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 
 import { getStoredToken } from "@/api/client";
+import { AppLogo } from "@/components/common/AppLogo";
 import { Button } from "@/components/ui/button";
 
 import "./marketing.css";
@@ -23,8 +24,7 @@ export function HomePage() {
             to="/"
             className="flex shrink-0 items-center gap-2.5 rounded-md outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <img
-              src="/logo.png"
+            <AppLogo
               alt="Aperix AI"
               width={40}
               height={40}

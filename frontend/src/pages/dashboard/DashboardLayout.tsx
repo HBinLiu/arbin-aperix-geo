@@ -15,6 +15,7 @@ import { AppShell } from "@/components/layouts/AppShell";
 import { useDashboardSidebar } from "@/hooks/useDashboardSidebar";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
 import { useSamplingCompletionToast } from "@/hooks/useSamplingCompletionToast";
+import { useQuotaWarningToast } from "@/hooks/useQuotaWarningToast";
 import { SubjectPipelineProvider } from "@/hooks/SubjectPipelineProvider";
 import { useSubjectPipeline } from "@/hooks/useSubjectPipeline";
 import { AnalysisFiltersProvider } from "@/hooks/useAnalysisFiltersState";
@@ -43,6 +44,7 @@ function DashboardLayoutContent() {
   const { pathname } = useLocation();
   const pipeline = useSubjectPipeline();
   useSamplingCompletionToast();
+  useQuotaWarningToast();
   const { collapsed: sidebarCollapsed, toggle: toggleSidebar } = useDashboardSidebar();
   const activeNavId = dashboardNavIdFromPath(pathname);
   const activeNav = getDashboardNavItem(activeNavId);

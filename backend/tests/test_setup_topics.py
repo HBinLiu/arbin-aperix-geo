@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+from uuid import uuid4
 
 from aperix_geo.schemas.catalog import CompetitorItem
 from aperix_geo.services.competitor.profile import normalize_niche_profile
@@ -17,7 +18,9 @@ def test_confirmed_competitors_hash_order_independent() -> None:
     assert confirmed_competitors_hash(a) != confirmed_competitors_hash(b)
 
 
-@patch("aperix_geo.services.competitor.enrich.enrich_confirmed_competitors")
+@patch("aperix_geo.services.setup.topics.consume_ai_usage")
+@patch("aperix_geo.services.setup.topics.assert_ai_usage_available")
+@patch("aperix_geo.services.setup.topics.enrich_confirmed_competitors")
 @patch("aperix_geo.services.setup.topics.update_session")
 @patch("aperix_geo.services.setup.topics.run_monitoring_topics_stage")
 @patch("aperix_geo.services.setup.topics.run_profile_summary_stage")
@@ -30,6 +33,8 @@ def test_run_setup_topics_step_generates_summary_and_topics(
     mock_topics,
     mock_update,
     mock_enrich,
+    _mock_assert_ai,
+    _mock_consume,
 ) -> None:
     profile = normalize_niche_profile(
         {"industry": "SaaS", "keywords": ["AI SaaS"], "company": "Example"},
@@ -43,17 +48,17 @@ def test_run_setup_topics_step_generates_summary_and_topics(
         "profile": profile,
         "research_payload": {"mode": "domain", "target": "example.com", "site_data": {}},
     }
-    mock_summary.return_value = "# Example\n\n## 概述\n测试"
-    mock_topics.return_value = ["AI 可见度监测", "竞品对比"]
+    mock_summary.return_value = ("# Example\n\n## 概述\n测试", {})
+    mock_topics.return_value = (["AI 可见度监测", "竞品对比"], {})
     call_order: list[str] = []
 
     def _topics_side_effect(*_args, **_kwargs):
         call_order.append("topics")
-        return ["AI 可见度监测", "竞品对比"]
+        return ["AI 可见度监测", "竞品对比"], {}
 
     def _summary_side_effect(*_args, **_kwargs):
         call_order.append("summary")
-        return "# Example\n\n## 概述\n测试"
+        return "# Example\n\n## 概述\n测试", {}
 
     mock_topics.side_effect = _topics_side_effect
     mock_summary.side_effect = _summary_side_effect
@@ -61,6 +66,8 @@ def test_run_setup_topics_step_generates_summary_and_topics(
 
     competitors = [CompetitorItem(domain="rival.com", brand="Rival", website_url="https://rival.com")]
     topics = run_setup_topics_step(
+        db=MagicMock(),
+        tenant_id=uuid4(),
         user_id="user-1",
         session_id="abc123456789",
         competitors=competitors,
@@ -76,7 +83,9 @@ def test_run_setup_topics_step_generates_summary_and_topics(
     assert patch["research_payload"] is None
 
 
-@patch("aperix_geo.services.competitor.enrich.enrich_confirmed_competitors")
+@patch("aperix_geo.services.setup.topics.consume_ai_usage")
+@patch("aperix_geo.services.setup.topics.assert_ai_usage_available")
+@patch("aperix_geo.services.setup.topics.enrich_confirmed_competitors")
 @patch("aperix_geo.services.setup.topics.update_session")
 @patch("aperix_geo.services.setup.topics.run_monitoring_topics_stage")
 @patch("aperix_geo.services.setup.topics.run_profile_summary_stage")
@@ -89,6 +98,8 @@ def test_run_setup_topics_step_preserves_competitor_aliases(
     mock_topics,
     mock_update,
     mock_enrich,
+    _mock_assert_ai,
+    _mock_consume,
 ) -> None:
     profile = normalize_niche_profile({"industry": "SaaS", "company": "Example"}, entity="example.com")
     mock_get_session.return_value = {
@@ -98,8 +109,8 @@ def test_run_setup_topics_step_preserves_competitor_aliases(
         "language": "zh-CN",
         "profile": profile,
     }
-    mock_summary.return_value = "# Example"
-    mock_topics.return_value = ["主题 A"]
+    mock_summary.return_value = ("# Example", {})
+    mock_topics.return_value = (["主题 A"], {})
     mock_enrich.side_effect = lambda items, *, session=None: items
 
     competitors = [
@@ -110,13 +121,18 @@ def test_run_setup_topics_step_preserves_competitor_aliases(
             aliases=["TransferWise"],
         )
     ]
-    run_setup_topics_step(user_id="user-1", session_id="abc123456789", competitors=competitors)
+    run_setup_topics_step(
+        db=MagicMock(),
+        tenant_id=uuid4(),
+        user_id="user-1", session_id="abc123456789", competitors=competitors)
 
     summary_competitors = mock_summary.call_args.kwargs["competitors"]
     assert summary_competitors[0]["aliases"] == ["TransferWise"]
 
 
-@patch("aperix_geo.services.competitor.enrich.enrich_confirmed_competitors")
+@patch("aperix_geo.services.setup.topics.consume_ai_usage")
+@patch("aperix_geo.services.setup.topics.assert_ai_usage_available")
+@patch("aperix_geo.services.setup.topics.enrich_confirmed_competitors")
 @patch("aperix_geo.services.setup.topics.update_session")
 @patch("aperix_geo.services.setup.topics.run_monitoring_topics_stage")
 @patch("aperix_geo.services.setup.topics.run_profile_summary_stage")
@@ -129,6 +145,8 @@ def test_run_setup_topics_step_regenerates_topics_when_competitors_change(
     mock_topics,
     mock_update,
     mock_enrich,
+    _mock_assert_ai,
+    _mock_consume,
 ) -> None:
     profile = normalize_niche_profile(
         {"industry": "SaaS", "keywords": ["AI SaaS"], "company": "Example"},
@@ -145,12 +163,14 @@ def test_run_setup_topics_step_regenerates_topics_when_competitors_change(
         "profile_summary": "# Example\n\n旧摘要",
         "confirmed_competitors_hash": "old-hash",
     }
-    mock_summary.return_value = "# Example\n\n新摘要"
-    mock_topics.return_value = ["新主题 A", "新主题 B"]
+    mock_summary.return_value = ("# Example\n\n新摘要", {})
+    mock_topics.return_value = (["新主题 A", "新主题 B"], {})
     mock_enrich.side_effect = lambda items, *, session=None: items
 
     competitors = [CompetitorItem(domain="new-rival.com", brand="New Rival", website_url="https://new-rival.com")]
     topics = run_setup_topics_step(
+        db=MagicMock(),
+        tenant_id=uuid4(),
         user_id="user-1",
         session_id="abc123456789",
         competitors=competitors,
@@ -165,7 +185,9 @@ def test_run_setup_topics_step_regenerates_topics_when_competitors_change(
     assert patch["prompts_cache"] is None
 
 
-@patch("aperix_geo.services.competitor.enrich.enrich_confirmed_competitors")
+@patch("aperix_geo.services.setup.topics.consume_ai_usage")
+@patch("aperix_geo.services.setup.topics.assert_ai_usage_available")
+@patch("aperix_geo.services.setup.topics.enrich_confirmed_competitors")
 @patch("aperix_geo.services.setup.topics.update_session")
 @patch("aperix_geo.services.setup.topics.run_profile_summary_stage")
 @patch("aperix_geo.services.setup.topics.get_session")
@@ -176,6 +198,8 @@ def test_run_setup_topics_step_summary_after_research_payload_cleared(
     mock_summary,
     mock_update,
     mock_enrich,
+    _mock_assert_ai,
+    _mock_consume,
 ) -> None:
     """topics 清除 research_payload 后，摘要仍能从 session 字段正确生成。"""
     profile = normalize_niche_profile(
@@ -192,7 +216,7 @@ def test_run_setup_topics_step_summary_after_research_payload_cleared(
         "profile_summary": "",
         "confirmed_competitors_hash": "same-hash",
     }
-    mock_summary.return_value = "# Example\n\n新摘要"
+    mock_summary.return_value = ("# Example\n\n新摘要", {})
     mock_enrich.side_effect = lambda items, *, session=None: items
 
     competitors = [CompetitorItem(domain="rival.com", brand="Rival", website_url="https://rival.com")]
@@ -201,6 +225,8 @@ def test_run_setup_topics_step_summary_after_research_payload_cleared(
         return_value="same-hash",
     ):
         topics = run_setup_topics_step(
+            db=MagicMock(),
+            tenant_id=uuid4(),
             user_id="user-1",
             session_id="abc123456789",
             competitors=competitors,
@@ -256,6 +282,8 @@ def test_run_setup_topics_step_always_persists_confirmed_competitors(
         return_value="stable-hash",
     ):
         run_setup_topics_step(
+            db=MagicMock(),
+            tenant_id=uuid4(),
             user_id="user-1",
             session_id="abc123456789",
             competitors=[CompetitorItem(domain="rival.com", brand="Rival", website_url="https://rival.com")],

@@ -1,7 +1,6 @@
+import { DEFAULT_MAX_COMPETITORS } from "@/lib/billing/limits";
 import { hostnameFromWebsiteInput, registrableDomain, websiteUrlFromInput } from "@/lib/domain";
 import type { CompetitorItem, CompetitorRow, DiscoveredCompetitor, SubjectMode } from "@/types";
-
-export const MAX_SETUP_COMPETITORS = 5;
 
 export function newCompetitorRow(partial?: Partial<CompetitorRow>): CompetitorRow {
   return {
@@ -16,8 +15,12 @@ export function newCompetitorRow(partial?: Partial<CompetitorRow>): CompetitorRo
   };
 }
 
-export function rowsFromDiscover(competitors: DiscoveredCompetitor[]): CompetitorRow[] {
-  return competitors.slice(0, MAX_SETUP_COMPETITORS).map((c) =>
+export function rowsFromDiscover(
+  competitors: DiscoveredCompetitor[],
+  maxCount: number = DEFAULT_MAX_COMPETITORS,
+): CompetitorRow[] {
+  const safeMax = Math.max(1, maxCount);
+  return competitors.slice(0, safeMax).map((c) =>
     newCompetitorRow({
       name: c.brand.trim() || (c.domain ? registrableDomain(c.domain) : ""),
       domain: c.domain ? registrableDomain(c.domain) : "",

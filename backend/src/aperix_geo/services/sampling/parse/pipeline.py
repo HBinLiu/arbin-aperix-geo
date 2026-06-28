@@ -44,4 +44,5 @@ def run_parse_pipeline(
         citation_urls_own=list(enrichment.citation.citation_urls_own),
         citation_sources=list(enrichment.citation.citation_sources),
         entity_signals=merged.entity_signals,
+        absa_live_call=enrichment.absa_live_call,
     )

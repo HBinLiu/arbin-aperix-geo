@@ -32,6 +32,7 @@ export async function discoverSetup(input: {
   region: string;
   language: string;
   sessionId?: string;
+  maxCompetitors?: number;
 }): Promise<DiscoverSetupResult> {
   const domain = input.domain.trim();
   const brand = input.brand.trim();
@@ -57,7 +58,7 @@ export async function discoverSetup(input: {
   );
   return {
     sessionId: data.session_id,
-    competitorRows: rowsFromDiscover(data.competitors ?? []),
+    competitorRows: rowsFromDiscover(data.competitors ?? [], input.maxCompetitors),
   };
 }
 

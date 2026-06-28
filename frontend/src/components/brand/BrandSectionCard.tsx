@@ -9,6 +9,7 @@ type BrandSectionCardProps = {
   actionLabel?: string;
   actionIcon?: ReactNode;
   actionVariant?: "default" | "outline";
+  actionDisabled?: boolean;
   onAction?: () => void;
   headerActions?: ReactNode;
   footer?: ReactNode;
@@ -23,6 +24,7 @@ export function BrandSectionCard({
   actionLabel,
   actionIcon,
   actionVariant = "outline",
+  actionDisabled = false,
   onAction,
   headerActions,
   footer,
@@ -60,6 +62,7 @@ export function BrandSectionCard({
             type="button"
             variant={actionVariant}
             className="shrink-0 gap-1.5"
+            disabled={actionDisabled}
             onClick={onAction}
           >
             {actionIcon}

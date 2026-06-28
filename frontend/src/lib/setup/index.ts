@@ -6,7 +6,6 @@ export {
 } from "@/lib/setup/cache";
 export {
   displayNameFromDomainInput,
-  MAX_SETUP_COMPETITORS,
   newCompetitorRow,
   rowsFromDiscover,
   rowsToPersist,

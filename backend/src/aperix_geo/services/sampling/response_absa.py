@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from typing import Any
 
 from aperix_geo.services.brand.resolve import normalize_brand_key
@@ -111,15 +112,15 @@ def analyze_response_absa(
     competitor_brand_names: list[str] | None = None,
     excluded_keys: set[str] | None = None,
     cache_ttl_s: int = 0,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], bool]:
     """ABSA on the sampling LLM response text (once per LLM response).
 
-    competitors: 闭集完整键列表（own 别名 + 竞品键）。也可仅传 competitors，与旧调用兼容。
+    Returns ``(result, live_call)``; cache hits are not billed.
     """
     if not own_brand.strip():
-        return _empty_response_absa(reason="missing own brand")
+        return _empty_response_absa(reason="missing own brand"), False
     if not raw_text.strip():
-        return _empty_response_absa(reason="empty ai response")
+        return _empty_response_absa(reason="empty ai response"), False
 
     closed_brand_names = list(competitors)
     if own_brand_names or competitor_brand_names:
@@ -144,7 +145,9 @@ def analyze_response_absa(
 
     cached = _read_cache()
     if cached is not None:
-        return cached
+        return cached, False
+
+    live_flag = threading.local()
 
     def _fetch() -> dict[str, Any]:
         messages = [
@@ -162,6 +165,7 @@ def analyze_response_absa(
         ]
         try:
             text, _, _ = chat_completion(messages, temperature=0.0, json_mode=True)
+            live_flag.did = True
             data = extract_json_object(text)
             if not isinstance(data, dict):
                 raise ValueError("response absa is not an object")
@@ -185,7 +189,7 @@ def analyze_response_absa(
             return _empty_response_absa(reason=str(exc)[:500])
 
     if cache_ttl_s <= 0:
-        return _fetch()
+        return _fetch(), True
 
     digest = response_absa_cache_digest(
         raw_text=raw_text,
@@ -194,16 +198,17 @@ def analyze_response_absa(
         excluded_keys=excluded_keys,
     )
     try:
-        return run_single_flight(
+        result = run_single_flight(
             digest,
             wait_s=120.0,
             read_cache=_read_cache,
             fetch=_fetch,
             lock_prefix="aperix:response_absa:lock:",
         )
+        return result, bool(getattr(live_flag, "did", False))
     except SingleFlightWaitTimeout:
         cached = _read_cache()
         if cached is not None:
-            return cached
+            return cached, False
         logger.warning("Response ABSA single-flight wait timeout")
-        return _empty_response_absa(reason="absa single-flight wait timeout")
+        return _empty_response_absa(reason="absa single-flight wait timeout"), False

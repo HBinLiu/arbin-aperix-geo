@@ -2,6 +2,16 @@ export type ThemeMode = "light" | "dark";
 
 export const THEME_STORAGE_KEY = "aperix-theme";
 
+export const LOGO_SRC = {
+  light: "/logo_light.png",
+  dark: "/logo_dark.png",
+} as const;
+
+/** 浅色主题用深色 logo，深色主题用浅色 logo（文件名指 logo 本身颜色）。 */
+export function themeLogoSrc(mode: ThemeMode): string {
+  return mode === "dark" ? LOGO_SRC.light : LOGO_SRC.dark;
+}
+
 function getSystemTheme(): ThemeMode {
   if (typeof window === "undefined") return "light";
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";

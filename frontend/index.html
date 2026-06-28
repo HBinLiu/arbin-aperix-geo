@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/png" href="/favicon.png" sizes="32x32" />
-    <link rel="apple-touch-icon" href="/logo.png" />
+    <link rel="apple-touch-icon" id="apple-touch-icon" href="/logo_dark.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Aperix AI</title>
     <script>
@@ -12,7 +12,10 @@
         try {
           var key = "aperix-theme";
           var stored = localStorage.getItem(key);
-          if (stored === "dark") document.documentElement.classList.add("dark");
+          var dark = stored === "dark";
+          if (dark) document.documentElement.classList.add("dark");
+          var icon = document.getElementById("apple-touch-icon");
+          if (icon) icon.href = dark ? "/logo_light.png" : "/logo_dark.png";
         } catch (_) {}
       })();
     </script>

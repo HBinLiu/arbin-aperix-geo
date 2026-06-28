@@ -1,6 +1,8 @@
 import * as React from "react";
 
 import { discoverSetup, finalizeSetup, generateSetupPrompts, generateSetupTopics } from "@/api/setup";
+import { maxCompetitorsPerSubject } from "@/lib/billing/limits";
+import { useTenantSubscription } from "@/hooks/useTenantSubscription";
 import { hostnameFromWebsiteInput } from "@/lib/domain";
 import {
   clearSetupCache,
@@ -23,6 +25,8 @@ type UseSetupWizardFlowOptions = {
 
 export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
   const initial = React.useMemo(() => loadSetupCache() ?? defaultSetupCache(), []);
+  const { data: subscription } = useTenantSubscription();
+  const maxCompetitors = maxCompetitorsPerSubject(subscription);
 
   const [step, setStep] = React.useState(initial.step);
   const [mode, setMode] = React.useState<SubjectMode>(initial.mode);
@@ -163,6 +167,7 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
         region,
         language,
         sessionId: sessionId || undefined,
+        maxCompetitors,
       });
       setSessionId(result.sessionId);
       setCompetitorRows(result.competitorRows);

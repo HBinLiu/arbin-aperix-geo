@@ -3,22 +3,27 @@
 from __future__ import annotations
 
 import uuid
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from aperix_geo.db.models import Competitor, Subject, SubjectType
 from aperix_geo.schemas.catalog import CompetitorItem
+from aperix_geo.services.billing.exceptions import QuotaExceededError
 from aperix_geo.services.competitor.persist import (
     DuplicateCompetitorError,
     InvalidCompetitorError,
-    CompetitorLimitError,
     CompetitorNotFoundError,
-    MAX_CONFIGURED_COMPETITORS,
     add_competitor,
     remove_competitor_by_id,
     update_competitor_by_id,
 )
+
+
+@pytest.fixture(autouse=True)
+def _skip_competitor_quota_check() -> None:
+    with patch("aperix_geo.services.competitor.persist.assert_competitor_capacity"):
+        yield
 
 
 def _domain_subject(*, competitors: list[Competitor] | None = None) -> Subject:
@@ -77,21 +82,15 @@ def test_add_competitor_rejects_invalid_fields() -> None:
         add_competitor(db, subject, item=CompetitorItem(domain="x", brand=""))
 
 
-def test_add_competitor_enforces_limit() -> None:
-    competitors = [
-        Competitor(
-            id=uuid.uuid4(),
-            subject_id=uuid.uuid4(),
-            domain=f"c{i}.com",
-            website_url=f"https://c{i}.com",
-            brand=f"C{i}",
-        )
-        for i in range(MAX_CONFIGURED_COMPETITORS)
-    ]
-    subject = _domain_subject(competitors=competitors)
+@patch(
+    "aperix_geo.services.competitor.persist.assert_competitor_capacity",
+    side_effect=QuotaExceededError(dimension="max_per_competitors"),
+)
+def test_add_competitor_enforces_limit(_mock_assert: MagicMock) -> None:
+    subject = _domain_subject()
     db = MagicMock()
 
-    with pytest.raises(CompetitorLimitError):
+    with pytest.raises(QuotaExceededError):
         add_competitor(
             db,
             subject,

@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from aperix_geo.db.models import Brand, BrandSource, Competitor, EntityKind, LLMResponseSignal, Subject
 from aperix_geo.services.analysis.entity import OWN_ENTITY_ID
 from aperix_geo.services.brand.resolve import primary_domain_for_brand
+from aperix_geo.services.billing.quota import assert_competitor_capacity
 from aperix_geo.services.competitor.keys import find_competitor_conflict
 from aperix_geo.services.subject.domain_fields import prepare_domain_and_website_url
 from aperix_geo.services.subject.labels import competitor_rank_label
@@ -189,6 +190,8 @@ def promote_open_brand_to_competitor(
 
     display_brand = ensure_brand(brand.brand, domain=domain)
     alias_list = [str(a).strip() for a in (brand.aliases or []) if str(a).strip()]
+
+    assert_competitor_capacity(db, subject.tenant_id, subject, adding=1)
 
     competitor = Competitor(
         subject_id=subject.id,

@@ -21,11 +21,13 @@ class ParsedSamplingResult:
     citation_urls_own: list[str] = field(default_factory=list)
     citation_sources: list[dict[str, Any]] = field(default_factory=list)
     entity_signals: list[EntitySignalDraft] = field(default_factory=list)
+    absa_live_call: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Document-layer fields for JSONB storage (entity KPIs live in tb_llm_response_signals)."""
         data = asdict(self)
         data.pop("entity_signals", None)
+        data.pop("absa_live_call", None)
         return data
 
     def to_api_dict(self, *, entity_signal_records: list[dict[str, Any]] | None = None) -> dict[str, Any]:

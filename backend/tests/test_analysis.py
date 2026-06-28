@@ -600,7 +600,7 @@ def test_build_topic_visibility_ranks():
                     class S:
                         def all(self):
                             sql = str(stmt)
-                            if "tb_prompts" in sql:
+                            if "tb_subject_prompts" in sql:
                                 return [
                                     Prompt(id=prompt_a, subject_id=subject.id, topic_id=topic_a, text="p1"),
                                     Prompt(id=prompt_b, subject_id=subject.id, topic_id=topic_b, text="p2"),

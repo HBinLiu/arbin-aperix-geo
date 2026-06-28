@@ -24,7 +24,7 @@
 | [docs/04-功能清单.md](docs/04-功能清单.md) | 功能 ID，按四步编排（对标见 §9–§10） |
 | [docs/05-诊断流程.md](docs/05-诊断流程.md) | 诊断四步：Verify / Dispatch / Clean / Analysis |
 | [docs/06-分析指标.md](docs/06-分析指标.md) | 看板六大指标公式与实现说明 |
-| [docs/07-后端联调.md](docs/07-后端联调.md) | 后端验收与 API 联调顺序 |
+| [docs/07-定价方案.md](docs/07-定价方案.md) | 订阅版本、配额与付款周期 |
 
 ## 技术栈（后端已定）
 

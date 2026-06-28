@@ -54,12 +54,17 @@ def make_celery() -> Celery:
                 "task": "aperix_geo.tasks.sampling.sampling_tick",
                 "schedule": crontab(minute=f"*/{interval}", hour=beat_hours),
             },
+            "billing-maintenance": {
+                "task": "aperix_geo.tasks.billing.billing_maintenance",
+                "schedule": crontab(minute=5, hour=0),
+            },
         },
     )
     app.conf.include = [
         "aperix_geo.tasks.sampling",
         "aperix_geo.tasks.brand",
         "aperix_geo.tasks.alert",
+        "aperix_geo.tasks.billing",
     ]
     return app
 

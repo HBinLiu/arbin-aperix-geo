@@ -69,15 +69,18 @@ def test_build_profile_summary_payload_uses_session_fields() -> None:
 @patch("aperix_geo.services.setup.llm.payloads.build_subject_research_payload")
 def test_run_niche_profile_stage(mock_payload, mock_llm) -> None:
     mock_payload.return_value = {"mode": "domain", "target": "example.com"}
-    mock_llm.return_value = {
-        "company": "Example",
-        "industry": "跨境 B2B 支付",
-        "features": ["收款"],
-        "customers": "卖家",
-        "keywords": ["SMB 跨境收款 SaaS"],
-    }
+    mock_llm.return_value = (
+        {
+            "company": "Example",
+            "industry": "跨境 B2B 支付",
+            "features": ["收款"],
+            "customers": "卖家",
+            "keywords": ["SMB 跨境收款 SaaS"],
+        },
+        {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150},
+    )
 
-    profile, research = run_niche_profile_stage(
+    profile, research, usage = run_niche_profile_stage(
         subject_type="domain",
         target="example.com",
         region="CN",
@@ -87,6 +90,7 @@ def test_run_niche_profile_stage(mock_payload, mock_llm) -> None:
 
     assert profile["industry"] == "跨境 B2B 支付"
     assert research["target"] == "example.com"
+    assert usage["total_tokens"] == 150
 
 
 @patch("aperix_geo.services.setup.llm.stages.generate_profile_summary_via_llm")
@@ -97,9 +101,9 @@ def test_run_profile_summary_stage(mock_payload, mock_llm) -> None:
         entity="example.com",
     )
     mock_payload.return_value = {"target": "example.com"}
-    mock_llm.return_value = "# Example\n\n## 概述\n测试\n\n## 竞品\n* **Rival**（rival.com）：同业"
+    mock_llm.return_value = ("# Example\n\n## 概述\n测试\n\n## 竞品\n* **Rival**（rival.com）：同业", {})
 
-    summary = run_profile_summary_stage(
+    summary, usage = run_profile_summary_stage(
         profile=profile,
         subject_type="domain",
         target="example.com",

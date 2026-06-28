@@ -10,15 +10,13 @@ import {
 } from "@/components/brand/EditPlatformEditor";
 import { PlatformLogo } from "@/components/brand/PlatformLogo";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatApiError } from "@/api/client";
 import { fetchSamplingPlatforms } from "@/api/brand";
 import { patchSubject } from "@/api/subject";
-import {
-  effectiveSamplingPlatforms,
-  PLATFORM_MAX_SELECTION,
-  PLATFORM_PLAN_LABEL,
-  platformAccent,
-} from "@/lib/brand";
+import { useTenantSubscription } from "@/hooks/useTenantSubscription";
+import { maxPlatformsPerSubject } from "@/lib/billing/limits";
+import { effectiveSamplingPlatforms, platformAccent } from "@/lib/brand";
 import { clearQueries, queryKeys, sessionCatalogQueryOptions } from "@/lib/queries";
 import { toast } from "@/lib/toast";
 import type { Subject } from "@/types";
@@ -47,6 +45,10 @@ export function PlatformConfigSection({ subject }: PlatformConfigSectionProps) {
   const [editing, setEditing] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const { data: subscription, isPending: subscriptionPending } = useTenantSubscription();
+
+  const maxPlatformSelection = maxPlatformsPerSubject(subscription);
+  const planLabel = subscription?.plan_name ?? "当前计划";
 
   const { data: platforms = [], isLoading } = useQuery({
     queryKey: queryKeys.samplingPlatforms,
@@ -55,12 +57,12 @@ export function PlatformConfigSection({ subject }: PlatformConfigSectionProps) {
   });
 
   const selectedPlatforms = useMemo(
-    () => effectiveSamplingPlatforms(subject, platforms).slice(0, PLATFORM_MAX_SELECTION),
-    [subject, platforms],
+    () => effectiveSamplingPlatforms(subject, platforms).slice(0, maxPlatformSelection),
+    [subject, platforms, maxPlatformSelection],
   );
 
   const startEditing = () => {
-    setSelected(initialPlatformSelection(subject, platforms));
+    setSelected(initialPlatformSelection(subject, platforms, maxPlatformSelection));
     setEditing(true);
   };
 
@@ -71,6 +73,10 @@ export function PlatformConfigSection({ subject }: PlatformConfigSectionProps) {
   const onSave = async () => {
     if (selected.length < 1) {
       toast.error("请至少选择一个平台。");
+      return;
+    }
+    if (selected.length > maxPlatformSelection) {
+      toast.error(`最多可选择 ${maxPlatformSelection} 个平台。`);
       return;
     }
     setSaving(true);
@@ -102,7 +108,7 @@ export function PlatformConfigSection({ subject }: PlatformConfigSectionProps) {
             </Button>
           </>
         ) : (
-          <Button type="button" variant="brandout" onClick={startEditing}>
+          <Button type="button" variant="brandout" onClick={startEditing} disabled={subscriptionPending}>
             <Settings2 className="size-4" aria-hidden />
             编辑平台
           </Button>
@@ -111,11 +117,15 @@ export function PlatformConfigSection({ subject }: PlatformConfigSectionProps) {
     >
       <div className="border-border bg-background/40 rounded-lg border px-3 py-2 text-sm">
         <div className="flex flex-col gap-1 text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-          <span>
-            当前计划：{PLATFORM_PLAN_LABEL}，最多可选择 {PLATFORM_MAX_SELECTION} 个平台。
-          </span>
+          {subscriptionPending ? (
+            <Skeleton className="h-4 w-64" />
+          ) : (
+            <span>
+              当前计划：{planLabel}，最多可选择 {maxPlatformSelection} 个平台。
+            </span>
+          )}
           <span className="font-medium">
-            已选 {editing ? selected.length : selectedPlatforms.length}/{PLATFORM_MAX_SELECTION} 个平台
+            已选 {editing ? selected.length : selectedPlatforms.length}/{maxPlatformSelection} 个平台
           </span>
         </div>
       </div>
@@ -128,7 +138,10 @@ export function PlatformConfigSection({ subject }: PlatformConfigSectionProps) {
             <PlatformEditorGrid
               platforms={platforms}
               selected={selected}
-              onToggle={(platform) => setSelected((prev) => togglePlatformSelection(prev, platform))}
+              maxSelection={maxPlatformSelection}
+              onToggle={(platform) =>
+                setSelected((prev) => togglePlatformSelection(prev, platform, maxPlatformSelection))
+              }
             />
           )}
         </div>

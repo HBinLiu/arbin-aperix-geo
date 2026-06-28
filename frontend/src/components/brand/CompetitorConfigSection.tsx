@@ -23,7 +23,9 @@ import {
   fetchSubjectCompetitors,
   updateSubjectCompetitor,
 } from "@/api/brand";
-import { MAX_SETUP_COMPETITORS, displayNameFromDomainInput } from "@/lib/setup";
+import { useTenantSubscription } from "@/hooks/useTenantSubscription";
+import { maxCompetitorsPerSubject } from "@/lib/billing/limits";
+import { displayNameFromDomainInput } from "@/lib/setup";
 import { registrableDomain, websiteUrlFromInput } from "@/lib/domain";
 import { clearAnalysisCatalog, queryKeys, sessionCatalogQueryOptions } from "@/lib/queries";
 import { toast } from "@/lib/toast";
@@ -45,6 +47,8 @@ function rowLabel(item: CompetitorItem): string {
 
 export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorConfigSectionProps) {
   const queryClient = useQueryClient();
+  const { data: subscription } = useTenantSubscription();
+  const maxCompetitors = maxCompetitorsPerSubject(subscription);
   const [query, setQuery] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<CompetitorItem | null>(null);
@@ -136,8 +140,8 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
   };
 
   const submitAdd = (raw: string) => {
-    if (rows.length >= MAX_SETUP_COMPETITORS) {
-      toast.error(`最多可添加 ${MAX_SETUP_COMPETITORS} 个竞争对手。`);
+    if (rows.length >= maxCompetitors) {
+      toast.error(`最多可添加 ${maxCompetitors} 个竞争对手。`);
       setAddOpen(false);
       return;
     }
@@ -185,16 +189,21 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
             className="pl-9"
           />
         </div>
-        <Button
-          type="button"
-          variant="brandout"
-          className="shrink-0 gap-1.5"
-          disabled={isMutating || rows.length >= MAX_SETUP_COMPETITORS}
-          onClick={() => setAddOpen(true)}
-        >
-          <Plus className="size-4" aria-hidden />
-          添加竞争对手
-        </Button>
+        <div className="flex shrink-0 items-center gap-3">
+          <p className="text-muted-foreground whitespace-nowrap text-xs sm:text-sm">
+            已添加 {rows.length}/{maxCompetitors} 个
+          </p>
+          <Button
+            type="button"
+            variant="brandout"
+            className="gap-1.5"
+            disabled={isMutating || rows.length >= maxCompetitors}
+            onClick={() => setAddOpen(true)}
+          >
+            <Plus className="size-4" aria-hidden />
+            添加竞争对手
+          </Button>
+        </div>
       </div>
 
       <PerformanceTableShell

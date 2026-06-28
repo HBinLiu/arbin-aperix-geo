@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 from aperix_geo.schemas.catalog import CompetitorItem, SetupFinalizeBody, SetupPromptItem, SetupTopicItem
+from aperix_geo.services.billing.limits import PlanLimits
 from aperix_geo.services.competitor.profile import normalize_niche_profile
 from aperix_geo.services.setup.helpers import (
     subject_aliases_from_session,
@@ -47,6 +48,11 @@ def test_subject_summary_from_session_uses_research_site_data() -> None:
     assert summary == "全球跨境支付平台"
 
 
+@patch("aperix_geo.services.setup.finalize.get_limits_for_tenant")
+@patch("aperix_geo.services.competitor.persist.assert_competitor_capacity")
+@patch("aperix_geo.services.setup.finalize.assert_platform_capacity")
+@patch("aperix_geo.services.setup.finalize.assert_can_add_prompts")
+@patch("aperix_geo.services.setup.finalize.assert_can_create_subject")
 @patch("aperix_geo.services.setup.finalize.enrich_subject_aliases", return_value=["Airwallex"])
 @patch("aperix_geo.services.setup.finalize.subject_summary_from_session", return_value="全球跨境支付")
 @patch("aperix_geo.services.competitor.enrich.enrich_confirmed_competitors")
@@ -62,6 +68,11 @@ def test_finalize_setup_writes_aliases_and_deletes_session(
     mock_enrich,
     mock_subject_summary,
     mock_subject_aliases,
+    mock_assert_subject,
+    mock_assert_prompts,
+    mock_assert_platforms,
+    _mock_assert_competitors,
+    mock_get_limits,
 ) -> None:
     profile = normalize_niche_profile({"company": "Airwallex"}, entity="airwallex.com")
     mock_get_session.return_value = {
@@ -88,8 +99,17 @@ def test_finalize_setup_writes_aliases_and_deletes_session(
     mock_platforms.return_value = ["openai"]
     mock_enqueue.return_value = MagicMock(id="job-1")
     mock_enrich.side_effect = lambda items, **kwargs: items
+    mock_get_limits.return_value = PlanLimits(
+        max_subjects=1,
+        max_per_platforms=3,
+        max_per_competitors=10,
+        max_prompts_total=50,
+        per_month_usages=2500,
+        sampling_frequency="daily_1",
+    )
 
     db = MagicMock()
+    db.flush = MagicMock()
     user = MagicMock(tenant_id="tenant-1", id="user-1")
     body = SetupFinalizeBody(
         session_id="abc123456789",
@@ -106,5 +126,6 @@ def test_finalize_setup_writes_aliases_and_deletes_session(
     assert subject.aliases == ["Airwallex"]
     assert subject.brand == "Airwallex"
     assert subject.summary == "全球跨境支付"
+    assert subject.sampling_frequency == "daily_1"
     mock_delete.assert_called_once_with(user_id="user-1", session_id=body.session_id)
     assert job.id == "job-1"

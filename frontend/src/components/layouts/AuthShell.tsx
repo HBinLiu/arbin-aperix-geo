@@ -1,6 +1,8 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
 
+import { AppLogo } from "@/components/common/AppLogo";
+
 export type AuthShellProps = {
   /** 右侧主标题，如「登录 Aperix AI」 */
   title: string;
@@ -63,7 +65,7 @@ export function AuthShell({ title, description, children }: AuthShellProps) {
               <div className="border-foreground/10 border-t pt-4">
                 <div className="flex items-center justify-between gap-4">
                   <Link to="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
-                    <img src="/logo.png" alt="" width={24} height={24} className="size-6 object-contain" decoding="async" />
+                    <AppLogo width={24} height={24} className="size-6 object-contain" decoding="async" />
                     <span className="text-foreground text-sm font-semibold">Aperix AI</span>
                   </Link>
                   <Link to="/about" className="text-muted-foreground shrink-0 text-sm hover:underline">

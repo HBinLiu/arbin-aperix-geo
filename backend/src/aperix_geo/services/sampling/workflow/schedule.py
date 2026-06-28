@@ -6,12 +6,12 @@ from datetime import UTC, date, datetime, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import Date, cast, desc, exists, select
+from sqlalchemy import desc, exists, select
 from sqlalchemy.orm import Session, aliased
-from sqlalchemy.sql import func
 
 from aperix_geo.config import Settings, get_settings
 from aperix_geo.db.models import Prompt, SamplingJob, SamplingJobStatus, Subject
+from aperix_geo.services.sampling.frequency import sampling_interval_days
 from aperix_geo.utils.datetime import ensure_utc
 
 # 固定北京时间；「今日是否已采样」与每日窗口均按此计算
@@ -66,10 +66,6 @@ def _has_enabled_prompt_exists(subject_id_col) -> exists:
             Prompt.enabled.is_(True),
         )
     )
-
-
-def _last_sampled_cst_date():
-    return cast(func.timezone(SAMPLING_TIMEZONE, Subject.last_sampled_at), Date)
 
 
 def subject_has_active_sampling_job(db: Session, subject_id: UUID) -> bool:
@@ -164,7 +160,7 @@ def is_subject_due_for_scheduled_sampling(
     now: datetime | None = None,
     settings: Settings | None = None,
 ) -> bool:
-    """True when local time is inside today's window, past slot, and not yet sampled today."""
+    """True when local time is inside today's window, past slot, and interval elapsed."""
     settings = settings or get_settings()
     now = now or datetime.now(UTC)
     local_now = _local_now(now, SAMPLING_TIMEZONE)
@@ -175,7 +171,10 @@ def is_subject_due_for_scheduled_sampling(
     if local_now < slot_at:
         return False
     last_day = last_sampled_local_date(subject)
-    return last_day is None or last_day < local_today
+    if last_day is None:
+        return True
+    interval_days = sampling_interval_days(subject.sampling_frequency)
+    return (local_today - last_day).days >= interval_days
 
 
 def find_subjects_due_for_scheduled_sampling(
@@ -190,10 +189,9 @@ def find_subjects_due_for_scheduled_sampling(
     if not is_within_sampling_enqueue_window(local_now, settings=settings):
         return []
 
-    local_today = local_now.date()
     stmt = (
         select(Subject)
-        .where(_last_sampled_cst_date() < local_today)
+        .where(Subject.deleted.is_(False))
         .where(_has_enabled_prompt_exists(Subject.id))
         .where(~_latest_active_sampling_job_exists(Subject.id))
     )
@@ -201,7 +199,7 @@ def find_subjects_due_for_scheduled_sampling(
     due = [
         subject
         for subject in candidates
-        if is_subject_past_daily_slot(subject, now=now, settings=settings)
+        if is_subject_due_for_scheduled_sampling(subject, now=now, settings=settings)
     ]
     due.sort(
         key=lambda s: subject_daily_slot_minute(

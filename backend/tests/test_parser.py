@@ -87,7 +87,7 @@ def _patch_citation_fetch_by_default():
             own_brand=own_brand,
             competitors=competitors,
             ai_mentioned=ai_mentioned,
-        )
+        ), False
 
     def _snippet_brands(page, *, page_brand_scope=None, match_terms_by_brand=None, **kwargs):
         return _default_page_mentioned(page_mentioned=[])
@@ -140,7 +140,7 @@ def _mock_fetch_page(*, text: str = "Aperix product documentation and guides.", 
             own_brand=own_brand,
             competitors=competitors,
             ai_mentioned=ai_mentioned,
-        )
+        ), False
 
     def _snippet_brands(page, *, page_brand_scope=None, match_terms_by_brand=None, **kwargs):
         return _default_page_mentioned(page_mentioned=brands_on_page)
@@ -305,7 +305,7 @@ def test_parse_llm_output_overlaps_absa_with_page_fetch() -> None:
         marks["absa_start"] = time.monotonic()
         time.sleep(0.25)
         marks["absa_end"] = time.monotonic()
-        return {"brands_sentiment_absa": {}, "analysis_source": "llm"}
+        return {"brands_sentiment_absa": {}, "analysis_source": "llm"}, False
 
     def _slow_fetch(urls, **kwargs):
         marks["fetch_start"] = time.monotonic()

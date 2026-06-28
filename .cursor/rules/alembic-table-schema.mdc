@@ -1,23 +1,45 @@
 ---
-description: Alembic 建表必须包含 deleted、created_at、updated_at 三列
-alwaysApply: false
+description: 建表规范：标准三列 + 全列 NOT NULL + 哨兵值
+alwaysApply: true
 ---
-# 数据库表标准列
+# 数据库表规范
 
-新建表（Alembic migration + ORM model）必须包含以下三列，且均为 `nullable=False`：
+新建表（Alembic migration + ORM model + 设计文档 §7）必须遵守以下约定。
+
+## 1. 标准三列（必须）
+
+每张新建表必须包含，且 `nullable=False`：
 
 | 列 | 类型 | 说明 |
 |---|---|---|
 | `created_at` | `DateTime(timezone=True)` | `server_default=now()` |
 | `updated_at` | `DateTime(timezone=True)` | `server_default=now()`，ORM 加 `onupdate=utc_now` |
-| `deleted` | `Boolean` | `server_default=false`；继承自 `Base`，migration 中仍需显式声明 |
+| `deleted` | `Boolean` | `server_default=false`；ORM 继承自 `Base`，migration 中仍需显式声明 |
+
+`ALTER` 已有表时，若表已含这三列则无需重复添加。
+
+## 2. 全列 NOT NULL
+
+**每一列均不允许 NULL**（含 `ALTER` 新增列）。语义上「可选 / 未设置」用默认值或哨兵值表示：
+
+| 哨兵 | 类型 | 含义 |
+|---|---|---|
+| `00000000-0000-0000-0000-000000000000` | `uuid` | 无关联外键 |
+| `''` | `varchar` / `text` | 无字符串值 |
+| `0` | `integer` | 数值未用；override 限额字段 `0` = 沿用 plan |
+| `1970-01-01T00:00:00+00:00` | `timestamptz` | 事件尚未发生（未支付、未取消等） |
 
 ## Migration 示例
 
 ```python
-sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
-sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+_TS = sa.DateTime(timezone=True)
+_NOW = sa.text("now()")
+
+sa.Column("created_at", _TS, nullable=False, server_default=_NOW),
+sa.Column("updated_at", _TS, nullable=False, server_default=_NOW),
 sa.Column("deleted", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+# 可选 FK 示例：无关联时用零 UUID，禁止 nullable=True
+sa.Column("pending_plan_id", sa.Uuid(), nullable=False, server_default=sa.text("'00000000-0000-0000-0000-000000000000'")),
 ```
 
 ## ORM 示例

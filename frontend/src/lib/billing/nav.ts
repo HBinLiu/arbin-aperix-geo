@@ -3,7 +3,7 @@ import type { BillingTab } from "@/types";
 
 export const BILLING_TABS: { id: BillingTab; label: string }[] = [
   { id: "plan", label: "订阅计划" },
-  { id: "invoices", label: "账单明细" },
+  { id: "details", label: "账单明细" },
 ];
 
 export const DEFAULT_BILLING_TAB: BillingTab = "plan";

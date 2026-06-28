@@ -85,8 +85,6 @@ python3 scripts/sampling_reparse.py --dry-run  # 重算已有回复的 parsed �
 
 每日定时采样在 **北京时间 02:00–05:00** 内按 subject id hash 错开 slot；Beat 仅在该时段内每 `SAMPLING_SCHEDULER_INTERVAL_MINUTES`（默认 15）分钟扫描一次。
 
-更完整联调步骤见 [../docs/07-后端联调.md](../docs/07-后端联调.md#采样)。
-
 ## 网页爬取（Crawl4AI）
 
 统一入口：`services/crawl/page.py` 的 `fetch_page()`（httpx 优先，无效时回退 Crawl4AI）。  
@@ -181,4 +179,4 @@ cd backend && export PYTHONPATH=src && python -m alembic upgrade head
 - API 前缀：`/api/v1`
 - 认证：`Authorization: Bearer <access_token>`，或开发用 `X-API-Key`（见 `.env.example`）
 
-更完整的验收步骤见 [../docs/07-后端联调.md](../docs/07-后端联调.md)。
+环境、迁移与 API 说明见本文档上文各节。

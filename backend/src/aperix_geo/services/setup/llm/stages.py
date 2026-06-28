@@ -34,7 +34,7 @@ def run_niche_profile_stage(
     region: str,
     language: str,
     website_url: str = "",
-) -> tuple[NicheProfile, dict]:
+) -> tuple[NicheProfile, dict, dict[str, Any]]:
     """UI Step 0→1 discover：微观利基结构化画像。"""
     target = target.strip()
     research_payload = build_subject_research_payload(
@@ -45,13 +45,13 @@ def run_niche_profile_stage(
         website_url=website_url,
     )
     temperature = 0.1 if subject_type == "domain" else 0.2
-    data = generate_niche_profile_via_llm(
+    data, usage = generate_niche_profile_via_llm(
         entity_key=target,
         user_payload=research_payload,
         temperature=temperature,
     )
     profile = normalize_niche_profile(data, entity=target)
-    return profile, research_payload
+    return profile, research_payload, usage
 
 
 def run_monitoring_topics_stage(
@@ -59,18 +59,18 @@ def run_monitoring_topics_stage(
     profile: NicheProfile,
     subject_type: str,
     entity_key: str,
-) -> list[str]:
+) -> tuple[list[str], dict[str, Any]]:
     """UI Step 1→2 topics：监测主题建议（先于 profile_summary）。"""
     payload = build_monitoring_topics_payload(
         subject_type=subject_type,
         target=entity_key,
         profile=profile,
     )
-    data = generate_monitoring_topics_via_llm(
+    data, usage = generate_monitoring_topics_via_llm(
         entity_key=entity_key,
         user_payload=payload,
     )
-    return monitoring_topics_from_llm(data)
+    return monitoring_topics_from_llm(data), usage
 
 
 def run_profile_summary_stage(
@@ -82,7 +82,7 @@ def run_profile_summary_stage(
     language: str,
     entity_key: str,
     competitors: list[dict[str, Any]] | None,
-) -> str:
+) -> tuple[str, dict[str, Any]]:
     """UI Step 1→2 topics：用户确认竞品后生成 profile_summary（在监测主题之后）。"""
     payload = build_profile_summary_payload(
         subject_type=subject_type,
@@ -92,8 +92,9 @@ def run_profile_summary_stage(
         profile=profile,
         competitors=competitors,
     )
+    usage: dict[str, Any] = {}
     try:
-        summary = generate_profile_summary_via_llm(
+        summary, usage = generate_profile_summary_via_llm(
             entity_key=entity_key,
             user_payload=payload,
         )
@@ -117,4 +118,4 @@ def run_profile_summary_stage(
         entity_key,
         len(summary),
     )
-    return summary
+    return summary, usage

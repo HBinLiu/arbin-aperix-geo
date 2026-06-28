@@ -11,17 +11,12 @@ from sqlalchemy.orm import Session
 from aperix_geo.db.models import Competitor, Subject
 from aperix_geo.schemas.catalog import CompetitorItem
 from aperix_geo.services.competitor.keys import competitor_match_key, find_competitor_conflict
+from aperix_geo.services.billing.quota import assert_competitor_capacity
 from aperix_geo.services.subject.domain_fields import prepare_domain_and_website_url
 from aperix_geo.utils.net import ensure_brand
 
-MAX_CONFIGURED_COMPETITORS = 5
-
 
 class DuplicateCompetitorError(Exception):
-    pass
-
-
-class CompetitorLimitError(Exception):
     pass
 
 
@@ -123,11 +118,16 @@ def _update_competitor(existing: Competitor, row: dict[str, Any]) -> None:
 
 
 def apply_competitors(
+    db: Session,
     subject: Subject,
     *,
     competitors: list[CompetitorItem],
 ) -> None:
+    normalized: list[dict[str, Any]] = []
     for row in _normalize_competitor_items(competitors):
+        normalized.append(row)
+    assert_competitor_capacity(db, subject.tenant_id, subject, adding=len(normalized))
+    for row in normalized:
         _append_competitor(subject, row)
 
 
@@ -146,8 +146,7 @@ def add_competitor(
     *,
     item: CompetitorItem,
 ) -> Competitor:
-    if len(subject.competitors or []) >= MAX_CONFIGURED_COMPETITORS:
-        raise CompetitorLimitError(f"at most {MAX_CONFIGURED_COMPETITORS} competitors allowed")
+    assert_competitor_capacity(db, subject.tenant_id, subject, adding=1)
 
     normalized = _normalize_competitor_items([item])
     if not normalized:

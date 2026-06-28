@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from aperix_geo.services.providers.prompts import (
@@ -81,7 +83,11 @@ def _build_user_payload(
     }
 
 
-def _invoke_setup_prompts_llm(user_payload: dict[str, Any]) -> list[dict[str, Any]]:
+def _invoke_setup_prompts_llm(
+    user_payload: dict[str, Any],
+    *,
+    on_live_call: Callable[[dict[str, Any]], None] | None = None,
+) -> list[dict[str, Any]]:
     n = int(user_payload.get("prompts_per_topic") or PROMPT_PER_TOPIC)
     messages = [
         {"role": "system", "content": setup_wizard_prompts_system(n=n)},
@@ -90,7 +96,9 @@ def _invoke_setup_prompts_llm(user_payload: dict[str, Any]) -> list[dict[str, An
             "content": f"{SETUP_WIZARD_PROMPTS_USER_PREFIX}{json.dumps(user_payload, ensure_ascii=False, indent=2)}",
         },
     ]
-    text, _, latency_ms = chat_completion(messages, temperature=0.4, json_mode=True)
+    text, usage, latency_ms = chat_completion(messages, temperature=0.4, json_mode=True)
+    if on_live_call is not None:
+        on_live_call(usage)
     data = extract_json_object(text)
     rows = data.get("topics")
     if not isinstance(rows, list):
@@ -159,6 +167,7 @@ def generate_setup_prompts(
     aliases: list[str] | None = None,
     prompts_per_topic: int = PROMPT_PER_TOPIC,
     exclude_prompts: list[str] | None = None,
+    on_live_call: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> list[dict[str, Any]]:
     """每个主题返回至多 prompts_per_topic 条 LLM 生成的提示词（含 funnel / intent）。"""
     cleaned_topics = [t.strip() for t in topics if t.strip()]
@@ -182,7 +191,20 @@ def generate_setup_prompts(
         exclude_prompts=excluded_list,
     )
 
-    by_name = _rows_by_topic_name(_invoke_setup_prompts_llm(user_payload))
+    billing_key = hashlib.sha256(
+        json.dumps(user_payload, ensure_ascii=False, sort_keys=True).encode()
+    ).hexdigest()[:16]
+
+    def _bill(stage: str) -> Callable[[dict[str, Any]], None]:
+        def _inner(usage: dict[str, Any]) -> None:
+            if on_live_call is not None:
+                on_live_call(stage, usage)
+
+        return _inner
+
+    by_name = _rows_by_topic_name(
+        _invoke_setup_prompts_llm(user_payload, on_live_call=_bill(f"batch:{billing_key}"))
+    )
     result: list[dict[str, Any]] = []
     retry_topics: list[str] = []
 
@@ -206,7 +228,12 @@ def generate_setup_prompts(
             prompts_per_topic=n,
             exclude_prompts=retry_exclude,
         )
-        retry_row = _rows_by_topic_name(_invoke_setup_prompts_llm(retry_payload)).get(topic.casefold())
+        retry_row = _rows_by_topic_name(
+            _invoke_setup_prompts_llm(
+                retry_payload,
+                on_live_call=_bill(f"retry:{topic}:{billing_key}"),
+            )
+        ).get(topic.casefold())
         extra = _prompts_from_row(retry_row, limit=n, excluded=excluded)
         for item in result:
             if item["topic"] != topic:

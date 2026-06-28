@@ -6,9 +6,10 @@ import { SetupTextInput } from "@/components/setup/SetupField";
 import { Button } from "@/components/ui/button";
 import { Input, InputGroup } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useTenantSubscription } from "@/hooks/useTenantSubscription";
+import { maxCompetitorsPerSubject } from "@/lib/billing/limits";
 import {
   displayNameFromDomainInput,
-  MAX_SETUP_COMPETITORS,
   newCompetitorRow,
 } from "@/lib/setup";
 import { registrableDomain, websiteUrlFromInput } from "@/lib/domain";
@@ -42,6 +43,7 @@ type CompetitorDomainTableProps = {
   draftDomain: string;
   allSelected: boolean;
   atMax: boolean;
+  maxCompetitors: number;
   onDraftDomainChange: (value: string) => void;
   onToggleAll: (checked: boolean) => void;
   onUpdateRow: (id: string, patch: Partial<CompetitorRow>) => void;
@@ -54,6 +56,7 @@ function CompetitorDomainTable({
   draftDomain,
   allSelected,
   atMax,
+  maxCompetitors,
   onDraftDomainChange,
   onToggleAll,
   onUpdateRow,
@@ -64,7 +67,7 @@ function CompetitorDomainTable({
     <div className={competitorTableGrid}>
       <div className={competitorHeaderGridClass}>
         <span className="text-foreground flex h-9 items-center text-sm font-semibold">
-          站点名称（{rows.length}/{MAX_SETUP_COMPETITORS}）
+          站点名称（{rows.length}/{maxCompetitors}）
         </span>
         <span className="text-foreground flex h-9 items-center text-sm font-semibold">主域名</span>
         <div className={cn(competitorRowActionsClass, "col-start-3")}>
@@ -184,6 +187,7 @@ function CompetitorBrandTable({
   rows,
   allSelected,
   atMax,
+  maxCompetitors,
   onToggleAll,
   onUpdateRow,
   onRemoveRow,
@@ -192,6 +196,7 @@ function CompetitorBrandTable({
   rows: CompetitorRow[];
   allSelected: boolean;
   atMax: boolean;
+  maxCompetitors: number;
   onToggleAll: (checked: boolean) => void;
   onUpdateRow: (id: string, patch: Partial<CompetitorRow>) => void;
   onRemoveRow: (id: string) => void;
@@ -200,7 +205,7 @@ function CompetitorBrandTable({
   return (
     <div className={cn(competitorTableGrid, "grid-cols-[minmax(0,1fr)_auto]")}>
       <div className="text-muted-foreground flex min-h-9 items-center justify-between px-0.5 text-xs font-medium">
-        <span>竞品品牌 ({rows.length}/{MAX_SETUP_COMPETITORS})</span>
+        <span>竞品品牌 ({rows.length}/{maxCompetitors})</span>
         <div className={competitorRowActionsClass}>
           <div className={competitorActionCellClass}>
             <Checkbox
@@ -263,9 +268,11 @@ function CompetitorBrandTable({
 
 export function SetupStepCompetitor({ mode, rows, onChange }: SetupStepCompetitorProps) {
   const [draftDomain, setDraftDomain] = React.useState("");
+  const { data: subscription } = useTenantSubscription();
+  const maxCompetitors = maxCompetitorsPerSubject(subscription);
   const selectedCount = rows.filter((r) => r.selected).length;
   const allSelected = rows.length > 0 && rows.every((r) => r.selected);
-  const atMax = rows.length >= MAX_SETUP_COMPETITORS;
+  const atMax = rows.length >= maxCompetitors;
 
   const updateRow = (id: string, patch: Partial<CompetitorRow>) => {
     onChange(rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -312,6 +319,7 @@ export function SetupStepCompetitor({ mode, rows, onChange }: SetupStepCompetito
           draftDomain={draftDomain}
           allSelected={allSelected}
           atMax={atMax}
+          maxCompetitors={maxCompetitors}
           onDraftDomainChange={setDraftDomain}
           onToggleAll={toggleAll}
           onUpdateRow={updateRow}
@@ -323,6 +331,7 @@ export function SetupStepCompetitor({ mode, rows, onChange }: SetupStepCompetito
           rows={rows}
           allSelected={allSelected}
           atMax={atMax}
+          maxCompetitors={maxCompetitors}
           onToggleAll={toggleAll}
           onUpdateRow={updateRow}
           onRemoveRow={removeRow}
@@ -332,7 +341,7 @@ export function SetupStepCompetitor({ mode, rows, onChange }: SetupStepCompetito
 
       <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
         <span>已选择 {selectedCount} 项</span>
-        <span>最多可添加 {MAX_SETUP_COMPETITORS} 个竞争对手。</span>
+        <span>最多可添加 {maxCompetitors} 个竞争对手。</span>
       </div>
     </div>
   );

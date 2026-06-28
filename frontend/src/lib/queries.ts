@@ -493,6 +493,22 @@ export const queryKeys = {
     to: string,
   ) => ["prompt-detail", subjectId, entityId, platformKey, topicKey, promptId, from, to] as const,
   llmResponse: (responseId: string) => ["llm-response", responseId] as const,
+  tenantSubscription: ["billing", "subscription"] as const,
+  planCatalog: ["billing", "plans"] as const,
+  usagePackCatalog: ["billing", "usage-packs"] as const,
+  payOrders: (page: number, pageSize: number, sortBy: string, order: string) =>
+    ["billing", "orders", page, pageSize, sortBy, order] as const,
+  quotaRecords: (
+    page: number,
+    pageSize: number,
+    sortBy: string,
+    order: string,
+    days: number,
+    recordType: string,
+  ) => ["billing", "quota-records", page, pageSize, sortBy, order, days, recordType] as const,
+  quotaRecordFilters: ["billing", "quota-records", "filters"] as const,
+  notifications: ["notifications"] as const,
+  notificationUnreadCount: ["notifications", "unread-count"] as const,
 };
 
 /**

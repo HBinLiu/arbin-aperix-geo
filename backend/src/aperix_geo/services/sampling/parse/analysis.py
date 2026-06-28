@@ -25,7 +25,7 @@ from aperix_geo.utils.net import (
 )
 
 
-def _run_response_absa(ctx: ParseContext) -> dict[str, Any]:
+def _run_response_absa(ctx: ParseContext) -> tuple[dict[str, Any], bool]:
     return analyze_response_absa(
         ctx.text,
         own_brand=ctx.own_brand,
@@ -112,6 +112,7 @@ def enrich_parse_context(ctx: ParseContext, *, fetch_pages: bool = True) -> Pars
     need_absa = ctx.absa_needed
     citation = empty_citation_document()
     response_absa: dict[str, Any] = {}
+    absa_live_call = False
 
     load_pages = _fetch_citation_pages if fetch_pages else _load_citation_pages_from_cache
 
@@ -119,7 +120,7 @@ def enrich_parse_context(ctx: ParseContext, *, fetch_pages: bool = True) -> Pars
         with ThreadPoolExecutor(max_workers=2) as pool:
             absa_future = pool.submit(_run_response_absa, ctx)
             pages_future = pool.submit(load_pages, params)
-            response_absa = absa_future.result()
+            response_absa, absa_live_call = absa_future.result()
             pages = pages_future.result()
         citation = _build_citation_from_pages(
             params,
@@ -128,7 +129,7 @@ def enrich_parse_context(ctx: ParseContext, *, fetch_pages: bool = True) -> Pars
             absa_ran=True,
         )
     elif need_absa:
-        response_absa = _run_response_absa(ctx)
+        response_absa, absa_live_call = _run_response_absa(ctx)
     elif need_citation:
         pages = load_pages(params)
         citation = _build_citation_from_pages(
@@ -138,4 +139,4 @@ def enrich_parse_context(ctx: ParseContext, *, fetch_pages: bool = True) -> Pars
             absa_ran=False,
         )
 
-    return ParseEnrichment(citation=citation, response_absa=response_absa)
+    return ParseEnrichment(citation=citation, response_absa=response_absa, absa_live_call=absa_live_call)

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+from uuid import uuid4
 
 from aperix_geo.services.competitor.profile import normalize_niche_profile
 from aperix_geo.services.setup.prompts import generate_setup_prompts_for_session
@@ -33,6 +35,7 @@ def test_prompts_generation_hash_stable_for_topic_order() -> None:
     assert hash1 == hash2
 
 
+@patch("aperix_geo.services.setup.prompts.assert_ai_usage_available")
 @patch("aperix_geo.services.setup.prompts.update_session")
 @patch("aperix_geo.services.setup.prompts.generate_setup_prompts")
 @patch("aperix_geo.services.setup.prompts.get_session")
@@ -42,6 +45,7 @@ def test_generate_setup_prompts_for_session_uses_cache(
     mock_get_session,
     mock_generate,
     mock_update_session,
+    _mock_assert_ai,
 ) -> None:
     profile = normalize_niche_profile(
         {
@@ -81,6 +85,8 @@ def test_generate_setup_prompts_for_session_uses_cache(
     }
 
     items = generate_setup_prompts_for_session(
+        db=MagicMock(),
+        tenant_id=uuid4(),
         user_id="user-1",
         session_id="abc123456789",
         topics=topics,
@@ -93,6 +99,7 @@ def test_generate_setup_prompts_for_session_uses_cache(
     assert items == cached_items
 
 
+@patch("aperix_geo.services.setup.prompts.assert_ai_usage_available")
 @patch("aperix_geo.services.setup.prompts.update_session")
 @patch("aperix_geo.services.setup.prompts.generate_setup_prompts")
 @patch("aperix_geo.services.setup.prompts.get_session")
@@ -102,6 +109,7 @@ def test_generate_setup_prompts_for_session_stores_result(
     mock_get_session,
     mock_generate,
     mock_update_session,
+    _mock_assert_ai,
 ) -> None:
     profile = normalize_niche_profile(
         {"industry": "SaaS", "features": "API", "customers": "团队"},
@@ -120,6 +128,8 @@ def test_generate_setup_prompts_for_session_stores_result(
     mock_generate.return_value = generated
 
     items = generate_setup_prompts_for_session(
+        db=MagicMock(),
+        tenant_id=uuid4(),
         user_id="user-1",
         session_id="abc123456789",
         topics=["支付"],

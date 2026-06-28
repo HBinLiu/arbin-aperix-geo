@@ -1,15 +1,13 @@
 import { Checkbox } from "@/components/ui/checkbox";
 import { PlatformLogo } from "@/components/brand/PlatformLogo";
-import {
-  PLATFORM_MAX_SELECTION,
-  preferredDefaultSamplingPlatforms,
-} from "@/lib/brand";
+import { preferredDefaultSamplingPlatforms } from "@/lib/brand";
 import type { SamplingPlatform } from "@/types";
 import { cn } from "@/lib/utils";
 
 type PlatformEditorGridProps = {
   platforms: SamplingPlatform[];
   selected: string[];
+  maxSelection: number;
   onToggle: (platform: string) => void;
 };
 
@@ -42,7 +40,7 @@ function PlatformOption({
   );
 }
 
-export function PlatformEditorGrid({ platforms, selected, onToggle }: PlatformEditorGridProps) {
+export function PlatformEditorGrid({ platforms, selected, maxSelection, onToggle }: PlatformEditorGridProps) {
   if (platforms.length === 0) {
     return (
       <p className="text-muted-foreground text-sm">
@@ -55,7 +53,7 @@ export function PlatformEditorGrid({ platforms, selected, onToggle }: PlatformEd
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
       {platforms.map((platform) => {
         const checked = selected.includes(platform.platform);
-        const atLimit = selected.length >= PLATFORM_MAX_SELECTION;
+        const atLimit = selected.length >= maxSelection;
         return (
           <PlatformOption
             key={platform.platform}
@@ -73,23 +71,30 @@ export function PlatformEditorGrid({ platforms, selected, onToggle }: PlatformEd
 export function initialPlatformSelection(
   subject: { sampling_platforms?: string[] | null },
   platforms: SamplingPlatform[],
+  maxSelection: number,
 ): string[] {
   const saved = (subject.sampling_platforms ?? []).filter((id) =>
     platforms.some((p) => p.platform === id),
   );
-  if (saved.length > 0) return saved.slice(0, PLATFORM_MAX_SELECTION);
+  if (saved.length > 0) return saved.slice(0, maxSelection);
   if (platforms.length === 0) return [];
-  return preferredDefaultSamplingPlatforms(platforms).map((p) => p.platform);
+  return preferredDefaultSamplingPlatforms(platforms)
+    .map((p) => p.platform)
+    .slice(0, maxSelection);
 }
 
-export function togglePlatformSelection(selected: string[], platform: string): string[] {
+export function togglePlatformSelection(
+  selected: string[],
+  platform: string,
+  maxSelection: number,
+): string[] {
   if (selected.includes(platform)) {
     return selected.length > 1 ? selected.filter((id) => id !== platform) : selected;
   }
-  if (PLATFORM_MAX_SELECTION === 1) {
+  if (maxSelection === 1) {
     return [platform];
   }
-  if (selected.length >= PLATFORM_MAX_SELECTION) {
+  if (selected.length >= maxSelection) {
     return selected;
   }
   return [...selected, platform];

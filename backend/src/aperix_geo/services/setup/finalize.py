@@ -16,6 +16,14 @@ from aperix_geo.db.models import (
     User,
 )
 from aperix_geo.schemas.catalog import CompetitorItem, SetupFinalizeBody
+from aperix_geo.services.billing.exceptions import QuotaExceededError
+from aperix_geo.services.billing.http import quota_exceeded_http_exception
+from aperix_geo.services.billing.quota import (
+    assert_can_add_prompts,
+    assert_can_create_subject,
+    assert_platform_capacity,
+    get_limits_for_tenant,
+)
 from aperix_geo.services.competitor.types import SiteHead
 from aperix_geo.services.competitor.persist import apply_competitors
 from aperix_geo.services.prompts.taxonomy import normalize_funnel_stage, normalize_search_intent
@@ -74,6 +82,12 @@ def finalize_setup(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="至少需要一条提示词")
 
     try:
+        assert_can_create_subject(db, user.tenant_id)
+        assert_can_add_prompts(db, user.tenant_id, count=prompt_count)
+    except QuotaExceededError as exc:
+        raise quota_exceeded_http_exception(exc) from exc
+
+    try:
         session_competitors = confirmed_competitors_from_session(setup_session)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
@@ -123,6 +137,7 @@ def finalize_setup(
         heads=heads_cache,
     )
     niche_profile_data = dict(setup_session.get("profile") or {})
+    plan_limits = get_limits_for_tenant(db, user.tenant_id)
 
     subject = Subject(
         tenant_id=user.tenant_id,
@@ -134,9 +149,13 @@ def finalize_setup(
         profile_summary=profile_summary_from_session(setup_session),
         summary=subject_summary_from_session(setup_session),
         niche_profile=niche_profile_data,
+        sampling_frequency=plan_limits.sampling_frequency,
     )
     validate_subject_fields(subject)
-    apply_competitors(subject, competitors=competitors_for_persist)
+    try:
+        apply_competitors(db, subject, competitors=competitors_for_persist)
+    except QuotaExceededError as exc:
+        raise quota_exceeded_http_exception(exc) from exc
     validate_brand_competitors(subject)
 
     db.add(subject)
@@ -150,6 +169,11 @@ def finalize_setup(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No LLM providers configured for sampling (set at least one *_API_KEY)",
         )
+    try:
+        assert_platform_capacity(db, user.tenant_id, len(platforms))
+    except QuotaExceededError as exc:
+        db.rollback()
+        raise quota_exceeded_http_exception(exc) from exc
 
     topics: list[Topic] = []
     for item in topic_items:

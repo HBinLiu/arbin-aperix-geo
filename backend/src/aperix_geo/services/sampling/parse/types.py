@@ -33,6 +33,7 @@ class ParseEnrichment:
 
     citation: CitationDocument
     response_absa: dict[str, Any]
+    absa_live_call: bool = False
 
 
 @dataclass(frozen=True)

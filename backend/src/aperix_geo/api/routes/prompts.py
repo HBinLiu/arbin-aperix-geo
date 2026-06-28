@@ -15,6 +15,8 @@ from aperix_geo.schemas.catalog import (
     PromptOut,
     PromptUpdate,
 )
+from aperix_geo.services.billing.exceptions import QuotaExceededError
+from aperix_geo.services.billing.http import quota_exceeded_http_exception
 from aperix_geo.services.prompts.generate import (
     generate_subject_prompt_candidates_for_topic,
     map_generate_error,
@@ -33,6 +35,14 @@ router = APIRouter(tags=["prompts"])
 
 def _validation_error(exc: PromptValidationError) -> HTTPException:
     return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+def _prompt_mutation_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, QuotaExceededError):
+        return quota_exceeded_http_exception(exc)
+    if isinstance(exc, PromptValidationError):
+        return _validation_error(exc)
+    raise exc
 
 
 @router.get("/subjects/{subject_id}/prompts", response_model=list[PromptOut])
@@ -63,8 +73,8 @@ def create_prompt(
             search_intent=body.search_intent,
             enabled=body.enabled,
         )
-    except PromptValidationError as exc:
-        raise _validation_error(exc) from exc
+    except (PromptValidationError, QuotaExceededError) as exc:
+        raise _prompt_mutation_error(exc) from exc
 
 
 @router.post(
@@ -86,8 +96,8 @@ def batch_create_prompts(
             topic_id=body.topic_id,
             items=body.items,
         )
-    except PromptValidationError as exc:
-        raise _validation_error(exc) from exc
+    except (PromptValidationError, QuotaExceededError) as exc:
+        raise _prompt_mutation_error(exc) from exc
 
 
 @router.patch("/subjects/{subject_id}/prompts/{prompt_id}", response_model=PromptOut)

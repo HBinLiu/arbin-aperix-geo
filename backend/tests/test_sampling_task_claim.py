@@ -35,6 +35,7 @@ def _crawl_ready_row() -> LLMResponse:
     return row
 
 
+@patch("aperix_geo.services.sampling.workflow.phase_specs.ai_usage_available", return_value=1)
 @patch("aperix_geo.services.sampling.workflow.fill.on_task_claim_lost")
 @patch("aperix_geo.services.sampling.workflow.fill.on_task_finished")
 @patch("aperix_geo.services.sampling.workflow.phase.release_response_claim")
@@ -50,9 +51,10 @@ def test_sample_llm_prompt_skips_when_claim_lost(
     mock_release: MagicMock,
     mock_on_finished: MagicMock,
     mock_on_claim_lost: MagicMock,
+    _mock_ai: MagicMock,
 ) -> None:
     row = _pending_row()
-    job = SamplingJob(id=row.sampling_job_id, subject_id=uuid4())
+    job = SamplingJob(id=row.sampling_job_id, tenant_id=uuid4(), subject_id=uuid4())
     subject = Subject(
         id=job.subject_id,
         tenant_id=uuid4(),
@@ -77,6 +79,7 @@ def test_sample_llm_prompt_skips_when_claim_lost(
     mock_on_finished.assert_not_called()
 
 
+@patch("aperix_geo.services.sampling.workflow.phase_specs.ai_usage_available", return_value=1)
 @patch("aperix_geo.services.sampling.workflow.phase.release_response_claim")
 @patch("aperix_geo.services.sampling.workflow.phase.refresh_response_claim")
 @patch("aperix_geo.services.sampling.workflow.phase_specs.clear_cached_llm_result")
@@ -96,9 +99,10 @@ def test_sample_llm_prompt_releases_claim_after_success(
     _mock_refresh: MagicMock,
     mock_clear: MagicMock,
     mock_release: MagicMock,
+    _mock_ai: MagicMock,
 ) -> None:
     row = _pending_row()
-    job = SamplingJob(id=row.sampling_job_id, subject_id=uuid4())
+    job = SamplingJob(id=row.sampling_job_id, tenant_id=uuid4(), subject_id=uuid4())
     subject = Subject(
         id=job.subject_id,
         tenant_id=uuid4(),
@@ -107,7 +111,7 @@ def test_sample_llm_prompt_releases_claim_after_success(
     )
     mock_subject.return_value = subject
     chat_result = SamplingChatResult(text="ok", usage={}, latency_ms=0, source_urls=())
-    mock_prepare.return_value = chat_result
+    mock_prepare.return_value = (chat_result, True)
 
     db = MagicMock()
     lock_result = MagicMock()

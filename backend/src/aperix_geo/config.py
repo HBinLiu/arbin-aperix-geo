@@ -70,6 +70,9 @@ class Settings(BaseSettings):
     jwt_encrypt_algorithm: str = "HS256"
     jwt_token_expire_minutes: int = 60 * 24 * 7
 
+    # 支付 webhook（空则拒绝外部回调；开发可设固定 secret）
+    billing_pay_webhook_secret: str = ""
+
     # --- 大模型：默认推理 · DeepSeek（见 services/providers/）---
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_api_key: str = ""

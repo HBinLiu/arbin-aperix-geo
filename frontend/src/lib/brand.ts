@@ -1,8 +1,5 @@
 import type { SamplingPlatform } from "@/types";
 
-/** 试用套餐下最多可选平台数（与弹窗文案一致） */
-export const PLATFORM_PLAN_LABEL = "Trial 7 Days";
-export const PLATFORM_MAX_SELECTION = 6;
 export const DEFAULT_SAMPLING_PROVIDER = "doubao";
 
 export function preferredDefaultSamplingPlatforms(platforms: SamplingPlatform[]): SamplingPlatform[] {

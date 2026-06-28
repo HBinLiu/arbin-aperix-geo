@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
-from uuid import UUID
+from unittest.mock import MagicMock, patch
+from uuid import UUID, uuid4
 
 from aperix_geo.services.competitor.profile import normalize_niche_profile
 from aperix_geo.services.setup.cache.profile import profile_hash
@@ -54,6 +54,8 @@ def test_discover_setup_uses_profile_cache(
     mock_discover.return_value = [{"domain": "rival.com", "brand": "Rival", "website_url": "https://rival.com"}]
 
     result = discover_setup(
+        db=MagicMock(),
+        tenant_id=uuid4(),
         user_id=UUID("00000000-0000-0000-0000-000000000001"),
         subject_type="domain",
         domain="example.com",

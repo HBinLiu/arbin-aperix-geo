@@ -62,7 +62,7 @@ scoped AS (
         s.mention_rank,
         s.has_domain_link
     FROM tb_llm_response_signals s
-    INNER JOIN tb_prompts p ON p.id = s.prompt_id AND p.deleted = false
+    INNER JOIN tb_subject_prompts p ON p.id = s.prompt_id AND p.deleted = false
     WHERE s.subject_id = :subject_id
       AND s.created_at >= :dt_from
       AND s.created_at <= :dt_to
@@ -202,7 +202,7 @@ merged AS (
         COALESCE(om.mention_own_count, 0)::int AS mention_own_count,
         COALESCE(om.mention_total_count, 0)::int AS mention_total_count,
         om.average_rank::float AS average_rank
-    FROM tb_prompts p
+    FROM tb_subject_prompts p
     INNER JOIN sampled_prompts sp ON sp.prompt_id = p.id
     LEFT JOIN gap_platforms gp ON gp.prompt_id = p.id
     LEFT JOIN brand_max bm ON bm.prompt_id = p.id
@@ -285,7 +285,7 @@ mention_rows AS (
             ELSE 2
         END AS mention_priority_rank
     FROM own_mention om
-    INNER JOIN tb_prompts p ON p.id = om.prompt_id AND p.subject_id = :subject_id AND p.deleted = false
+    INNER JOIN tb_subject_prompts p ON p.id = om.prompt_id AND p.subject_id = :subject_id AND p.deleted = false
 )
 SELECT
     (SELECT COUNT(*) FROM mention_rows) AS mention_prompt_count,
@@ -610,7 +610,7 @@ scoped AS (
         s.mention_rank,
         s.has_domain_link
     FROM tb_llm_response_signals s
-    INNER JOIN tb_prompts p ON p.id = s.prompt_id AND p.deleted = false
+    INNER JOIN tb_subject_prompts p ON p.id = s.prompt_id AND p.deleted = false
     WHERE s.subject_id = :subject_id
       AND s.prompt_id = :prompt_id
       AND s.created_at >= :dt_from

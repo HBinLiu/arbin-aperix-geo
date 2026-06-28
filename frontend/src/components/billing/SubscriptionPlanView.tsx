@@ -1,137 +1,334 @@
 import { useState } from "react";
-import { Check } from "lucide-react";
+import {
+  Boxes,
+  Building2,
+  Check,
+  CircleHelp,
+} from "lucide-react";
 
+import { createSubscriptionOrder } from "@/api/billing";
+import { formatApiError } from "@/api/client";
+import { ActionTooltip } from "@/components/common/ActionTooltip";
 import { Button } from "@/components/ui/button";
 import { TextBadge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { usePlanCatalog } from "@/hooks/usePlanCatalog";
+import { useTenantSubscription } from "@/hooks/useTenantSubscription";
 import {
-  CURRENT_PLAN_ID,
-  planCardTitle,
-  planCycleSuffix,
+  PLAN_LIMIT_ICONS,
   planDisplayPrice,
-  SUBSCRIPTION_PLANS,
+  planComparisonRows,
+  resolvePlanCta,
   type BillingCycle,
-  type SubscriptionPlan,
+  type PlanCatalogItem,
 } from "@/lib/billing/plans";
 import { cn } from "@/lib/utils";
+import { toast } from "@/lib/toast";
+
+function PlanFeatureLabel({ limitKey, label, description }: { limitKey: string; label: string; description: string }) {
+  const Icon = PLAN_LIMIT_ICONS[limitKey] ?? Building2;
+
+  return (
+    <span className="inline-flex min-w-0 items-center gap-2">
+      <span
+        className="bg-primary/10 text-primary flex size-7 shrink-0 items-center justify-center rounded-full"
+        aria-hidden
+      >
+        <Icon className="size-3.5" />
+      </span>
+      <span className="truncate">{label}</span>
+      {description ? (
+        <ActionTooltip label={description} className="whitespace-nowrap">
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground inline-flex shrink-0 rounded-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            aria-label={`了解${label}`}
+          >
+            <CircleHelp className="size-4" aria-hidden />
+          </button>
+        </ActionTooltip>
+      ) : null}
+    </span>
+  );
+}
 
 function BillingCycleToggle({
+  cycles,
   value,
   onChange,
 }: {
+  cycles: { id: BillingCycle; label: string; badge?: string | null }[];
   value: BillingCycle;
   onChange: (cycle: BillingCycle) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-center gap-3">
-      <div className="border-border grid h-10 grid-cols-2 gap-1 rounded-lg border bg-background p-1">
-        <button
-          type="button"
-          className={cn(
-            "rounded-md px-4 text-sm font-medium transition-all",
-            value === "monthly"
-              ? "bg-muted-background text-foreground shadow-xs"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-          onClick={() => onChange("monthly")}
-        >
-          每月
-        </button>
-        <button
-          type="button"
-          className={cn(
-            "rounded-md px-4 text-sm font-medium transition-all",
-            value === "yearly"
-              ? "bg-muted-background text-foreground shadow-xs"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-          onClick={() => onChange("yearly")}
-        >
-          按年
-        </button>
+    <div className="flex flex-wrap items-center justify-center">
+      <div className="border-border inline-flex min-h-10 items-center gap-1 rounded-full border bg-background p-1">
+        {cycles.map((cycle) => (
+          <button
+            key={cycle.id}
+            type="button"
+            className={cn(
+              "inline-flex w-auto shrink-0 items-center justify-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
+              value === cycle.id
+                ? "bg-muted-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+            onClick={() => onChange(cycle.id)}
+          >
+            {cycle.label}
+            {cycle.badge ? (
+              <TextBadge variant="success" className="rounded-full px-1.5 py-0 text-[10px] font-medium leading-4">
+                {cycle.badge}
+              </TextBadge>
+            ) : null}
+          </button>
+        ))}
       </div>
-      <TextBadge variant="success" className="rounded-md px-2 py-0.5 text-xs font-medium">
-        选择年付可立省 15%
-      </TextBadge>
     </div>
+  );
+}
+
+const PLAN_LIMIT_SKELETON_ROWS = 6;
+
+function PlanCardSkeleton() {
+  return (
+    <article
+      aria-hidden
+      className="flex h-full min-h-[430px] w-full flex-col rounded-3xl border border-border bg-muted-background p-6 shadow-sm"
+    >
+      <div className="flex min-h-0 flex-1 flex-col">
+        <header className="shrink-0 space-y-2">
+          <Skeleton className="h-7 w-24" />
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-4/5" />
+          </div>
+        </header>
+
+        <section className="mt-2 shrink-0">
+          <Skeleton className="h-10 w-28" />
+        </section>
+
+        <section className="mt-5 shrink-0">
+          <Skeleton className="h-11 w-full rounded-xl" />
+        </section>
+
+        <section className="border-border mt-5 flex min-h-0 flex-1 flex-col border-t pt-5">
+          <Skeleton className="h-4 w-16" />
+          <ul className="mt-3 space-y-2.5">
+            {Array.from({ length: PLAN_LIMIT_SKELETON_ROWS }, (_, index) => (
+              <li key={index} className="flex items-center justify-between gap-3">
+                <span className="inline-flex min-w-0 flex-1 items-center gap-2">
+                  <Skeleton className="size-6 shrink-0 rounded-full" />
+                  <Skeleton className="h-4 w-20" />
+                </span>
+                <Skeleton className="h-4 w-10 shrink-0" />
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
+    </article>
   );
 }
 
 function PlanCard({
   plan,
   cycle,
-  isCurrent,
+  cta,
+  onSelect,
+  selecting,
 }: {
-  plan: SubscriptionPlan;
+  plan: PlanCatalogItem;
   cycle: BillingCycle;
-  isCurrent: boolean;
+  cta: "current" | "select" | "contact";
+  onSelect?: (plan: PlanCatalogItem, cycle: BillingCycle) => void;
+  selecting?: boolean;
 }) {
   const price = planDisplayPrice(plan, cycle);
-  const isCustom = plan.monthlyPrice === null;
+  const isCustom = price === null;
+  const isCurrent = cta === "current";
 
   return (
     <article
       className={cn(
-        "relative flex h-full flex-col rounded-xl border bg-muted-background p-5 shadow-xs",
-        isCurrent ? "border-primary ring-1 ring-primary/20" : "border-border",
+        "group relative flex h-full min-h-[430px] w-full flex-col rounded-3xl border bg-muted-background p-6 shadow-sm transition-[transform,box-shadow] duration-500 ease-out hover:-translate-y-1.5 hover:shadow-xl hover:shadow-primary/10",
+        isCurrent
+          ? "border-primary shadow-[0_0_0_2px_var(--primary)] hover:border-primary"
+          : "border-border hover:border-primary/60",
       )}
     >
       {isCurrent ? (
         <TextBadge
           variant="primary"
-          className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-md px-2.5 py-0.5 text-xs font-semibold"
+          className="absolute -top-3 left-1/2 z-10 -translate-x-1/2 bg-primary px-3 py-1 text-xs font-bold text-primary-foreground"
         >
-          当前计划
+          当前订阅
         </TextBadge>
       ) : null}
 
-      <div className="space-y-3">
-        <h3 className="text-base font-semibold tracking-tight">{planCardTitle(plan, cycle)}</h3>
-        <p className="text-muted-foreground min-h-[3.75rem] text-sm leading-relaxed">{plan.description}</p>
-        <div className="flex items-end gap-1 pt-1">
-          <span className="text-3xl font-semibold tracking-tight tabular-nums">{price}</span>
-          {!isCustom ? (
-            <span className="text-muted-foreground pb-1 text-sm">{planCycleSuffix(cycle)}</span>
-          ) : null}
-        </div>
-      </div>
+      <div className="flex min-h-0 flex-1 flex-col">
+        {/* 标题区 */}
+        <header className="shrink-0 space-y-2">
+          <h3 className="min-h-6 text-2xl font-semibold tracking-tight">{plan.name}</h3>
+          <p className="text-muted-foreground min-h-[4.5rem] text-sm font-medium leading-relaxed">{plan.description}</p>
+        </header>
 
-      <div className="mt-5">
-        {plan.cta === "current" ? (
-          <Button type="button" variant="outline" className="h-11 w-full" disabled>
-            当前计划
-          </Button>
-        ) : plan.cta === "contact" ? (
-          <Button type="button" className="h-11 w-full">
-            联系销售
-          </Button>
-        ) : (
-          <Button type="button" className="h-11 w-full">
-            选择计划
-          </Button>
-        )}
-      </div>
+        {/* 价格区 */}
+        <section className="mt-2 shrink-0" aria-label="价格">
+          <div className="inline-flex items-baseline gap-0.5">
+            {isCustom ? (
+              <span className="text-4xl font-semibold tracking-tight">自定义</span>
+            ) : (
+              <>
+                <span className="-translate-y-0.5 text-lg font-semibold">¥</span>
+                <span className="text-4xl font-semibold tracking-tight tabular-nums">{price}</span>
+                <span className="text-muted-foreground -translate-y-1 text-sm font-medium">/月</span>
+              </>
+            )}
+          </div>
+        </section>
 
-      <div className="border-border mt-5 border-t pt-5">
-        <p className="text-sm font-semibold">计划限制</p>
-        <ul className="mt-3 space-y-2.5">
-          {plan.limits.map((limit) => (
-            <li key={limit.label} className="flex items-start justify-between gap-3 text-sm">
-              <span className="inline-flex min-w-0 items-center gap-2">
-                <Check className="text-primary size-4 shrink-0" aria-hidden />
-                <span className="text-foreground">{limit.label}</span>
-              </span>
-              <span className="text-muted-foreground shrink-0 tabular-nums">{limit.value}</span>
-            </li>
-          ))}
-        </ul>
+        {/* 操作区 */}
+        <section className="mt-5 shrink-0" aria-label="选择版本">
+          {cta === "current" ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 w-full rounded-xl border-2 border-border bg-background disabled:opacity-100"
+              disabled
+            >
+              当前订阅
+            </Button>
+          ) : cta === "contact" ? (
+            <Button type="button" className="h-11 w-full rounded-xl shadow-md shadow-primary/20 transition-shadow">
+              联系销售
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              className="h-11 w-full rounded-xl shadow-md shadow-primary/20 transition-shadow"
+              disabled={selecting}
+              onClick={() => onSelect?.(plan, cycle)}
+            >
+              {selecting ? "创建订单…" : "立即订阅"}
+            </Button>
+          )}
+        </section>
+
+        {/* 权益区 */}
+        <section className="border-border mt-5 flex min-h-0 flex-1 flex-col border-t pt-5" aria-label="计划限制">
+          <p className="shrink-0 text-sm font-semibold">版本限制</p>
+          <ul className="mt-3 space-y-2.5">
+            {plan.limits.map((limit) => (
+              <li key={limit.key} className="flex items-start justify-between gap-3 text-sm">
+                <span className="inline-flex min-w-0 items-center gap-2">
+                  <span
+                    className="flex size-6 shrink-0 items-center justify-center rounded-full transition-colors duration-500 group-hover:bg-primary/10"
+                    aria-hidden
+                  >
+                    <Check className="text-primary size-3.5" />
+                  </span>
+                  <span className="text-foreground font-medium">{limit.label}</span>
+                </span>
+                <span className="text-muted-foreground font-medium shrink-0 tabular-nums">{limit.value}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
       </div>
     </article>
   );
 }
 
+function PlanComparisonTable({ plans }: { plans: PlanCatalogItem[] }) {
+  const rows = planComparisonRows(plans);
+
+  return (
+    <section className="relative z-10 w-full max-w-6xl" aria-labelledby="plan-comparison-title">
+      <header className="text-center">
+        <h3 id="plan-comparison-title" className="text-2xl font-semibold tracking-tight sm:text-3xl">
+          完整功能对比
+        </h3>
+        <p className="text-muted-foreground mt-2 text-sm font-medium sm:text-base">
+          对比所有版本的限制与能力。
+        </p>
+      </header>
+
+      <div className="mt-6 overflow-x-auto rounded-2xl border border-border bg-muted-background shadow-sm">
+        <table className="w-full min-w-[720px] border-collapse text-sm">
+          <thead>
+            <tr className="border-border border-b bg-background">
+              <th className="px-5 py-4 text-left font-semibold">
+                <span className="inline-flex items-center gap-3 px-2">
+                  <Boxes className="size-3.5 text-foreground" />
+                  功能
+                </span>
+              </th>
+              {plans.map((plan) => (
+                <th key={plan.code} className="px-4 py-4 text-center font-semibold">
+                  {plan.name}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.key} className="border-border border-b last:border-b-0">
+                <th scope="row" className="text-foreground px-5 py-4 text-left font-medium">
+                  <PlanFeatureLabel limitKey={row.key} label={row.label} description={row.description} />
+                </th>
+                {row.values.map((value, index) => {
+                  const plan = plans[index];
+                  return (
+                    <td
+                      key={plan.code}
+                      className="text-muted-foreground px-4 py-4 text-center font-medium tabular-nums"
+                    >
+                      {value}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 /** 订阅计划 · 定价卡片 */
 export function SubscriptionPlanView() {
-  const [cycle, setCycle] = useState<BillingCycle>("monthly");
+  const [cycleOverride, setCycleOverride] = useState<BillingCycle | null>(null);
+  const [selectingPlan, setSelectingPlan] = useState<string | null>(null);
+  const { data: catalog, isPending: catalogPending } = usePlanCatalog();
+  const { data: subscription, isPending: subscriptionPending } = useTenantSubscription();
+  const plans = catalog?.plans ?? [];
+  const billingCycles = catalog?.billing_cycles ?? [];
+  const isPending = catalogPending || subscriptionPending;
+  const cycle = cycleOverride ?? subscription?.billing_cycle ?? billingCycles[0]?.id ?? "monthly";
+  const currentPlanCode = subscription?.plan_code ?? null;
+  const currentBillingCycle = subscription?.billing_cycle ?? null;
+
+  async function handleSelectPlan(plan: PlanCatalogItem, selectedCycle: BillingCycle) {
+    if (!plan.orderable) return;
+    setSelectingPlan(plan.code);
+    try {
+      const order = await createSubscriptionOrder({
+        plan_code: plan.code,
+        billing_cycle: selectedCycle,
+      });
+      const yuan = (order.amount_cents / 100).toLocaleString("zh-CN");
+      toast.success(`订单已创建（¥${yuan}），支付通道即将开放`);
+    } catch (error) {
+      toast.error(formatApiError(error, "创建订单失败"));
+    } finally {
+      setSelectingPlan(null);
+    }
+  }
 
   return (
     <div className="relative flex w-full flex-col">
@@ -153,21 +350,21 @@ export function SubscriptionPlanView() {
         <div className="relative w-full py-2 sm:py-4">
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-x-0 -top-24 -bottom-24 sm:-top-28 sm:-bottom-28"
+            className="pointer-events-none absolute -inset-x-12 -top-32 -bottom-32 sm:-inset-x-20 sm:-top-40 sm:-bottom-40"
             style={{
               background:
-                "radial-gradient(ellipse 72% 52% at 50% 50%, color-mix(in srgb, var(--primary) 14%, transparent) 0%, color-mix(in srgb, var(--primary) 7%, transparent) 26%, color-mix(in srgb, var(--primary) 2%, transparent) 46%, transparent 62%)",
+                "radial-gradient(ellipse 88% 64% at 50% 50%, color-mix(in srgb, var(--primary) 20%, transparent) 0%, color-mix(in srgb, var(--primary) 11%, transparent) 28%, color-mix(in srgb, var(--primary) 4%, transparent) 50%, transparent 72%)",
               maskImage:
-                "radial-gradient(ellipse 100% 100% at 50% 50%, black 0%, black 32%, rgb(0 0 0 / 0.35) 48%, transparent 66%)",
+                "radial-gradient(ellipse 100% 100% at 50% 50%, black 0%, black 36%, rgb(0 0 0 / 0.35) 52%, transparent 74%)",
               WebkitMaskImage:
-                "radial-gradient(ellipse 100% 100% at 50% 50%, black 0%, black 32%, rgb(0 0 0 / 0.35) 48%, transparent 66%)",
+                "radial-gradient(ellipse 100% 100% at 50% 50%, black 0%, black 36%, rgb(0 0 0 / 0.35) 52%, transparent 74%)",
             }}
           />
           <header className="relative z-10 mx-auto max-w-2xl text-center">
-            <TextBadge variant="primary" className="px-3 py-1 text-sm font-semibold">
-              定价计划
+            <TextBadge variant="primary" className="px-4 py-1 text-sm font-semibold bg-primary text-primary-foreground">
+              定价方案
             </TextBadge>
-            <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">选择你的计划</h2>
+            <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">选择你的版本</h2>
             <p className="text-muted-foreground mt-2 text-sm font-medium leading-relaxed sm:text-base">
               覆盖国内主流 AI 平台，实时监控分析品牌在 AI 中的竞争表现。
             </p>
@@ -175,19 +372,36 @@ export function SubscriptionPlanView() {
         </div>
 
         <div className="relative z-10">
-          <BillingCycleToggle value={cycle} onChange={setCycle} />
+          {isPending ? (
+            <div
+              aria-hidden
+              className="border-border inline-flex min-h-10 items-center gap-1 rounded-full border bg-background p-1 opacity-50"
+            >
+              {Array.from({ length: 3 }, (_, index) => (
+                <span key={index} className="inline-block h-8 w-16 rounded-full bg-muted-background" />
+              ))}
+            </div>
+          ) : (
+            <BillingCycleToggle cycles={billingCycles} value={cycle} onChange={setCycleOverride} />
+          )}
         </div>
 
         <div className="relative z-10 grid w-full max-w-6xl gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {SUBSCRIPTION_PLANS.map((plan) => (
-            <PlanCard
-              key={plan.id}
-              plan={plan}
-              cycle={cycle}
-              isCurrent={plan.id === CURRENT_PLAN_ID}
-            />
-          ))}
+          {isPending
+            ? Array.from({ length: 4 }, (_, index) => <PlanCardSkeleton key={index} />)
+            : plans.map((plan) => (
+                <PlanCard
+                  key={plan.code}
+                  plan={plan}
+                  cycle={cycle}
+                  cta={resolvePlanCta(plan, currentPlanCode, currentBillingCycle, cycle)}
+                  onSelect={handleSelectPlan}
+                  selecting={selectingPlan === plan.code}
+                />
+              ))}
         </div>
+
+        {!isPending && plans.length > 0 ? <PlanComparisonTable plans={plans} /> : null}
       </div>
     </div>
   );
