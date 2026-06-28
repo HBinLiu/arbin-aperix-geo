@@ -4,6 +4,7 @@ import { toast } from "@/lib/toast";
 import {
   Building2,
   ArrowDown,
+  ArrowLeftRight,
   ArrowUp,
   Calendar,
   ChevronDown,
@@ -497,8 +498,11 @@ function PlanDetailsPanel({
         </Button>
       }
       headerAction={
-        <Button type="button" variant="default" asChild>
-          <Link to={billingTabPath("plan")}>更换计划</Link>
+        <Button type="button" variant="brandout" asChild>
+          <Link to={billingTabPath("plan")}>
+            <ArrowLeftRight className="size-4" aria-hidden />
+            更换计划
+          </Link>
         </Button>
       }
     >
