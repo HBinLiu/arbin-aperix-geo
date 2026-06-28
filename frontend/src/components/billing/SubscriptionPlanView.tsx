@@ -9,10 +9,12 @@ import {
 import { createSubscriptionOrder } from "@/api/billing";
 import { formatApiError } from "@/api/client";
 import { ActionTooltip } from "@/components/common/ActionTooltip";
+import { PlatformLogo } from "@/components/brand/PlatformLogo";
 import { Button } from "@/components/ui/button";
 import { TextBadge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePlanCatalog } from "@/hooks/usePlanCatalog";
+import { usePlatformCatalog } from "@/hooks/usePlatformCatalog";
 import { useTenantSubscription } from "@/hooks/useTenantSubscription";
 import {
   PLAN_LIMIT_ICONS,
@@ -306,6 +308,7 @@ export function SubscriptionPlanView() {
   const [selectingPlan, setSelectingPlan] = useState<string | null>(null);
   const { data: catalog, isPending: catalogPending } = usePlanCatalog();
   const { data: subscription, isPending: subscriptionPending } = useTenantSubscription();
+  const platformCatalog = usePlatformCatalog();
   const plans = catalog?.plans ?? [];
   const billingCycles = catalog?.billing_cycles ?? [];
   const isPending = catalogPending || subscriptionPending;
@@ -364,7 +367,22 @@ export function SubscriptionPlanView() {
             <TextBadge variant="primary" className="px-4 py-1 text-sm font-semibold bg-primary text-primary-foreground">
               定价方案
             </TextBadge>
-            <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">选择你的版本</h2>
+            {platformCatalog.length > 0 ? (
+              <div
+                className="mt-4 flex flex-wrap items-center justify-center gap-2.5"
+                role="img"
+                aria-label={`支持 ${platformCatalog.length} 个 AI 平台`}
+              >
+                {platformCatalog.map((platform) => (
+                  <PlatformLogo
+                    key={platform.platform}
+                    provider={platform.platform}
+                    label={platform.label}
+                    className="size-8"
+                  />
+                ))}
+              </div>
+            ) : null}
             <p className="text-muted-foreground mt-2 text-sm font-medium leading-relaxed sm:text-base">
               覆盖国内主流 AI 平台，实时监控分析品牌在 AI 中的竞争表现。
             </p>

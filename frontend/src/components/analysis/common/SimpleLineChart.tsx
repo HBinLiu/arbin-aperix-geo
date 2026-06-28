@@ -24,6 +24,7 @@ import {
   type MultiSeriesPoint,
   type SingleSeriesPoint,
 } from "@/lib/analysis/chart";
+import { useChartDateAxisLayout } from "@/hooks/useChartDateAxisLayout";
 import { formatRate } from "@/lib/analysis/format";
 import { cn } from "@/lib/utils";
 
@@ -125,6 +126,13 @@ export function SimpleLineChart({
     [model, valueFormatter, tooltipLabel],
   );
 
+  const { plotRef, xAxisLayout } = useChartDateAxisLayout({
+    pointCount: model.rows.length,
+    yAxisWidth: model.yAxisWidth,
+    marginLeft: CHART_MARGIN.left,
+    marginRight: CHART_MARGIN.right,
+  });
+
   const legendHeight = model.legendItems.length > 0 ? 44 : 0;
   const plotHeight = fixedHeight ? Math.max(chartHeight - legendHeight, 120) : undefined;
   const rootStyle = fixedHeight ? { height: chartHeight, minHeight: chartHeight } : undefined;
@@ -154,6 +162,7 @@ export function SimpleLineChart({
       style={rootStyle}
     >
       <div
+        ref={plotRef}
         className={cn("w-full", fixedHeight ? "min-h-0 shrink-0" : "min-h-[120px] flex-1")}
         style={plotHeight != null ? { height: plotHeight } : undefined}
       >
@@ -174,11 +183,12 @@ export function SimpleLineChart({
             ) : null}
             <CartesianGrid vertical={false} stroke={CHART_GRID_STROKE} strokeDasharray="4 4" />
             <XAxis
-              dataKey="dateLabel"
+              dataKey="date"
               axisLine={false}
               tickLine={false}
               tick={AXIS_TICK}
-              interval="preserveStartEnd"
+              minTickGap={xAxisLayout.minTickGap}
+              tickFormatter={xAxisLayout.formatTick}
               dy={8}
             />
             <YAxis

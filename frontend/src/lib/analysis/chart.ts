@@ -11,7 +11,6 @@ export type SingleSeriesPoint = {
 
 export type ChartRow = {
   date: string;
-  dateLabel: string;
   [key: string]: string | number;
 };
 
@@ -187,6 +186,36 @@ export function formatChartDayLabel(iso: string): string {
   return `${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
+const CHART_X_AXIS_LABEL_WIDTH_FULL = 52;
+const CHART_X_AXIS_LABEL_WIDTH_COMPACT = 34;
+
+function formatChartAxisTickLabel(iso: string, compact: boolean): string {
+  const d = new Date(iso);
+  if (compact) {
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  }
+  return formatChartDayLabel(iso);
+}
+
+/** 按绘图区宽度选择标签格式与 minTickGap，刻度数量交给 Recharts 自适应 */
+export function resolveChartXAxisLayout(
+  plotWidth: number,
+  pointCount: number,
+): { compactLabels: boolean; minTickGap: number; formatTick: (iso: string) => string } {
+  const fitsFullLabels =
+    pointCount <= 1 || plotWidth <= 0 || pointCount * CHART_X_AXIS_LABEL_WIDTH_FULL <= plotWidth;
+  const compactLabels = !fitsFullLabels;
+  const minTickGap = fitsFullLabels
+    ? CHART_X_AXIS_LABEL_WIDTH_FULL
+    : CHART_X_AXIS_LABEL_WIDTH_COMPACT;
+
+  return {
+    compactLabels,
+    minTickGap,
+    formatTick: (iso: string) => formatChartAxisTickLabel(iso, compactLabels),
+  };
+}
+
 export function formatChartTooltipDate(iso: string): string {
   const d = new Date(iso);
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
@@ -357,7 +386,7 @@ function toChartRows({
   const activeLabels = getActiveChartLabels(labels, hiddenLegendKeys);
 
   return dates.map((date, i) => {
-    const row: ChartRow = { date, dateLabel: formatChartDayLabel(date) };
+    const row: ChartRow = { date };
 
     if (multiSeries && activeLabels.length > 0) {
       activeLabels.forEach((lab) => {

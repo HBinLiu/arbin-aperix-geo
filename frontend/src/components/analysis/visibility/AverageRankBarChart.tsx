@@ -11,7 +11,8 @@ import {
 import type { TooltipProps } from "recharts";
 
 import { ChartMetricTooltipPanel } from "@/components/analysis/common/ChartChrome";
-import { formatChartDayLabel, formatChartTooltipDate, type SingleSeriesPoint } from "@/lib/analysis/chart";
+import { useChartDateAxisLayout } from "@/hooks/useChartDateAxisLayout";
+import { formatChartTooltipDate, type SingleSeriesPoint } from "@/lib/analysis/chart";
 import { formatRankMetric } from "@/lib/analysis/format";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +27,8 @@ const RANK_TOOLTIP_LABEL = "平均排名";
 const HOVER_CURSOR_FILL = "rgba(0,0,0,0.08)";
 const AXIS_TICK = { fill: "#9ca3af", fontSize: 13 };
 const GRID_STROKE = "#e4e4e4";
+const Y_AXIS_WIDTH = 28;
+const CHART_MARGIN = { top: 8, right: 8, left: 0, bottom: 0 };
 
 type BarTooltipPayload = {
   date?: string;
@@ -36,11 +39,16 @@ export function AverageRankBarChart({ series = [], className, height }: AverageR
     () =>
       series.map((pt) => ({
         date: pt.date,
-        dateLabel: formatChartDayLabel(pt.date),
         value: pt.value,
       })),
     [series],
   );
+
+  const { plotRef, xAxisLayout } = useChartDateAxisLayout({
+    pointCount: data.length,
+    yAxisWidth: Y_AXIS_WIDTH,
+    marginRight: CHART_MARGIN.right,
+  });
 
   const maxRank = useMemo(() => {
     const values = data.map((d) => d.value).filter((v): v is number => v != null);
@@ -88,24 +96,26 @@ export function AverageRankBarChart({ series = [], className, height }: AverageR
 
   return (
     <div
+      ref={plotRef}
       className={cn("min-h-0 w-full", !fixedHeight && "min-h-[120px] flex-1", className)}
       style={fixedHeight ? { height } : undefined}
     >
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+        <BarChart data={data} margin={CHART_MARGIN}>
           <CartesianGrid stroke={GRID_STROKE} vertical={false} />
           <XAxis
-            dataKey="dateLabel"
+            dataKey="date"
             tick={AXIS_TICK}
             tickLine={false}
             axisLine={{ stroke: GRID_STROKE }}
-            interval="preserveStartEnd"
+            minTickGap={xAxisLayout.minTickGap}
+            tickFormatter={xAxisLayout.formatTick}
           />
           <YAxis
             tick={AXIS_TICK}
             tickLine={false}
             axisLine={false}
-            width={28}
+            width={Y_AXIS_WIDTH}
             domain={[0, maxRank]}
             allowDecimals
           />

@@ -13,7 +13,8 @@ import type { TooltipProps } from "recharts";
 
 import { ChartMetricTooltipPanel } from "@/components/analysis/common/ChartChrome";
 import { PlatformLogo } from "@/components/brand/PlatformLogo";
-import { formatChartDayLabel, formatChartTooltipDate } from "@/lib/analysis/chart";
+import { useChartDateAxisLayout } from "@/hooks/useChartDateAxisLayout";
+import { formatChartTooltipDate } from "@/lib/analysis/chart";
 import { formatSentimentScore } from "@/lib/analysis/format";
 import { SENTIMENT_BAR_COLORS } from "@/lib/analysis/sentiment";
 import { resolvePlatformMeta } from "@/lib/analysis/shared";
@@ -25,6 +26,8 @@ const Y_TICKS = [0, 25, 50, 75, 100] as const;
 const AXIS_TICK = { fill: "#9ca3af", fontSize: 13 };
 const GRID_STROKE = "#e4e4e4";
 const HOVER_CURSOR_FILL = "rgba(0,0,0,0.04)";
+const Y_AXIS_WIDTH = 36;
+const CHART_MARGIN = { top: 8, right: 8, left: 0, bottom: 4 };
 
 type SentimentDistributionChartProps = {
   series?: SentimentDistributionPoint[];
@@ -32,7 +35,6 @@ type SentimentDistributionChartProps = {
 };
 
 type ChartRow = SentimentDistributionPoint & {
-  dateLabel: string;
   score: number;
 };
 
@@ -71,11 +73,16 @@ export function SentimentDistributionChart({
     () =>
       series.map((point) => ({
         ...point,
-        dateLabel: formatChartDayLabel(point.date),
         score: point.sentiment_score ?? 0,
       })),
     [series],
   );
+
+  const { plotRef, xAxisLayout } = useChartDateAxisLayout({
+    pointCount: data.length,
+    yAxisWidth: Y_AXIS_WIDTH,
+    marginRight: CHART_MARGIN.right,
+  });
 
   const tooltipContent = useCallback(
     ({ active, payload }: TooltipProps<number, string>) => {
@@ -124,23 +131,24 @@ export function SentimentDistributionChart({
   }
 
   return (
-    <div className={cn("min-h-[120px] min-w-0 w-full flex-1", className)}>
+    <div ref={plotRef} className={cn("min-h-[120px] min-w-0 w-full flex-1", className)}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+        <BarChart data={data} margin={CHART_MARGIN}>
           <CartesianGrid vertical={false} stroke={GRID_STROKE} strokeDasharray="4 4" />
           <XAxis
-            dataKey="dateLabel"
+            dataKey="date"
             tick={AXIS_TICK}
             tickLine={false}
             axisLine={{ stroke: GRID_STROKE }}
-            interval="preserveStartEnd"
+            minTickGap={xAxisLayout.minTickGap}
+            tickFormatter={xAxisLayout.formatTick}
             dy={4}
           />
           <YAxis
             axisLine={false}
             tickLine={false}
             tick={AXIS_TICK}
-            width={36}
+            width={Y_AXIS_WIDTH}
             domain={[0, 100]}
             ticks={[...Y_TICKS]}
             tickFormatter={(value) => String(value)}
