@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Boxes,
   Building2,
@@ -7,6 +8,7 @@ import {
 } from "lucide-react";
 
 import { createSubscriptionOrder } from "@/api/billing";
+import { fetchSamplingPlatforms } from "@/api/brand";
 import { formatApiError } from "@/api/client";
 import { ActionTooltip } from "@/components/common/ActionTooltip";
 import { PlatformLogo } from "@/components/brand/PlatformLogo";
@@ -14,7 +16,6 @@ import { Button } from "@/components/ui/button";
 import { TextBadge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePlanCatalog } from "@/hooks/usePlanCatalog";
-import { usePlatformCatalog } from "@/hooks/usePlatformCatalog";
 import { useTenantSubscription } from "@/hooks/useTenantSubscription";
 import {
   PLAN_LIMIT_ICONS,
@@ -24,6 +25,7 @@ import {
   type BillingCycle,
   type PlanCatalogItem,
 } from "@/lib/billing/plans";
+import { queryKeys, sessionCatalogQueryOptions } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 
@@ -92,6 +94,7 @@ function BillingCycleToggle({
 }
 
 const PLAN_LIMIT_SKELETON_ROWS = 6;
+const PLATFORM_LOGO_SKELETON_COUNT = 6;
 
 function PlanCardSkeleton() {
   return (
@@ -308,7 +311,11 @@ export function SubscriptionPlanView() {
   const [selectingPlan, setSelectingPlan] = useState<string | null>(null);
   const { data: catalog, isPending: catalogPending } = usePlanCatalog();
   const { data: subscription, isPending: subscriptionPending } = useTenantSubscription();
-  const platformCatalog = usePlatformCatalog();
+  const { data: platformCatalog = [], isPending: platformCatalogPending } = useQuery({
+    queryKey: queryKeys.samplingPlatforms,
+    queryFn: fetchSamplingPlatforms,
+    ...sessionCatalogQueryOptions,
+  });
   const plans = catalog?.plans ?? [];
   const billingCycles = catalog?.billing_cycles ?? [];
   const isPending = catalogPending || subscriptionPending;
@@ -367,7 +374,17 @@ export function SubscriptionPlanView() {
             <TextBadge variant="primary" className="px-4 py-1 text-sm font-semibold bg-primary text-primary-foreground">
               定价方案
             </TextBadge>
-            {platformCatalog.length > 0 ? (
+            {platformCatalogPending ? (
+              <div
+                className="mt-4 flex flex-wrap items-center justify-center gap-2.5"
+                aria-busy
+                aria-label="加载 AI 平台"
+              >
+                {Array.from({ length: PLATFORM_LOGO_SKELETON_COUNT }, (_, index) => (
+                  <Skeleton key={index} className="size-8 rounded-md" aria-hidden />
+                ))}
+              </div>
+            ) : platformCatalog.length > 0 ? (
               <div
                 className="mt-4 flex flex-wrap items-center justify-center gap-2.5"
                 role="img"
