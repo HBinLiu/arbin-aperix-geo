@@ -38,7 +38,7 @@ export async function fetchPayOrders(params: {
   sort_by: PayOrderSortField;
   order: "asc" | "desc";
 }): Promise<PaginatedPayOrders> {
-  const { data } = await api.get<PaginatedPayOrders>("/billing/orders", { params });
+  const { data } = await api.post<PaginatedPayOrders>("/billing/orders", params);
   return data;
 }
 
@@ -55,7 +55,7 @@ export async function fetchQuotaRecords(
     order: "asc" | "desc";
   } & QuotaRecordFilters,
 ): Promise<PaginatedQuotaRecords> {
-  const { data } = await api.get<PaginatedQuotaRecords>("/billing/quota-records", { params });
+  const { data } = await api.post<PaginatedQuotaRecords>("/billing/quota-records", params);
   return data;
 }
 
@@ -65,8 +65,7 @@ export async function exportQuotaRecords(
     order: "asc" | "desc";
   } & QuotaRecordFilters,
 ): Promise<Blob> {
-  const { data } = await api.get<Blob>("/billing/quota-records/export", {
-    params,
+  const { data } = await api.post<Blob>("/billing/quota-records/export", params, {
     responseType: "blob",
   });
   return data;

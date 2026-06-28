@@ -144,6 +144,13 @@ class PayOrderListOut(BaseModel):
     page_size: int
 
 
+class PayOrderListIn(BaseModel):
+    page: int = Field(default=1, ge=1)
+    page_size: int = Field(default=10, ge=1, le=50)
+    sort_by: Literal["created_at", "amount_cents", "status"] = "created_at"
+    order: Literal["asc", "desc"] = "desc"
+
+
 class QuotaRecordListItemOut(BaseModel):
     id: UUID
     created_at: datetime
@@ -161,6 +168,22 @@ class QuotaRecordListOut(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class QuotaRecordListIn(BaseModel):
+    page: int = Field(default=1, ge=1)
+    page_size: int = Field(default=10, ge=1, le=50)
+    sort_by: Literal["created_at", "source", "amount_delta"] = "created_at"
+    order: Literal["asc", "desc"] = "desc"
+    days: int = Field(default=30, ge=1, le=90)
+    record_type: str = "all"
+
+
+class QuotaRecordExportIn(BaseModel):
+    sort_by: Literal["created_at", "source", "amount_delta"] = "created_at"
+    order: Literal["asc", "desc"] = "desc"
+    days: int = Field(default=30, ge=1, le=90)
+    record_type: str = "all"
 
 
 class QuotaRecordTypeFilterOptionOut(BaseModel):

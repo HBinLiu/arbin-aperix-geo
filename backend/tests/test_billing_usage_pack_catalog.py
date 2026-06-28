@@ -6,7 +6,7 @@ import uuid
 from unittest.mock import MagicMock
 
 from aperix_geo.db.models import PlanPack
-from aperix_geo.services.billing.usage_pack_catalog import get_usage_pack_catalog
+from aperix_geo.services.billing.usage_catalog import get_usage_pack_catalog
 
 
 def test_get_usage_pack_catalog_excludes_custom_and_formats_items() -> None:

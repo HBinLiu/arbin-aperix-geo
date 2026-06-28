@@ -14,7 +14,7 @@ from aperix_geo.services.billing.constants import (
     LEDGER_RECORD_SUBSCRIPTION_GRANT,
     LEDGER_RECORD_USAGE_PACK_PURCHASE,
 )
-from aperix_geo.services.billing.usage_pack_catalog import format_usage_pack_order_label
+from aperix_geo.services.billing.usage_catalog import format_usage_pack_order_label
 
 _CONSUMPTION_SOURCE_LABELS = {
     "sampling": "自动采样",

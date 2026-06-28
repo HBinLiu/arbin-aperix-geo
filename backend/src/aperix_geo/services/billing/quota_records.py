@@ -18,7 +18,7 @@ from aperix_geo.services.billing.constants import (
     QUOTA_RECORD_DEFAULT_DAYS,
     QUOTA_RECORD_MAX_EXPORT_ROWS,
 )
-from aperix_geo.services.billing.ledger_labels import (
+from aperix_geo.services.billing.ledger import (
     api_record_type_and_label,
     ledger_api_record_type_clauses,
     ledger_source_label,

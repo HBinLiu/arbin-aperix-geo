@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Header, HTTPException, Query, status
+from fastapi import APIRouter, Header, HTTPException, status
 from fastapi.responses import Response
 
 from sqlalchemy import select
@@ -16,6 +16,7 @@ from aperix_geo.schemas.billing import (
     CreateUsagePackOrderIn,
     PaymentWebhookIn,
     PaymentWebhookOut,
+    PayOrderListIn,
     PayOrderListItemOut,
     PayOrderListOut,
     PayOrderOut,
@@ -24,18 +25,20 @@ from aperix_geo.schemas.billing import (
     PlanLimitItemOut,
     PlanLimitsOut,
     PlanPriceOut,
-    SubscriptionOut,
-    UsagePackCatalogItemOut,
-    UsagePackCatalogOut,
+    QuotaRecordExportIn,
     QuotaRecordFiltersOut,
+    QuotaRecordListIn,
     QuotaRecordListItemOut,
     QuotaRecordListOut,
     QuotaRecordTypeFilterOptionOut,
+    SubscriptionOut,
+    UsagePackCatalogItemOut,
+    UsagePackCatalogOut,
     UsageOut,
 )
-from aperix_geo.services.billing.ledger_labels import usage_pack_product_label
+from aperix_geo.services.billing.ledger import usage_pack_product_label
 from aperix_geo.services.billing.plan_catalog import get_plan_catalog
-from aperix_geo.services.billing.usage_pack_catalog import get_usage_pack_catalog
+from aperix_geo.services.billing.usage_catalog import get_usage_pack_catalog
 from aperix_geo.services.billing.exceptions import SubscriptionInactiveError
 from aperix_geo.services.billing.orders import (
     cancel_tenant_pay_order,
@@ -209,22 +212,19 @@ def _orders_to_list_out(db, orders) -> list[PayOrderListItemOut]:
     return items
 
 
-@router.get("/orders", response_model=PayOrderListOut)
+@router.post("/orders", response_model=PayOrderListOut)
 def list_tenant_pay_orders_route(
+    body: PayOrderListIn,
     current: CurrentUser,
     db: DbSession,
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=10, ge=1, le=50),
-    sort_by: str = Query(default="created_at"),
-    order: str = Query(default="desc", pattern="^(asc|desc)$"),
 ) -> PayOrderListOut:
     orders, total, safe_page, safe_page_size = list_tenant_pay_orders_paginated(
         db,
         current.tenant_id,
-        page=page,
-        page_size=page_size,
-        sort_by=sort_by,
-        order=order,
+        page=body.page,
+        page_size=body.page_size,
+        sort_by=body.sort_by,
+        order=body.order,
     )
     return PayOrderListOut(
         items=_orders_to_list_out(db, orders),
@@ -291,26 +291,21 @@ def list_tenant_quota_record_filters_route(
     return _quota_record_filters_out()
 
 
-@router.get("/quota-records", response_model=QuotaRecordListOut)
+@router.post("/quota-records", response_model=QuotaRecordListOut)
 def list_tenant_quota_records_route(
+    body: QuotaRecordListIn,
     current: CurrentUser,
     db: DbSession,
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=10, ge=1, le=50),
-    sort_by: str = Query(default="created_at"),
-    order: str = Query(default="desc", pattern="^(asc|desc)$"),
-    days: int | None = Query(default=30, ge=1, le=90),
-    record_type: str = Query(default="all"),
 ) -> QuotaRecordListOut:
     rows, total, safe_page, safe_page_size = list_tenant_quota_records_paginated(
         db,
         current.tenant_id,
-        page=page,
-        page_size=page_size,
-        sort_by=sort_by,
-        order=order,
-        days=days,
-        record_type=record_type,
+        page=body.page,
+        page_size=body.page_size,
+        sort_by=body.sort_by,
+        order=body.order,
+        days=body.days,
+        record_type=body.record_type,
     )
     return QuotaRecordListOut(
         items=_quota_record_rows_to_out(rows),
@@ -320,22 +315,19 @@ def list_tenant_quota_records_route(
     )
 
 
-@router.get("/quota-records/export")
+@router.post("/quota-records/export")
 def export_tenant_quota_records_route(
+    body: QuotaRecordExportIn,
     current: CurrentUser,
     db: DbSession,
-    sort_by: str = Query(default="created_at"),
-    order: str = Query(default="desc", pattern="^(asc|desc)$"),
-    days: int | None = Query(default=30, ge=1, le=90),
-    record_type: str = Query(default="all"),
 ) -> Response:
     csv_text = export_tenant_quota_records_csv(
         db,
         current.tenant_id,
-        sort_by=sort_by,
-        order=order,
-        days=days,
-        record_type=record_type,
+        sort_by=body.sort_by,
+        order=body.order,
+        days=body.days,
+        record_type=body.record_type,
     )
     return Response(
         content=csv_text,
