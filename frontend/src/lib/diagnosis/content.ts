@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 
 import type {
+  AnalysisEntityRef,
   CitationMentionedBrand,
   ContentOpportunityDetailTab,
   ContentOpportunityItem,
@@ -99,6 +100,94 @@ function formatMentionRate(value: number): string {
 
 export function gapReplySubtext(own: number, total: number): string {
   return `${own}/${total} 条回复`;
+}
+
+function buildCompetitorEntityLookup(
+  entities: AnalysisEntityRef[],
+): Map<string, AnalysisEntityRef> {
+  return new Map(
+    entities.filter((entity) => entity.kind === "competitor").map((entity) => [entity.label, entity]),
+  );
+}
+
+function competitorBrandDisplayName(
+  rankLabel: string,
+  entityByLabel: Map<string, AnalysisEntityRef>,
+): string {
+  return entityByLabel.get(rankLabel)?.display_name ?? rankLabel;
+}
+
+/** 诊断竞品：文案用 brand（display_name），favicon 仍用 rank label（多为域名） */
+export function resolveDiagnosisCompetitors(
+  competitors: CitationMentionedBrand[],
+  entities: AnalysisEntityRef[] = [],
+): CitationMentionedBrand[] {
+  const entityByLabel = buildCompetitorEntityLookup(entities);
+  return competitors.map((brand) => {
+    const entity = entityByLabel.get(brand.label);
+    if (!entity) {
+      return brand;
+    }
+    return {
+      label: entity.display_name,
+      domain: entity.label !== entity.display_name ? entity.label : brand.domain,
+    };
+  });
+}
+
+function formatCompetitorLabels(
+  competitors: CitationMentionedBrand[],
+  entityByLabel: Map<string, AnalysisEntityRef>,
+  limit = 3,
+): string {
+  const labels = competitors
+    .slice(0, limit)
+    .map((brand) => competitorBrandDisplayName(brand.label, entityByLabel))
+    .filter(Boolean);
+  if (labels.length === 0) {
+    return "";
+  }
+  return `竞品 ${labels.join(" · ")} `;
+}
+
+type ActionSummaryDimension = "mention" | "brand";
+
+function actionSummaryDimension(row: DiagnosisContentRow): ActionSummaryDimension {
+  const mentionRank = PRIORITY_ORDER[row.mentionPriority];
+  const brandRank = PRIORITY_ORDER[row.brandGapPriority];
+
+  if (brandRank < mentionRank) {
+    return "brand";
+  }
+  if (mentionRank < brandRank) {
+    return "mention";
+  }
+  if (row.competitors.length > 0 && row.brandGapNum > 0) {
+    return "brand";
+  }
+  return "mention";
+}
+
+/** 概述页优先行动卡片副文案（AI 提及率或品牌差距） */
+export function diagnosisPriorityActionSummary(
+  row: DiagnosisContentRow,
+  entities: AnalysisEntityRef[] = [],
+): string {
+  const entityByLabel = buildCompetitorEntityLookup(entities);
+  const dimension = actionSummaryDimension(row);
+
+  if (dimension === "brand") {
+    const competitorPart = formatCompetitorLabels(row.competitors, entityByLabel);
+    if (competitorPart) {
+      return `${competitorPart}已领先，你 ${row.brandGapSub} 被提及`;
+    }
+    return `品牌差距 ${row.brandGap}，你 ${row.brandGapSub} 被提及`;
+  }
+
+  if (row.mentionRateNum === 0) {
+    return `AI 未提及你的品牌，${row.mentionSub}`;
+  }
+  return `AI 提及率 ${row.mentionRate}，${row.mentionSub}`;
 }
 
 export function buildDiagnosisContentRows(items: ContentOpportunityItem[]): DiagnosisContentRow[] {

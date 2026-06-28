@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { AnalysisFilterBar } from "@/components/analysis/common/AnalysisFilterBar";
 import { VisibilityMetricSection } from "@/components/analysis/visibility/VisibilityMetricSection";
 import { OverviewMetricCard } from "@/components/dashboard/OverviewMetricCard";
+import { OverviewPrioritySection } from "@/components/dashboard/OverviewPrioritySection";
 import { OverviewTopicSection } from "@/components/dashboard/OverviewTopicSection";
 import { SamplingProgressOverview } from "@/components/dashboard/SamplingProgressOverview";
 import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
@@ -109,6 +110,8 @@ function OverviewMetricsContent({ subjectId }: { subjectId: string }) {
           scopeKey={`${subjectId}:overview-visibility`}
           loading={isLoading}
         />
+
+        <OverviewPrioritySection subjectId={subjectId} filters={filters} />
 
         <OverviewTopicSection rows={topicRows} loading={isLoading} />
       </div>
