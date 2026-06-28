@@ -1,30 +1,15 @@
-import type { ToastItem, ToastType } from "@/types";
+import { toast as sonnerToast } from "sonner";
 
-const listeners = new Set<(items: ToastItem[]) => void>();
-let queue: ToastItem[] = [];
-
-const MAX_TOASTS = 5;
 const DEFAULT_DURATION_MS = 5200;
 
-function emit() {
-  const snapshot = [...queue];
-  listeners.forEach((listener) => listener(snapshot));
-}
-
-function dismiss(id: string) {
-  queue = queue.filter((item) => item.id !== id);
-  emit();
-}
-
-function push(type: ToastType, message: string, durationMs = DEFAULT_DURATION_MS) {
+function push(type: "error" | "success" | "info", message: string, durationMs = DEFAULT_DURATION_MS) {
   const trimmed = message.trim();
   if (!trimmed) return;
 
-  const id = crypto.randomUUID();
-  queue = [...queue, { id, message: trimmed, type }].slice(-MAX_TOASTS);
-  emit();
-
-  window.setTimeout(() => dismiss(id), durationMs);
+  const options = { duration: durationMs };
+  if (type === "error") sonnerToast.error(trimmed, options);
+  else if (type === "success") sonnerToast.success(trimmed, options);
+  else sonnerToast.info(trimmed, options);
 }
 
 export const toast = {
@@ -37,11 +22,7 @@ export const toast = {
   info(message: string, durationMs?: number) {
     push("info", message, durationMs);
   },
-  dismiss,
+  dismiss(id?: string | number) {
+    sonnerToast.dismiss(id);
+  },
 };
-
-export function subscribeToasts(listener: (items: ToastItem[]) => void): () => void {
-  listeners.add(listener);
-  listener([...queue]);
-  return () => listeners.delete(listener);
-}

@@ -52,7 +52,15 @@ def list_prompts(
     current: CurrentUser,
 ) -> list[Prompt]:
     get_subject_for_user(db, current, subject_id)
-    return list(db.execute(select(Prompt).where(Prompt.subject_id == subject_id)).scalars().all())
+    return list(
+        db.execute(
+            select(Prompt)
+            .where(Prompt.subject_id == subject_id)
+            .order_by(Prompt.created_at.asc())
+        )
+        .scalars()
+        .all()
+    )
 
 
 @router.post("/subjects/{subject_id}/prompts", response_model=PromptOut, status_code=status.HTTP_201_CREATED)

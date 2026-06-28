@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { DASHBOARD_SETUP_PATH } from "@/lib/dashboard";
 import { clearSetupCache } from "@/lib/setup";
 import { useTenantSubscription } from "@/hooks/useTenantSubscription";
+import { isAtSubjectLimit } from "@/lib/billing/limits";
 import {
   subjectDisplayLabel,
   subjectEditAliases,
@@ -96,9 +97,7 @@ export function BrandDetailSection({ subject }: BrandDetailSectionProps) {
   const navigate = useNavigate();
   const [editOpen, setEditOpen] = useState(false);
   const { data: subscription } = useTenantSubscription();
-  const atSubjectLimit =
-    subscription != null &&
-    subscription.usage.subjects_count >= subscription.limits.max_subjects;
+  const atSubjectLimit = isAtSubjectLimit(subscription);
   const displayName = subjectDisplayLabel(subject);
   const faviconUrl = subjectFaviconUrl(subject);
   const brandName = subject.brand.trim();
@@ -111,19 +110,17 @@ export function BrandDetailSection({ subject }: BrandDetailSectionProps) {
       <BrandSectionCard
         title="品牌详情"
         description="定义您的品牌以跟踪相关性能指标。"
-        actionLabel="添加新品牌"
-        actionIcon={<Plus className="size-4" aria-hidden />}
+        actionLabel={atSubjectLimit ? undefined : "添加新品牌"}
+        actionIcon={atSubjectLimit ? undefined : <Plus className="size-4" aria-hidden />}
         actionVariant="default"
-        actionDisabled={atSubjectLimit}
-        footer={
+        onAction={
           atSubjectLimit
-            ? `品牌数量已达上限（${subscription?.limits.max_subjects ?? 0} 个），请升级计划后再添加。`
-            : undefined
+            ? undefined
+            : () => {
+                clearSetupCache();
+                navigate(DASHBOARD_SETUP_PATH);
+              }
         }
-        onAction={() => {
-          clearSetupCache();
-          navigate(DASHBOARD_SETUP_PATH);
-        }}
       >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-3">

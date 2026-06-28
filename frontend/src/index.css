@@ -233,21 +233,6 @@
   animation: shell-spin-reverse 5s linear infinite;
 }
 
-@keyframes toast-slide-in {
-  from {
-    opacity: 0;
-    transform: translateX(1rem) translateY(0.5rem);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) translateY(0);
-  }
-}
-
-.toast-slide-in {
-  animation: toast-slide-in 0.35s ease-out both;
-}
-
 @keyframes auth-panel-bg-pan {
   0% {
     background-position: 22% 48%;

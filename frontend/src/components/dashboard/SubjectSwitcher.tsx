@@ -5,6 +5,8 @@ import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { FaviconImage } from "@/components/common/FaviconImage";
 import { Button } from "@/components/ui/button";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
+import { useTenantSubscription } from "@/hooks/useTenantSubscription";
+import { isAtSubjectLimit } from "@/lib/billing/limits";
 import { DASHBOARD_SETUP_PATH } from "@/lib/dashboard";
 import { clearSetupCache } from "@/lib/setup";
 import { subjectDisplayLabel, subjectFaviconUrl } from "@/lib/subject";
@@ -13,6 +15,8 @@ import { cn } from "@/lib/utils";
 export function SubjectSwitcher() {
   const navigate = useNavigate();
   const { subject, subjects, setActiveSubjectId } = useDashboardContext();
+  const { data: subscription } = useTenantSubscription();
+  const atSubjectLimit = isAtSubjectLimit(subscription);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -112,18 +116,20 @@ export function SubjectSwitcher() {
               );
             })}
           </div>
-          <div className="border-border border-t p-2">
-            <Button
-              type="button"
-              variant="brandout"
-              size="sm"
-              onClick={onCreateProject}
-              className="w-full"
-            >
-              <Plus className="size-4 shrink-0" aria-hidden />
-              添加新品牌
-            </Button>
-          </div>
+          {!atSubjectLimit ? (
+            <div className="border-border border-t p-2">
+              <Button
+                type="button"
+                variant="brandout"
+                size="sm"
+                onClick={onCreateProject}
+                className="w-full"
+              >
+                <Plus className="size-4 shrink-0" aria-hidden />
+                添加新品牌
+              </Button>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

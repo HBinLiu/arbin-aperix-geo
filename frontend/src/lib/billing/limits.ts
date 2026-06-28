@@ -19,3 +19,8 @@ export function maxPlatformsPerSubject(subscription?: TenantSubscription | null)
 export function maxSubjects(subscription?: TenantSubscription | null): number {
   return positiveLimit(subscription?.limits.max_subjects, 0);
 }
+
+export function isAtSubjectLimit(subscription?: TenantSubscription | null): boolean {
+  if (subscription == null) return false;
+  return subscription.usage.subjects_count >= subscription.limits.max_subjects;
+}
