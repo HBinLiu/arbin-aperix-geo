@@ -14,6 +14,7 @@ from aperix_geo.services.billing.constants import (
     ENTERPRISE_PLAN_CODE,
     ORDERABLE_PLAN_CODES,
 )
+from aperix_geo.services.sampling.frequency import sampling_interval_days
 
 _BILLING_CYCLE_LABELS: dict[str, str] = {
     "monthly": "月度",
@@ -28,17 +29,20 @@ _PLAN_DESCRIPTIONS: dict[str, str] = {
     "enterprise": "适合大型组织，提供定制化额度、专属支持与私有化选项。",
 }
 
-_LIMIT_SPECS: tuple[tuple[str, str, str], ...] = (
-    ("max_subjects", "品牌", "可创建与监测的品牌数量上限。"),
-    ("max_per_platforms", "平台", "每个品牌可监控的AI 平台数量上限。"),
-    ("max_prompts_total", "提示词", "当前租户下全部品牌的提示词总量上限。"),
-    ("sampling_frequency", "监控频率", "每个品牌自动采样的监控频率。"),
-    ("max_per_competitors", "竞争对手", "每个品牌可配置的竞争对手数量上限。"),
-    ("per_month_usages", "AI 配额量", "每月可用的 AI 配额数量上限，用于 AI 请求的消耗。"),
+_LIMIT_SPECS: tuple[tuple[str, str, str, bool], ...] = (
+    ("max_subjects", "品牌", "可创建与监测的品牌数量上限。", False),
+    ("max_per_platforms", "平台", "每个品牌可监控的AI 平台数量上限。", False),
+    ("max_prompts_total", "提示词", "当前团队下全部品牌的提示词总量上限。", False),
+    ("max_team_members", "团队席位", "当前团队可邀请加入的成员账号数量上限。", False),
+    ("max_per_competitors", "竞争对手", "每个品牌可配置的竞争对手数量上限。", False),
+    ("sampling_frequency", "采样间隔", "每个品牌自动 AI 采样的时间间隔。", True),
+    ("per_month_usages", "AI 配额量", "每月可用的 AI 配额数量上限，用于 AI 请求的消耗。", False),
 )
 
 _SAMPLING_FREQUENCY_LABELS: dict[str, str] = {
     "daily_1": "每天",
+    "daily_3": "每3天",
+    "daily_7": "每周",
 }
 
 
@@ -48,6 +52,7 @@ class PlanLimitDisplay:
     label: str
     description: str
     value: str
+    comparison_only: bool = False
 
 
 @dataclass(frozen=True)
@@ -102,8 +107,18 @@ def _format_limit_value(plan: Plan, key: str, raw: int | str) -> str:
     if _is_custom_plan(plan):
         return "自定义"
     if key == "sampling_frequency":
+        plan_days = sampling_interval_days(str(raw))
+        labels = [
+            label
+            for code, label in _SAMPLING_FREQUENCY_LABELS.items()
+            if sampling_interval_days(code) >= plan_days
+        ]
+        if labels:
+            return " / ".join(labels)
         return _SAMPLING_FREQUENCY_LABELS.get(str(raw), str(raw))
     if key == "max_per_competitors":
+        return f"最多{raw}"
+    if key == "max_team_members":
         return f"最多{raw}"
     if key == "per_month_usages":
         return f"{_format_int(int(raw))} / 月"
@@ -114,7 +129,7 @@ def _format_limit_value(plan: Plan, key: str, raw: int | str) -> str:
 
 def _plan_limits(plan: Plan) -> tuple[PlanLimitDisplay, ...]:
     items: list[PlanLimitDisplay] = []
-    for key, label, description in _LIMIT_SPECS:
+    for key, label, description, comparison_only in _LIMIT_SPECS:
         raw = getattr(plan, key)
         items.append(
             PlanLimitDisplay(
@@ -122,6 +137,7 @@ def _plan_limits(plan: Plan) -> tuple[PlanLimitDisplay, ...]:
                 label=label,
                 description=description,
                 value=_format_limit_value(plan, key, raw),
+                comparison_only=comparison_only,
             )
         )
     return tuple(items)

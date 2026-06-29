@@ -11,7 +11,7 @@ from aperix_geo.db.models import Subject, SubjectType
 from aperix_geo.schemas.catalog import SubjectOut, SubjectUpdate
 from aperix_geo.services.billing.exceptions import QuotaExceededError
 from aperix_geo.services.billing.http import quota_exceeded_http_exception
-from aperix_geo.services.billing.quota import assert_platform_capacity
+from aperix_geo.services.billing.quota import assert_platform_capacity, assert_subject_sampling_frequency
 from aperix_geo.services.brand.sync import sync_subject_brands_from_setup
 from aperix_geo.services.catalog import clear_analysis_entities_cache, get_analysis_entities
 from aperix_geo.services.sampling.platforms import (
@@ -85,6 +85,15 @@ def update_subject(
         except QuotaExceededError as exc:
             raise quota_exceeded_http_exception(exc) from exc
         sub.sampling_platforms = platforms
+    if body.sampling_frequency is not None:
+        try:
+            sub.sampling_frequency = assert_subject_sampling_frequency(
+                db,
+                current.tenant_id,
+                body.sampling_frequency,
+            )
+        except QuotaExceededError as exc:
+            raise quota_exceeded_http_exception(exc) from exc
     if brand_catalog_dirty:
         sync_subject_brands_from_setup(db, subject=sub)
     validate_subject_fields(sub)

@@ -7,7 +7,7 @@ import { ContentDetailPage } from "@/pages/diagnosis/ContentDetailPage";
 import { BacklinkDetailPage } from "@/pages/opportunity/BacklinkDetailPage";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
 import { RankContent } from "@/pages/dashboard/RankPage";
-import { ProfilePage } from "@/pages/dashboard/ProfilePage";
+import { ProfileContent } from "@/pages/dashboard/ProfilePage";
 import { BillingContent } from "@/pages/dashboard/BillingPage";
 import { OverviewContent } from "@/pages/dashboard/OverviewPage";
 import { AnalysisPage } from "@/pages/dashboard/AnalysisPage";
@@ -95,7 +95,7 @@ export function PromptRoute() {
 }
 
 export function ProfileRoute() {
-  return <ProfilePage />;
+  return <ProfileContent />;
 }
 
 export function BillingRoute() {

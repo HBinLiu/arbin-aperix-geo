@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Settings2 } from "lucide-react";
+import { Clock, Settings2 } from "lucide-react";
 
 import { BrandSectionCard } from "@/components/brand/BrandSectionCard";
 import {
@@ -10,6 +10,7 @@ import {
 } from "@/components/brand/EditPlatformEditor";
 import { PlatformLogo } from "@/components/brand/PlatformLogo";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatApiError } from "@/api/client";
 import { fetchSamplingPlatforms } from "@/api/brand";
@@ -18,6 +19,13 @@ import { useTenantSubscription } from "@/hooks/useTenantSubscription";
 import { maxPlatformsPerSubject } from "@/lib/billing/limits";
 import { effectiveSamplingPlatforms, platformAccent } from "@/lib/brand";
 import { clearQueries, queryKeys, sessionCatalogQueryOptions } from "@/lib/queries";
+import {
+  allowedSamplingIntervalOptions,
+  hoursToSamplingFrequency,
+  nextSamplingHint,
+  samplingFrequencyToHours,
+  samplingIntervalLabel,
+} from "@/lib/sampling";
 import { toast } from "@/lib/toast";
 import type { Subject } from "@/types";
 import { cn } from "@/lib/utils";
@@ -44,11 +52,22 @@ export function PlatformConfigSection({ subject }: PlatformConfigSectionProps) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
+  const [intervalHours, setIntervalHours] = useState("24");
   const [saving, setSaving] = useState(false);
   const { data: subscription, isPending: subscriptionPending } = useTenantSubscription();
 
   const maxPlatformSelection = maxPlatformsPerSubject(subscription);
   const planLabel = subscription?.plan_name ?? "当前计划";
+  const samplingOptions = useMemo(
+    () => allowedSamplingIntervalOptions(subscription?.limits.sampling_frequency),
+    [subscription?.limits.sampling_frequency],
+  );
+
+  const currentHours = samplingFrequencyToHours(subject.sampling_frequency);
+  const nextHint = useMemo(
+    () => (editing ? null : nextSamplingHint(subject.last_sampled_at, subject.sampling_frequency)),
+    [editing, subject.last_sampled_at, subject.sampling_frequency],
+  );
 
   const { data: platforms = [], isLoading } = useQuery({
     queryKey: queryKeys.samplingPlatforms,
@@ -63,6 +82,7 @@ export function PlatformConfigSection({ subject }: PlatformConfigSectionProps) {
 
   const startEditing = () => {
     setSelected(initialPlatformSelection(subject, platforms, maxPlatformSelection));
+    setIntervalHours(String(currentHours));
     setEditing(true);
   };
 
@@ -83,6 +103,7 @@ export function PlatformConfigSection({ subject }: PlatformConfigSectionProps) {
     try {
       await patchSubject(subject.id, {
         sampling_platforms: selected,
+        sampling_frequency: hoursToSamplingFrequency(intervalHours),
       });
       await clearQueries(queryClient, { queryKey: queryKeys.subjects });
       setEditing(false);
@@ -160,6 +181,36 @@ export function PlatformConfigSection({ subject }: PlatformConfigSectionProps) {
           )}
         </div>
       )}
+
+      <div className="border-border bg-muted/40 mt-3 rounded-lg border px-3 py-2 text-sm">
+        <div className="flex items-center">
+          <Clock className="text-muted-foreground size-4 shrink-0" aria-hidden />
+          <span className="text-muted-foreground ml-2 shrink-0 text-sm">采样间隔：</span>
+          <div className="min-w-0 flex-1 text-left">
+            {editing ? (
+              <div className="space-y-2">
+                <Select value={intervalHours} onValueChange={setIntervalHours}>
+                  <SelectTrigger className="h-9 w-[8.5rem]">
+                    <SelectValue placeholder="选择采样间隔" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {samplingOptions.map((opt) => (
+                      <SelectItem key={opt.value} value={String(opt.value)}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <p className="flex min-w-0 flex-wrap items-center">
+                <span className="font-medium">{samplingIntervalLabel(currentHours)}</span>
+                {nextHint ? <span className="text-muted-foreground">，{nextHint}。</span> : null}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
     </BrandSectionCard>
   );
 }

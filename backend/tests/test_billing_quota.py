@@ -16,6 +16,8 @@ from aperix_geo.services.billing.quota import (
     assert_can_create_subject,
     assert_competitor_capacity,
     assert_platform_capacity,
+    assert_team_member_capacity,
+    assert_subject_sampling_frequency,
     consume_ai_usage,
     get_current_usage_period,
     subscription_is_usable,
@@ -37,7 +39,8 @@ def _plan(**overrides: object) -> Plan:
         max_per_platforms=3,
         max_per_competitors=10,
         max_prompts_total=50,
-        per_month_usages=2500,
+        per_month_usages=2000,
+        max_team_members=3,
         sampling_frequency="daily_1",
     )
     defaults.update(overrides)
@@ -54,6 +57,7 @@ def _override(**overrides: int | str) -> TenantPlanOverride:
         max_per_competitors=0,
         max_prompts_total=0,
         per_month_usages=0,
+        max_team_members=0,
         sampling_frequency="",
     )
     for key, value in overrides.items():
@@ -65,7 +69,7 @@ def test_effective_int_and_str() -> None:
     assert effective_int(0, 5) == 5
     assert effective_int(10, 5) == 10
     assert effective_str("", "daily_1") == "daily_1"
-    assert effective_str("weekly_1", "daily_1") == "weekly_1"
+    assert effective_str("daily_7", "daily_1") == "daily_7"
 
 
 def test_effective_limits_without_override() -> None:
@@ -76,7 +80,8 @@ def test_effective_limits_without_override() -> None:
         max_per_platforms=3,
         max_per_competitors=10,
         max_prompts_total=50,
-        per_month_usages=2500,
+        per_month_usages=2000,
+        max_team_members=3,
         sampling_frequency="daily_1",
     )
 
@@ -317,7 +322,8 @@ def test_assert_can_create_subject_raises_at_limit(mock_count, _mock_sub, mock_l
         max_per_platforms=3,
         max_per_competitors=10,
         max_prompts_total=50,
-        per_month_usages=2500,
+        per_month_usages=2000,
+        max_team_members=3,
         sampling_frequency="daily_1",
     )
     db = MagicMock()
@@ -345,7 +351,8 @@ def test_assert_can_add_prompts_raises(_mock_sub, mock_limits) -> None:
         max_per_platforms=3,
         max_per_competitors=10,
         max_prompts_total=50,
-        per_month_usages=2500,
+        per_month_usages=2000,
+        max_team_members=3,
         sampling_frequency="daily_1",
     )
     db = MagicMock()
@@ -353,3 +360,74 @@ def test_assert_can_add_prompts_raises(_mock_sub, mock_limits) -> None:
         with pytest.raises(QuotaExceededError) as exc:
             assert_can_add_prompts(db, tenant_id, count=1)
     assert exc.value.dimension == "max_prompts_total"
+
+
+@patch("aperix_geo.services.billing.quota.get_limits_for_tenant")
+@patch("aperix_geo.services.billing.quota.require_active_subscription")
+@patch("aperix_geo.services.billing.quota._count_tenant_members", return_value=3)
+def test_assert_team_member_capacity_raises(_mock_count, _mock_sub, mock_limits) -> None:
+    mock_limits.return_value = PlanLimits(
+        max_subjects=1,
+        max_per_platforms=3,
+        max_per_competitors=10,
+        max_prompts_total=50,
+        per_month_usages=2000,
+        max_team_members=3,
+        sampling_frequency="daily_1",
+    )
+    db = MagicMock()
+    with pytest.raises(QuotaExceededError) as exc:
+        assert_team_member_capacity(db, uuid.uuid4(), adding=1)
+    assert exc.value.dimension == "max_team_members"
+
+
+@patch("aperix_geo.services.billing.quota.get_limits_for_tenant")
+@patch("aperix_geo.services.billing.quota.require_active_subscription")
+def test_assert_subject_sampling_frequency_rejects_invalid(_mock_sub, mock_limits) -> None:
+    mock_limits.return_value = PlanLimits(
+        max_subjects=1,
+        max_per_platforms=3,
+        max_per_competitors=10,
+        max_prompts_total=50,
+        per_month_usages=2000,
+        max_team_members=3,
+        sampling_frequency="daily_1",
+    )
+    db = MagicMock()
+    with pytest.raises(QuotaExceededError) as exc:
+        assert_subject_sampling_frequency(db, uuid.uuid4(), "hourly_1")
+    assert exc.value.dimension == "sampling_frequency"
+
+
+@patch("aperix_geo.services.billing.quota.get_limits_for_tenant")
+@patch("aperix_geo.services.billing.quota.require_active_subscription")
+def test_assert_subject_sampling_frequency_rejects_too_frequent(_mock_sub, mock_limits) -> None:
+    mock_limits.return_value = PlanLimits(
+        max_subjects=1,
+        max_per_platforms=3,
+        max_per_competitors=10,
+        max_prompts_total=50,
+        per_month_usages=2000,
+        max_team_members=3,
+        sampling_frequency="daily_7",
+    )
+    db = MagicMock()
+    with pytest.raises(QuotaExceededError) as exc:
+        assert_subject_sampling_frequency(db, uuid.uuid4(), "daily_1")
+    assert exc.value.dimension == "sampling_frequency"
+
+
+@patch("aperix_geo.services.billing.quota.get_limits_for_tenant")
+@patch("aperix_geo.services.billing.quota.require_active_subscription")
+def test_assert_subject_sampling_frequency_accepts_slower(_mock_sub, mock_limits) -> None:
+    mock_limits.return_value = PlanLimits(
+        max_subjects=1,
+        max_per_platforms=3,
+        max_per_competitors=10,
+        max_prompts_total=50,
+        per_month_usages=2000,
+        max_team_members=3,
+        sampling_frequency="daily_1",
+    )
+    db = MagicMock()
+    assert assert_subject_sampling_frequency(db, uuid.uuid4(), "daily_3") == "daily_3"

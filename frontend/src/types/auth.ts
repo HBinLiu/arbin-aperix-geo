@@ -15,6 +15,7 @@ export type User = {
   tenant_id: string;
   email: string;
   phone: string;
+  role: "admin" | "member" | "readonly";
   has_password: boolean;
   created_at: string;
   wechat: UserWechat;

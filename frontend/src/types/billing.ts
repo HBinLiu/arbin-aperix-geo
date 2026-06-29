@@ -11,6 +11,7 @@ export type PlanLimitItem = {
   label: string;
   description: string;
   value: string;
+  comparison_only?: boolean;
 };
 
 export type PlanPriceItem = {
@@ -59,6 +60,7 @@ export type PlanLimits = {
   max_per_competitors: number;
   max_prompts_total: number;
   per_month_usages: number;
+  max_team_members: number;
   sampling_frequency: string;
 };
 

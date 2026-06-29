@@ -18,12 +18,18 @@ from aperix_geo.db.models import (
     TenantPlanOverride,
     TenantSubscription,
     TenantUsagePeriod,
+    User,
     ZERO_UUID,
 )
 from aperix_geo.services.billing.exceptions import QuotaExceededError, SubscriptionInactiveError
 from aperix_geo.services.billing.limits import PlanLimits, effective_limits
 from aperix_geo.services.billing.quota_ledger import existing_consumption_pool, record_consumption
 from aperix_geo.services.billing.usage_tokens import normalize_token_usage
+from aperix_geo.services.sampling.frequency import (
+    ALLOWED_SAMPLING_FREQUENCIES,
+    normalize_sampling_frequency,
+    sampling_interval_days,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -200,6 +206,46 @@ def assert_can_create_subject(db: Session, tenant_id: uuid.UUID) -> None:
             dimension="max_subjects",
             message=f"品牌数量已达上限（{limits.max_subjects} 个）",
         )
+
+
+def _count_tenant_members(db: Session, tenant_id: uuid.UUID) -> int:
+    return int(
+        db.scalar(
+            select(func.count())
+            .select_from(User)
+            .where(User.tenant_id == tenant_id, User.deleted.is_(False))
+        )
+        or 0
+    )
+
+
+def assert_team_member_capacity(db: Session, tenant_id: uuid.UUID, *, adding: int = 1) -> None:
+    require_active_subscription(db, tenant_id)
+    limits = get_limits_for_tenant(db, tenant_id)
+    if _count_tenant_members(db, tenant_id) + adding > limits.max_team_members:
+        raise QuotaExceededError(
+            dimension="max_team_members",
+            message=f"团队席位已达上限（{limits.max_team_members} 个）",
+        )
+
+
+def assert_subject_sampling_frequency(db: Session, tenant_id: uuid.UUID, frequency: str) -> str:
+    require_active_subscription(db, tenant_id)
+    code = normalize_sampling_frequency(frequency)
+    if code not in ALLOWED_SAMPLING_FREQUENCIES:
+        raise QuotaExceededError(
+            dimension="sampling_frequency",
+            message="无效的采样间隔",
+        )
+    limits = get_limits_for_tenant(db, tenant_id)
+    plan_days = sampling_interval_days(limits.sampling_frequency)
+    subject_days = sampling_interval_days(code)
+    if subject_days < plan_days:
+        raise QuotaExceededError(
+            dimension="sampling_frequency",
+            message=f"当前订阅不支持该采样间隔（最快每 {plan_days} 天 1 次）",
+        )
+    return code
 
 
 def assert_competitor_capacity(

@@ -8,6 +8,7 @@ import { OpportunityBacklinkHeader } from "@/components/opportunity/OpportunityB
 import { DiagnosisContentHeader } from "@/components/diagnosis/DiagnosisContentHeader";
 import { OpportunityTabs } from "@/components/opportunity/OpportunityTabs";
 import { BillingTabs } from "@/components/billing/BillingTabs";
+import { ProfileTabs } from "@/components/profile/ProfileTabs";
 import { DashboardSidebarFooter } from "@/components/dashboard/DashboardSidebarFooter";
 import { SidebarSection } from "@/components/dashboard/SidebarSection";
 import { SubjectSwitcher } from "@/components/dashboard/SubjectSwitcher";
@@ -22,6 +23,7 @@ import { AnalysisFiltersProvider } from "@/hooks/useAnalysisFiltersState";
 import { analysisDimensionFromPathname, citationDomainFromPathname, promptIdFromPathname } from "@/lib/analysis";
 import { opportunityTabFromPathname, backlinkOpportunityDomainFromPathname } from "@/lib/opportunity/nav";
 import { billingTabFromPathname } from "@/lib/billing/nav";
+import { profileTabFromPathname } from "@/lib/profile/nav";
 import { diagnosisContentPromptIdFromPathname } from "@/lib/diagnosis/nav";
 import {
   DASHBOARD_NAV_SECTIONS,
@@ -52,12 +54,14 @@ function DashboardLayoutContent() {
   const isAnalysisPage = activeNav.id === "analysis";
   const isOpportunityPage = activeNav.id === "opportunity";
   const isBillingPage = activeNav.id === "billing";
+  const isProfilePage = activeNav.id === "profile";
   const isDiagnosisPage = activeNav.id === "diagnosis";
   const analysisDimension = analysisDimensionFromPathname(pathname);
   const citationDomain = citationDomainFromPathname(pathname);
   const promptDetailId = promptIdFromPathname(pathname);
   const opportunityTab = opportunityTabFromPathname(pathname);
   const billingTab = billingTabFromPathname(pathname);
+  const profileTab = profileTabFromPathname(pathname);
   const diagnosisContentPromptId = diagnosisContentPromptIdFromPathname(pathname);
   const backlinkOpportunityDomain = backlinkOpportunityDomainFromPathname(pathname);
 
@@ -109,6 +113,8 @@ function DashboardLayoutContent() {
               <OpportunityTabs embedded value={opportunityTab} />
             ) : isBillingPage ? (
               <BillingTabs embedded value={billingTab} />
+            ) : isProfilePage ? (
+              <ProfileTabs embedded value={profileTab} />
             ) : isDiagnosisPage && diagnosisContentPromptId ? (
               <DiagnosisContentHeader promptId={diagnosisContentPromptId} />
             ) : (

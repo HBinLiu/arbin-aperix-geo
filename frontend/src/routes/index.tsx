@@ -80,7 +80,10 @@ export function AppRoutes() {
             </Route>
             <Route path="prompt" element={<PromptRoute />} />
             <Route path="brand" element={<BrandRoute />} />
-            <Route path="profile" element={<ProfileRoute />} />
+            <Route path="profile">
+              <Route index element={<Navigate to="account" replace />} />
+              <Route path=":tab" element={<ProfileRoute />} />
+            </Route>
             <Route path="billing">
               <Route index element={<Navigate to="plan" replace />} />
               <Route path=":tab" element={<BillingRoute />} />

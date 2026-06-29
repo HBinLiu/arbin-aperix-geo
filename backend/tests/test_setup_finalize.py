@@ -104,7 +104,8 @@ def test_finalize_setup_writes_aliases_and_deletes_session(
         max_per_platforms=3,
         max_per_competitors=10,
         max_prompts_total=50,
-        per_month_usages=2500,
+        per_month_usages=2000,
+        max_team_members=3,
         sampling_frequency="daily_1",
     )
 

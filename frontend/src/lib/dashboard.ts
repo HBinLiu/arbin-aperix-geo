@@ -84,6 +84,9 @@ export function dashboardNavToPath(id: DashboardNavId): string {
   if (id === "billing") {
     return `${DASHBOARD_APP_BASE}/billing/plan`;
   }
+  if (id === "profile") {
+    return `${DASHBOARD_APP_BASE}/profile/account`;
+  }
   return `${DASHBOARD_APP_BASE}/${DASHBOARD_NAV_SEGMENT[id]}`;
 }
 

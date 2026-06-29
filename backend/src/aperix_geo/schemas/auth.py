@@ -25,9 +25,31 @@ class LoginRequest(BaseModel):
 
 
 class SendCodeRequest(BaseModel):
-    purpose: Literal["register", "login", "bind"]
+    purpose: Literal["register", "login", "bind", "invite"]
     channel: Literal["email", "phone"]
     target: str = Field(..., min_length=3, max_length=320)
+
+
+class SendInviteCodeRequest(BaseModel):
+    phone: str = Field(..., min_length=3, max_length=320)
+
+
+class InviteTenantMemberRequest(BaseModel):
+    phone: str = Field(..., min_length=3, max_length=320)
+    code: str = Field(..., min_length=4, max_length=16)
+    role: Literal["member", "readonly"] = "member"
+
+
+class TenantMemberOut(BaseModel):
+    id: UUID
+    phone: str
+    role: str
+    is_active: bool
+    created_at: datetime
+
+
+class TenantMembersOut(BaseModel):
+    items: list[TenantMemberOut]
 
 
 class SendBindCodeRequest(BaseModel):
@@ -115,6 +137,7 @@ class UserOut(BaseModel):
     tenant_id: UUID
     email: str
     phone: str
+    role: str = "admin"
     has_password: bool = False
     created_at: datetime
     wechat: UserWechatOut

@@ -19,6 +19,7 @@ import { usePlanCatalog } from "@/hooks/usePlanCatalog";
 import { useTenantSubscription } from "@/hooks/useTenantSubscription";
 import {
   PLAN_LIMIT_ICONS,
+  planCardLimits,
   planDisplayPrice,
   planComparisonRows,
   resolvePlanCta,
@@ -227,7 +228,7 @@ function PlanCard({
         <section className="border-border mt-5 flex min-h-0 flex-1 flex-col border-t pt-5" aria-label="计划限制">
           <p className="shrink-0 text-sm font-semibold">版本限制</p>
           <ul className="mt-3 space-y-2.5">
-            {plan.limits.map((limit) => (
+            {planCardLimits(plan).map((limit) => (
               <li key={limit.key} className="flex items-start justify-between gap-3 text-sm">
                 <span className="inline-flex min-w-0 items-center gap-2">
                   <span

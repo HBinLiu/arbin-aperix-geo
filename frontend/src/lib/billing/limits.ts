@@ -20,7 +20,19 @@ export function maxSubjects(subscription?: TenantSubscription | null): number {
   return positiveLimit(subscription?.limits.max_subjects, 0);
 }
 
+export function maxTeamMembers(subscription?: TenantSubscription | null): number {
+  return positiveLimit(subscription?.limits.max_team_members, 3);
+}
+
 export function isAtSubjectLimit(subscription?: TenantSubscription | null): boolean {
   if (subscription == null) return false;
   return subscription.usage.subjects_count >= subscription.limits.max_subjects;
+}
+
+export function isAtTeamMemberLimit(
+  subscription: TenantSubscription | null | undefined,
+  memberCount: number,
+): boolean {
+  if (subscription == null) return false;
+  return memberCount >= maxTeamMembers(subscription);
 }

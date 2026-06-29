@@ -1,6 +1,7 @@
 """Authentication routes."""
 
 import secrets
+import uuid
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
@@ -18,9 +19,13 @@ from aperix_geo.schemas.auth import (
     RegisterRequest,
     RegisterWithOtpRequest,
     SendBindCodeRequest,
+    InviteTenantMemberRequest,
+    SendInviteCodeRequest,
     SendCodeRequest,
     SendCodeResponse,
     TenantOut,
+    TenantMemberOut,
+    TenantMembersOut,
     TokenResponse,
     UserNotificationSettingsOut,
     UserNotificationSettingsUpdate,
@@ -31,6 +36,7 @@ from aperix_geo.schemas.auth import (
 from aperix_geo.security.jwt import create_access_token
 from aperix_geo.security.password import hash_password, password_strength_error, verify_password
 from aperix_geo.services.auth import otp as otp_svc
+from aperix_geo.services.auth import tenant_members as member_svc
 from aperix_geo.utils.contact import mask_phone_cn
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -42,6 +48,7 @@ def _user_to_out(user: User, *, phone: str | None = None) -> UserOut:
         tenant_id=user.tenant_id,
         email=user.email,
         phone=phone if phone is not None else user.phone,
+        role=user.role,
         has_password=bool(user.password),
         created_at=user.created_at,
         wechat=UserWechatOut(
@@ -167,6 +174,11 @@ def send_code(body: SendCodeRequest, db: DbSession) -> SendCodeResponse:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="该邮箱已注册",
             )
+    elif body.purpose == "invite":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="请在账户设置成员页进行邀请",
+        )
     else:
         # 邮箱登录仅支持密码，不提供「登录验证码」
         if body.channel == "email":
@@ -449,6 +461,72 @@ def update_my_notifications(
     db.commit()
     db.refresh(user)
     return _user_to_out(user, phone=mask_phone_cn(user.phone))
+
+
+@router.get("/tenant/members", response_model=TenantMembersOut)
+def list_tenant_members(current: CurrentUser, db: DbSession) -> TenantMembersOut:
+    items = member_svc.list_tenant_members(db, current.tenant_id)
+    return TenantMembersOut(items=[TenantMemberOut.model_validate(item) for item in items])
+
+
+@router.post("/tenant/members/send-invite-code", response_model=SendCodeResponse)
+def send_tenant_invite_code(
+    body: SendInviteCodeRequest,
+    current: CurrentUser,
+    db: DbSession,
+) -> SendCodeResponse:
+    member_svc.require_tenant_admin(current)
+    settings = get_settings()
+    phone_norm = member_svc.validate_invite_phone(db, tenant_id=current.tenant_id, phone_raw=body.phone)
+
+    try:
+        _, exposed = otp_svc.send_code(
+            settings=settings,
+            purpose="invite",
+            channel="phone",
+            target_raw=phone_norm,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
+
+    return _send_code_response(settings=settings, channel="phone", exposed=exposed)
+
+
+@router.post("/tenant/members/invite", response_model=TenantMemberOut, status_code=status.HTTP_201_CREATED)
+def invite_tenant_member(
+    body: InviteTenantMemberRequest,
+    current: CurrentUser,
+    db: DbSession,
+) -> TenantMemberOut:
+    settings = get_settings()
+    user = member_svc.invite_tenant_member(
+        db,
+        tenant_id=current.tenant_id,
+        inviter=current,
+        phone_raw=body.phone,
+        code=body.code,
+        role=body.role,
+        settings=settings,
+    )
+    return TenantMemberOut(
+        id=user.id,
+        phone=mask_phone_cn(user.phone),
+        role=user.role,
+        is_active=user.is_active,
+        created_at=user.created_at,
+    )
+
+
+@router.delete("/tenant/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_tenant_member(user_id: uuid.UUID, current: CurrentUser, db: DbSession) -> None:
+    member_svc.remove_tenant_member(
+        db,
+        tenant_id=current.tenant_id,
+        actor=current,
+        member_id=user_id,
+    )
 
 
 @router.get("/tenant", response_model=TenantOut)

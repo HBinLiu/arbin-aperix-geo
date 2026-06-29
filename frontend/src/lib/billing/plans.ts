@@ -23,6 +23,7 @@ export const PLAN_LIMIT_ICONS: Record<string, LucideIcon> = {
   sampling_frequency: CalendarClock,
   max_per_competitors: Users,
   per_month_usages: Sparkles,
+  max_team_members: Users,
 };
 
 export function billingCycleLabel(cycle: BillingCycle): string {
@@ -34,6 +35,10 @@ export function planDisplayPrice(plan: PlanCatalogItem, cycle: BillingCycle): st
   if (!price?.monthly_cents || price.monthly_cents <= 0) return null;
   const monthlyYuan = Math.round(price.monthly_cents / 100);
   return monthlyYuan.toLocaleString("zh-CN");
+}
+
+export function planCardLimits(plan: PlanCatalogItem): PlanCatalogItem["limits"] {
+  return plan.limits.filter((limit) => !limit.comparison_only);
 }
 
 export function planComparisonRows(

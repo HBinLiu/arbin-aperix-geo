@@ -27,3 +27,5 @@ export type DashboardNavSection = {
 export type AnalysisDimension = "visibility" | "prompt" | "platform" | "sentiment" | "citation";
 
 export type BillingTab = "plan" | "details";
+
+export type ProfileTab = "account" | "members";

@@ -9,7 +9,7 @@ def test_sampling_interval_days_daily() -> None:
 
 
 def test_sampling_interval_days_weekly() -> None:
-    assert sampling_interval_days("weekly_1") == 7
+    assert sampling_interval_days("daily_7") == 7
 
 
 def test_sampling_interval_days_fallback() -> None:

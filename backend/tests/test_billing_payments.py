@@ -21,7 +21,8 @@ def _plan(**overrides: object) -> Plan:
         max_per_platforms=3,
         max_per_competitors=10,
         max_prompts_total=50,
-        per_month_usages=2500,
+        per_month_usages=2000,
+        max_team_members=3,
         sampling_frequency="daily_1",
         sort_order=1,
     )
@@ -116,7 +117,7 @@ def test_fulfill_subscription_reactivates_expired() -> None:
         patch("aperix_geo.services.billing.payments.get_current_usage_period", return_value=None),
         patch(
             "aperix_geo.services.billing.payments.get_limits_for_tenant",
-            return_value=MagicMock(per_month_usages=2500),
+            return_value=MagicMock(per_month_usages=2000),
         ),
     ):
         paid = fulfill_paid_order(db, order.id, payment_id="pay-renew", paid_at=now)
@@ -129,8 +130,8 @@ def test_fulfill_subscription_reactivates_expired() -> None:
 def test_fulfill_plan_change_upgrade_updates_plan_and_limit() -> None:
     now = datetime(2026, 6, 15, tzinfo=UTC)
     tenant_id = uuid.uuid4()
-    personal = _plan(code="personal", sort_order=1, per_month_usages=2500)
-    premium = _plan(code="premium", sort_order=2, per_month_usages=8500)
+    personal = _plan(code="personal", sort_order=1, per_month_usages=2000)
+    premium = _plan(code="premium", sort_order=2, per_month_usages=7000)
     subscription = TenantSubscription(
         id=uuid.uuid4(),
         tenant_id=tenant_id,
@@ -146,7 +147,7 @@ def test_fulfill_plan_change_upgrade_updates_plan_and_limit() -> None:
         subscription_id=subscription.id,
         period_start=now - timedelta(days=10),
         period_end=now + timedelta(days=20),
-        monthly_limit=2500,
+        monthly_limit=2000,
         monthly_used=100,
     )
     order = TenantPayOrder(
@@ -162,7 +163,7 @@ def test_fulfill_plan_change_upgrade_updates_plan_and_limit() -> None:
     db = _mock_order_db(order, get_map={premium.id: premium, personal.id: personal})
     db.execute.return_value.scalar_one_or_none.side_effect = [order, subscription]
 
-    limits = MagicMock(per_month_usages=8500)
+    limits = MagicMock(per_month_usages=7000)
     with (
         patch("aperix_geo.services.billing.payments.get_current_usage_period", return_value=usage_period),
         patch("aperix_geo.services.billing.payments.get_limits_for_tenant", return_value=limits),
@@ -171,7 +172,7 @@ def test_fulfill_plan_change_upgrade_updates_plan_and_limit() -> None:
 
     assert subscription.plan_id == premium.id
     assert subscription.pending_plan_id == ZERO_UUID
-    assert usage_period.monthly_limit == 8500
+    assert usage_period.monthly_limit == 7000
 
 
 def test_fulfill_plan_change_downgrade_sets_pending_plan() -> None:
@@ -205,7 +206,7 @@ def test_fulfill_plan_change_downgrade_sets_pending_plan() -> None:
         patch("aperix_geo.services.billing.payments.get_current_usage_period", return_value=None),
         patch(
             "aperix_geo.services.billing.payments.get_limits_for_tenant",
-            return_value=MagicMock(per_month_usages=8500),
+            return_value=MagicMock(per_month_usages=7000),
         ),
     ):
         fulfill_paid_order(db, order.id, payment_id="pay-downgrade", paid_at=now)

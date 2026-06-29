@@ -12,6 +12,7 @@ class PlanLimitItemOut(BaseModel):
     label: str
     description: str
     value: str
+    comparison_only: bool = False
 
 
 class PlanPriceOut(BaseModel):
@@ -60,6 +61,7 @@ class PlanLimitsOut(BaseModel):
     max_per_competitors: int
     max_prompts_total: int
     per_month_usages: int
+    max_team_members: int
     sampling_frequency: str
 
 

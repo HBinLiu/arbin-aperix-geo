@@ -14,6 +14,7 @@ class PlanLimits:
     max_per_competitors: int
     max_prompts_total: int
     per_month_usages: int
+    max_team_members: int
     sampling_frequency: str
 
 
@@ -33,6 +34,7 @@ def effective_limits(plan: Plan, override: TenantPlanOverride | None) -> PlanLim
             max_per_competitors=plan.max_per_competitors,
             max_prompts_total=plan.max_prompts_total,
             per_month_usages=plan.per_month_usages,
+            max_team_members=plan.max_team_members,
             sampling_frequency=plan.sampling_frequency,
         )
     return PlanLimits(
@@ -41,5 +43,6 @@ def effective_limits(plan: Plan, override: TenantPlanOverride | None) -> PlanLim
         max_per_competitors=effective_int(override.max_per_competitors, plan.max_per_competitors),
         max_prompts_total=effective_int(override.max_prompts_total, plan.max_prompts_total),
         per_month_usages=effective_int(override.per_month_usages, plan.per_month_usages),
+        max_team_members=effective_int(override.max_team_members, plan.max_team_members),
         sampling_frequency=effective_str(override.sampling_frequency, plan.sampling_frequency),
     )

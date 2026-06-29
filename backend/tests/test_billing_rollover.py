@@ -83,7 +83,7 @@ def test_rollover_creates_next_usage_period() -> None:
         subscription_id=sub.id,
         period_start=now - timedelta(days=45),
         period_end=now - timedelta(days=15),
-        monthly_limit=2500,
+        monthly_limit=2000,
         monthly_used=900,
     )
     db = MagicMock()
@@ -99,7 +99,8 @@ def test_rollover_creates_next_usage_period() -> None:
                 max_per_platforms=3,
                 max_per_competitors=10,
                 max_prompts_total=50,
-                per_month_usages=2500,
+                per_month_usages=2000,
+                max_team_members=3,
                 sampling_frequency="daily_1",
             ),
         ),
@@ -110,7 +111,7 @@ def test_rollover_creates_next_usage_period() -> None:
     db.add.assert_called_once()
     period = db.add.call_args[0][0]
     assert period.period_start == last_period.period_end
-    assert period.monthly_limit == 2500
+    assert period.monthly_limit == 2000
 
 
 def test_process_billing_maintenance_commits() -> None:

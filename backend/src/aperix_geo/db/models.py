@@ -22,6 +22,12 @@ class SubjectType(str, enum.Enum):
     brand = "brand"
 
 
+class UserRole(str, enum.Enum):
+    admin = "admin"
+    member = "member"
+    readonly = "readonly"
+
+
 class SamplingJobStatus(str, enum.Enum):
     queued = "queued"
     running = "running"
@@ -147,6 +153,12 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(320), nullable=False, default="", server_default="")
     password: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    role: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default=UserRole.admin.value,
+        server_default=sa_text("'admin'"),
+    )
     nick_name: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
     open_id: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
     union_id: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
@@ -647,6 +659,7 @@ class Plan(Base):
     max_per_competitors: Mapped[int] = mapped_column(Integer, nullable=False)
     max_prompts_total: Mapped[int] = mapped_column(Integer, nullable=False)
     per_month_usages: Mapped[int] = mapped_column(Integer, nullable=False)
+    max_team_members: Mapped[int] = mapped_column(Integer, nullable=False, default=3, server_default="3")
     sampling_frequency: Mapped[str] = mapped_column(String(32), nullable=False, default="daily_1", server_default="daily_1")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     sort_order: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0, server_default="0")
@@ -800,6 +813,7 @@ class TenantPlanOverride(Base):
     max_per_competitors: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     max_prompts_total: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     per_month_usages: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    max_team_members: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     sampling_frequency: Mapped[str] = mapped_column(String(32), nullable=False, default="", server_default="")
     note: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)

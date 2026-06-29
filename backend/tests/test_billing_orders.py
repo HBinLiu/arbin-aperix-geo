@@ -25,7 +25,8 @@ def _plan(**overrides: object) -> Plan:
         max_per_platforms=3,
         max_per_competitors=10,
         max_prompts_total=150,
-        per_month_usages=8500,
+        per_month_usages=7000,
+        max_team_members=5,
         sampling_frequency="daily_1",
         is_active=True,
     )

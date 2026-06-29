@@ -18,7 +18,8 @@ def _plan(**overrides: object) -> Plan:
         max_per_platforms=3,
         max_per_competitors=10,
         max_prompts_total=50,
-        per_month_usages=2500,
+        per_month_usages=2000,
+        max_team_members=3,
         sampling_frequency="daily_1",
         is_active=True,
         sort_order=1,
@@ -61,6 +62,7 @@ def test_get_plan_catalog_formats_limits_and_prices() -> None:
         max_per_competitors=999999,
         max_prompts_total=999999,
         per_month_usages=999999,
+        max_team_members=999999,
         sort_order=4,
         prices=[
             PlanPrice(
@@ -83,8 +85,12 @@ def test_get_plan_catalog_formats_limits_and_prices() -> None:
     assert len(catalog.plans) == 2
     assert catalog.plans[0].orderable is True
     assert catalog.plans[0].limits[0].value == "1"
-    assert catalog.plans[0].limits[4].value == "最多10"
-    assert catalog.plans[0].limits[5].value == "2,500 / 月"
+    limits_by_key = {limit.key: limit for limit in catalog.plans[0].limits}
+    assert limits_by_key["sampling_frequency"].value == "每天 / 每3天 / 每周"
+    assert limits_by_key["sampling_frequency"].comparison_only is True
+    assert limits_by_key["max_per_competitors"].value == "最多10"
+    assert limits_by_key["per_month_usages"].value == "2,000 / 月"
+    assert limits_by_key["max_team_members"].value == "最多3"
     assert catalog.plans[0].prices[1].monthly_cents == 26900
     assert catalog.plans[0].prices[1].discount_badge == "省 10%"
 

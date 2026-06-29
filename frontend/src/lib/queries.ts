@@ -3,6 +3,7 @@ import type { InvalidateQueryFilters, QueryClient } from "@tanstack/react-query"
 export const queryKeys = {
   subjects: ["subjects"] as const,
   me: ["auth", "me"] as const,
+  tenantMembers: ["auth", "tenant-members"] as const,
   overview: (subjectId: string, from: string, to: string) =>
     ["overview", subjectId, from, to] as const,
   rank: (subjectId: string, from: string, to: string) =>

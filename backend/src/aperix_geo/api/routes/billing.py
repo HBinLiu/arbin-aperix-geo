@@ -86,6 +86,7 @@ def list_subscription_plans(current: CurrentUser, db: DbSession) -> PlanCatalogO
                         label=limit.label,
                         description=limit.description,
                         value=limit.value,
+                        comparison_only=limit.comparison_only,
                     )
                     for limit in plan.limits
                 ],
@@ -151,6 +152,7 @@ def get_tenant_subscription(current: CurrentUser, db: DbSession) -> Subscription
             max_per_competitors=snapshot.limits.max_per_competitors,
             max_prompts_total=snapshot.limits.max_prompts_total,
             per_month_usages=snapshot.limits.per_month_usages,
+            max_team_members=snapshot.limits.max_team_members,
             sampling_frequency=snapshot.limits.sampling_frequency,
         ),
         usage=UsageOut(

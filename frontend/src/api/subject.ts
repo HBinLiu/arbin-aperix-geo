@@ -6,6 +6,7 @@ export type SubjectUpdatePayload = {
   aliases?: string[];
   profile_summary?: string;
   sampling_platforms?: string[];
+  sampling_frequency?: string;
 };
 
 export async function fetchSubjects(): Promise<Subject[]> {
