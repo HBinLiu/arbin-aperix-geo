@@ -126,8 +126,10 @@ def _deepseek_chat(settings: Settings) -> Callable[[list[dict[str, str]]], Sampl
             api_key=settings.deepseek_api_key,
             base_url=settings.deepseek_base_url,
             model=settings.deepseek_model,
+            anthropic_base_url=settings.deepseek_anthropic_base_url,
             web_search=settings.deepseek_web_search_enabled,
-            searxng_max_results=settings.sampling_searxng_max_results,
+            web_search_tool_type=settings.deepseek_web_search_tool_type,
+            web_search_max_uses=settings.deepseek_web_search_max_uses,
             timeout_s=settings.deepseek_chat_timeout_s,
         )
 
@@ -170,7 +172,7 @@ def _kimi_chat(settings: Settings) -> Callable[[list[dict[str, str]]], SamplingC
             base_url=settings.kimi_base_url,
             model=settings.kimi_model,
             web_search=settings.kimi_web_search_enabled,
-            searxng_max_results=settings.sampling_searxng_max_results,
+            web_search_max_uses=settings.kimi_web_search_max_uses,
             timeout_s=settings.kimi_chat_timeout_s,
             temperature=settings.kimi_temperature,
         )

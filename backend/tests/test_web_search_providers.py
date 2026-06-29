@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+import json
 from http import HTTPStatus
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from aperix_geo.services.providers.result import SamplingChatResult
-from aperix_geo.services.providers.deepseek import deepseek_chat
+from aperix_geo.config import get_settings
+from aperix_geo.services.providers.deepseek import (
+    build_web_search_tool,
+    deepseek_chat,
+    normalize_web_search_tool_type,
+    parse_deepseek_anthropic_payload,
+    resolve_deepseek_anthropic_base_url,
+)
+from aperix_geo.services.providers.errors import DeepseekProviderError
 from aperix_geo.services.providers.doubao import (
     doubao_responses_chat,
     parse_responses_payload,
@@ -17,12 +25,13 @@ from aperix_geo.services.providers.ernie import (
     ernie_chat,
     parse_chat_completion_payload as parse_ernie_payload,
 )
-from aperix_geo.services.providers.kimi import kimi_chat
+from aperix_geo.services.providers.kimi import kimi_chat, parse_kimi_payload
 from aperix_geo.services.providers.prompts import (
+    DEEPSEEK_WEB_SEARCH_SYSTEM,
     DOUBAO_WEB_SEARCH_SYSTEM,
     ERNIE_WEB_SEARCH_SYSTEM,
+    KIMI_WEB_SEARCH_SYSTEM,
     QIANWEN_WEB_SEARCH_SYSTEM,
-    SEARXNG_WEB_SEARCH_SYSTEM,
     YUANBAO_WEB_SEARCH_SYSTEM,
 )
 from aperix_geo.services.providers.qianwen import (
@@ -30,149 +39,254 @@ from aperix_geo.services.providers.qianwen import (
     parse_generation_payload,
     qianwen_generation_chat,
 )
-from aperix_geo.services.providers.searxng import (
-    augmented_chat,
-    build_messages_with_search,
-    format_search_context,
-)
 from aperix_geo.services.providers.yuanbao import (
     parse_chat_completion_payload as parse_yuanbao_payload,
     yuanbao_chat,
 )
-from aperix_geo.services.searxng import SearchHit
 
 
-# --- SearXNG augmented chat ---
+# --- DeepSeek ---
 
 
-def test_format_search_context() -> None:
-    hits = [
-        SearchHit(title="Example A", url="https://example.com/a", snippet="摘要 A", query="q"),
-        SearchHit(title="Example B", url="https://example.com/b", snippet="", query="q"),
-    ]
-    text = format_search_context(hits)
-    assert "[1] Example A" in text
-    assert "https://example.com/a" in text
-    assert "摘要 A" in text
-    assert "[2] Example B" in text
-
-
-def test_build_messages_with_search_injects_system_and_context() -> None:
-    hits = [SearchHit(title="Source", url="https://example.com/source", snippet="info", query="问题")]
-    messages = build_messages_with_search(
-        [{"role": "user", "content": "问题"}],
-        hits=hits,
-        query="问题",
+def test_resolve_deepseek_anthropic_base_url() -> None:
+    assert (
+        resolve_deepseek_anthropic_base_url("https://api.deepseek.com")
+        == "https://api.deepseek.com/anthropic"
     )
-    assert messages[0]["role"] == "system"
-    assert messages[0]["content"] == SEARXNG_WEB_SEARCH_SYSTEM
-    assert "https://example.com/source" in messages[1]["content"]
-    assert "问题" in messages[1]["content"]
+    assert (
+        resolve_deepseek_anthropic_base_url("https://api.deepseek.com/v1")
+        == "https://api.deepseek.com/anthropic"
+    )
+    assert (
+        resolve_deepseek_anthropic_base_url(
+            "https://api.deepseek.com",
+            anthropic_base_url="https://custom.example/anthropic",
+        )
+        == "https://custom.example/anthropic"
+    )
 
 
-@patch("aperix_geo.services.providers.searxng.openai_chat_completion")
-@patch("aperix_geo.services.providers.searxng.search_text")
-def test_augmented_chat_returns_source_urls(mock_search, mock_chat) -> None:
-    mock_search.return_value = [
-        SearchHit(title="A", url="https://example.com/a", snippet="s", query="天气")
-    ]
-    mock_chat.return_value = ("回答正文", {}, 12)
+def test_build_web_search_tool_uses_configured_type() -> None:
+    tool = build_web_search_tool(tool_type="web_search_20260209", max_uses=3)
+    assert tool == {
+        "type": "web_search_20260209",
+        "name": "web_search",
+        "max_uses": 3,
+    }
 
-    result = augmented_chat(
-        [{"role": "user", "content": "今天天气如何？"}],
+
+def test_normalize_web_search_tool_type_rejects_unknown() -> None:
+    with pytest.raises(DeepseekProviderError, match="unsupported web_search tool type"):
+        normalize_web_search_tool_type("web_search_20990101")
+
+
+def test_deepseek_parse_anthropic_payload_extracts_text_and_urls() -> None:
+    data = {
+        "content": [
+            {"type": "server_tool_use", "name": "web_search", "id": "srv_1"},
+            {
+                "type": "web_search_tool_result",
+                "tool_use_id": "srv_1",
+                "content": [
+                    {
+                        "type": "web_search_result",
+                        "url": "https://docs.deepseek.com/guide",
+                        "title": "Guide",
+                    }
+                ],
+            },
+            {
+                "type": "text",
+                "text": "DeepSeek 提供 Context Caching。[1]",
+                "citations": [
+                    {
+                        "type": "web_search_result_location",
+                        "url": "https://docs.deepseek.com/guide",
+                        "title": "Guide",
+                    }
+                ],
+            },
+        ],
+        "usage": {"input_tokens": 100, "output_tokens": 50, "server_tool_use": {"web_search_requests": 1}},
+    }
+    text, source_urls, searched = parse_deepseek_anthropic_payload(data)
+    assert searched is True
+    assert "DeepSeek 提供 Context Caching" in text
+    assert "https://docs.deepseek.com/guide" in source_urls
+
+
+@patch("aperix_geo.services.providers.deepseek.httpx.Client")
+def test_deepseek_chat_uses_anthropic_web_search(mock_client_cls) -> None:
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "content": [
+            {
+                "type": "web_search_tool_result",
+                "content": [
+                    {
+                        "type": "web_search_result",
+                        "url": "https://docs.deepseek.com/guide",
+                        "title": "Guide",
+                    }
+                ],
+            },
+            {"type": "text", "text": "回答正文"},
+        ],
+        "stop_reason": "end_turn",
+        "usage": {"input_tokens": 10, "output_tokens": 5, "server_tool_use": {"web_search_requests": 1}},
+    }
+    mock_client = mock_client_cls.return_value.__enter__.return_value
+    mock_client.post.return_value = mock_response
+
+    result = deepseek_chat(
+        [{"role": "user", "content": "问题"}],
         api_key="sk-test",
         base_url="https://api.deepseek.com",
-        model="deepseek-chat",
-        provider_label="DeepSeek",
+        model="deepseek-v4-pro",
         web_search=True,
-        searxng_max_results=8,
     )
     assert result.text == "回答正文"
-    assert result.web_search_mode == "searxng"
-    assert result.source_urls == ("https://example.com/a",)
-    assert result.latency_ms >= 0
+    assert result.web_search_mode == "deepseek_native"
+    assert "https://docs.deepseek.com/guide" in result.source_urls
 
-    mock_search.assert_called_once_with("今天天气如何？", max_results=8)
-    chat_messages = mock_chat.call_args.kwargs["messages"]
-    assert chat_messages[0]["content"] == SEARXNG_WEB_SEARCH_SYSTEM
-    assert "https://example.com/a" in chat_messages[1]["content"]
+    mock_client.post.assert_called_once()
+    call_args = mock_client.post.call_args
+    assert call_args.args[0] == "https://api.deepseek.com/anthropic/v1/messages"
+    body = call_args.kwargs["json"]
+    assert body["tools"] == [
+        {"type": "web_search_20250305", "name": "web_search", "max_uses": 5}
+    ]
+    assert body["system"] == DEEPSEEK_WEB_SEARCH_SYSTEM
+    assert body["messages"] == [
+        {"role": "user", "content": [{"type": "text", "text": "问题"}]}
+    ]
 
 
-@patch("aperix_geo.services.providers.searxng.openai_chat_completion")
-@patch("aperix_geo.services.providers.searxng.search_text")
-def test_augmented_chat_skips_search_when_disabled(mock_search, mock_chat) -> None:
+@patch("aperix_geo.services.providers.deepseek.openai_chat_completion")
+def test_deepseek_chat_skips_web_search_when_disabled(mock_chat) -> None:
     mock_chat.return_value = ("plain", {}, 5)
 
-    result = augmented_chat(
+    result = deepseek_chat(
         [{"role": "user", "content": "hi"}],
         api_key="sk-test",
-        base_url="https://api.moonshot.cn/v1",
-        model="moonshot-v1-8k",
-        provider_label="Kimi",
+        base_url="https://api.deepseek.com",
+        model="deepseek-v4-pro",
         web_search=False,
     )
     assert result.web_search_mode == "none"
     assert result.source_urls == ()
-    mock_search.assert_not_called()
+    mock_chat.assert_called_once()
     assert mock_chat.call_args.kwargs["messages"] == [{"role": "user", "content": "hi"}]
 
 
-_SEARXNG_PROVIDERS = (
-    pytest.param(
-        deepseek_chat,
-        "aperix_geo.services.providers.deepseek.augmented_chat",
-        "DeepSeek",
-        "sk-d",
-        "https://api.deepseek.com",
-        "deepseek-chat",
-        id="deepseek",
-    ),
-    pytest.param(
-        kimi_chat,
-        "aperix_geo.services.providers.kimi.augmented_chat",
-        "Kimi",
-        "sk-k",
-        "https://api.moonshot.cn/v1",
-        "moonshot-v1-8k",
-        id="kimi",
-    ),
-)
+# --- Kimi ---
 
 
-@pytest.mark.parametrize(
-    ("chat_fn", "patch_target", "provider_label", "api_key", "base_url", "model"),
-    _SEARXNG_PROVIDERS,
-)
-def test_searxng_provider_delegates_to_augmented_chat(
-    chat_fn,
-    patch_target: str,
-    provider_label: str,
-    api_key: str,
-    base_url: str,
-    model: str,
-) -> None:
-    with patch(patch_target) as mock_augmented:
-        mock_augmented.return_value = SamplingChatResult(
-            text="ok",
-            usage={},
-            latency_ms=1,
-            source_urls=("https://example.com",),
-            web_search_mode="searxng",
-        )
+def test_kimi_parse_payload_extracts_text_and_urls() -> None:
+    text, source_urls, searched = parse_kimi_payload(
+        "推荐 A 和 B。[1](https://docs.moonshot.cn/a)",
+        searched=True,
+        tool_source_urls=["https://docs.moonshot.cn/b"],
+    )
+    assert searched is True
+    assert "推荐 A 和 B" in text
+    assert "https://docs.moonshot.cn/a" in source_urls
+    assert "https://docs.moonshot.cn/b" in source_urls
 
-        result = chat_fn(
-            [{"role": "user", "content": "hi"}],
-            api_key=api_key,
-            base_url=base_url,
-            model=model,
-        )
-        assert result.text == "ok"
-        mock_augmented.assert_called_once()
-        kwargs = mock_augmented.call_args.kwargs
-        assert kwargs["provider_label"] == provider_label
-        assert kwargs["model"] == model
-        if provider_label == "Kimi":
-            assert kwargs["temperature"] == 1.0
+
+@patch("aperix_geo.services.providers.kimi.OpenAI")
+def test_kimi_chat_runs_web_search_tool_loop(mock_openai_cls) -> None:
+    tool_call = MagicMock()
+    tool_call.id = "call_1"
+    tool_call.function.name = "$web_search"
+    tool_call.function.arguments = json.dumps(
+        {
+            "search_result": [{"url": "https://docs.moonshot.cn/source"}],
+        }
+    )
+
+    tool_message = MagicMock()
+    tool_message.content = None
+    tool_message.tool_calls = [tool_call]
+    tool_choice = MagicMock()
+    tool_choice.finish_reason = "tool_calls"
+    tool_choice.message = tool_message
+
+    final_message = MagicMock()
+    final_message.content = "回答正文 [1](https://docs.moonshot.cn/source)"
+    final_message.tool_calls = None
+    final_choice = MagicMock()
+    final_choice.finish_reason = "stop"
+    final_choice.message = final_message
+
+    tool_response = MagicMock()
+    tool_response.choices = [tool_choice]
+    tool_response.usage = MagicMock()
+    tool_response.usage.model_dump.return_value = {
+        "prompt_tokens": 100,
+        "completion_tokens": 0,
+        "total_tokens": 100,
+    }
+
+    final_response = MagicMock()
+    final_response.choices = [final_choice]
+    final_response.usage = MagicMock()
+    final_response.usage.model_dump.return_value = {
+        "prompt_tokens": 200,
+        "completion_tokens": 50,
+        "total_tokens": 250,
+    }
+
+    mock_client = mock_openai_cls.return_value
+    mock_client.chat.completions.create.side_effect = [tool_response, final_response]
+    tool_message.model_dump.return_value = {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "$web_search", "arguments": tool_call.function.arguments},
+            }
+        ],
+    }
+
+    result = kimi_chat(
+        [{"role": "user", "content": "问题"}],
+        api_key="sk-test",
+        base_url="https://api.moonshot.cn/v1",
+        model="kimi-k2.6",
+        web_search=True,
+    )
+    assert result.text == "回答正文 [1](https://docs.moonshot.cn/source)"
+    assert result.web_search_mode == "kimi_native"
+    assert "https://docs.moonshot.cn/source" in result.source_urls
+    assert mock_client.chat.completions.create.call_count == 2
+
+    first_kwargs = mock_client.chat.completions.create.call_args_list[0].kwargs
+    assert first_kwargs["tools"] == [
+        {"type": "builtin_function", "function": {"name": "$web_search"}}
+    ]
+    assert first_kwargs["extra_body"] == {"thinking": {"type": "disabled"}}
+    assert first_kwargs["messages"][0]["content"] == KIMI_WEB_SEARCH_SYSTEM
+
+
+@patch("aperix_geo.services.providers.kimi.openai_chat_completion")
+def test_kimi_chat_skips_web_search_when_disabled(mock_chat) -> None:
+    mock_chat.return_value = ("plain", {}, 5)
+
+    result = kimi_chat(
+        [{"role": "user", "content": "hi"}],
+        api_key="sk-test",
+        base_url="https://api.moonshot.cn/v1",
+        model="moonshot-v1-8k",
+        web_search=False,
+    )
+    assert result.web_search_mode == "none"
+    assert result.source_urls == ()
+    mock_chat.assert_called_once()
+    assert mock_chat.call_args.kwargs["messages"] == [{"role": "user", "content": "hi"}]
 
 
 # --- Doubao ---
@@ -493,3 +607,117 @@ def test_qianwen_generation_chat_uses_dashscope_sdk(mock_generation_call) -> Non
     assert kwargs["messages"][0]["role"] == "system"
     assert kwargs["messages"][0]["content"] == QIANWEN_WEB_SEARCH_SYSTEM
     assert kwargs["messages"][1]["content"] == "问题"
+
+
+# --- Live integration (requires API keys; run with: pytest -m live -v -s) ---
+
+
+def _kimi_live_configured() -> bool:
+    settings = get_settings()
+    return bool(
+        settings.kimi_api_key.strip()
+        and settings.kimi_model.strip()
+        and settings.kimi_base_url.strip()
+    )
+
+
+def _deepseek_live_configured() -> bool:
+    settings = get_settings()
+    return bool(
+        settings.deepseek_api_key.strip()
+        and settings.deepseek_model.strip()
+        and settings.deepseek_base_url.strip()
+    )
+
+
+@pytest.mark.live
+@pytest.mark.skipif(
+    not _kimi_live_configured(),
+    reason="KIMI_API_KEY / KIMI_MODEL / KIMI_BASE_URL not configured",
+)
+def test_kimi_web_search_live() -> None:
+    """验证 Kimi 官方 $web_search 能完成一次联网问答。"""
+    settings = get_settings()
+    result = kimi_chat(
+        [
+            {
+                "role": "user",
+                "content": (
+                    "请联网搜索 Moonshot AI 的 Context Caching 技术，"
+                    "用两三句话说明它是什么，并在文末列出参考链接。"
+                ),
+            }
+        ],
+        api_key=settings.kimi_api_key,
+        base_url=settings.kimi_base_url,
+        model=settings.kimi_model,
+        web_search=True,
+        web_search_max_uses=settings.kimi_web_search_max_uses,
+        timeout_s=settings.kimi_chat_timeout_s,
+        temperature=settings.kimi_temperature,
+    )
+
+    assert result.text.strip(), "Kimi returned empty text"
+    assert result.web_search_mode == "kimi_native", (
+        f"expected $web_search tool call, got mode={result.web_search_mode!r}"
+    )
+    assert result.latency_ms > 0
+    assert result.usage.get("total_tokens", 0) > 0 or result.usage.get("completion_tokens", 0) > 0
+
+    has_citations = bool(result.source_urls) or "http" in result.text.lower()
+    assert has_citations, "expected source URLs or http links in response"
+
+    print(
+        f"\n[kimi live] mode={result.web_search_mode} "
+        f"latency_ms={result.latency_ms} "
+        f"source_urls={len(result.source_urls)} "
+        f"chars={len(result.text)}"
+    )
+    print(f"[kimi live] preview: {result.text[:400]}{'…' if len(result.text) > 400 else ''}")
+
+
+@pytest.mark.live
+@pytest.mark.skipif(
+    not _deepseek_live_configured(),
+    reason="DEEPSEEK_API_KEY / DEEPSEEK_MODEL / DEEPSEEK_BASE_URL not configured",
+)
+def test_deepseek_web_search_live() -> None:
+    """验证 DeepSeek Anthropic 原生 web_search 能完成一次联网问答。"""
+    settings = get_settings()
+    result = deepseek_chat(
+        [
+            {
+                "role": "user",
+                "content": (
+                    "请联网搜索 DeepSeek API 的 Context Caching 功能，"
+                    "用两三句话说明它是什么，并在文末列出参考链接。"
+                ),
+            }
+        ],
+        api_key=settings.deepseek_api_key,
+        base_url=settings.deepseek_base_url,
+        model=settings.deepseek_model,
+        anthropic_base_url=settings.deepseek_anthropic_base_url,
+        web_search=True,
+        web_search_tool_type=settings.deepseek_web_search_tool_type,
+        web_search_max_uses=settings.deepseek_web_search_max_uses,
+        timeout_s=settings.deepseek_chat_timeout_s,
+    )
+
+    assert result.text.strip(), "DeepSeek returned empty text"
+    assert result.web_search_mode == "deepseek_native", (
+        f"expected native web search, got mode={result.web_search_mode!r}"
+    )
+    assert result.latency_ms > 0
+    assert result.usage.get("total_tokens", 0) > 0 or result.usage.get("completion_tokens", 0) > 0
+
+    has_citations = bool(result.source_urls) or "http" in result.text.lower()
+    assert has_citations, "expected source URLs or http links in response"
+
+    print(
+        f"\n[deepseek live] mode={result.web_search_mode} "
+        f"latency_ms={result.latency_ms} "
+        f"source_urls={len(result.source_urls)} "
+        f"chars={len(result.text)}"
+    )
+    print(f"[deepseek live] preview: {result.text[:400]}{'…' if len(result.text) > 400 else ''}")

@@ -21,7 +21,7 @@ def test_llm_result_payload_round_trip() -> None:
         usage={"completion_tokens": 10},
         latency_ms=1234,
         source_urls=("https://example.com",),
-        web_search_mode="searxng",
+        web_search_mode="deepseek_native",
     )
     restored = _from_payload(_to_payload(original))
     assert restored == original

@@ -1,4 +1,4 @@
-"""SearXNG JSON API 客户端（采样联网、品牌调研、域名解析等）。"""
+"""SearXNG JSON API 客户端（品牌调研、域名解析、竞品发现等）。"""
 
 from __future__ import annotations
 
@@ -113,9 +113,7 @@ def search_text(
     """通用 SearXNG 文本搜索（须配置 SEARXNG_BASE_URL）。"""
     settings = get_settings()
     limit = max(3, min(max_results or 10, 50))
-    search_timeout = (
-        timeout_s if timeout_s is not None else settings.sampling_searxng_timeout_s
-    )
+    search_timeout = timeout_s if timeout_s is not None else settings.searxng_timeout_s
 
     base_url = settings.searxng_base_url.strip()
     if not base_url:

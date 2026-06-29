@@ -147,7 +147,7 @@ python3 scripts/sampling_reparse.py --dry-run  # 重算已有回复的 parsed �
 2. **topics**：用户确认竞品 → profile_summary LLM + 监测主题 LLM
 3. **终选竞品**：及格分 Top N（`COMPETITOR_RESULT_MAX`）
 
-环境变量见 `backend/.env.example`：`COMPETITOR_*`、`DOUBAO_*`；`SEARXNG_BASE_URL` 仅用于采样联网与品牌 Step1 调研。安装 Crawl4AI 浏览器（正文类抓取兜底）：
+环境变量见 `backend/.env.example`：`COMPETITOR_*`、`DOUBAO_*`；`SEARXNG_BASE_URL` 用于品牌 Step1 调研与竞品发现。安装 Crawl4AI 浏览器（正文类抓取兜底）：
 
 ```bash
 crawl4ai-setup

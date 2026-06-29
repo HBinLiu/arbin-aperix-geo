@@ -66,10 +66,6 @@ class LLMProviderError(ProviderError):
     """Internal DeepSeek chat_completion failures."""
 
 
-class SearxngProviderError(ProviderError):
-    pass
-
-
 class DoubaoProviderError(ProviderError):
     pass
 
@@ -86,9 +82,9 @@ class ErnieProviderError(ProviderError):
     pass
 
 
-class DeepseekProviderError(SearxngProviderError):
+class DeepseekProviderError(ProviderError):
     pass
 
 
-class KimiProviderError(SearxngProviderError):
+class KimiProviderError(ProviderError):
     pass

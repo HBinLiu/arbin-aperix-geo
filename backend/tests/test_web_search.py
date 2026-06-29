@@ -57,10 +57,16 @@ def test_search_searxng_parses_json() -> None:
 @patch("aperix_geo.services.searxng.get_settings")
 def test_search_text_delegates_to_searxng(mock_settings, mock_searx) -> None:
     mock_settings.return_value.searxng_base_url = "http://127.0.0.1:8061"
+    mock_settings.return_value.searxng_timeout_s = 30.0
     mock_searx.return_value = [SearchHit(title="A", url="https://a.com", snippet="", query="q")]
     hits = search_text("q")
     assert len(hits) == 1
-    mock_searx.assert_called_once_with("q", max_results=10, base_url="http://127.0.0.1:8061")
+    mock_searx.assert_called_once_with(
+        "q",
+        max_results=10,
+        base_url="http://127.0.0.1:8061",
+        timeout_s=30.0,
+    )
 
 
 @patch("aperix_geo.services.searxng.get_settings")

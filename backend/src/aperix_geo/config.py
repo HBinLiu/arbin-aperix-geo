@@ -79,12 +79,12 @@ class Settings(BaseSettings):
     deepseek_model: str = "deepseek-chat"
     deepseek_rate_limit_per_minute: int = 30
     deepseek_web_search_enabled: bool = True
+    # 原生联网走 Anthropic Messages API；留空则从 DEEPSEEK_BASE_URL 推导
+    deepseek_anthropic_base_url: str = ""
+    # Anthropic web_search tool 版本（DeepSeek 当前支持 20250305 / 20260209）
+    deepseek_web_search_tool_type: str = "web_search_20250305"
+    deepseek_web_search_max_uses: int = Field(default=5, ge=1, le=20)
     deepseek_chat_timeout_s: float = Field(default=120.0, ge=10.0, le=600.0)
-
-    # --- 采样 · SearXNG 联网（DeepSeek / Kimi 等）---
-    sampling_searxng_max_results: int = Field(default=8, ge=1, le=28)
-    # SearXNG 搜索 HTTP 超时（与下方 LLM chat 超时独立）
-    sampling_searxng_timeout_s: float = Field(default=30.0, ge=5.0, le=120.0)
 
     # --- DNS（dnspython · 爬虫预检 / 品牌推断等）---
     dns_timeout_s: float = Field(default=1.0, ge=0.5, le=30.0)
@@ -145,6 +145,7 @@ class Settings(BaseSettings):
     kimi_model: str = "moonshot-v1-8k"
     kimi_rate_limit_per_minute: int = 30
     kimi_web_search_enabled: bool = True
+    kimi_web_search_max_uses: int = Field(default=5, ge=1, le=20)
     kimi_chat_timeout_s: float = Field(default=180.0, ge=10.0, le=600.0)
     # Kimi 推理类模型（如 kimi-k2）仅允许 temperature=1
     kimi_temperature: float = Field(default=1.0, ge=0.0, le=2.0)
@@ -159,6 +160,12 @@ class Settings(BaseSettings):
 
     # --- 竞品发现（.env：COMPETITOR_* + DOUBAO_*）---
     searxng_base_url: str = ""
+    searxng_timeout_s: float = Field(
+        default=30.0,
+        ge=5.0,
+        le=120.0,
+        validation_alias=AliasChoices("searxng_timeout_s", "sampling_searxng_timeout_s"),
+    )
     # 交叉验算 head 走 PAGE_CRAWL_SEO_*（轻量 httpx）；池越大召回越好，与 PAGE_CRAWL_CONCURRENCY 配合
     competitor_pool_size: int = Field(default=40, ge=8, le=60)
     competitor_search_rounds: int = Field(default=3, ge=1, le=5)

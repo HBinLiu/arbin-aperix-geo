@@ -56,3 +56,6 @@ aperix_geo = ["templates/**/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "live: hits real external APIs (requires credentials in .env)",
+]
