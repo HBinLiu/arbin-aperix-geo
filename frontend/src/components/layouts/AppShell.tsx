@@ -48,7 +48,7 @@ export function AppShell({ children, headerStart }: AppShellProps) {
             <button
               type="button"
               onClick={() => navigate("/")}
-              className="flex items-center gap-2 rounded-md px-2 py-1 outline-hidden hover:bg-accent/60"
+              className="flex items-center gap-2 rounded-md px-2 py-1 outline-hidden hover:bg-muted-background"
             >
               <AppLogo width={24} height={24} className="size-6 object-contain" decoding="async" />
               <span className="text-foreground hidden text-sm font-semibold sm:inline">Aperix AI</span>

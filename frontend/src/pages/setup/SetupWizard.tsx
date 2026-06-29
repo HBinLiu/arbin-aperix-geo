@@ -20,7 +20,7 @@ function SetupWizardHeader({ title, subtitle }: SetupWizardHeaderProps) {
   return (
     <div className="shrink-0 space-y-2 text-left">
       <h1 className="text-[24px] font-semibold leading-tight text-foreground">{title ?? "欢迎！让我们开始吧"}</h1>
-      <p className="text-muted-foreground text-sm">{subtitle ?? "告诉我们您的新计划以开始使用"}</p>
+      <p className="text-muted-foreground text-sm">{subtitle ?? "告诉我们您的新品牌计划以开始使用"}</p>
     </div>
   );
 }
