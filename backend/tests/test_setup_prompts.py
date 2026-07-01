@@ -7,6 +7,8 @@ from unittest.mock import patch
 
 import pytest
 
+from aperix_geo.services.competitor.profile import normalize_niche_profile
+from aperix_geo.services.competitor.types import NicheProfile
 from aperix_geo.services.prompts.setup import (
     PROMPT_PER_TOPIC,
     generate_setup_prompts,
@@ -21,12 +23,51 @@ _DIMENSIONS = [
 ]
 
 
+@pytest.fixture(autouse=True)
+def _skip_keyword_prompt_qa(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "aperix_geo.services.prompts.setup.validate_generated_prompts",
+        lambda *args, **kwargs: None,
+    )
+
+
+@pytest.fixture(autouse=True)
+def _force_llm_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """现有 LLM 单测假定走 chat_completion；seed 路径有产出时会跳过 LLM。"""
+
+    def _empty_seeds(*, topics, **kwargs):
+        return [{"topic": topic, "prompts": []} for topic in topics]
+
+    monkeypatch.setattr(
+        "aperix_geo.services.prompts.setup.build_prompts_from_seeds",
+        _empty_seeds,
+    )
+
+
+def _prompt_profile(*, topic: str = "跨境支付") -> NicheProfile:
+    return normalize_niche_profile(
+        {
+            "industry": "金融科技",
+            "features": "API",
+            "customers": "出海企业",
+            "topic_lexicon": {
+                "category_terms": [topic, "跨境收款", "全球账户"],
+                "scenario_terms": ["出海企业"],
+                "audience_terms": ["中小企业"],
+                "pain_terms": ["合规结汇"],
+            },
+            "search_queries": [f"{topic}出海企业合规结汇"],
+        },
+        entity="example.com",
+    )
+
+
 def _prompt(i: int) -> dict[str, str]:
     return {
         "text": f"问句{i}",
         "funnel": "mofu" if i % 2 else "tofu",
         "intent": "commercial" if i % 2 else "informational",
-        "decision_type": _DIMENSIONS[i % len(_DIMENSIONS)],
+        "decision": _DIMENSIONS[i % len(_DIMENSIONS)],
     }
 
 
@@ -48,6 +89,7 @@ def test_generate_setup_prompts_llm(mock_chat) -> None:
         industry="金融科技",
         features="API",
         customers="出海企业",
+        profile=_prompt_profile(),
     )
     assert len(rows) == 1
     assert rows[0]["topic"] == "跨境支付"
@@ -69,7 +111,7 @@ def test_generate_setup_prompts_passes_exclude_prompts(mock_chat) -> None:
                         "text": "问句A",
                         "funnel": "tofu",
                         "intent": "informational",
-                        "decision_type": "scenario_fit",
+                        "decision": "scenario_fit",
                     }
                 ],
             }
@@ -80,6 +122,7 @@ def test_generate_setup_prompts_passes_exclude_prompts(mock_chat) -> None:
     generate_setup_prompts(
         entity="Acme",
         topics=["支付"],
+        profile=_prompt_profile(topic="支付"),
         exclude_prompts=["已有问题", "  "],
     )
 
@@ -94,7 +137,11 @@ def test_generate_setup_prompts_raises_on_llm_error(mock_chat) -> None:
     mock_chat.side_effect = ValueError("missing topics array")
 
     with pytest.raises(ValueError):
-        generate_setup_prompts(entity="Acme", topics=["支付"])
+        generate_setup_prompts(
+            entity="Acme",
+            topics=["支付"],
+            profile=_prompt_profile(topic="支付"),
+        )
 
 
 @patch("aperix_geo.services.prompts.setup.chat_completion")
@@ -108,13 +155,13 @@ def test_generate_setup_prompts_filters_excluded_text(mock_chat) -> None:
                         "text": "已有问题",
                         "funnel": "tofu",
                         "intent": "informational",
-                        "decision_type": "scenario_fit",
+                        "decision": "scenario_fit",
                     },
                     {
                         "text": "新问题",
                         "funnel": "mofu",
                         "intent": "commercial",
-                        "decision_type": "price_value",
+                        "decision": "price_value",
                     },
                 ],
             }
@@ -125,6 +172,7 @@ def test_generate_setup_prompts_filters_excluded_text(mock_chat) -> None:
     rows = generate_setup_prompts(
         entity="Acme",
         topics=["支付"],
+        profile=_prompt_profile(topic="支付"),
         prompts_per_topic=2,
         exclude_prompts=["已有问题"],
     )
@@ -144,7 +192,7 @@ def test_generate_setup_prompts_exact_topic_match_only(mock_chat) -> None:
                         "text": "问句A",
                         "funnel": "tofu",
                         "intent": "informational",
-                        "decision_type": "category_awareness",
+                        "decision": "category_awareness",
                     }
                 ],
             }
@@ -159,7 +207,7 @@ def test_generate_setup_prompts_exact_topic_match_only(mock_chat) -> None:
                         "text": "问句B",
                         "funnel": "mofu",
                         "intent": "commercial",
-                        "decision_type": "scenario_fit",
+                        "decision": "scenario_fit",
                     }
                 ],
             }
@@ -173,6 +221,7 @@ def test_generate_setup_prompts_exact_topic_match_only(mock_chat) -> None:
     rows = generate_setup_prompts(
         entity="Acme",
         topics=["AI 搜索可见度", "跨境支付"],
+        profile=_prompt_profile(),
         prompts_per_topic=1,
     )
     by_topic = {row["topic"]: row["prompts"][0]["text"] for row in rows}
@@ -182,8 +231,34 @@ def test_generate_setup_prompts_exact_topic_match_only(mock_chat) -> None:
 
 
 @patch("aperix_geo.services.prompts.setup.chat_completion")
-def test_generate_setup_prompts_raises_when_topic_still_empty(mock_chat) -> None:
-    mock_chat.return_value = (json.dumps({"topics": []}), "deepseek", 100.0)
+def test_generate_setup_prompts_strips_punctuation(mock_chat) -> None:
+    payload = {
+        "topics": [
+            {
+                "topic": "跨境支付",
+                "prompts": [
+                    {
+                        "text": "跨境收款怎么选？",
+                        "funnel": "mofu",
+                        "intent": "commercial",
+                        "decision": "category_awareness",
+                    },
+                    _prompt(1),
+                    _prompt(2),
+                    _prompt(3),
+                ],
+            }
+        ]
+    }
+    mock_chat.return_value = (json.dumps(payload), "deepseek", 100.0)
 
-    with pytest.raises(ValueError, match="未生成有效问句"):
-        generate_setup_prompts(entity="Acme", topics=["支付"], prompts_per_topic=1)
+    rows = generate_setup_prompts(
+        entity="Acme",
+        topics=["跨境支付"],
+        profile=_prompt_profile(),
+        prompts_per_topic=4,
+    )
+    texts = [p["text"] for p in rows[0]["prompts"]]
+    assert "跨境收款怎么选" in texts
+    assert "跨境收款怎么选？" not in texts
+    assert all("？" not in t and "?" not in t for t in texts)

@@ -318,9 +318,6 @@ class Topic(Base):
         Uuid(as_uuid=True), ForeignKey("tb_subjects.id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
-    decision_dimension: Mapped[str] = mapped_column(
-        String(32), nullable=False, default="", server_default=""
-    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW

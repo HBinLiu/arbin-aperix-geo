@@ -37,7 +37,7 @@ def test_run_setup_topics_step_generates_summary_and_topics(
     _mock_consume,
 ) -> None:
     profile = normalize_niche_profile(
-        {"industry": "SaaS", "keywords": ["AI SaaS"], "company": "Example"},
+        {"industry": "SaaS", "search_queries": ["AI SaaS"], "company": "Example"},
         entity="example.com",
     )
     mock_get_session.return_value = {
@@ -53,12 +53,12 @@ def test_run_setup_topics_step_generates_summary_and_topics(
         {"name": "AI 可见度监测", "seed_queries": []},
         {"name": "竞品对比", "seed_queries": []},
     ]
-    mock_topics.return_value = (clusters, [], {})
+    mock_topics.return_value = (clusters, {})
     call_order: list[str] = []
 
     def _topics_side_effect(*_args, **_kwargs):
         call_order.append("topics")
-        return clusters, [], {}
+        return clusters, {}
 
     def _summary_side_effect(*_args, **_kwargs):
         call_order.append("summary")
@@ -119,7 +119,6 @@ def test_run_setup_topics_step_preserves_competitor_aliases(
     mock_summary.return_value = ("# Example", {})
     mock_topics.return_value = (
         [{"name": "主题 A", "seed_queries": []}],
-        [],
         {},
     )
     mock_enrich.side_effect = lambda items, *, session=None: items
@@ -160,7 +159,7 @@ def test_run_setup_topics_step_regenerates_topics_when_competitors_change(
     _mock_consume,
 ) -> None:
     profile = normalize_niche_profile(
-        {"industry": "SaaS", "keywords": ["AI SaaS"], "company": "Example"},
+        {"industry": "SaaS", "search_queries": ["AI SaaS"], "company": "Example"},
         entity="example.com",
     )
     existing = ["AI 可见度监测"]
@@ -180,7 +179,6 @@ def test_run_setup_topics_step_regenerates_topics_when_competitors_change(
             {"name": "新主题 A", "seed_queries": []},
             {"name": "新主题 B", "seed_queries": []},
         ],
-        [],
         {},
     )
     mock_enrich.side_effect = lambda items, *, session=None: items
@@ -242,7 +240,7 @@ def test_run_setup_topics_step_summary_after_research_payload_cleared(
                         "text": "已有主题相关问句示例一",
                         "intent": "commercial",
                         "funnel": "mofu",
-                        "decision_type": "scenario_fit",
+                        "decision": "scenario_fit",
                     }
                 ]
                 * 3,
@@ -308,7 +306,7 @@ def test_run_setup_topics_step_always_persists_confirmed_competitors(
                         "text": "已有主题相关问句示例一",
                         "intent": "commercial",
                         "funnel": "mofu",
-                        "decision_type": "scenario_fit",
+                        "decision": "scenario_fit",
                     }
                 ]
                 * 3,

@@ -18,7 +18,7 @@ def _profile():
         "industry": "跨境支付",
         "features": "跨境收款",
         "customers": "跨境电商",
-        "keywords": "跨境支付 SaaS",
+        "search_queries": "跨境支付 SaaS",
     }
 
 
@@ -117,7 +117,7 @@ def test_unreachable_hosts_skip_llm(mock_settings, mock_fetch, mock_score) -> No
             "industry": "跨境药品",
             "features": "直购",
             "customers": "B2B",
-            "keywords": "跨境药品平台",
+            "search_queries": "跨境药品平台",
         },
         target_domain="target.com",
         pool=pool,

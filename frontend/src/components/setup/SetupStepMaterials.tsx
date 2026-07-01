@@ -1,14 +1,12 @@
 import { FileText, Globe, Trash2, Upload } from "lucide-react";
 import { useRef } from "react";
 
-import { FaviconImage } from "@/components/common/FaviconImage";
+import { FaviconUrlInput } from "@/components/common/FaviconUrlInput";
 import {
   SetupFieldGroup,
   SetupFieldLabel,
-  SetupTextInput,
 } from "@/components/setup/SetupField";
 import { Button } from "@/components/ui/button";
-import { resolveFaviconInput } from "@/lib/favicon";
 import { MAX_SETUP_UPLOAD_FILES } from "@/lib/setup";
 import type { SetupUploadFile } from "@/types";
 import { cn } from "@/lib/utils";
@@ -48,19 +46,12 @@ export function SetupStepMaterials({
         <SetupFieldLabel icon={Globe} htmlFor="wiz-brand-url">
           品牌 URL
         </SetupFieldLabel>
-        <SetupTextInput
+        <FaviconUrlInput
           id="wiz-brand-url"
           value={brandWebsiteUrl}
           onChange={(e) => onBrandWebsiteUrlChange(e.target.value)}
           placeholder="品牌官方网址"
           autoComplete="url"
-          leading={
-            resolveFaviconInput(brandWebsiteUrl) ? (
-              <FaviconImage url={brandWebsiteUrl} size={20} className="size-5" />
-            ) : (
-              <Globe className="text-muted-foreground size-5" aria-hidden />
-            )
-          }
         />
       </SetupFieldGroup>
 

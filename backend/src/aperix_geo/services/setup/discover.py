@@ -27,6 +27,7 @@ from aperix_geo.services.setup.competitors import (
 )
 from aperix_geo.services.setup.helpers import require_deepseek_api_key
 from aperix_geo.services.setup.llm.stages import run_niche_profile_stage
+from aperix_geo.services.setup.profile_qa import sanitize_profile_lexicon, validate_profile_lexicon
 from aperix_geo.services.setup.exceptions import MaterialsInsufficientError
 from aperix_geo.services.setup.materials import (
     DiscoverProfileInputs,
@@ -145,9 +146,22 @@ def _load_or_build_profile(
     cached_profile = get_profile_cache(user_id=user_id, profile_hash=profile_hash)
     if cached_profile is not None:
         profile_dict = cached_profile["profile"]
-        research_payload = dict(cached_profile["research_payload"])
-        search_queries = search_queries_list(profile_from_dict(profile_dict)) or ([target] if target else [])
-        return profile_dict, research_payload, search_queries, True
+        try:
+            sanitized = sanitize_profile_lexicon(profile_from_dict(profile_dict))
+            validate_profile_lexicon(sanitized)
+            profile_dict = profile_to_dict(sanitized)
+        except ValueError as exc:
+            logger.warning(
+                "设置向导·发现 画像缓存校验未通过，重新生成 hash=%s: %s",
+                profile_hash[:8],
+                exc,
+            )
+        else:
+            research_payload = dict(cached_profile["research_payload"])
+            search_queries = search_queries_list(profile_from_dict(profile_dict)) or (
+                [target] if target else []
+            )
+            return profile_dict, research_payload, search_queries, True
 
     assert_ai_usage_available(db, tenant_id)
     profile, research_payload, usage = run_niche_profile_stage(
@@ -241,13 +255,25 @@ def discover_setup(
         region=region,
         language=language,
     ):
-        existing = session_for_materials
+        try:
+            sanitized = sanitize_profile_lexicon(
+                profile_from_dict(dict(session_for_materials.get("profile") or {}))
+            )
+            validate_profile_lexicon(sanitized)
+        except ValueError as exc:
+            logger.warning(
+                "设置向导·发现 会话画像校验未通过，重新生成 session=%s: %s",
+                sid[:8],
+                exc,
+            )
+        else:
+            existing = session_for_materials
 
     t0 = time.perf_counter()
     if existing is not None:
         session_id = sid
         profile_dict = dict(existing.get("profile") or {})
-        search_queries = list(existing.get("search_queries") or existing.get("keywords") or [])
+        search_queries = list(existing.get("search_queries") or [])
         if not existing.get("research_payload"):
             cached_profile = get_profile_cache(user_id=user_key, profile_hash=profile_hash_value)
             if cached_profile and cached_profile.get("research_payload"):
@@ -286,7 +312,6 @@ def discover_setup(
             "search_queries": search_queries,
             "monitoring_topics": [],
             "topic_clusters": [],
-            "candidate_queries": [],
             "research_payload": research_payload,
             "profile_summary": "",
         }

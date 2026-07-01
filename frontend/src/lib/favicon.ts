@@ -1,4 +1,9 @@
-import { faviconDomainKey, websiteUrlFromInput } from "@/lib/domain";
+import {
+  faviconDomainKey,
+  hostnameFromWebsiteInput,
+  registrableDomain,
+  websiteUrlFromInput,
+} from "@/lib/domain";
 
 export type FaviconInput = {
   host: string;
@@ -69,4 +74,17 @@ export function faviconUrlFromWebsite(
   const host = domain?.trim();
   if (!host) return null;
   return faviconUrlFromHost(host);
+}
+
+/** 域名输入框 blur 后解析 favicon URL（Setup 竞品、添加/编辑竞品弹窗）。 */
+export function faviconUrlFromDomainInput(
+  raw: string,
+  websiteUrl?: string | null,
+): string | null {
+  const source = raw.trim();
+  if (!source) return null;
+  const domain = registrableDomain(hostnameFromWebsiteInput(source) || source);
+  if (!domain) return null;
+  const pageUrl = websiteUrl?.trim() || websiteUrlFromInput(source) || domain;
+  return faviconUrlFromWebsite(pageUrl, domain);
 }

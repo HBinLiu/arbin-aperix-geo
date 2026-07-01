@@ -232,7 +232,6 @@ class TopicOut(BaseModel):
     id: UUID
     subject_id: UUID
     name: str
-    decision_dimension: str = ""
     created_at: datetime
 
     model_config = {"from_attributes": True}

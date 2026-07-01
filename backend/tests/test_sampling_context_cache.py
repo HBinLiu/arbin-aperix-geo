@@ -45,7 +45,7 @@ def test_subject_roundtrip_serialization() -> None:
         "industry": "GEO SaaS",
         "features": "监测",
         "customers": "品牌方",
-        "keywords": "AI搜索",
+        "search_queries": "AI搜索",
     }
     restored = _deserialize_subject(_serialize_subject(subject))
     assert restored.brand == "Aperix"

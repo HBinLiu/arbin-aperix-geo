@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import Prompt, Subject, Topic
+from aperix_geo.services.competitor.types import NicheProfile
 from aperix_geo.services.prompts.context import prompt_context_from_subject
 from aperix_geo.services.prompts.persist import (
     PromptValidationError,
@@ -36,13 +37,15 @@ def generate_subject_prompt_candidates(
 
     take = min(count, remaining)
     ctx = prompt_context_from_subject(subject)
+    profile = ctx["profile"]
+    assert isinstance(profile, NicheProfile)
     existing_prompts = list(
         db.execute(
             select(Prompt.text).where(Prompt.subject_id == subject.id, Prompt.deleted.is_(False))
         ).scalars().all()
     )
 
-    from aperix_geo.services.prompts import generate_setup_prompts
+    from aperix_geo.services.prompts.setup import generate_setup_prompts
 
     def _bill(stage: str, usage: dict) -> None:
         consume_ai_usage(
@@ -63,6 +66,7 @@ def generate_subject_prompt_candidates(
         customers=str(ctx["customers"]),
         competitors=[str(c) for c in ctx["competitors"] if str(c).strip()],
         aliases=[str(a) for a in ctx["aliases"] if str(a).strip()],
+        profile=profile,
         prompts_per_topic=take,
         exclude_prompts=existing_prompts,
         on_live_call=_bill,

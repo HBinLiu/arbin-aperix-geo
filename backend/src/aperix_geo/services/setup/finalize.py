@@ -27,7 +27,7 @@ from aperix_geo.services.billing.quota import (
 from aperix_geo.services.competitor.enrich import enrich_confirmed_competitors
 from aperix_geo.services.competitor.types import SiteHead
 from aperix_geo.services.competitor.persist import apply_competitors
-from aperix_geo.services.setup.decision_type import normalize_decision_type
+from aperix_geo.services.prompts.taxonomy import normalize_decision_type
 from aperix_geo.services.setup.topic_items import topic_name_key
 from aperix_geo.services.prompts.taxonomy import normalize_funnel_stage, normalize_search_intent
 from aperix_geo.services.brand.sync import sync_subject_brands_from_setup
@@ -195,7 +195,6 @@ def finalize_setup(
         topic = Topic(
             subject_id=subject.id,
             name=item.name.strip(),
-            decision_dimension="",
         )
         db.add(topic)
         db.flush()

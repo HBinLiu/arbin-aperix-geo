@@ -22,7 +22,7 @@ def test_normalize_profile_micro_niche() -> None:
             "industry": "医疗影像AI诊断与辅助决策系统",
             "features": ["AI辅助结节检测", "云端PACS工作流集成", "多余"],
             "customers": "三甲医院放射科、医学影像中心",
-            "keywords": ["医疗影像AI诊断", "肺结节AI筛查", "云PACS影像系统", "DICOM智能阅片"],
+            "search_queries": ["医疗影像AI诊断", "肺结节AI筛查", "云PACS影像系统", "DICOM智能阅片"],
         },
         entity="deepwise.com",
     )
@@ -38,21 +38,21 @@ def test_search_queries_list() -> None:
             "industry": "跨境支付",
             "features": ["收款"],
             "customers": "企业",
-            "keywords": ["跨境B2B", "多币种", "企业全球", "国际汇款"],
+            "search_queries": ["跨境B2B", "多币种", "企业全球", "国际汇款"],
         },
         entity="example.com",
     )
     assert search_queries_list(profile) == ["跨境B2B", "多币种", "企业全球", "国际汇款"]
 
 
-def test_merge_profile_updates_keywords() -> None:
+def test_merge_profile_updates_search_queries() -> None:
     base = profile_from_dict(
         {
             "company": "Acme",
             "industry": "SaaS",
             "features": "支付",
             "customers": "企业",
-            "keywords": "旧词一、旧词二",
+            "search_queries": "旧词一、旧词二",
         },
     )
     merged = merge_profile_updates(base, search_queries=["跨境支付", "多币种账户", "企业钱包", "国际汇款"])
@@ -60,28 +60,28 @@ def test_merge_profile_updates_keywords() -> None:
     assert "旧词一" not in merged["search_queries"]
 
 
-def test_keywords_accepts_five() -> None:
+def test_search_queries_accepts_five() -> None:
     base = profile_from_dict(
         {
             "company": "Acme",
             "industry": "SaaS",
             "features": "支付",
             "customers": "企业",
-            "keywords": "旧词",
+            "search_queries": "旧词",
         },
     )
-    keywords = ["主题一", "主题二", "主题三", "主题四", "主题五"]
-    merged = merge_profile_updates(base, search_queries=keywords)
-    assert _split_tags(merged["search_queries"]) == keywords
+    queries = ["主题一", "主题二", "主题三", "主题四", "主题五"]
+    merged = merge_profile_updates(base, search_queries=queries)
+    assert _split_tags(merged["search_queries"]) == queries
 
 
-def test_keywords_not_truncated() -> None:
+def test_search_queries_not_truncated() -> None:
     profile = normalize_niche_profile(
         {
             "industry": "跨境支付",
             "features": ["收款"],
             "customers": "企业",
-            "keywords": [
+            "search_queries": [
                 "跨境B2B收款平台",
                 "多币种",
                 "企业全球账户系统",
@@ -99,13 +99,13 @@ def test_keywords_not_truncated() -> None:
     ]
 
 
-def test_search_query_prefers_keywords() -> None:
+def test_search_query_prefers_search_queries() -> None:
     profile = normalize_niche_profile(
         {
             "industry": "医疗影像AI诊断与辅助决策系统",
             "features": ["AI辅助结节检测"],
             "customers": "三甲医院放射科",
-            "keywords": ["医疗影像AI诊断", "肺结节AI筛查", "云PACS影像系统", "DICOM智能阅片"],
+            "search_queries": ["医疗影像AI诊断", "肺结节AI筛查", "云PACS影像系统", "DICOM智能阅片"],
         },
         entity="deepwise.com",
     )

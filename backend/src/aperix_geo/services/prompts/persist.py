@@ -12,7 +12,7 @@ from aperix_geo.db.models import Prompt, Subject, Topic
 from aperix_geo.services.billing.exceptions import QuotaExceededError
 from aperix_geo.services.billing.quota import assert_can_add_prompts, remaining_prompt_slots
 from aperix_geo.services.prompts.taxonomy import normalize_funnel_stage, normalize_search_intent
-from aperix_geo.services.setup.decision_type import normalize_decision_type
+from aperix_geo.services.prompts.taxonomy import normalize_decision_type
 from aperix_geo.utils.text import prompt_text_hash
 
 

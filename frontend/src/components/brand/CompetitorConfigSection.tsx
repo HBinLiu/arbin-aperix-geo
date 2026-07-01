@@ -25,16 +25,30 @@ import {
 } from "@/api/brand";
 import { useTenantSubscription } from "@/hooks/useTenantSubscription";
 import { maxCompetitorsPerSubject } from "@/lib/billing/limits";
-import { displayNameFromDomainInput } from "@/lib/setup";
+import {
+  competitorDuplicateMessage,
+  displayNameFromDomainInput,
+  findCompetitorDuplicate,
+  type SubjectIdentity,
+} from "@/lib/setup";
 import { registrableDomain, websiteUrlFromInput } from "@/lib/domain";
 import { clearAnalysisCatalog, queryKeys, sessionCatalogQueryOptions } from "@/lib/queries";
 import { toast } from "@/lib/toast";
-import type { CompetitorItem } from "@/types";
+import type { CompetitorItem, Subject } from "@/types";
 
 type CompetitorConfigSectionProps = {
-  subjectId: string;
-  subjectType: string;
+  subject: Subject;
 };
+
+function subjectIdentityFrom(subject: Subject): SubjectIdentity {
+  return {
+    mode: subject.type === "domain" ? "domain" : "brand",
+    brand: subject.brand,
+    domain: subject.domain,
+    websiteUrl: subject.website_url,
+    aliases: subject.aliases,
+  };
+}
 
 function rowKey(item: CompetitorItem): string {
   if (item.id) return item.id;
@@ -45,7 +59,10 @@ function rowLabel(item: CompetitorItem): string {
   return item.brand.trim() || item.domain;
 }
 
-export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorConfigSectionProps) {
+export function CompetitorConfigSection({ subject }: CompetitorConfigSectionProps) {
+  const subjectId = subject.id;
+  const subjectType = subject.type;
+  const subjectIdentity = useMemo(() => subjectIdentityFrom(subject), [subject]);
   const queryClient = useQueryClient();
   const { data: subscription } = useTenantSubscription();
   const maxCompetitors = maxCompetitorsPerSubject(subscription);
@@ -147,6 +164,16 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
     }
 
     if (subjectType === "brand") {
+      const duplicate = findCompetitorDuplicate(
+        "brand",
+        [],
+        { name: raw.trim(), domain: "" },
+        subjectIdentity,
+      );
+      if (duplicate) {
+        toast.error(competitorDuplicateMessage(duplicate));
+        return;
+      }
       addMutation.mutate({ domain: "", website_url: "", brand: raw.trim(), summary: "" });
       return;
     }
@@ -154,6 +181,16 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
     const domain = registrableDomain(raw);
     if (!domain || domain.length < 3) {
       toast.error("请填写有效的网站域名。");
+      return;
+    }
+    const duplicate = findCompetitorDuplicate(
+      "domain",
+      [],
+      { name: domain, domain },
+      subjectIdentity,
+    );
+    if (duplicate) {
+      toast.error(competitorDuplicateMessage(duplicate));
       return;
     }
     addMutation.mutate({
@@ -263,6 +300,7 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
       <AddCompetitorDialog
         open={addOpen}
         subjectType={subjectType}
+        subject={subjectIdentity}
         existingValues={existingValues}
         onOpenChange={setAddOpen}
         onSubmit={submitAdd}
@@ -272,6 +310,7 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
       <EditCompetitorDialog
         open={editTarget !== null}
         subjectType={subjectType}
+        subject={subjectIdentity}
         competitor={editTarget}
         existingValues={existingValues}
         onOpenChange={(open) => {

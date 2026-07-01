@@ -18,7 +18,7 @@ def _sample_profile():
             "industry": "生成式引擎优化(GEO)分析平台",
             "features": "AI 可见性检测",
             "customers": "品牌市场团队",
-            "keywords": ["GEO 平台", "AI 可见性检测"],
+            "search_queries": ["GEO 平台", "AI 可见性检测"],
         },
         entity="sheepgeo.com",
     )

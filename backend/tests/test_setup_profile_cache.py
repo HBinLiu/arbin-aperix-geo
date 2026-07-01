@@ -43,7 +43,7 @@ def test_discover_setup_uses_profile_cache(
     mock_discover,
 ) -> None:
     profile = normalize_niche_profile(
-        {"industry": "SaaS", "keywords": ["AI SaaS"]},
+        {"industry": "SaaS", "search_queries": ["AI SaaS"]},
         entity="example.com",
     )
     mock_get_cache.return_value = {

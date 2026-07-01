@@ -5,11 +5,16 @@ export {
   saveSetupCache,
 } from "@/lib/setup/cache";
 export {
+  competitorDuplicateMessage,
+  competitorRowDomainKey,
   displayNameFromDomainInput,
+  findCompetitorDuplicate,
+  matchesSubjectIdentity,
   newCompetitorRow,
   rowsFromDiscover,
   rowsToPersist,
 } from "@/lib/setup/competitors";
+export type { SubjectIdentity } from "@/lib/setup/competitors";
 export { buildFinalizePayload } from "@/lib/setup/finalize";
 export { decisionTypeLabel, DECISION_TYPE_LABELS } from "@/lib/setup/decisionType";
 export { setupStepHeader, setupVerticalStep } from "@/lib/setup/headers";

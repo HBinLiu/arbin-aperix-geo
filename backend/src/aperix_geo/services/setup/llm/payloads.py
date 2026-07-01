@@ -11,8 +11,8 @@ from aperix_geo.services.competitor.profile import (
     region_label,
 )
 from aperix_geo.services.competitor.homepage import fetch_target_homepage
-from aperix_geo.services.competitor.topic_types import CandidateQuery
 from aperix_geo.services.competitor.types import NicheProfile
+from aperix_geo.services.setup.topic_rules import build_topic_plan_guidance
 
 
 def _domain_site_data_payload(
@@ -83,50 +83,52 @@ def build_subject_research_payload(
     return payload
 
 
-def build_query_expand_payload(
+def _competitor_scenarios(competitors: list[dict[str, Any]] | None) -> list[str]:
+    scenarios: list[str] = []
+    seen: set[str] = set()
+    for item in competitors or []:
+        for field in ("summary", "brand"):
+            text = str(item.get(field) or "").strip()
+            if not text or len(text) < 4:
+                continue
+            key = text.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            scenarios.append(text[:120])
+    return scenarios[:8]
+
+
+def build_topic_plan_payload(
     *,
     subject_type: str,
     target: str,
     profile: NicheProfile,
-    competitor_scenarios: list[str],
+    competitors: list[dict[str, Any]] | None = None,
+    validation_feedback: list[str] | None = None,
 ) -> dict[str, Any]:
-    """问句扩词 LLM：画像 + 竞品场景摘要。"""
-    return {
+    """主题规划 LLM：画像 + 竞品场景摘要 + 关键词架构。"""
+    from aperix_geo.services.setup.keyword_plan import (
+        build_keyword_plan,
+        keyword_plan_to_dict,
+        select_topic_core_keywords,
+        build_topic_keyword_map,
+    )
+
+    plan = build_keyword_plan(profile)
+    cores = select_topic_core_keywords(profile)
+    payload: dict[str, Any] = {
         "subject_type": subject_type.strip(),
         "target": target.strip(),
         "niche_profile": profile_topic_dict(profile),
-        "competitor_scenarios": [s.strip() for s in competitor_scenarios if s.strip()],
+        "competitor_scenarios": _competitor_scenarios(competitors),
+        "keyword_plan": keyword_plan_to_dict(plan),
+        "topic_keyword_map": build_topic_keyword_map(cores, plan=plan),
+        "topic_guidance": build_topic_plan_guidance(profile),
     }
-
-
-def build_topic_pick_payload(
-    *,
-    subject_type: str,
-    target: str,
-    profile: NicheProfile,
-) -> dict[str, Any]:
-    """主题选定 LLM：仅从 topic_lexicon 选 5 个业务靶心。"""
-    return {
-        "subject_type": subject_type.strip(),
-        "target": target.strip(),
-        "niche_profile": profile_topic_dict(profile),
-    }
-
-
-def build_topic_cluster_payload(
-    *,
-    subject_type: str,
-    target: str,
-    profile: NicheProfile,
-    candidate_queries: list[CandidateQuery],
-) -> dict[str, Any]:
-    """主题聚类 LLM：候选问句 + 画像。"""
-    return {
-        "subject_type": subject_type.strip(),
-        "target": target.strip(),
-        "niche_profile": profile_topic_dict(profile),
-        "candidate_queries": [dict(q) for q in candidate_queries],
-    }
+    if validation_feedback:
+        payload["validation_feedback"] = [s.strip() for s in validation_feedback if s.strip()]
+    return payload
 
 
 def build_profile_summary_payload(

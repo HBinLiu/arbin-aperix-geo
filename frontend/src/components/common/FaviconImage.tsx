@@ -19,6 +19,8 @@ type FaviconImageProps = {
   iconClassName?: string;
   /** 加载中是否显示转圈（筛选项等紧凑场景建议关闭，避免路由切换闪烁） */
   showLoadingSpinner?: boolean;
+  /** 输入框等场景立即加载，避免 lazy + opacity-0 导致不发起请求 */
+  eager?: boolean;
 };
 
 type DisplayState = "loading" | "loaded" | "fallback";
@@ -87,6 +89,7 @@ export function FaviconImage({
   className,
   iconClassName,
   showLoadingSpinner = true,
+  eager = false,
 }: FaviconImageProps) {
   const cacheKey = React.useMemo(() => faviconCacheKey(url), [url]);
   const candidates = React.useMemo(() => faviconCandidateUrls(url), [url]);
@@ -152,7 +155,7 @@ export function FaviconImage({
           display === "loading" && "pointer-events-none absolute opacity-0",
         )}
         style={{ width: size, height: size }}
-        loading="lazy"
+        loading={eager ? "eager" : "lazy"}
         decoding="async"
         referrerPolicy="no-referrer"
         onLoad={handleLoad}

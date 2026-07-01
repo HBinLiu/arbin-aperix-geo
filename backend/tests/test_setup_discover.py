@@ -85,7 +85,22 @@ def test_discover_setup_reuses_session_and_competitor_cache(
     _mock_fetch_homepage,
 ) -> None:
     profile = normalize_niche_profile(
-        {"industry": "SaaS", "keywords": ["AI SaaS"]},
+        {
+            "industry": "GEO 监测 SaaS",
+            "features": ["AI 可见度", "品牌引用分析", "多平台监测"],
+            "customers": "市场团队",
+            "search_queries": [
+                "AI可见度监测市场团队",
+                "品牌引用分析SEO团队",
+                "多平台监测竞品对标",
+            ],
+            "topic_lexicon": {
+                "category_terms": ["AI 可见度监测", "品牌搜索可见度", "多平台GEO监测"],
+                "scenario_terms": ["品牌监测"],
+                "audience_terms": ["市场团队"],
+                "pain_terms": ["引用率"],
+            },
+        },
         entity="example.com",
     )
     profile_hash_value = profile_hash(
@@ -102,7 +117,11 @@ def test_discover_setup_reuses_session_and_competitor_cache(
         "language": "zh-CN",
         "profile_hash": profile_hash_value,
         "profile": profile,
-        "search_queries": ["AI SaaS"],
+        "search_queries": [
+            "AI可见度监测市场团队",
+            "品牌引用分析SEO团队",
+            "多平台监测竞品对标",
+        ],
         "competitors": [{"domain": "rival.com", "brand": "Rival", "website_url": "https://rival.com"}],
     }
     mock_discover.return_value = [{"domain": "rival.com", "brand": "Rival", "website_url": "https://rival.com"}]

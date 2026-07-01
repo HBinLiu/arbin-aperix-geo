@@ -49,7 +49,7 @@ def test_is_niche_profile_sufficient() -> None:
             "industry": "医疗 AI",
             "features": ["影像诊断"],
             "customers": "三甲医院",
-            "keywords": ["AI 医学影像"],
+            "search_queries": ["AI 医学影像"],
         },
         entity="深睿医疗",
     )

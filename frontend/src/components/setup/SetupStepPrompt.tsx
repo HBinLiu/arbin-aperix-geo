@@ -110,6 +110,7 @@ export function SetupStepPrompt({ rows, topics, onChange }: SetupStepPromptProps
                     value={row.topicId || defaultTopicId}
                     onChange={(topicId) => updateRow(row.id, { topicId })}
                     options={topicOptions}
+                    shell="prompt"
                   />
                 </div>
               </InputGroup>
@@ -142,6 +143,7 @@ export function SetupStepPrompt({ rows, topics, onChange }: SetupStepPromptProps
         {!atMax && defaultTopicId ? (
           <div className="col-span-full flex w-full items-center gap-x-4 px-1.5 pt-2">
             <SetupTextInput
+              shell="prompt"
               value={draftText}
               onChange={(e) => setDraftText(e.target.value)}
               placeholder="输入要添加的提示词"

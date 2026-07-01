@@ -5,32 +5,29 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from aperix_geo.services.competitor.profile import (
-    normalize_niche_profile,
-    parse_candidate_queries,
-    region_label,
-    topic_lexicon_dict,
-)
+from aperix_geo.services.competitor.profile import normalize_niche_profile, region_label
 from aperix_geo.services.competitor.summary import (
     fallback_profile_summary,
-    generate_profile_summary_via_llm,
-    generate_query_expand_via_llm,
-    generate_topic_pick_via_llm,
     generate_niche_profile_via_llm,
+    generate_profile_summary_via_llm,
+    generate_topic_plan_via_llm,
     merge_competitors_into_summary,
-    merge_llm_usage,
 )
 from aperix_geo.services.competitor.topic_types import TopicCluster
 from aperix_geo.services.competitor.types import NicheProfile
 from aperix_geo.services.setup.llm.payloads import (
     build_profile_summary_payload,
-    build_query_expand_payload,
     build_subject_research_payload,
-    build_topic_pick_payload,
+    build_topic_plan_payload,
 )
-from aperix_geo.services.setup.topic_bind import bind_queries_to_topics
-from aperix_geo.services.setup.topic_pick import fallback_topic_names_from_lexicon, parse_topic_names
-from aperix_geo.services.setup.topic_qa import validate_topic_clusters
+from aperix_geo.services.setup.profile_qa import (
+    repair_profile_search_queries,
+    sanitize_profile_lexicon,
+    validate_profile_lexicon,
+)
+from aperix_geo.services.setup.topic_bind import bind_topic_clusters_to_cores
+from aperix_geo.services.setup.topic_parse import parse_topic_plan_response
+from aperix_geo.services.setup.topic_qa import collect_subject_names, validate_topic_clusters
 
 logger = logging.getLogger(__name__)
 
@@ -58,28 +55,35 @@ def run_niche_profile_stage(
         homepage_text=homepage_text,
         homepage_metadata=homepage_metadata,
     )
-    data, usage = generate_niche_profile_via_llm(
-        entity_key=target,
-        user_payload=research_payload,
-    )
-    profile = normalize_niche_profile(data, entity=target)
-    return profile, research_payload, usage
+    usage: dict[str, Any] = {}
+    last_error: Exception | None = None
+    validation_feedback: list[str] = []
+    for attempt in range(2):
+        try:
+            user_payload = dict(research_payload)
+            if validation_feedback:
+                user_payload["validation_feedback"] = validation_feedback
+            data, call_usage = generate_niche_profile_via_llm(
+                entity_key=target,
+                user_payload=user_payload,
+            )
+            usage = call_usage
+            profile = normalize_niche_profile(data, entity=target)
+            profile = repair_profile_search_queries(profile)
+            profile = sanitize_profile_lexicon(profile)
+            validate_profile_lexicon(profile)
+            return profile, research_payload, usage
+        except ValueError as exc:
+            last_error = exc
+            validation_feedback = [str(exc)]
+            logger.warning(
+                "Setup 微观利基画像校验未通过 target=%r attempt=%d: %s",
+                target,
+                attempt + 1,
+                exc,
+            )
 
-
-def _competitor_scenarios(competitors: list[dict[str, Any]] | None) -> list[str]:
-    scenarios: list[str] = []
-    seen: set[str] = set()
-    for item in competitors or []:
-        for field in ("summary", "brand"):
-            text = str(item.get(field) or "").strip()
-            if not text or len(text) < 4:
-                continue
-            key = text.casefold()
-            if key in seen:
-                continue
-            seen.add(key)
-            scenarios.append(text[:120])
-    return scenarios[:8]
+    raise ValueError(f"微观利基画像失败：{last_error}") from last_error
 
 
 def run_topic_generation_stage(
@@ -88,60 +92,58 @@ def run_topic_generation_stage(
     subject_type: str,
     entity_key: str,
     competitors: list[dict[str, Any]] | None = None,
-) -> tuple[list[TopicCluster], list[dict[str, Any]], dict[str, Any]]:
-    """UI Step 1→2 topics：问句扩词 → 词表定靶心 → 问句绑定 → QA。"""
-    expand_payload = build_query_expand_payload(
+) -> tuple[list[TopicCluster], dict[str, Any]]:
+    """UI Step 1→2 topics：topic_plan LLM → 解析归一化 → 结构校验（失败重试 1 次）。"""
+    validate_profile_lexicon(profile)
+    subject_names = collect_subject_names(
+        profile_company=str(profile.get("company") or ""),
+        entity_key=entity_key,
+        competitors=competitors,
+    )
+
+    usage: dict[str, Any] = {}
+    last_error: Exception | None = None
+    validation_feedback: list[str] = []
+    payload = build_topic_plan_payload(
         subject_type=subject_type,
         target=entity_key,
         profile=profile,
-        competitor_scenarios=_competitor_scenarios(competitors),
+        competitors=competitors,
     )
-    expand_data, expand_usage = generate_query_expand_via_llm(
-        entity_key=entity_key,
-        user_payload=expand_payload,
-    )
-    candidate_queries = parse_candidate_queries(expand_data)
-    if len(candidate_queries) < 15:
-        raise ValueError("候选问句不足，无法生成监测主题")
+    for attempt in range(2):
+        try:
+            if validation_feedback:
+                payload = build_topic_plan_payload(
+                    subject_type=subject_type,
+                    target=entity_key,
+                    profile=profile,
+                    competitors=competitors,
+                    validation_feedback=validation_feedback,
+                )
+            data, call_usage = generate_topic_plan_via_llm(
+                entity_key=entity_key,
+                user_payload=payload,
+            )
+            usage = call_usage
+            clusters = parse_topic_plan_response(data)
+            clusters = bind_topic_clusters_to_cores(clusters, profile=profile)
+            validate_topic_clusters(
+                clusters,
+                subject_names=subject_names,
+                profile=profile,
+            )
+            return clusters, usage
+        except ValueError as exc:
+            last_error = exc
+            validation_feedback = [str(exc)]
+            logger.warning(
+                "Setup 主题规划校验未通过 entity=%r attempt=%d: %s",
+                entity_key,
+                attempt + 1,
+                exc,
+            )
 
-    lexicon = topic_lexicon_dict(profile)
-    lexicon_terms = [
-        *lexicon.get("category_terms", []),
-        *lexicon.get("scenario_terms", []),
-        *lexicon.get("audience_terms", []),
-        *lexicon.get("pain_terms", []),
-    ]
-
-    pick_payload = build_topic_pick_payload(
-        subject_type=subject_type,
-        target=entity_key,
-        profile=profile,
-    )
-    pick_data, pick_usage = generate_topic_pick_via_llm(
-        entity_key=entity_key,
-        user_payload=pick_payload,
-    )
-    topic_names = parse_topic_names(pick_data)
-    if len(topic_names) != 5:
-        logger.warning(
-            "Setup 主题选定 LLM 条数异常 entity=%r count=%d，使用 lexicon 回退",
-            entity_key,
-            len(topic_names),
-        )
-        topic_names = fallback_topic_names_from_lexicon(profile)
-    if len(topic_names) != 5:
-        raise ValueError("无法从词表生成 5 个监测主题")
-
-    topic_clusters = bind_queries_to_topics(topic_names, candidate_queries)
-    validate_topic_clusters(
-        topic_clusters,
-        industry=str(profile.get("industry") or ""),
-        lexicon_terms=lexicon_terms,
-    )
-
-    usage = merge_llm_usage(expand_usage, pick_usage)
-    candidate_payload = [dict(q) for q in candidate_queries]
-    return topic_clusters, candidate_payload, usage
+    raise ValueError(f"主题规划失败：{last_error}") from last_error
 
 
 def run_profile_summary_stage(

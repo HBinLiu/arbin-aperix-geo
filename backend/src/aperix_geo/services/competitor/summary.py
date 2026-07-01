@@ -13,12 +13,8 @@ from aperix_geo.services.providers.prompts import (
     SUBJECT_PROFILE_SUMMARY_USER_SUFFIX,
     SUBJECT_PROFILE_SYSTEM,
     SUBJECT_PROFILE_USER_SUFFIX,
-    SUBJECT_QUERY_EXPAND_SYSTEM,
-    SUBJECT_QUERY_EXPAND_USER_SUFFIX,
-    SUBJECT_TOPIC_PICK_SYSTEM,
-    SUBJECT_TOPIC_PICK_USER_SUFFIX,
-    SUBJECT_TOPIC_CLUSTER_SYSTEM,
-    SUBJECT_TOPIC_CLUSTER_USER_SUFFIX,
+    SUBJECT_TOPIC_PLAN_SYSTEM,
+    SUBJECT_TOPIC_PLAN_USER_SUFFIX,
 )
 from aperix_geo.services.providers import chat_completion
 from aperix_geo.utils.json import extract_json_object
@@ -107,7 +103,7 @@ def generate_niche_profile_via_llm(
     logger.debug(
         "Setup 1a 微观利基画像 LLM: entity=%r search_queries=%d (%dms)",
         entity_key,
-        len(data.get("search_queries") or data.get("keywords") or []),
+        len(data.get("search_queries") or []),
         latency_ms,
     )
     return data, usage
@@ -153,83 +149,21 @@ def merge_llm_usage(*usages: dict[str, Any]) -> dict[str, Any]:
     return merged
 
 
-def generate_query_expand_via_llm(
-    *,
-    entity_key: str,
-    user_payload: dict[str, Any],
-    temperature: float = 0.3,
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Setup topics：候选问句扩词。"""
-    text, usage, latency_ms = chat_completion(
-        [
-            {"role": "system", "content": SUBJECT_QUERY_EXPAND_SYSTEM},
-            {
-                "role": "user",
-                "content": (
-                    f"{json.dumps(user_payload, ensure_ascii=False, indent=2)}\n\n"
-                    f"{SUBJECT_QUERY_EXPAND_USER_SUFFIX}"
-                ),
-            },
-        ],
-        temperature=temperature,
-        json_mode=True,
-    )
-    data = extract_json_object(text)
-    logger.debug(
-        "Setup 问句扩词 LLM: entity=%r candidates=%d (%dms)",
-        entity_key,
-        len(data.get("candidate_queries") or []),
-        latency_ms,
-    )
-    return data, usage
-
-
-def generate_topic_pick_via_llm(
-    *,
-    entity_key: str,
-    user_payload: dict[str, Any],
-    temperature: float = 0.2,
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Setup topics：从 topic_lexicon 选定 5 个业务监测靶心。"""
-    text, usage, latency_ms = chat_completion(
-        [
-            {"role": "system", "content": SUBJECT_TOPIC_PICK_SYSTEM},
-            {
-                "role": "user",
-                "content": (
-                    f"{json.dumps(user_payload, ensure_ascii=False, indent=2)}\n\n"
-                    f"{SUBJECT_TOPIC_PICK_USER_SUFFIX}"
-                ),
-            },
-        ],
-        temperature=temperature,
-        json_mode=True,
-    )
-    data = extract_json_object(text)
-    logger.debug(
-        "Setup 主题选定 LLM: entity=%r topics=%d (%dms)",
-        entity_key,
-        len(data.get("topic_names") or []),
-        latency_ms,
-    )
-    return data, usage
-
-
-def generate_topic_clusters_via_llm(
+def generate_topic_plan_via_llm(
     *,
     entity_key: str,
     user_payload: dict[str, Any],
     temperature: float = 0.25,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Setup topics：候选问句聚类为主题簇。"""
+    """Setup topics：单次规划监测主题簇与种子问句。"""
     text, usage, latency_ms = chat_completion(
         [
-            {"role": "system", "content": SUBJECT_TOPIC_CLUSTER_SYSTEM},
+            {"role": "system", "content": SUBJECT_TOPIC_PLAN_SYSTEM},
             {
                 "role": "user",
                 "content": (
                     f"{json.dumps(user_payload, ensure_ascii=False, indent=2)}\n\n"
-                    f"{SUBJECT_TOPIC_CLUSTER_USER_SUFFIX}"
+                    f"{SUBJECT_TOPIC_PLAN_USER_SUFFIX}"
                 ),
             },
         ],
@@ -238,7 +172,7 @@ def generate_topic_clusters_via_llm(
     )
     data = extract_json_object(text)
     logger.debug(
-        "Setup 主题聚类 LLM: entity=%r clusters=%d (%dms)",
+        "Setup 主题规划 LLM: entity=%r clusters=%d (%dms)",
         entity_key,
         len(data.get("topic_clusters") or []),
         latency_ms,

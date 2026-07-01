@@ -52,7 +52,6 @@ def session_patch_after_competitors(
         "confirmed_competitors_hash": None,
         "monitoring_topics": [],
         "topic_clusters": [],
-        "candidate_queries": [],
         "prompts_hash": None,
         "prompts_cache": None,
     }

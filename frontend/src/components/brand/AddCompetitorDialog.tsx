@@ -1,6 +1,7 @@
 import * as React from "react";
-import { Building2, Globe } from "lucide-react";
+import { Building2 } from "lucide-react";
 
+import { FaviconUrlInput } from "@/components/common/FaviconUrlInput";
 import { SetupTextInput } from "@/components/setup/SetupField";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,11 +13,13 @@ import {
   useDialog,
 } from "@/components/ui/dialog";
 import { hostnameFromWebsiteInput, registrableDomain } from "@/lib/domain";
+import { competitorDuplicateMessage, findCompetitorDuplicate, type SubjectIdentity } from "@/lib/setup";
 import { toast } from "@/lib/toast";
 
 type AddCompetitorDialogProps = {
   open: boolean;
   subjectType: string;
+  subject: SubjectIdentity;
   existingValues: string[];
   onOpenChange: (open: boolean) => void;
   onSubmit: (value: string) => void;
@@ -47,6 +50,7 @@ function AddCompetitorDialogFooter({
 export function AddCompetitorDialog({
   open,
   subjectType,
+  subject,
   existingValues,
   onOpenChange,
   onSubmit,
@@ -74,6 +78,16 @@ export function AddCompetitorDialog({
         toast.error("请填写有效的网站域名。");
         return;
       }
+      const duplicate = findCompetitorDuplicate(
+        "domain",
+        [],
+        { name: domain, domain },
+        subject,
+      );
+      if (duplicate) {
+        toast.error(competitorDuplicateMessage(duplicate));
+        return;
+      }
       if (existingValues.includes(domain)) {
         toast.error("该竞品域名已存在。");
         return;
@@ -82,6 +96,11 @@ export function AddCompetitorDialog({
       return;
     }
 
+    const duplicate = findCompetitorDuplicate("brand", [], { name: raw, domain: "" }, subject);
+    if (duplicate) {
+      toast.error(competitorDuplicateMessage(duplicate));
+      return;
+    }
     if (existingValues.includes(raw)) {
       toast.error("该竞品品牌已存在。");
       return;
@@ -89,8 +108,6 @@ export function AddCompetitorDialog({
 
     onSubmit(raw);
   };
-
-  const LeadingIcon = isDomain ? Globe : Building2;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} closeDisabled={submitting}>
@@ -104,22 +121,41 @@ export function AddCompetitorDialog({
           <label htmlFor="add-competitor-input" className="text-foreground px-1 text-sm font-medium">
             {isDomain ? "竞争对手域名" : "竞争对手品牌"}
           </label>
-          <SetupTextInput
-            id="add-competitor-input"
-            containerClassName="mt-1"
-            leading={<LeadingIcon className="text-muted-foreground size-5" aria-hidden />}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                handleSubmit();
-              }
-            }}
-            disabled={submitting}
-            placeholder={isDomain ? "example.com" : "例如：竞品品牌名"}
-            autoFocus
-          />
+          {isDomain ? (
+            <FaviconUrlInput
+              id="add-competitor-input"
+              containerClassName="mt-1"
+              faviconMode="domain"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleSubmit();
+                }
+              }}
+              disabled={submitting}
+              placeholder="example.com"
+              autoFocus
+            />
+          ) : (
+            <SetupTextInput
+              id="add-competitor-input"
+              containerClassName="mt-1"
+              leading={<Building2 className="text-muted-foreground size-5" aria-hidden />}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleSubmit();
+                }
+              }}
+              disabled={submitting}
+              placeholder="例如：竞品品牌名"
+              autoFocus
+            />
+          )}
           <p className="text-muted-foreground px-1 text-xs leading-relaxed">
             {isDomain
               ? "输入您要跟踪的竞争对手的网站域名。"

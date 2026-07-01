@@ -56,6 +56,7 @@ def _session_prompt_context(
         "entity": entity,
         "confirmed_topics": confirmed_topics,
         "topic_clusters": session.get("topic_clusters") if isinstance(session.get("topic_clusters"), list) else [],
+        "profile": profile,
         "industry": str(profile.get("industry") or ""),
         "features": str(profile.get("features") or ""),
         "customers": str(profile.get("customers") or ""),
@@ -134,6 +135,7 @@ def generate_setup_prompts_for_session(
         competitors=ctx["competitors"],
         aliases=ctx["aliases"],
         exclude_prompts=ctx["excluded"],
+        profile=ctx["profile"],
         on_live_call=_bill,
     )
     update_session(

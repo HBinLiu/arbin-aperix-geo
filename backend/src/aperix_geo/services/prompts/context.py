@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from aperix_geo.db.models import Subject
+from aperix_geo.services.competitor.profile import profile_from_dict
+from aperix_geo.services.competitor.types import NicheProfile
 from aperix_geo.services.subject.loader import competitor_lists
 
 
@@ -29,14 +31,22 @@ def entity_aliases(
 
 
 def prompt_context_from_subject(subject: Subject) -> dict[str, object]:
-    features = subject.profile_summary.strip()[:2000] if subject.profile_summary else ""
+    profile: NicheProfile = profile_from_dict(dict(subject.niche_profile or {}))
     entity = (subject.brand or subject.domain or "").strip() or "本品牌"
     domains, brands = competitor_lists(subject)
+    features = str(profile.get("features") or "").strip()
+    if not features and subject.profile_summary:
+        features = subject.profile_summary.strip()[:2000]
     return {
         "entity": entity,
-        "aliases": entity_aliases(entity=entity, configured=list(subject.aliases or [])),
-        "industry": "",
+        "aliases": entity_aliases(
+            entity=entity,
+            configured=list(subject.aliases or []),
+            profile_company=str(profile.get("company") or ""),
+        ),
+        "industry": str(profile.get("industry") or ""),
         "features": features,
-        "customers": "",
+        "customers": str(profile.get("customers") or ""),
         "competitors": [*domains, *brands],
+        "profile": profile,
     }

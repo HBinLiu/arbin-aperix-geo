@@ -104,10 +104,9 @@ def run_setup_topics_step(
 
     if has_clusters and not competitors_changed:
         topic_clusters = existing_clusters
-        candidate_queries = session.get("candidate_queries") or []
     else:
         assert_ai_usage_available(db, tenant_id)
-        topic_clusters, candidate_queries, usage = run_topic_generation_stage(
+        topic_clusters, usage = run_topic_generation_stage(
             profile=profile,
             subject_type=subject_type,
             entity_key=target,
@@ -152,7 +151,6 @@ def run_setup_topics_step(
         "profile_summary": profile_summary,
         "monitoring_topics": topic_names,
         "topic_clusters": topic_clusters,
-        "candidate_queries": candidate_queries,
     }
     if competitors_changed or not has_clusters:
         patch["prompts_hash"] = None

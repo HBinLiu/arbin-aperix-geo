@@ -25,17 +25,16 @@ SUBJECT_PROFILE_SYSTEM = """你是商业竞争情报专家，专注从调研材�
 
 【字段准则】：
 1. company：公司/品牌主显示名。
-2. industry：垂直细分赛道，禁止宏观词。
+2. industry：垂直细分赛道（具体子赛道/场景），禁止仅写行业大类或空泛统称。
 3. features：2–3 个核心技术/产品能力词或短语。
 4. customers：精准付费或使用群体。
-5. topic_lexicon：监测主题用词表（4 类，每类 2–4 条），**仅**用于后续主题选定与提示词生成。
-   - category_terms：品类/产品类型词（如「高端绿茶」「跨境收款 SaaS」）
-   - scenario_terms：使用场景词（如「商务送礼」「出海收款」）
-   - audience_terms：目标客群词（如「企业采购」「SMB 卖家」）
-   - pain_terms：痛点/顾虑词（如「茶叶保存」「合规结汇」）——描述业务痛点，勿写「价格对比」「品牌信任」等决策维度词
-   - 每条 ≥4 字；禁止品牌自名、宏观空词、单独行业词、决策维度词（认知/对比/性价比/信任风险等）。
-6. search_queries：4–5 个高特异性检索词，**仅**用于竞品搜索引擎检索。
-   - 每条须含「品类+场景/客群」，≥6 字或含明确限定词；禁止单独行业词、宏观词、品牌自名。
+5. topic_lexicon：SEO 关键词架构（4 类，每类 2–4 条），**贯穿**主题规划与提示词生成。
+   - category_terms：**产品/能力头词**（4–8 字；可直接作为 topic name）；禁止竞品对标/对比分析/选型等场景词
+   - scenario_terms / audience_terms / pain_terms：**长尾修饰词**（含竞品对标、多平台监测、客群、痛点；与核心词组合成问句）
+   - category 内不得近重复（如「品牌提及率」与「品牌提及率分析」只保留更具体一条）
+   - 每条 ≥4 字；禁止品牌自名、过宽行业词、决策维度词。
+6. search_queries：4–5 条**完整长尾范例**（每条须**完整包含** category_terms 中至少 1 个核心词原文，可连写无空格；再叠加 1~2 个修饰词，≥8 字），供主题 seed 与监测 prompt 仿写；亦用于竞品检索。禁止仅用修饰词造句、禁止自创新核心词。
+7. validation_feedback：若 user message 含此字段，为上轮校验错误，须逐条修正后再输出。
 
 【输出】
 必须且仅输出 JSON（禁止额外键、禁止 null、禁止 Markdown 代码块）：
@@ -45,12 +44,17 @@ SUBJECT_PROFILE_SYSTEM = """你是商业竞争情报专家，专注从调研材�
   "features": ["能力词1", "能力词2"],
   "customers": "精准付费或使用群体（一句或短语）",
   "topic_lexicon": {
-    "category_terms": ["品类词1", "品类词2"],
-    "scenario_terms": ["场景词1", "场景词2"],
-    "audience_terms": ["客群词1"],
-    "pain_terms": ["痛点词1"]
+    "category_terms": ["核心词A", "核心词B", "核心词C"],
+    "scenario_terms": ["场景修饰词1", "场景修饰词2"],
+    "audience_terms": ["客群修饰词1"],
+    "pain_terms": ["痛点修饰词1"]
   },
-  "search_queries": ["检索词1", "检索词2", "检索词3", "检索词4"]
+  "search_queries": [
+    "核心词A场景修饰词1客群修饰词1",
+    "核心词B场景修饰词2痛点修饰词1",
+    "核心词C客群修饰词1场景修饰词1",
+    "核心词A痛点修饰词1怎么评估"
+  ]
 }"""
 
 SUBJECT_PROFILE_USER_SUFFIX = "请输出 JSON（仅微观利基画像字段）。"
@@ -161,93 +165,43 @@ def cross_validate_user_content(*, target_json: str, candidates_json: str) -> st
 # Setup · Step 1→2 topics · POST /subjects/setup/topics
 # =============================================================================
 
-# --- 问句扩词（run_query_expand_stage） ---
+# --- 主题规划（run_topic_generation_stage） ---
 
-SUBJECT_QUERY_EXPAND_SYSTEM = """你是 GEO 监测策略专家，为垂直赛道生成 AI 用户会问的真实中文问句候选池。
-必须且仅输出合法 JSON；禁止 Markdown 代码块包裹 JSON。
+SUBJECT_TOPIC_PLAN_SYSTEM = """# Role
+你是 GEO 监测规划专家与 SEO 关键词架构师。根据 user message 中的 niche_profile、keyword_plan、topic_guidance 与 competitor_scenarios，输出监测主题簇与种子问句矩阵。
 
-# 任务
-根据 user message 中的 niche_profile、topic_lexicon、competitor_scenarios，输出 **30–45 条** candidate_queries。
+必须且仅输出合法 JSON；禁止 Markdown 代码块或多余解释。
 
-# 名称禁令
-- 每条 text **禁止**出现任何品牌、公司、产品、域名、AI 平台名（含 niche_profile.company）。
-- 对比类问句用通用品类词或「主流方案」，不得点名品牌。
+# Goal（SEO 映射）
+- **Topic name**：由系统在输出后绑定为 `keyword_plan.core_keywords` 前 5 条；LLM 可填占位 name，但**重点在 seed**。
+- **Seed query（种子问句）** = 长尾问句：核心词 + 修饰词（scenario/audience/pain）+ 决策维度；问法类型体现在 seed 的 decision，**不要**写进 topic name。
 
-# 问句要求
-- 8–28 个中文字符；像用户直接问 AI 的短句。
-- 禁止「想问下」「求推荐」等论坛前缀；禁止多重从句。
-- 必须行业化：含 industry 或 topic_lexicon 中的品类/场景/客群词。
-- 每条须标注 decision_type（供后续 Prompt 打标，**勿**按 decision_type 分主题）：
-  - category_awareness：品类认知、入门了解
-  - solution_comparison：方案对比、替代选择（泛指）
-  - trust_risk：口碑、真伪、合规、售后风险
-  - price_value：价格、性价比、成本
-  - scenario_fit：场景适配、采购/使用情境
-- 30–45 条问句须覆盖 topic_lexicon 中各业务对象/场景，并在五种 decision_type 间尽量分散。
+# user message 字段
+- niche_profile / keyword_plan / topic_guidance：keyword_plan.core_keywords 为核心词，modifiers 为修饰词，long_tail_examples 为长尾范例
+- topic_keyword_map：每个 core 的 preferred_modifiers（**seed 须优先使用，不同 topic 错开修饰词**）
+- validation_feedback：上轮校验错误（若有），须逐条修正
+- competitor_scenarios：仅供理解赛道，**不得**写入 name 或 seed text
 
-# 意图与漏斗（每条须标注）
-- intent：informational | commercial | transactional
-- funnel：tofu | mofu | bofu
+# 维度标签（seed 必填）
+1. intent：`informational` | `commercial` | `transactional`
+2. funnel：`tofu` | `mofu` | `bofu`
+3. decision：`category_awareness` | `solution_comparison` | `trust_risk` | `price_value` | `scenario_fit`
 
-# 输出
-{
-  "candidate_queries": [
-    {
-      "text": "问句",
-      "intent": "informational|commercial|transactional",
-      "funnel": "tofu|mofu|bofu",
-      "decision_type": "category_awareness|solution_comparison|trust_risk|price_value|scenario_fit",
-      "seed_terms": ["来源词1", "来源词2"]
-    }
-  ]
-}"""
+# Topic 约束
+1. 条数：5 个 topic_clusters；name 占位即可（系统绑定 core_keyword）。
+2. 5 条 seed 矩阵须覆盖不同 core_keyword（与 keyword_plan 对齐）；禁止近重复 topic 名、禁止竞品对标/对比分析等泛词作 topic。
+3. 不得含主体/竞品名、问句标记、决策/导购后缀。
 
-SUBJECT_QUERY_EXPAND_USER_SUFFIX = "请输出 JSON（candidate_queries 30–45 条，覆盖 lexicon 业务对象且 decision_type 尽量分散）。"
+# Seed 约束
+1. 每 topic 种子条数与字数：遵循 topic_guidance。
+2. **每条 seed 须含本 topic 的 core_keyword + topic_keyword_map 中该 core 的 preferred_modifiers 至少 1 个**（禁止所有 topic 共用同一 modifier 组合）。
+3. 同一 topic 内 3 条 seed 须 decision 互异；优先仿写 keyword_plan.long_tail_examples。
+4. 不得点名品牌/竞品；对比类用「主流品牌」「头部厂商」等泛指。
 
+# 命名参考
+- good_topic_names / bad_topic_names / long_tail_examples（由当前画像生成）
 
-# --- 主题选定（run_topic_pick_stage） ---
-
-SUBJECT_TOPIC_PICK_SYSTEM = """你是 GEO 监测策略专家，从词表中选定监测业务靶心（主题名）。
-必须且仅输出合法 JSON；禁止 Markdown 代码块包裹 JSON。
-
-# 任务
-根据 user message 中的 niche_profile.topic_lexicon，输出 **恰好 5 条** topic_names。
-
-# 主题名 = 业务对象 / 产品线 / 核心场景（「盯什么」）
-- 每条 **≤12 字**，须含 topic_lexicon 中的品类词、场景词或客群词（可组合，如「商务送礼绿茶」「明前高端绿茶」）。
-- 5 条须语义互补、不重复，覆盖该赛道主要监测对象。
-
-# 禁止（决策维度属于 Prompt 层，不得写入主题名）
-- 禁止以认知/对比/选型/价格/性价比/信任/风险/真伪/口碑/鉴别/怎么选/有哪些/入门/合规/文化体验 等决策角度命名。
-- 禁止空泛名：「竞品对比」「行业趋势」「方案选型」「定价决策」「口碑评价」。
-- 禁止品牌/平台/公司名。
-
-# 示例（茶叶）
-✓ 商务送礼绿茶、明前高端绿茶、企业礼盒茶、家庭日常绿茶、茶叶保鲜存放
-✗ 茶叶认知与鉴别、价格与性价比、品牌信任与风险
-
-# 输出
-{"topic_names": ["主题1", "主题2", "主题3", "主题4", "主题5"]}"""
-
-SUBJECT_TOPIC_PICK_USER_SUFFIX = "请输出 JSON（topic_names 恰好 5 条，纯业务对象/场景，禁止决策维度词）。"
-
-
-# --- 主题聚类（已废弃：改 topic_pick + topic_bind；保留供测试/回滚参考） ---
-
-SUBJECT_TOPIC_CLUSTER_SYSTEM = """你是 GEO 监测策略专家，将候选问句聚类为监测主题簇。
-必须且仅输出合法 JSON；禁止 Markdown 代码块包裹 JSON。
-
-# 任务
-根据 user message 中的 candidate_queries 与 niche_profile，输出 **恰好 5 条** topic_clusters。
-
-# 聚类规则
-1. 按 **业务对象/产品线/能力模块/核心场景** 分簇；5 簇须语义互补、彼此不重复（勿按决策维度分桶）。
-2. 每簇 name：从 niche_profile 的 topic_lexicon 与簇内语义提炼，**≤12 字**，行业化、短而准，代表一个监测靶心。
-3. 每簇绑定 3–8 条 seed_queries，**必须来自** candidate_queries（可微调措辞，intent/funnel/decision_type 保持一致）。
-4. name 与 seed_queries.text **禁止**品牌/平台/公司名。
-5. 禁止空泛主题名：「竞品对比」「行业趋势」「口碑评价」「方案选型」「定价决策」等无行业词名称。
-
-# 输出
+# Output Format
 {
   "topic_clusters": [
     {
@@ -257,14 +211,19 @@ SUBJECT_TOPIC_CLUSTER_SYSTEM = """你是 GEO 监测策略专家，将候选问�
           "text": "问句",
           "intent": "informational|commercial|transactional",
           "funnel": "tofu|mofu|bofu",
-          "decision_type": "category_awareness|solution_comparison|trust_risk|price_value|scenario_fit"
+          "decision": "category_awareness|solution_comparison|trust_risk|price_value|scenario_fit"
         }
       ]
     }
   ]
 }"""
 
-SUBJECT_TOPIC_CLUSTER_USER_SUFFIX = "请输出 JSON（topic_clusters 恰好 5 条，每簇 seed_queries 3–8 条）。"
+SUBJECT_TOPIC_PLAN_USER_SUFFIX = (
+    "请输出 JSON。须满足 keyword_plan 与 topic_guidance；"
+    "重点输出每条 topic 的 seed_queries（含 core_keyword + modifier）；"
+    "topic name 将由系统绑定为 core_keyword。"
+    "若有 validation_feedback 须全部修正。"
+)
 
 
 # --- 主体 Markdown 摘要（run_profile_summary_stage；监测主题生成后） ---
@@ -313,36 +272,41 @@ SUBJECT_PROFILE_SUMMARY_USER_SUFFIX = "请输出 JSON（仅 profile_summary）�
 # Setup · Step 2→3 prompts · POST /subjects/setup/prompts
 # =============================================================================
 
-SETUP_WIZARD_PROMPTS_SYSTEM = """你是中国大陆市场的 GEO 监测问句设计师，为监测主体所在赛道设计可在 AI 搜索平台长期追踪的中文**真实用户问题**。
+SETUP_WIZARD_PROMPTS_SYSTEM = """你是中国大陆市场的 GEO 监测问句设计师与 SEO 长尾词专家，为监测主体设计可在 AI 搜索平台长期追踪的中文**真实用户问题**。
 必须且仅输出合法 JSON；禁止 Markdown 代码块包裹 JSON。
 
 # 任务
-根据 user 消息 JSON 中的监测主体背景与 topic_clusters，为**每个 topic 各生成 {n} 条**问句，用于评估该行业场景下主体在 AI 回答中的可见度。
+根据 user 消息 JSON 中的 keyword_plan、topic_keyword_map 与 topic_clusters，为**每个 topic 各生成 {n} 条**问句，用于评估该主体核心词在 AI 回答中的可见度。
 
 # user 消息字段
-- entity / aliases / competitors：仅供理解赛道与竞争格局，**不得**写入问句 text
-- industry / features / customers：行业与能力背景
-- topic_clusters：监测主题簇列表；每项含 name、seed_queries（种子问句，须优先改写/扩展，不可忽略）
+- keyword_plan：core_keywords（核心词）、modifiers（修饰词）、long_tail_examples（长尾范例）
+- topic_keyword_map：每个 topic 的 core_keyword 与 **preferred_modifiers**（mofu/bofu 须用本 topic 优先修饰词）
+- topic_clusters：含 name、seed_queries（**必须**优先改写/扩展，不可忽略）
+- entity / aliases / competitors：仅供理解，**不得**写入问句 text
+- industry / features / customers：背景参考，问句须锚定 core_keyword 而非仅 industry
+- validation_feedback：上轮校验错误（若有），须逐条修正
 - prompts_per_topic：等于 {n}
-- exclude_prompts：已生成问题，禁止重复（可为空）
+- exclude_prompts：已生成问题，禁止重复
 
-# 种子问句优先（硬要求）
-- 每个 topic 的 prompts **必须**基于其 seed_queries 改写或扩展；每条 seed 至少对应 1 条 prompt。
-- 继承 seed 的 intent / funnel / decision_type 作为默认值；不足 {n} 条时在同 topic 内按业务语义补写。
+# 核心词硬要求
+1. 每条 prompt 的 text **必须完整包含** topic_keyword_map 中该 topic 的 core_keyword。
+2. 每条 prompt **必须**由同 topic 的某条 seed 改写/扩展（保留 seed 的核心语义片段）。
+3. mofu/bofu 的 prompt 须含 **该 topic 的 preferred_modifiers 中至少 1 个**（禁止 5 个 topic 共用同一 modifier 后缀）。
+4. 去掉 core 与 modifiers 后，**不同 topic 的问句骨架不得相同**（禁止「换 core、句式不变」）。
+5. 禁止仅 industry 级泛化问句（如「什么茶叶好」「哪个监测工具好」）而无 core_keyword。
 
-# 品牌名称禁令（硬要求）
-- **每条问句 text 禁止出现任何品牌、公司、产品、型号名称**，包括 entity、aliases、competitors 及其简称、英文名、域名。
-- 对比/替代类问句只用通用品类词或「主流方案」「头部平台」等泛指，不得点名具体品牌。
+# 品牌名称禁令
+- text 禁止出现 entity、aliases、competitors 及其简称、域名；对比类用「主流方案」「头部平台」等泛指。
 
-# 组合级覆盖（全库 {n}×topic 数 条合计，非每 topic 内机械均分）
-- funnel 合计：tofu 25–35% / mofu 30–40% / bofu 25–35%
+# 组合级覆盖（全库 {n}×topic 数 条合计）
+- funnel 合计（营销漏斗逐层递减，目标比 tofu:mofu:bofu = 5:3:2，即约 50% / 30% / 20%）
 - intent 合计：informational 30–40% / commercial 30–40% / transactional 20–35%
-- decision_type 合计：须覆盖 **≥4 种**（category_awareness / scenario_fit / solution_comparison / trust_risk / price_value）
+- decision 合计：须覆盖 **≥4 种**
 
 # 句式铁律
-1. 每条像真实用户会直接输入 AI 的短句，8–28 个中文字符；不要用户身份、背景条件或多重从句。
-2. 禁止机械复读 topic 名全文；禁止论坛口语前缀（如「想问下」「求推荐」）。
-3. 不强制句末问号；自然时可省略标点。
+1. 每条 8–28 个中文字符；像用户直接问 AI 的短句。
+2. 禁止机械复读 topic 名全文；禁止论坛口语前缀。
+3. **text 禁止任何标点符号**；纯文字短语即可。
 
 # JSON 返回规范
 1. 必须且只能输出一个严格合法的标准 JSON 对象。
@@ -356,13 +320,13 @@ SETUP_WIZARD_PROMPTS_SYSTEM = """你是中国大陆市场的 GEO 监测问句设
           "text": "问句",
           "funnel": "tofu|mofu|bofu",
           "intent": "informational|commercial|transactional",
-          "decision_type": "category_awareness|solution_comparison|trust_risk|price_value|scenario_fit"
+          "decision": "category_awareness|solution_comparison|trust_risk|price_value|scenario_fit"
         }}
       ]
     }}
   ]
 }}
-3. funnel / intent / decision_type 必须使用上述英文小写枚举；每个 topic 的 prompts 数量恰好为 {n}。"""
+3. funnel / intent / decision 必须使用上述英文小写枚举；每个 topic 的 prompts 数量恰好为 {n}。"""
 
 SETUP_WIZARD_PROMPTS_USER_PREFIX = "请生成初始监测提示词：\n"
 

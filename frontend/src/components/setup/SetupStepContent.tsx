@@ -1,7 +1,6 @@
 import { Boxes, Globe, Languages, MapPin } from "lucide-react";
 
-import { FaviconImage } from "@/components/common/FaviconImage";
-import { resolveFaviconInput } from "@/lib/favicon";
+import { FaviconUrlInput } from "@/components/common/FaviconUrlInput";
 import {
   SetupFieldGroup,
   SetupFieldLabel,
@@ -14,6 +13,7 @@ import { SetupStepMaterials } from "@/components/setup/SetupStepMaterials";
 import { SetupStepPrompt } from "@/components/setup/SetupStepPrompt";
 import { SetupStepTopic } from "@/components/setup/SetupStepTopic";
 import { setupCompetitorStep, setupTopicsStep } from "@/lib/setup";
+import { registrableDomain } from "@/lib/domain";
 import type { CompetitorRow, PromptRow, SetupUploadFile, SubjectMode, TopicRow } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -138,19 +138,12 @@ export function SetupStepContent({ view, actions }: SetupStepContentProps) {
             <SetupFieldLabel icon={Globe} htmlFor="wiz-url">
               网站 URL
             </SetupFieldLabel>
-            <SetupTextInput
+            <FaviconUrlInput
               id="wiz-url"
               value={websiteUrl}
               onChange={(e) => onWebsiteUrlChange(e.target.value)}
               placeholder="请确保网站能正常访问"
               autoComplete="url"
-              leading={
-                resolveFaviconInput(websiteUrl) ? (
-                  <FaviconImage url={websiteUrl} size={20} className="size-5" />
-                ) : (
-                  <Globe className="text-muted-foreground size-5" aria-hidden />
-                )
-              }
             />
           </SetupFieldGroup>
         ) : (
@@ -203,10 +196,28 @@ export function SetupStepContent({ view, actions }: SetupStepContentProps) {
   }
 
   if (step === competitorStep) {
+    const subject =
+      mode === "domain"
+        ? {
+            mode,
+            domain: registrableDomain(websiteUrl),
+            websiteUrl,
+          }
+        : {
+            mode,
+            brand: brandName,
+            domain: registrableDomain(brandWebsiteUrl),
+            websiteUrl: brandWebsiteUrl,
+          };
     return analyzingProfile || discoveringCompetitors ? (
       <SetupLoader />
     ) : (
-      <SetupStepCompetitor mode={mode} rows={competitorRows} onChange={onCompetitorRowsChange} />
+      <SetupStepCompetitor
+        mode={mode}
+        subject={subject}
+        rows={competitorRows}
+        onChange={onCompetitorRowsChange}
+      />
     );
   }
 

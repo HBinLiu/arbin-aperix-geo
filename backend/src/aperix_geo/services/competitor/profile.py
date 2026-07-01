@@ -5,12 +5,6 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from aperix_geo.services.competitor.topic_types import (
-    MAX_MONITORING_TOPICS,
-    CandidateQuery,
-    SeedQuery,
-    TopicCluster,
-)
 from aperix_geo.services.competitor.types import NicheProfile
 
 MAX_SEARCH_QUERIES = 5
@@ -63,46 +57,30 @@ def normalize_niche_profile(data: dict[str, Any], *, entity: str) -> NicheProfil
     else:
         customer_text = str(raw_customers or "").strip()[:400]
 
-    raw_search = data.get("search_queries")
-    if raw_search is None:
-        raw_search = data.get("keywords")
-    search_queries = _join_tags(_normalize_term_list(raw_search, limit=MAX_SEARCH_QUERIES), limit=MAX_SEARCH_QUERIES)
+    search_queries = _join_tags(
+        _normalize_term_list(data.get("search_queries"), limit=MAX_SEARCH_QUERIES),
+        limit=MAX_SEARCH_QUERIES,
+    )
 
     lexicon_raw = data.get("topic_lexicon")
-    if isinstance(lexicon_raw, dict):
-        category_terms = _join_tags(
-            _normalize_term_list(lexicon_raw.get("category_terms"), limit=MAX_LEXICON_TERMS),
-            limit=MAX_LEXICON_TERMS,
-        )
-        scenario_terms = _join_tags(
-            _normalize_term_list(lexicon_raw.get("scenario_terms"), limit=MAX_LEXICON_TERMS),
-            limit=MAX_LEXICON_TERMS,
-        )
-        audience_terms = _join_tags(
-            _normalize_term_list(lexicon_raw.get("audience_terms"), limit=MAX_LEXICON_TERMS),
-            limit=MAX_LEXICON_TERMS,
-        )
-        pain_terms = _join_tags(
-            _normalize_term_list(lexicon_raw.get("pain_terms"), limit=MAX_LEXICON_TERMS),
-            limit=MAX_LEXICON_TERMS,
-        )
-    else:
-        category_terms = _join_tags(
-            _normalize_term_list(data.get("category_terms"), limit=MAX_LEXICON_TERMS),
-            limit=MAX_LEXICON_TERMS,
-        )
-        scenario_terms = _join_tags(
-            _normalize_term_list(data.get("scenario_terms"), limit=MAX_LEXICON_TERMS),
-            limit=MAX_LEXICON_TERMS,
-        )
-        audience_terms = _join_tags(
-            _normalize_term_list(data.get("audience_terms"), limit=MAX_LEXICON_TERMS),
-            limit=MAX_LEXICON_TERMS,
-        )
-        pain_terms = _join_tags(
-            _normalize_term_list(data.get("pain_terms"), limit=MAX_LEXICON_TERMS),
-            limit=MAX_LEXICON_TERMS,
-        )
+    if not isinstance(lexicon_raw, dict):
+        lexicon_raw = {}
+    category_terms = _join_tags(
+        _normalize_term_list(lexicon_raw.get("category_terms"), limit=MAX_LEXICON_TERMS),
+        limit=MAX_LEXICON_TERMS,
+    )
+    scenario_terms = _join_tags(
+        _normalize_term_list(lexicon_raw.get("scenario_terms"), limit=MAX_LEXICON_TERMS),
+        limit=MAX_LEXICON_TERMS,
+    )
+    audience_terms = _join_tags(
+        _normalize_term_list(lexicon_raw.get("audience_terms"), limit=MAX_LEXICON_TERMS),
+        limit=MAX_LEXICON_TERMS,
+    )
+    pain_terms = _join_tags(
+        _normalize_term_list(lexicon_raw.get("pain_terms"), limit=MAX_LEXICON_TERMS),
+        limit=MAX_LEXICON_TERMS,
+    )
 
     return NicheProfile(
         company=str(data.get("company") or entity).strip()[:200],
@@ -128,74 +106,6 @@ def topic_lexicon_dict(profile: NicheProfile) -> dict[str, list[str]]:
         "audience_terms": _split_tags(profile.get("audience_terms", "")),
         "pain_terms": _split_tags(profile.get("pain_terms", "")),
     }
-
-
-def parse_candidate_queries(data: dict[str, Any]) -> list[CandidateQuery]:
-    raw = data.get("candidate_queries")
-    if not isinstance(raw, list):
-        return []
-    out: list[CandidateQuery] = []
-    for item in raw:
-        if not isinstance(item, dict):
-            continue
-        text = str(item.get("text") or "").strip()
-        if not text:
-            continue
-        seed_terms_raw = item.get("seed_terms")
-        seed_terms = (
-            [str(x).strip() for x in seed_terms_raw if str(x).strip()]
-            if isinstance(seed_terms_raw, list)
-            else _split_tags(str(seed_terms_raw or ""))
-        )
-        out.append(
-            CandidateQuery(
-                text=text,
-                intent=str(item.get("intent") or "commercial").strip().lower(),
-                funnel=str(item.get("funnel") or "mofu").strip().lower(),
-                decision_type=str(item.get("decision_type") or "scenario_fit").strip().lower(),
-                seed_terms=seed_terms,
-            )
-        )
-    return out
-
-
-def parse_topic_clusters(data: dict[str, Any]) -> list[TopicCluster]:
-    raw = data.get("topic_clusters")
-    if not isinstance(raw, list):
-        return []
-    out: list[TopicCluster] = []
-    for item in raw:
-        if not isinstance(item, dict):
-            continue
-        name = str(item.get("name") or "").strip()
-        if not name:
-            continue
-        seeds_raw = item.get("seed_queries")
-        seeds: list[SeedQuery] = []
-        if isinstance(seeds_raw, list):
-            for seed in seeds_raw:
-                if not isinstance(seed, dict):
-                    continue
-                text = str(seed.get("text") or "").strip()
-                if not text:
-                    continue
-                seeds.append(
-                    SeedQuery(
-                        text=text,
-                        intent=str(seed.get("intent") or "commercial").strip().lower(),
-                        funnel=str(seed.get("funnel") or "mofu").strip().lower(),
-                        decision_type=str(seed.get("decision_type") or "scenario_fit")
-                        .strip()
-                        .lower(),
-                    )
-                )
-        out.append(
-            TopicCluster(
-                name=name,
-                seed_queries=seeds,
-            )
-        )
-    return out[:MAX_MONITORING_TOPICS]
 
 
 def profile_to_dict(profile: NicheProfile) -> dict[str, str]:
@@ -224,7 +134,7 @@ def profile_topic_dict(profile: NicheProfile) -> dict[str, Any]:
 
 
 def profile_from_dict(data: dict[str, Any]) -> NicheProfile:
-    search_queries = str(data.get("search_queries") or data.get("keywords") or "").strip()[:600]
+    search_queries = str(data.get("search_queries") or "").strip()[:600]
     return NicheProfile(
         company=str(data.get("company") or "").strip()[:200],
         industry=str(data.get("industry") or "未知行业").strip()[:200],
@@ -243,12 +153,10 @@ def merge_profile_updates(
     *,
     profile_patch: dict[str, Any] | None = None,
     search_queries: list[str] | None = None,
-    keywords: list[str] | None = None,
 ) -> NicheProfile:
     merged = profile_from_dict({**profile_to_dict(base), **(profile_patch or {})})
-    queries = search_queries if search_queries is not None else keywords
-    if queries is not None:
-        kws = [k.strip() for k in queries if k.strip()][:MAX_SEARCH_QUERIES]
+    if search_queries is not None:
+        kws = [k.strip() for k in search_queries if k.strip()][:MAX_SEARCH_QUERIES]
         merged = NicheProfile(
             company=merged.get("company", ""),
             industry=merged.get("industry", ""),

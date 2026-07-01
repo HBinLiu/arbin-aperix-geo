@@ -1,7 +1,7 @@
 import * as React from "react";
-import { Globe, X } from "lucide-react";
+import { X } from "lucide-react";
 
-import { FaviconImage } from "@/components/common/FaviconImage";
+import { FaviconUrlInput } from "@/components/common/FaviconUrlInput";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,13 +14,14 @@ import {
 import { Input, InputGroup, inputControlClass } from "@/components/ui/input";
 import type { CompetitorItem } from "@/types";
 import { hostnameFromWebsiteInput, registrableDomain, websiteUrlFromInput } from "@/lib/domain";
-import { faviconUrlFromWebsite } from "@/lib/favicon";
+import { competitorDuplicateMessage, findCompetitorDuplicate, type SubjectIdentity } from "@/lib/setup";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 
 type EditCompetitorDialogProps = {
   open: boolean;
   subjectType: string;
+  subject: SubjectIdentity;
   competitor: CompetitorItem | null;
   existingValues: string[];
   onOpenChange: (open: boolean) => void;
@@ -126,6 +127,7 @@ function EditCompetitorDialogFooter({
 export function EditCompetitorDialog({
   open,
   subjectType,
+  subject,
   competitor,
   existingValues,
   onOpenChange,
@@ -138,22 +140,16 @@ export function EditCompetitorDialog({
   const [aliases, setAliases] = React.useState<string[]>([]);
   const [summary, setSummary] = React.useState("");
 
-  const domainFaviconUrl = React.useMemo(() => {
-    const raw = domainInput.trim();
-    if (!raw) return null;
-    const domain = registrableDomain(hostnameFromWebsiteInput(raw) || raw);
-    if (!domain) return null;
-    const websiteUrl = websiteUrlFromInput(raw) || domain;
-    return faviconUrlFromWebsite(websiteUrl, domain);
-  }, [domainInput]);
+  const competitorDomainSeed =
+    competitor && isDomain ? competitor.domain.trim() || competitor.website_url.trim() : "";
 
   React.useEffect(() => {
     if (!open || !competitor) return;
-    setDomainInput(competitor.domain.trim() || competitor.website_url.trim());
+    setDomainInput(competitorDomainSeed);
     setBrand(competitor.brand.trim());
     setAliases([...(competitor.aliases ?? [])]);
     setSummary(competitor.summary.trim());
-  }, [open, competitor]);
+  }, [open, competitor, competitorDomainSeed]);
 
   const handleSubmit = () => {
     if (!competitor) return;
@@ -175,6 +171,16 @@ export function EditCompetitorDialog({
         toast.error("请填写有效的网站域名。");
         return;
       }
+      const duplicate = findCompetitorDuplicate(
+        "domain",
+        [],
+        { name: trimmedBrand, domain },
+        subject,
+      );
+      if (duplicate) {
+        toast.error(competitorDuplicateMessage(duplicate));
+        return;
+      }
       const currentDomain = competitor.domain.trim();
       if (domain !== currentDomain && existingValues.includes(domain)) {
         toast.error("该竞品域名已存在。");
@@ -192,6 +198,17 @@ export function EditCompetitorDialog({
         aliases,
         summary: summary.trim(),
       });
+      return;
+    }
+
+    const duplicate = findCompetitorDuplicate(
+      "brand",
+      [],
+      { name: trimmedBrand, domain: "" },
+      subject,
+    );
+    if (duplicate) {
+      toast.error(competitorDuplicateMessage(duplicate));
       return;
     }
 
@@ -228,25 +245,15 @@ export function EditCompetitorDialog({
             <div className="space-y-1.5">
               <FieldLabel required>竞品网站</FieldLabel>
               <InputGroup className="h-9">
-                <div className="relative min-w-0 flex-1">
-                  <div className="pointer-events-none absolute top-1/2 left-2.5 z-10 flex -translate-y-1/2 items-center">
-                    {domainFaviconUrl ? (
-                      <FaviconImage url={domainFaviconUrl} size={20} iconClassName="size-5" />
-                    ) : (
-                      <Globe className="text-muted-foreground size-5 shrink-0" aria-hidden />
-                    )}
-                  </div>
-                  <Input
-                    variant="merged"
-                    controlSize="sm"
-                    value={domainInput}
-                    onChange={(e) => setDomainInput(e.target.value)}
-                    disabled={submitting}
-                    placeholder="example.com"
-                    className="w-full pl-10"
-                    autoFocus
-                  />
-                </div>
+                <FaviconUrlInput
+                  layout="merged"
+                  faviconMode="domain"
+                  value={domainInput}
+                  onChange={(e) => setDomainInput(e.target.value)}
+                  disabled={submitting}
+                  placeholder="example.com"
+                  autoFocus
+                />
               </InputGroup>
             </div>
           ) : null}

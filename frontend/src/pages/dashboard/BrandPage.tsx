@@ -13,7 +13,7 @@ export function BrandPage({ subject }: BrandPageProps) {
     <div className="flex flex-col items-center gap-4 px-4 py-4 sm:px-6 lg:px-8">
       <BrandDetailSection subject={subject} />
       <PlatformConfigSection subject={subject} />
-      <CompetitorConfigSection subjectId={subject.id} subjectType={subject.type} />
+      <CompetitorConfigSection subject={subject} />
     </div>
   );
 }
