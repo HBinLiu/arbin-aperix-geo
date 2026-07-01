@@ -1,4 +1,4 @@
-"""SearXNG JSON API 客户端（品牌调研、域名解析、竞品发现等）。"""
+"""SearXNG JSON API 客户端（采样后品牌域名回填等）。"""
 
 from __future__ import annotations
 

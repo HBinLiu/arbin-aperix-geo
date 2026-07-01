@@ -62,7 +62,37 @@ def test_fetch_site_heads_prefers_website_url(mock_crawl_settings, mock_fetch_pa
     )
     assert heads["tigerobo.com"].reachable is True
     mock_fetch_page.assert_called_once_with(
-        "https://www.tigerobo.com/",
+        "https://www.tigerobo.com",
+        crawl=mock_crawl_settings.return_value,
+        max_chars=64_000,
+        crawl_fallback=True,
+    )
+
+
+@patch("aperix_geo.services.competitor.head_fetch.fetch_page")
+@patch("aperix_geo.services.competitor.head_fetch.page_crawl_settings")
+def test_fetch_site_heads_prefers_http_website_url(mock_crawl_settings, mock_fetch_page) -> None:
+    mock_crawl_settings.return_value.max_chars = 120_000
+    mock_crawl_settings.return_value.seo_max_chars = 64_000
+    mock_crawl_settings.return_value.crawl_fallback = True
+    mock_crawl_settings.return_value.concurrency = 2
+
+    html = "<html><head><title>中茶</title></head></html>"
+    mock_fetch_page.return_value = PageFetchResult(
+        url="http://www.chinatea.com.cn/",
+        final_url="http://www.chinatea.com.cn/",
+        http_status=200,
+        html=html,
+        source="httpx",
+    )
+
+    heads = fetch_site_heads(
+        ["chinatea.com.cn"],
+        preferred_urls={"chinatea.com.cn": "http://www.chinatea.com.cn/"},
+    )
+    assert heads["chinatea.com.cn"].reachable is True
+    mock_fetch_page.assert_called_once_with(
+        "http://www.chinatea.com.cn",
         crawl=mock_crawl_settings.return_value,
         max_chars=64_000,
         crawl_fallback=True,

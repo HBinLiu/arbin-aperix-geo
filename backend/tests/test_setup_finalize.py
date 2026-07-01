@@ -22,6 +22,29 @@ def test_validate_confirmed_competitors_domain_mode() -> None:
     )
 
 
+def test_validate_confirmed_competitors_brand_mode_accepts_domain() -> None:
+    validate_confirmed_competitors(
+        subject_type="brand",
+        competitors=[
+            CompetitorItem(
+                domain="dayitea.com",
+                brand="大益",
+                website_url="https://www.dayitea.com",
+            ),
+        ],
+    )
+
+
+def test_validate_confirmed_competitors_brand_mode_requires_brand() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="至少需要一个竞品品牌"):
+        validate_confirmed_competitors(
+            subject_type="brand",
+            competitors=[CompetitorItem(domain="example.com", brand="", website_url="")],
+        )
+
+
 def test_subject_aliases_from_session_includes_company_when_different() -> None:
     profile = normalize_niche_profile({"company": "Airwallex"}, entity="airwallex.com")
     aliases = subject_aliases_from_session(

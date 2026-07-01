@@ -21,7 +21,6 @@ from aperix_geo.services.setup.cache.session import (
     get_session,
     update_session,
 )
-from aperix_geo.services.setup.prompts import generate_setup_prompts_for_session
 
 __all__ = [
     "cached_competitors_result",
@@ -29,7 +28,6 @@ __all__ = [
     "competitors_search_hash",
     "create_session",
     "delete_session",
-    "generate_setup_prompts_for_session",
     "get_profile_cache",
     "get_session",
     "profile_hash",

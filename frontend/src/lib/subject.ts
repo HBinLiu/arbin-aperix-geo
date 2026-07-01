@@ -1,4 +1,5 @@
 import type { Subject } from "@/types";
+import { websiteUrlFromInput } from "@/lib/domain";
 
 /** 顶栏展示：域名类型显示主域名，品牌类型显示规范品牌名。 */
 export function subjectDisplayLabel(subject: Subject): string {
@@ -14,7 +15,7 @@ export function subjectFaviconUrl(subject: Subject): string | null {
   const website = subject.website_url?.trim();
   if (website) return website;
   if (subject.type === "domain" && subject.domain?.trim()) {
-    return `https://${subject.domain.trim()}/`;
+    return websiteUrlFromInput(subject.domain.trim());
   }
   return null;
 }

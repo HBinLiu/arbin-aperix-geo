@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from aperix_geo.db.models import SubjectType
-from aperix_geo.utils.net import parse_url, registrable_from, resolve_website
+from aperix_geo.schemas.url_fields import validate_optional_http_url
+from aperix_geo.utils.net import registrable_from, resolve_website
 
 
 def prepare_domain_and_website_url(
@@ -12,14 +13,19 @@ def prepare_domain_and_website_url(
     *,
     probe: bool = True,
 ) -> tuple[str, str]:
-    """归一为 (registrable_domain, website_url)。用户显式提供的 URL 原样保留（仅补全 scheme）。"""
+    """归一为 (registrable_domain, website_url)。用户输入原样保留（http(s) 或裸域名/路径）。"""
     domain = registrable_from(raw_domain or raw_website_url)
     if not domain:
         return "", ""
 
-    user_url = parse_url(raw_website_url.strip())
+    user_url = raw_website_url.strip()
     if user_url:
-        return domain, user_url
+        try:
+            validated = validate_optional_http_url(user_url)
+        except ValueError:
+            validated = ""
+        if validated:
+            return domain, validated
 
     _, website_url = resolve_website(domain, probe=probe)
     return domain, website_url
@@ -39,7 +45,10 @@ def apply_subject_domain_fields(
     if subject_type == SubjectType.domain:
         return prepare_domain_and_website_url(raw_domain, raw_website_url, probe=probe)
 
-    website_url = parse_url(raw_website_url.strip())
+    try:
+        website_url = validate_optional_http_url(raw_website_url.strip())
+    except ValueError:
+        website_url = ""
     if website_url:
         return "", website_url
     if raw_domain.strip():

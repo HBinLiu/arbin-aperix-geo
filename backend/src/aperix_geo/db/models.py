@@ -14,6 +14,8 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import Uuid
 
+from pgvector.sqlalchemy import Vector
+
 from aperix_geo.db.base import Base, utc_now
 
 
@@ -252,6 +254,15 @@ class Subject(Base):
         back_populates="subject", cascade="all, delete-orphan"
     )
     brands: Mapped[list["Brand"]] = relationship(back_populates="subject", cascade="all, delete-orphan")
+    knowledge: Mapped["SubjectKnowledge | None"] = relationship(
+        back_populates="subject", uselist=False, cascade="all, delete-orphan"
+    )
+    knowledge_sources: Mapped[list["KnowledgeSource"]] = relationship(
+        back_populates="subject", cascade="all, delete-orphan"
+    )
+    knowledge_chunks: Mapped[list["KnowledgeChunk"]] = relationship(
+        back_populates="subject", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("ix_subjects_tenant_id", "tenant_id"),
@@ -307,6 +318,9 @@ class Topic(Base):
         Uuid(as_uuid=True), ForeignKey("tb_subjects.id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
+    decision_dimension: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="", server_default=""
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
@@ -333,6 +347,9 @@ class Prompt(Base):
     funnel_stage: Mapped[str] = mapped_column(String(8), nullable=False, default="mofu", server_default="mofu")
     search_intent: Mapped[str] = mapped_column(
         String(16), nullable=False, default="commercial", server_default="commercial"
+    )
+    decision_type: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="", server_default=""
     )
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
@@ -959,5 +976,158 @@ class UserNotification(Base):
             "dedupe_key",
             unique=True,
             postgresql_where=sa_text("dedupe_key <> '' AND deleted = false"),
+        ),
+    )
+
+
+class SubjectKnowledge(Base):
+    """Structured brand knowledge (1:1 subject). See docs/08-品牌模式.md §2.6.2."""
+
+    __tablename__ = "tb_subject_knowledge"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    subject_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_subjects.id", ondelete="CASCADE"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="draft", server_default="draft")
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    index_status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending", server_default="pending")
+    indexed_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    index_error: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    identity_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default=sa_text("'{}'::jsonb"))
+    facts_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default=sa_text("'{}'::jsonb"))
+    relations_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default=sa_text("'{}'::jsonb"))
+    narrative_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default=sa_text("'{}'::jsonb"))
+    voice_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default=sa_text("'{}'::jsonb"))
+    verified_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=EPOCH, server_default=sa_text("'1970-01-01T00:00:00+00:00'::timestamptz")
+    )
+    verified_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), nullable=False, default=ZERO_UUID, server_default=sa_text("'00000000-0000-0000-0000-000000000000'::uuid")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
+    )
+
+    subject: Mapped[Subject] = relationship(back_populates="knowledge")
+
+    __table_args__ = (
+        Index(
+            "uq_subject_knowledge_subject",
+            "subject_id",
+            unique=True,
+            postgresql_where=sa_text("deleted = false"),
+        ),
+        Index("ix_subject_knowledge_tenant", "tenant_id"),
+        Index(
+            "ix_subject_knowledge_status",
+            "subject_id",
+            "status",
+            postgresql_where=sa_text("deleted = false"),
+        ),
+    )
+
+
+class KnowledgeSource(Base):
+    """Evidence source for RAG indexing. See docs/08-品牌模式.md §2.6.3."""
+
+    __tablename__ = "tb_knowledge_sources"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    subject_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_subjects.id", ondelete="CASCADE"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(32), nullable=False, default="", server_default="")
+    title: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
+    uri: Mapped[str] = mapped_column(String(2048), nullable=False, default="", server_default="")
+    mime_type: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
+    file_size: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    storage_key: Mapped[str] = mapped_column(String(512), nullable=False, default="", server_default="")
+    raw_text: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    char_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    parse_status: Mapped[str] = mapped_column(String(16), nullable=False, default="ok", server_default="ok")
+    parse_error: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default=sa_text("'{}'::jsonb"))
+    sort_order: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
+    )
+
+    subject: Mapped[Subject] = relationship(back_populates="knowledge_sources")
+    chunks: Mapped[list["KnowledgeChunk"]] = relationship(back_populates="source", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index(
+            "ix_knowledge_sources_subject",
+            "subject_id",
+            "kind",
+            postgresql_where=sa_text("deleted = false"),
+        ),
+        Index("ix_knowledge_sources_tenant", "tenant_id"),
+    )
+
+
+class KnowledgeChunk(Base):
+    """Vector-indexed chunk; multiple knowledge_version rows retained for audit. See docs/08-品牌模式.md §2.6.4."""
+
+    __tablename__ = "tb_knowledge_chunks"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    subject_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_subjects.id", ondelete="CASCADE"), nullable=False
+    )
+    source_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_knowledge_sources.id", ondelete="CASCADE"), nullable=False
+    )
+    knowledge_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    content_text: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False, default="", server_default="")
+    char_start: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    char_end: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    token_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    embedding: Mapped[Any] = mapped_column(Vector(1024), nullable=False)
+    embedding_model: Mapped[str] = mapped_column(String(64), nullable=False, default="", server_default="")
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default=sa_text("'{}'::jsonb"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
+    )
+
+    subject: Mapped[Subject] = relationship(back_populates="knowledge_chunks")
+    source: Mapped[KnowledgeSource] = relationship(back_populates="chunks")
+
+    __table_args__ = (
+        Index(
+            "uq_knowledge_chunks_source_idx_ver",
+            "source_id",
+            "knowledge_version",
+            "chunk_index",
+            unique=True,
+            postgresql_where=sa_text("deleted = false"),
+        ),
+        Index(
+            "ix_knowledge_chunks_subject_ver",
+            "subject_id",
+            "knowledge_version",
+            postgresql_where=sa_text("deleted = false"),
+        ),
+        Index(
+            "ix_knowledge_chunks_hash",
+            "subject_id",
+            "content_hash",
+            "knowledge_version",
+            postgresql_where=sa_text("deleted = false"),
         ),
     )

@@ -97,8 +97,9 @@ def test_normalize_host() -> None:
 
 
 def test_parse_url_validates() -> None:
+    assert parse_url("http://wise.com/path") == "http://wise.com/path"
     assert parse_url("https://wise.com/path") == "https://wise.com/path"
-    assert parse_url("geo.aibase.com/about") == "https://geo.aibase.com/about"
+    assert parse_url("geo.aibase.com/about") == "http://geo.aibase.com/about"
     assert parse_url("not-a-url") == ""
 
 
@@ -290,6 +291,9 @@ def test_competitor_item_website_url_http_validation() -> None:
 
     item = CompetitorItem(domain="wise.com", brand="Wise", website_url="https://wise.com/path")
     assert str(item.website_url).startswith("https://")
+
+    bare = CompetitorItem(domain="wise.com", brand="Wise", website_url="geo.wise.com/about")
+    assert bare.website_url == "geo.wise.com/about"
 
     assert CompetitorItem(domain="wise.com", brand="Wise", website_url="").website_url == ""
 

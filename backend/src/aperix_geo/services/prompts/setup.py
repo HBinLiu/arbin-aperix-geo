@@ -14,13 +14,14 @@ from aperix_geo.services.providers.prompts import (
 )
 from aperix_geo.services.providers import chat_completion
 from aperix_geo.services.prompts.taxonomy import normalize_funnel_stage, normalize_search_intent
+from aperix_geo.services.setup.decision_type import normalize_decision_type
+from aperix_geo.services.setup.prompt_qa import validate_generated_prompts
+from aperix_geo.services.setup.topic_items import topic_name_key
 from aperix_geo.utils.json import extract_json_object
 
 logger = logging.getLogger(__name__)
 
-PROMPT_PER_TOPIC = 10
-PROMPT_MAX_PER_TOPIC = 20
-PROMPT_QUOTA_LIMIT = 50
+from aperix_geo.services.prompts.constants import PROMPT_MAX_PER_TOPIC, PROMPT_PER_TOPIC, PROMPT_QUOTA_LIMIT
 
 
 def _exclude_set(exclude_prompts: list[str] | None) -> set[str]:
@@ -42,6 +43,7 @@ def _normalize_generated_prompts(
         text = str(item.get("text") or item.get("question") or "").strip()
         funnel_stage = normalize_funnel_stage(str(item.get("funnel") or item.get("funnel_stage") or ""))
         search_intent = normalize_search_intent(str(item.get("intent") or item.get("search_intent") or ""))
+        decision_type = normalize_decision_type(str(item.get("decision_type") or ""))
         if not text or text in seen or text in blocked:
             continue
         seen.add(text)
@@ -50,6 +52,7 @@ def _normalize_generated_prompts(
                 "text": text,
                 "funnel_stage": funnel_stage,
                 "search_intent": search_intent,
+                "decision_type": decision_type,
             }
         )
         if len(out) >= limit:
@@ -57,10 +60,74 @@ def _normalize_generated_prompts(
     return out
 
 
+def _serialize_topic_clusters(topic_clusters: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for cluster in topic_clusters or []:
+        if not isinstance(cluster, dict):
+            continue
+        name = str(cluster.get("name") or "").strip()
+        if not name:
+            continue
+        seeds_raw = cluster.get("seed_queries") or []
+        seeds: list[dict[str, str]] = []
+        if isinstance(seeds_raw, list):
+            for seed in seeds_raw:
+                if not isinstance(seed, dict):
+                    continue
+                text = str(seed.get("text") or "").strip()
+                if not text:
+                    continue
+                seeds.append(
+                    {
+                        "text": text,
+                        "intent": str(seed.get("intent") or "commercial"),
+                        "funnel": str(seed.get("funnel") or "mofu"),
+                        "decision_type": str(seed.get("decision_type") or "scenario_fit"),
+                    }
+                )
+        out.append(
+            {
+                "name": name,
+                "seed_queries": seeds,
+            }
+        )
+    return out
+
+
+def _clusters_for_topics(
+    topics: list[str],
+    topic_clusters: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    serialized = _serialize_topic_clusters(topic_clusters)
+    if serialized:
+        by_name = {topic_name_key(str(c["name"])): c for c in serialized}
+        ordered: list[dict[str, Any]] = []
+        for topic in topics:
+            key = topic_name_key(topic)
+            if key in by_name:
+                ordered.append(by_name[key])
+            else:
+                ordered.append(
+                    {
+                        "name": topic,
+                        "seed_queries": [],
+                    }
+                )
+        return ordered
+    return [
+        {
+            "name": topic,
+            "seed_queries": [],
+        }
+        for topic in topics
+    ]
+
+
 def _build_user_payload(
     *,
     entity: str,
     topics: list[str],
+    topic_clusters: list[dict[str, Any]] | None,
     industry: str,
     features: str,
     customers: str,
@@ -70,6 +137,7 @@ def _build_user_payload(
     exclude_prompts: list[str],
 ) -> dict[str, Any]:
     n = max(1, min(int(prompts_per_topic), PROMPT_MAX_PER_TOPIC))
+    clusters = _clusters_for_topics(topics, topic_clusters)
     return {
         "entity": entity.strip() or "本品牌",
         "aliases": [a.strip() for a in aliases if a.strip()],
@@ -77,7 +145,7 @@ def _build_user_payload(
         "features": features,
         "customers": customers,
         "competitors": [c.strip() for c in competitors if c.strip()],
-        "topics": [t.strip() for t in topics if t.strip()],
+        "topic_clusters": clusters,
         "prompts_per_topic": n,
         "exclude_prompts": [p.strip() for p in exclude_prompts if p.strip()],
     }
@@ -117,7 +185,7 @@ def _rows_by_topic_name(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]
         name = str(row.get("topic") or "").strip()
         if not name:
             continue
-        key = name.casefold()
+        key = topic_name_key(name)
         if key not in by_name:
             by_name[key] = row
     return by_name
@@ -160,6 +228,7 @@ def generate_setup_prompts(
     *,
     entity: str,
     topics: list[str],
+    topic_clusters: list[dict[str, Any]] | None = None,
     industry: str = "",
     features: str = "",
     customers: str = "",
@@ -169,7 +238,7 @@ def generate_setup_prompts(
     exclude_prompts: list[str] | None = None,
     on_live_call: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> list[dict[str, Any]]:
-    """每个主题返回至多 prompts_per_topic 条 LLM 生成的提示词（含 funnel / intent）。"""
+    """每个主题返回至多 prompts_per_topic 条 LLM 生成的提示词（含 funnel / intent / decision_type）。"""
     cleaned_topics = [t.strip() for t in topics if t.strip()]
     if not cleaned_topics:
         return []
@@ -182,6 +251,7 @@ def generate_setup_prompts(
     user_payload = _build_user_payload(
         entity=entity,
         topics=cleaned_topics,
+        topic_clusters=topic_clusters,
         industry=industry,
         features=features,
         customers=customers,
@@ -209,7 +279,7 @@ def generate_setup_prompts(
     retry_topics: list[str] = []
 
     for topic in cleaned_topics:
-        prompts = _prompts_from_row(by_name.get(topic.casefold()), limit=n, excluded=excluded)
+        prompts = _prompts_from_row(by_name.get(topic_name_key(topic)), limit=n, excluded=excluded)
         if not prompts:
             retry_topics.append(topic)
         result.append({"topic": topic, "prompts": prompts})
@@ -220,6 +290,7 @@ def generate_setup_prompts(
         retry_payload = _build_user_payload(
             entity=entity,
             topics=[topic],
+            topic_clusters=_clusters_for_topics([topic], topic_clusters),
             industry=industry,
             features=features,
             customers=customers,
@@ -233,7 +304,7 @@ def generate_setup_prompts(
                 retry_payload,
                 on_live_call=_bill(f"retry:{topic}:{billing_key}"),
             )
-        ).get(topic.casefold())
+        ).get(topic_name_key(topic))
         extra = _prompts_from_row(retry_row, limit=n, excluded=excluded)
         for item in result:
             if item["topic"] != topic:
@@ -252,6 +323,8 @@ def generate_setup_prompts(
     empty = [str(item["topic"]) for item in result if not item["prompts"]]
     if empty:
         raise ValueError(f"以下监测主题未生成有效问句：{'、'.join(empty)}")
+
+    validate_generated_prompts(result)
 
     logger.info(
         "设置向导提示词: entity=%r topics=%d prompts=%d",

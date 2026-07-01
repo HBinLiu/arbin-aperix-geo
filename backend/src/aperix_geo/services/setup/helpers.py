@@ -72,9 +72,9 @@ def validate_confirmed_competitors(
 
     if not any(
         (
-            (item.brand or "").strip() and not (item.domain or "").strip()
+            (item.brand or "").strip()
             if isinstance(item, CompetitorItem)
-            else str(item.get("brand") or "").strip() and not str(item.get("domain") or "").strip()
+            else str(item.get("brand") or "").strip()
         )
         for item in competitors
     ):

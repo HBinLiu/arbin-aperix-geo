@@ -143,7 +143,7 @@ export function EditCompetitorDialog({
     if (!raw) return null;
     const domain = registrableDomain(hostnameFromWebsiteInput(raw) || raw);
     if (!domain) return null;
-    const websiteUrl = websiteUrlFromInput(raw) || `https://${domain}/`;
+    const websiteUrl = websiteUrlFromInput(raw) || domain;
     return faviconUrlFromWebsite(websiteUrl, domain);
   }, [domainInput]);
 
@@ -183,7 +183,7 @@ export function EditCompetitorDialog({
       const website_url =
         domain === currentDomain
           ? competitor.website_url
-          : websiteUrlFromInput(raw) || `https://${domain}/`;
+          : websiteUrlFromInput(raw) || domain;
 
       onSubmit({
         domain,

@@ -4,42 +4,43 @@ from unittest.mock import patch
 
 from aperix_geo.services.competitor.profile import normalize_niche_profile
 from aperix_geo.services.setup.llm.payloads import (
-    build_monitoring_topics_payload,
     build_profile_summary_payload,
+    build_query_expand_payload,
 )
 from aperix_geo.services.setup.llm.stages import (
-    run_monitoring_topics_stage,
     run_niche_profile_stage,
     run_profile_summary_stage,
 )
 
 
-def test_build_monitoring_topics_payload_includes_profile() -> None:
+def test_build_query_expand_payload_includes_profile() -> None:
     profile = normalize_niche_profile(
         {
             "industry": "GEO 监测 SaaS",
             "features": ["AI 可见度"],
             "customers": "市场团队",
-            "keywords": ["AI 品牌可见度监测 SaaS"],
+            "search_queries": ["AI 品牌可见度监测 SaaS"],
+            "topic_lexicon": {
+                "category_terms": ["AI 可见度监测"],
+                "scenario_terms": ["品牌监测"],
+                "audience_terms": ["市场团队"],
+                "pain_terms": ["引用率"],
+            },
         },
         entity="sheepgeo.com",
     )
-    payload = build_monitoring_topics_payload(
+    payload = build_query_expand_payload(
         subject_type="domain",
         target="sheepgeo.com",
         profile=profile,
+        competitor_scenarios=[],
     )
-    assert payload == {
-        "subject_type": "domain",
-        "target": "sheepgeo.com",
-        "niche_profile": {
-            "company": "sheepgeo.com",
-            "industry": "GEO 监测 SaaS",
-            "customers": "市场团队",
-            "keywords": "AI 品牌可见度监测 SaaS",
-        },
-    }
-    assert "features" not in payload["niche_profile"]
+    assert payload["subject_type"] == "domain"
+    assert payload["target"] == "sheepgeo.com"
+    assert payload["niche_profile"]["company"] == "sheepgeo.com"
+    assert payload["niche_profile"]["industry"] == "GEO 监测 SaaS"
+    assert "category_terms" in payload["niche_profile"]
+    assert "competitor_scenarios" in payload
 
 
 def test_build_profile_summary_payload_uses_session_fields() -> None:
@@ -75,7 +76,13 @@ def test_run_niche_profile_stage(mock_payload, mock_llm) -> None:
             "industry": "跨境 B2B 支付",
             "features": ["收款"],
             "customers": "卖家",
-            "keywords": ["SMB 跨境收款 SaaS"],
+            "search_queries": ["SMB 跨境收款 SaaS"],
+            "topic_lexicon": {
+                "category_terms": ["跨境收款"],
+                "scenario_terms": ["SMB 收款"],
+                "audience_terms": ["卖家"],
+                "pain_terms": ["到账时效"],
+            },
         },
         {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150},
     )

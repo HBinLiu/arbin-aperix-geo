@@ -27,9 +27,14 @@ _DEFAULT_TIMEOUT_S = 5.0
 _COALESCE_WAIT_S = 90.0
 
 
+def _explicit_http_page(page_url: str | None) -> bool:
+    return bool(page_url and page_url.strip().lower().startswith("http://"))
+
+
 def _read_cached(domain: str, *, page_url: str | None = None) -> tuple[bytes, str] | _FaviconMiss | None:
-    if (not page_url or is_favicon_homepage_url(page_url, domain)) and negative_cache_hit(domain):
-        return MISS
+    if not _explicit_http_page(page_url):
+        if (not page_url or is_favicon_homepage_url(page_url, domain)) and negative_cache_hit(domain):
+            return MISS
     return read_cached_favicon(domain)
 
 
@@ -45,8 +50,9 @@ def resolve_favicon_coalesced(
     def fetch() -> tuple[bytes, str] | _FaviconMiss:
         result = resolve_favicon_network(domain, timeout_s=timeout_s, page_url=page_url)
         if result is None:
-            if not page_url or is_favicon_homepage_url(page_url, domain):
-                negative_cache_set(domain)
+            if not _explicit_http_page(page_url):
+                if not page_url or is_favicon_homepage_url(page_url, domain):
+                    negative_cache_set(domain)
             return MISS
         body, media = result
         cache_set(domain, body, media)

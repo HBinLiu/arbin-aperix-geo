@@ -25,13 +25,17 @@ function SetupWizardHeader({ title, subtitle }: SetupWizardHeaderProps) {
   );
 }
 
-/** 设置 → 选择竞品 → 审查主题 → 确认提示词；后端 4 个 API。 */
+/** 设置向导：域名 4 步 / 品牌 5 步。 */
 export function SetupWizard({ onCompleted }: SetupWizardProps) {
   const {
     step,
+    maxStep,
     mode,
     websiteUrl,
     brandName,
+    brandIntro,
+    brandWebsiteUrl,
+    uploadFiles,
     region,
     language,
     topicRows,
@@ -39,6 +43,7 @@ export function SetupWizard({ onCompleted }: SetupWizardProps) {
     promptRows,
     submitting,
     discovering,
+    uploadingFiles,
     loadingTopics,
     generatingPrompts,
     stepLabels,
@@ -49,6 +54,10 @@ export function SetupWizard({ onCompleted }: SetupWizardProps) {
     setMode,
     setWebsiteUrl,
     setBrandName,
+    setBrandIntro,
+    setBrandWebsiteUrl,
+    handleUploadFiles,
+    handleRemoveUploadFile,
     setRegion,
     setLanguage,
     setTopicRows,
@@ -69,6 +78,9 @@ export function SetupWizard({ onCompleted }: SetupWizardProps) {
     mode,
     websiteUrl,
     brandName,
+    brandIntro,
+    brandWebsiteUrl,
+    uploadFiles,
     region,
     language,
     topicRows,
@@ -78,13 +90,19 @@ export function SetupWizard({ onCompleted }: SetupWizardProps) {
     regionOptions,
     languageOptions,
     analyzingProfile: discovering,
-    discoveringCompetitors: discovering || loadingTopics,
+    discoveringCompetitors: discovering,
+    loadingTopics,
     generatingPrompts,
+    uploadingFiles,
   };
   const stepContentActions = {
     onModeChange: setMode,
     onWebsiteUrlChange: setWebsiteUrl,
     onBrandNameChange: setBrandName,
+    onBrandIntroChange: setBrandIntro,
+    onBrandWebsiteUrlChange: setBrandWebsiteUrl,
+    onUploadFiles: handleUploadFiles,
+    onRemoveUploadFile: handleRemoveUploadFile,
     onRegionChange: setRegion,
     onLanguageChange: setLanguage,
     onTopicRowsChange: setTopicRows,
@@ -107,6 +125,7 @@ export function SetupWizard({ onCompleted }: SetupWizardProps) {
 
                 <SetupStepFooter
                   step={step}
+                  maxStep={maxStep}
                   busy={busy}
                   submitting={submitting}
                   onBack={handleBack}

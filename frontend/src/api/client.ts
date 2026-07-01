@@ -99,11 +99,11 @@ export function formatApiError(e: unknown, fallback = "请求失败"): string {
     if (e.response) {
       const d = e.response.data as { detail?: unknown } | undefined;
       const detail = d?.detail;
+      if (typeof detail === "object" && detail !== null && "message" in detail) {
+        const message = (detail as { message?: unknown }).message;
+        if (typeof message === "string" && message.trim()) return message;
+      }
       if (status === 402) {
-        if (typeof detail === "object" && detail !== null && "message" in detail) {
-          const message = (detail as { message?: unknown }).message;
-          if (typeof message === "string" && message.trim()) return message;
-        }
         return "配额已用尽，请升级计划或购买配额包。";
       }
       if (typeof detail === "string") return detail;

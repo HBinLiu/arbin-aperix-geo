@@ -28,6 +28,7 @@ from aperix_geo.services.prompts.persist import (
     get_topic_for_subject,
 )
 from aperix_geo.services.prompts.taxonomy import normalize_funnel_stage, normalize_search_intent
+from aperix_geo.services.setup.decision_type import normalize_decision_type
 from aperix_geo.utils.text import prompt_text_hash
 
 router = APIRouter(tags=["prompts"])
@@ -79,6 +80,7 @@ def create_prompt(
             text=body.text,
             funnel_stage=body.funnel_stage,
             search_intent=body.search_intent,
+            decision_type=body.decision_type,
             enabled=body.enabled,
         )
     except (PromptValidationError, QuotaExceededError) as exc:
@@ -133,6 +135,8 @@ def update_prompt(
         p.funnel_stage = normalize_funnel_stage(body.funnel_stage)
     if body.search_intent is not None:
         p.search_intent = normalize_search_intent(body.search_intent)
+    if body.decision_type is not None:
+        p.decision_type = normalize_decision_type(body.decision_type)
     if body.enabled is not None:
         p.enabled = body.enabled
     db.commit()

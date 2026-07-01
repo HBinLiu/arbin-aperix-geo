@@ -12,6 +12,23 @@ from aperix_geo.services.prompts.setup import (
     generate_setup_prompts,
 )
 
+_DIMENSIONS = [
+    "category_awareness",
+    "scenario_fit",
+    "solution_comparison",
+    "trust_risk",
+    "price_value",
+]
+
+
+def _prompt(i: int) -> dict[str, str]:
+    return {
+        "text": f"问句{i}",
+        "funnel": "mofu" if i % 2 else "tofu",
+        "intent": "commercial" if i % 2 else "informational",
+        "decision_type": _DIMENSIONS[i % len(_DIMENSIONS)],
+    }
+
 
 @patch("aperix_geo.services.prompts.setup.chat_completion")
 def test_generate_setup_prompts_llm(mock_chat) -> None:
@@ -19,14 +36,7 @@ def test_generate_setup_prompts_llm(mock_chat) -> None:
         "topics": [
             {
                 "topic": "跨境支付",
-                "prompts": [
-                    {
-                        "text": f"问句{i}",
-                        "funnel": "mofu" if i % 2 else "tofu",
-                        "intent": "commercial" if i % 2 else "informational",
-                    }
-                    for i in range(PROMPT_PER_TOPIC)
-                ],
+                "prompts": [_prompt(i) for i in range(PROMPT_PER_TOPIC)],
             }
         ]
     }
@@ -45,11 +55,26 @@ def test_generate_setup_prompts_llm(mock_chat) -> None:
     assert rows[0]["prompts"][0]["text"] == "问句0"
     assert rows[0]["prompts"][0]["funnel_stage"] == "tofu"
     assert rows[0]["prompts"][0]["search_intent"] == "informational"
+    assert rows[0]["prompts"][0]["decision_type"] == "category_awareness"
 
 
 @patch("aperix_geo.services.prompts.setup.chat_completion")
 def test_generate_setup_prompts_passes_exclude_prompts(mock_chat) -> None:
-    payload = {"topics": [{"topic": "支付", "prompts": [{"text": "问句A", "funnel": "tofu", "intent": "informational"}]}]}
+    payload = {
+        "topics": [
+            {
+                "topic": "支付",
+                "prompts": [
+                    {
+                        "text": "问句A",
+                        "funnel": "tofu",
+                        "intent": "informational",
+                        "decision_type": "scenario_fit",
+                    }
+                ],
+            }
+        ]
+    }
     mock_chat.return_value = (json.dumps(payload), "deepseek", 100.0)
 
     generate_setup_prompts(
@@ -79,8 +104,18 @@ def test_generate_setup_prompts_filters_excluded_text(mock_chat) -> None:
             {
                 "topic": "支付",
                 "prompts": [
-                    {"text": "已有问题", "funnel": "tofu", "intent": "informational"},
-                    {"text": "新问题", "funnel": "mofu", "intent": "commercial"},
+                    {
+                        "text": "已有问题",
+                        "funnel": "tofu",
+                        "intent": "informational",
+                        "decision_type": "scenario_fit",
+                    },
+                    {
+                        "text": "新问题",
+                        "funnel": "mofu",
+                        "intent": "commercial",
+                        "decision_type": "price_value",
+                    },
                 ],
             }
         ]
@@ -104,7 +139,14 @@ def test_generate_setup_prompts_exact_topic_match_only(mock_chat) -> None:
         "topics": [
             {
                 "topic": "AI 搜索可见度",
-                "prompts": [{"text": "问句A", "funnel": "tofu", "intent": "informational"}],
+                "prompts": [
+                    {
+                        "text": "问句A",
+                        "funnel": "tofu",
+                        "intent": "informational",
+                        "decision_type": "category_awareness",
+                    }
+                ],
             }
         ]
     }
@@ -112,7 +154,14 @@ def test_generate_setup_prompts_exact_topic_match_only(mock_chat) -> None:
         "topics": [
             {
                 "topic": "跨境支付",
-                "prompts": [{"text": "问句B", "funnel": "mofu", "intent": "commercial"}],
+                "prompts": [
+                    {
+                        "text": "问句B",
+                        "funnel": "mofu",
+                        "intent": "commercial",
+                        "decision_type": "scenario_fit",
+                    }
+                ],
             }
         ]
     }

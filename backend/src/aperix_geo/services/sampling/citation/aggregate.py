@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from aperix_geo.db.models import CitationDomain, CitationUrl, LLMResponse, Prompt, Subject, Topic
 from aperix_geo.services.sampling.citation.labels import page_mentioned_brand_names
 from aperix_geo.services.subject.labels import competitor_rank_label
-from aperix_geo.utils.net import citation_from, citation_registrable_key, host_from, registrable_from
+from aperix_geo.utils.net import citation_registrable_key, host_from, registrable_from
 from aperix_geo.utils.text import coalesce_page_title, is_template_title, mode_nonempty
 
 CitationDomainSortField = Literal["count"]
@@ -131,7 +131,7 @@ def _aggregate_url_row(
     return {
         "url": url,
         "host": host,
-        "domain": citation_from(url) or host,
+        "domain": registrable_from(url) or host,
         "title": coalesce_page_title(page_title, url=url),
         "count": count,
         "citation_rate": round(count / total, 4) if total else 0,

@@ -15,13 +15,16 @@ export function topicRowsFromNames(names: string[]): TopicRow[] {
   return names.map((name) => newTopicRow({ name, selected: true }));
 }
 
-function normalizeTopicNames(names: string[] | undefined): string[] {
-  return (names ?? []).map((s) => s.trim()).filter(Boolean);
-}
+export type SetupMonitoringTopic = {
+  name: string;
+};
 
-/** 监测主题 → TopicRow（后端应始终返回非空列表） */
-export function topicRowsFromMonitoringTopics(monitoringTopics: string[] | undefined): TopicRow[] {
-  return topicRowsFromNames(normalizeTopicNames(monitoringTopics));
+/** 监测主题 API → TopicRow */
+export function topicRowsFromSetupTopics(topics: SetupMonitoringTopic[] | undefined): TopicRow[] {
+  return (topics ?? [])
+    .map((item) => item.name?.trim() ?? "")
+    .filter(Boolean)
+    .map((name) => newTopicRow({ name, selected: true }));
 }
 
 export function selectedTopicRows(rows: TopicRow[]): TopicRow[] {

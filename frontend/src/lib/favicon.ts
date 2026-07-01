@@ -1,4 +1,4 @@
-import { faviconDomainKey } from "@/lib/domain";
+import { faviconDomainKey, websiteUrlFromInput } from "@/lib/domain";
 
 export type FaviconInput = {
   host: string;
@@ -7,32 +7,17 @@ export type FaviconInput = {
 
 /** 将用户输入或站点 URL 解析为 favicon 请求参数（后端按 domain 缓存，按 url 抓取）。 */
 export function resolveFaviconInput(raw: string): FaviconInput | null {
-  const s = raw.trim();
-  if (!s) return null;
-
-  let pageUrl: string;
-  if (/^https?:\/\//i.test(s)) {
-    pageUrl = s;
-  } else if (s.includes("/")) {
-    pageUrl = `https://${s.replace(/^\/\//, "")}`;
-  } else {
-    pageUrl = `https://${s.replace(/^\/\//, "")}/`;
-  }
+  const pageUrl = websiteUrlFromInput(raw);
+  if (!pageUrl) return null;
 
   const host = faviconDomainKey(pageUrl);
   if (!host || !host.includes(".")) return null;
   return { host, pageUrl };
 }
 
-/** @deprecated 使用 faviconDomainKey */
-export const normalizeFaviconDomain = faviconDomainKey;
-
-/** 仅有 host/domain 时构造首页 URL（仍按 URL 解析 favicon）。 */
+/** 仅有 host/domain 时构造页面 URL（保留原协议；裸 host 不补 https）。 */
 export function faviconUrlFromHost(host: string): string {
-  const h = host.trim();
-  if (!h) return "";
-  if (/^https?:\/\//i.test(h)) return h;
-  return `https://${h.replace(/^\/\//, "")}/`;
+  return websiteUrlFromInput(host);
 }
 
 export type FaviconClientStatus = "ok" | "miss";

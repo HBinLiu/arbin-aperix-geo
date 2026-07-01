@@ -80,6 +80,7 @@ def generate_subject_prompt_candidates(
                 "text": text,
                 "funnel_stage": str(row.get("funnel_stage") or "mofu"),
                 "search_intent": str(row.get("search_intent") or "commercial"),
+                "decision_type": str(row.get("decision_type") or ""),
             }
         )
     if not rows:

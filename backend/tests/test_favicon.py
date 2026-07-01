@@ -36,12 +36,17 @@ def test_favicon_homepage_urls_apex_before_www(monkeypatch) -> None:
     urls = favicon_homepage_urls("example.com")
     assert urls[0] == "https://example.com/"
     assert urls[1] == "https://www.example.com/"
+    assert "http://example.com/" in urls
+    assert "http://www.example.com/" in urls
 
 
 def test_favicon_homepage_urls_subdomain_only_self() -> None:
     from aperix_geo.services.favicon._domain import favicon_homepage_urls
 
-    assert favicon_homepage_urls("shop.foo.com") == ["https://shop.foo.com/"]
+    assert favicon_homepage_urls("shop.foo.com") == [
+        "https://shop.foo.com/",
+        "http://shop.foo.com/",
+    ]
 
 
 def test_parse_iefans_shortcut_icon() -> None:

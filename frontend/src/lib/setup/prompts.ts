@@ -46,6 +46,7 @@ export function promptRowsFromGenerated(
           selected: true,
           funnelStage: prompt.funnel_stage,
           searchIntent: prompt.search_intent,
+          decisionType: prompt.decision_type,
         }),
       );
     }

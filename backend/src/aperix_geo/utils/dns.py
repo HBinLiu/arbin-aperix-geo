@@ -217,8 +217,8 @@ def host_resolves_public(
     )
 
 
-def registrable_domain(domain: str, *, timeout_s: float | None = None, cache_ttl_s: int | None = None) -> bool:
-    """True when the registrable domain (or its www host) has DNS records."""
+def registrable_root_has_dns(domain: str, *, timeout_s: float | None = None, cache_ttl_s: int | None = None) -> bool:
+    """True when the eTLD+1 (or its www host) has DNS records."""
     from aperix_geo.utils.domains import brand_from
 
     root = brand_from(domain)

@@ -11,13 +11,13 @@ def competitors_search_hash(
     *,
     subject_type: str,
     target: str,
-    keywords: list[str],
+    search_queries: list[str],
 ) -> str:
     """检索词未变时复用 discover 竞品搜索结果。"""
     payload = {
         "subject_type": subject_type,
         "target": target.strip(),
-        "keywords": sorted(k.strip() for k in keywords if k.strip()),
+        "search_queries": sorted(q.strip() for q in search_queries if q.strip()),
     }
     raw = json.dumps(payload, ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
@@ -39,18 +39,20 @@ def cached_competitors_result(
 def session_patch_after_competitors(
     *,
     profile_dict: dict[str, Any],
-    keywords: list[str],
+    search_queries: list[str],
     competitors_hash: str,
     competitors: list[dict[str, Any]],
 ) -> dict[str, Any]:
     return {
         "profile": profile_dict,
-        "keywords": keywords,
+        "search_queries": search_queries,
         "competitors_hash": competitors_hash,
         "competitors": competitors,
         "profile_summary": "",
         "confirmed_competitors_hash": None,
         "monitoring_topics": [],
+        "topic_clusters": [],
+        "candidate_queries": [],
         "prompts_hash": None,
         "prompts_cache": None,
     }

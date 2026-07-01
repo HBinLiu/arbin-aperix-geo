@@ -2,6 +2,7 @@ import { ChevronRight, ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { FaviconImage } from "@/components/common/FaviconImage";
+import { externalHref } from "@/lib/domain";
 import { faviconUrlFromHost } from "@/lib/favicon";
 import { analysisDimensionPath } from "@/lib/analysis";
 
@@ -10,7 +11,7 @@ type CitationDomainHeaderProps = {
 };
 
 export function CitationDomainHeader({ domain }: CitationDomainHeaderProps) {
-  const externalUrl = domain.startsWith("http") ? domain : `https://${domain}`;
+  const externalUrl = externalHref(domain);
 
   return (
     <div className="flex h-[48px] min-w-0 flex-1 items-center gap-1.5 text-sm">

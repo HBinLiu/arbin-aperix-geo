@@ -3,21 +3,80 @@ import {
   DISCOVER_PROFILE_TIMEOUT_MS,
   GENERATE_PROMPTS_TIMEOUT_MS,
 } from "@/api/client";
+import { websiteUrlFromInput } from "@/lib/domain";
 import {
   buildFinalizePayload,
   promptRowsFromGenerated,
   rowsFromDiscover,
   rowsToPersist,
-  topicRowsFromMonitoringTopics,
+  topicRowsFromSetupTopics,
 } from "@/lib/setup";
 import type {
   CompetitorRow,
   FinalizeSetupInput,
   GeneratedPromptItem,
   PromptRow,
+  SetupUploadFile,
   SubjectMode,
   TopicRow,
 } from "@/types";
+
+export async function createBrandSetupSession(input: {
+  brand: string;
+  region: string;
+  language: string;
+  sessionId?: string;
+}): Promise<{ sessionId: string }> {
+  const { data } = await api.post<{ session_id: string }>("/subjects/setup/session", {
+    brand: input.brand.trim(),
+    region: input.region,
+    language: input.language,
+    ...(input.sessionId?.trim() ? { session_id: input.sessionId.trim() } : {}),
+  });
+  return { sessionId: data.session_id };
+}
+
+export async function saveSetupMaterials(input: {
+  sessionId: string;
+  brandIntro: string;
+  brandWebsiteUrl?: string;
+}): Promise<void> {
+  await api.put("/subjects/setup/materials", {
+    session_id: input.sessionId.trim(),
+    brand_intro: input.brandIntro,
+    website_url: websiteUrlFromInput(input.brandWebsiteUrl ?? ""),
+  });
+}
+
+export async function uploadSetupMaterialFile(input: {
+  sessionId: string;
+  file: File;
+}): Promise<SetupUploadFile> {
+  const form = new FormData();
+  form.append("session_id", input.sessionId.trim());
+  form.append("file", input.file);
+  const { data } = await api.post<{ id: string; name: string; mime: string; size: number; status: string }>(
+    "/subjects/setup/materials/files",
+    form,
+    { headers: { "Content-Type": "multipart/form-data" } },
+  );
+  return {
+    id: data.id,
+    name: data.name,
+    mime: data.mime,
+    size: data.size,
+    status: data.status,
+  };
+}
+
+export async function deleteSetupMaterialFile(input: {
+  sessionId: string;
+  fileId: string;
+}): Promise<void> {
+  await api.delete(`/subjects/setup/materials/files/${encodeURIComponent(input.fileId)}`, {
+    params: { session_id: input.sessionId.trim() },
+  });
+}
 
 export type DiscoverSetupResult = {
   sessionId: string;
@@ -69,7 +128,9 @@ export async function generateSetupTopics(input: {
   competitorRows: CompetitorRow[];
 }): Promise<{ topicRows: TopicRow[] }> {
   const { competitors } = rowsToPersist(input.mode, input.competitorRows);
-  const { data } = await api.post<{ monitoring_topics: string[] }>(
+  const { data } = await api.post<{
+    topics: { name: string }[];
+  }>(
     "/subjects/setup/topics",
     {
       session_id: input.sessionId.trim(),
@@ -78,7 +139,7 @@ export async function generateSetupTopics(input: {
     { timeout: GENERATE_PROMPTS_TIMEOUT_MS },
   );
   return {
-    topicRows: topicRowsFromMonitoringTopics(data.monitoring_topics ?? []),
+    topicRows: topicRowsFromSetupTopics(data.topics ?? []),
   };
 }
 

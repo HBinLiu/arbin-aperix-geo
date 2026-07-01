@@ -1,5 +1,14 @@
 import { getDomain } from "tldts";
 
+/**
+ * URL / domain 语义（与后端 utils/net + schemas/url_fields 对齐）：
+ *
+ * - `domain`（主体/竞品字段）→ eTLD+1，用 `registrableDomain`
+ * - `website_url`（存储）→ 用户输入；有 scheme 则保留；裸 host/path 不补 scheme
+ * - 抓取 / favicon API → 后端 `parse_url` 补 scheme（裸域默认 http://）
+ * - 可点击外链 → `externalHref`（裸 host 补 http://）
+ */
+
 /** 主域名（eTLD+1），与后端 registrable_from (publicsuffix2) 对齐。 */
 export function registrableDomain(raw: string): string {
   const host = hostnameFromWebsiteInput(raw);
@@ -38,13 +47,21 @@ export function faviconDomainKey(raw: string): string {
   return root || host;
 }
 
-/** 将用户输入的 URL / 域名规范为可访问地址（保留路径；最终校验由后端 HttpUrl 完成）。 */
+/** 将用户输入规范为存储用 website_url（保留 http(s)；裸域名/路径不强制加 https）。 */
 export function websiteUrlFromInput(raw: string): string {
   const s = raw.trim();
   if (!s) return "";
   if (/^https?:\/\//i.test(s)) return s;
-  if (s.includes("/")) return `https://${s.replace(/^\/\//, "")}`;
-  const host = hostnameFromWebsiteInput(s);
-  if (!host) return "";
-  return `https://${host}/`;
+  return s.replace(/^\/+/, "");
+}
+
+/**
+ * 可点击外链：保留 http(s)；裸 host/path 用 http://（不强制 https）。
+ * 无 scheme 的 href 会被浏览器当作相对路径，故裸域名需补可访问协议。
+ */
+export function externalHref(raw: string): string {
+  const s = raw.trim();
+  if (!s) return "";
+  if (/^https?:\/\//i.test(s)) return s;
+  return `http://${s.replace(/^\/+/, "")}`;
 }

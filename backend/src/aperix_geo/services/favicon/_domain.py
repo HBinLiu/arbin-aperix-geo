@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from urllib.parse import urlparse
 
+from aperix_geo.schemas.url_fields import validate_optional_http_url
 from aperix_geo.utils.net import (
-    apex_homepage_urls,
+    append_http_homepage_variants,
     favicon_from,
+    homepage_url_candidates,
     is_valid_hostname,
     parse_url,
     registrable_from,
@@ -14,8 +16,15 @@ from aperix_geo.utils.net import (
 
 
 def resolve_favicon_request_url(raw: str) -> tuple[str, str] | None:
-    """将 API ``url`` 参数解析为 (domain, page_url)。"""
+    """将 API ``url`` 参数解析为 (favicon_cache_key, fetchable_page_url)。"""
     page_url = parse_url(raw)
+    if not page_url:
+        try:
+            stored = validate_optional_http_url(raw)
+        except ValueError:
+            stored = ""
+        if stored:
+            page_url = parse_url(stored)
     if not page_url:
         return None
     domain = favicon_from(page_url)
@@ -37,12 +46,12 @@ def is_favicon_homepage_url(page_url: str, domain: str) -> bool:
 
 
 def favicon_homepage_urls(host: str) -> list[str]:
-    """favicon 抓取用的首页候选。"""
+    """favicon 抓取用的首页候选（裸域优先，HTTPS 后 HTTP 兜底）。"""
     host = host.strip().lower()
     if not host:
         return []
     root = registrable_from(host)
     key = favicon_from(host)
     if key and root and key != root:
-        return [f"https://{key}/"]
-    return apex_homepage_urls(root or host) or [f"https://{host}/"]
+        return append_http_homepage_variants([f"https://{key}/"])
+    return homepage_url_candidates(root or host, prefer_www=False, include_http=True)

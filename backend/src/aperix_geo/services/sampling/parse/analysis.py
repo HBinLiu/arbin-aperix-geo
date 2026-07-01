@@ -18,7 +18,6 @@ from aperix_geo.services.sampling.parse.context import ParseContext
 from aperix_geo.services.sampling.parse.types import CitationParseParams, ParseEnrichment
 from aperix_geo.services.sampling.response_absa import analyze_response_absa
 from aperix_geo.utils.net import (
-    citation_from,
     filter_citation_urls,
     host_from,
     registrable_from,
@@ -58,7 +57,7 @@ def _fetch_citation_pages(params: CitationParseParams) -> list[CitationPageMeta]
 
 
 def _page_domain(url: str) -> str:
-    return citation_from(url)
+    return registrable_from(url)
 
 
 def _load_citation_pages_from_cache(params: CitationParseParams) -> list[CitationPageMeta]:

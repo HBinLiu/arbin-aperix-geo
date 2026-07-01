@@ -22,7 +22,7 @@ def test_confirmed_competitors_hash_order_independent() -> None:
 @patch("aperix_geo.services.setup.topics.assert_ai_usage_available")
 @patch("aperix_geo.services.setup.topics.enrich_confirmed_competitors")
 @patch("aperix_geo.services.setup.topics.update_session")
-@patch("aperix_geo.services.setup.topics.run_monitoring_topics_stage")
+@patch("aperix_geo.services.setup.topics.run_topic_generation_stage")
 @patch("aperix_geo.services.setup.topics.run_profile_summary_stage")
 @patch("aperix_geo.services.setup.topics.get_session")
 @patch("aperix_geo.services.setup.topics.require_deepseek_api_key")
@@ -49,12 +49,16 @@ def test_run_setup_topics_step_generates_summary_and_topics(
         "research_payload": {"mode": "domain", "target": "example.com", "site_data": {}},
     }
     mock_summary.return_value = ("# Example\n\n## 概述\n测试", {})
-    mock_topics.return_value = (["AI 可见度监测", "竞品对比"], {})
+    clusters = [
+        {"name": "AI 可见度监测", "seed_queries": []},
+        {"name": "竞品对比", "seed_queries": []},
+    ]
+    mock_topics.return_value = (clusters, [], {})
     call_order: list[str] = []
 
     def _topics_side_effect(*_args, **_kwargs):
         call_order.append("topics")
-        return ["AI 可见度监测", "竞品对比"], {}
+        return clusters, [], {}
 
     def _summary_side_effect(*_args, **_kwargs):
         call_order.append("summary")
@@ -73,21 +77,24 @@ def test_run_setup_topics_step_generates_summary_and_topics(
         competitors=competitors,
     )
 
-    assert topics == ["AI 可见度监测", "竞品对比"]
+    assert topics == [
+        {"name": "AI 可见度监测"},
+        {"name": "竞品对比"},
+    ]
     assert call_order == ["topics", "summary"]
     summary_competitors = mock_summary.call_args.kwargs["competitors"]
     assert summary_competitors[0]["domain"] == "rival.com"
     patch = mock_update.call_args.kwargs["patch"]
     assert patch["profile_summary"].startswith("# Example")
     assert patch["competitors"][0]["domain"] == "rival.com"
-    assert patch["research_payload"] is None
+    assert "topic_clusters" in patch
 
 
 @patch("aperix_geo.services.setup.topics.consume_ai_usage")
 @patch("aperix_geo.services.setup.topics.assert_ai_usage_available")
 @patch("aperix_geo.services.setup.topics.enrich_confirmed_competitors")
 @patch("aperix_geo.services.setup.topics.update_session")
-@patch("aperix_geo.services.setup.topics.run_monitoring_topics_stage")
+@patch("aperix_geo.services.setup.topics.run_topic_generation_stage")
 @patch("aperix_geo.services.setup.topics.run_profile_summary_stage")
 @patch("aperix_geo.services.setup.topics.get_session")
 @patch("aperix_geo.services.setup.topics.require_deepseek_api_key")
@@ -110,7 +117,11 @@ def test_run_setup_topics_step_preserves_competitor_aliases(
         "profile": profile,
     }
     mock_summary.return_value = ("# Example", {})
-    mock_topics.return_value = (["主题 A"], {})
+    mock_topics.return_value = (
+        [{"name": "主题 A", "seed_queries": []}],
+        [],
+        {},
+    )
     mock_enrich.side_effect = lambda items, *, session=None: items
 
     competitors = [
@@ -134,7 +145,7 @@ def test_run_setup_topics_step_preserves_competitor_aliases(
 @patch("aperix_geo.services.setup.topics.assert_ai_usage_available")
 @patch("aperix_geo.services.setup.topics.enrich_confirmed_competitors")
 @patch("aperix_geo.services.setup.topics.update_session")
-@patch("aperix_geo.services.setup.topics.run_monitoring_topics_stage")
+@patch("aperix_geo.services.setup.topics.run_topic_generation_stage")
 @patch("aperix_geo.services.setup.topics.run_profile_summary_stage")
 @patch("aperix_geo.services.setup.topics.get_session")
 @patch("aperix_geo.services.setup.topics.require_deepseek_api_key")
@@ -164,7 +175,14 @@ def test_run_setup_topics_step_regenerates_topics_when_competitors_change(
         "confirmed_competitors_hash": "old-hash",
     }
     mock_summary.return_value = ("# Example\n\n新摘要", {})
-    mock_topics.return_value = (["新主题 A", "新主题 B"], {})
+    mock_topics.return_value = (
+        [
+            {"name": "新主题 A", "seed_queries": []},
+            {"name": "新主题 B", "seed_queries": []},
+        ],
+        [],
+        {},
+    )
     mock_enrich.side_effect = lambda items, *, session=None: items
 
     competitors = [CompetitorItem(domain="new-rival.com", brand="New Rival", website_url="https://new-rival.com")]
@@ -176,7 +194,10 @@ def test_run_setup_topics_step_regenerates_topics_when_competitors_change(
         competitors=competitors,
     )
 
-    assert topics == ["新主题 A", "新主题 B"]
+    assert topics == [
+        {"name": "新主题 A"},
+        {"name": "新主题 B"},
+    ]
     mock_summary.assert_called_once()
     mock_topics.assert_called_once()
     patch = mock_update.call_args.kwargs["patch"]
@@ -213,6 +234,20 @@ def test_run_setup_topics_step_summary_after_research_payload_cleared(
         "language": "zh-CN",
         "profile": profile,
         "monitoring_topics": ["已有主题"],
+        "topic_clusters": [
+            {
+                "name": "已有主题",
+                "seed_queries": [
+                    {
+                        "text": "已有主题相关问句示例一",
+                        "intent": "commercial",
+                        "funnel": "mofu",
+                        "decision_type": "scenario_fit",
+                    }
+                ]
+                * 3,
+            }
+        ],
         "profile_summary": "",
         "confirmed_competitors_hash": "same-hash",
     }
@@ -232,7 +267,7 @@ def test_run_setup_topics_step_summary_after_research_payload_cleared(
             competitors=competitors,
         )
 
-    assert topics == ["已有主题"]
+    assert topics == [{"name": "已有主题"}]
     assert mock_summary.call_args is not None
     kwargs = mock_summary.call_args.kwargs
     assert kwargs["subject_type"] == "domain"
@@ -245,7 +280,7 @@ def test_run_setup_topics_step_summary_after_research_payload_cleared(
 @patch("aperix_geo.services.setup.topics.enrich_confirmed_competitors")
 @patch("aperix_geo.services.setup.topics.update_session")
 @patch("aperix_geo.services.setup.topics.run_profile_summary_stage")
-@patch("aperix_geo.services.setup.topics.run_monitoring_topics_stage")
+@patch("aperix_geo.services.setup.topics.run_topic_generation_stage")
 @patch("aperix_geo.services.setup.topics.get_session")
 @patch("aperix_geo.services.setup.topics.require_deepseek_api_key")
 def test_run_setup_topics_step_always_persists_confirmed_competitors(
@@ -265,6 +300,20 @@ def test_run_setup_topics_step_always_persists_confirmed_competitors(
         "language": "zh-CN",
         "profile": profile,
         "monitoring_topics": ["已有主题"],
+        "topic_clusters": [
+            {
+                "name": "已有主题",
+                "seed_queries": [
+                    {
+                        "text": "已有主题相关问句示例一",
+                        "intent": "commercial",
+                        "funnel": "mofu",
+                        "decision_type": "scenario_fit",
+                    }
+                ]
+                * 3,
+            }
+        ],
         "profile_summary": "# Example",
         "confirmed_competitors_hash": "stable-hash",
     }

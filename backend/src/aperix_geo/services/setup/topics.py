@@ -19,9 +19,10 @@ from aperix_geo.services.setup.cache import get_session, update_session
 from aperix_geo.services.competitor.enrich import enrich_confirmed_competitors
 from aperix_geo.services.setup.helpers import require_deepseek_api_key, validate_confirmed_competitors
 from aperix_geo.services.setup.llm.stages import (
-    run_monitoring_topics_stage,
     run_profile_summary_stage,
+    run_topic_generation_stage,
 )
+from aperix_geo.services.setup.topic_items import cluster_topic_names, setup_topics_from_clusters
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ def run_setup_topics_step(
     user_id: str,
     session_id: str,
     competitors: list[CompetitorItem],
-) -> list[str]:
+) -> list[dict[str, str]]:
     """用户确认竞品后：补全竞品字段 → 监测主题 → profile_summary（均写入 session）。"""
     require_deepseek_api_key()
 
@@ -98,20 +99,19 @@ def run_setup_topics_step(
 
     confirmed_hash = confirmed_competitors_hash(confirmed)
     competitors_changed = session.get("confirmed_competitors_hash") != confirmed_hash
-    existing_topics = [
-        str(t).strip()
-        for t in (session.get("monitoring_topics") or [])
-        if str(t).strip()
-    ]
+    existing_clusters = session.get("topic_clusters")
+    has_clusters = isinstance(existing_clusters, list) and len(existing_clusters) >= 1
 
-    if existing_topics and not competitors_changed:
-        topics = existing_topics
+    if has_clusters and not competitors_changed:
+        topic_clusters = existing_clusters
+        candidate_queries = session.get("candidate_queries") or []
     else:
         assert_ai_usage_available(db, tenant_id)
-        topics, usage = run_monitoring_topics_stage(
+        topic_clusters, candidate_queries, usage = run_topic_generation_stage(
             profile=profile,
             subject_type=subject_type,
             entity_key=target,
+            competitors=confirmed,
         )
         consume_ai_usage(
             db,
@@ -145,14 +145,16 @@ def run_setup_topics_step(
         )
         db.commit()
 
+    topic_names = cluster_topic_names(topic_clusters)
     patch: dict[str, Any] = {
         "confirmed_competitors_hash": confirmed_hash,
         "competitors": confirmed,
         "profile_summary": profile_summary,
-        "monitoring_topics": topics,
-        "research_payload": None,
+        "monitoring_topics": topic_names,
+        "topic_clusters": topic_clusters,
+        "candidate_queries": candidate_queries,
     }
-    if competitors_changed or not existing_topics:
+    if competitors_changed or not has_clusters:
         patch["prompts_hash"] = None
         patch["prompts_cache"] = None
 
@@ -166,8 +168,8 @@ def run_setup_topics_step(
         "设置向导·主题 完成 session=%s 竞品=%d 主题=%d 摘要=%d字 重生成主题=%s 已写入 session.competitors",
         session_id[:8],
         len(confirmed),
-        len(topics),
+        len(topic_names),
         len(profile_summary),
-        competitors_changed or not existing_topics,
+        competitors_changed or not has_clusters,
     )
-    return topics
+    return setup_topics_from_clusters(topic_clusters)

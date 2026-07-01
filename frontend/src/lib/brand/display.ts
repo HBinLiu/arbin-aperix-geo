@@ -1,5 +1,6 @@
 import { buildBrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
-import { faviconUrlFromHost, faviconUrlFromWebsite } from "@/lib/favicon";
+import { externalHref } from "@/lib/domain";
+import { faviconUrlFromWebsite } from "@/lib/favicon";
 import type { CompetitorItem } from "@/types";
 import type { ReactNode } from "react";
 
@@ -15,11 +16,11 @@ export function brandFaviconUrl(row: BrandVisual): string | null {
   return faviconUrlFromWebsite(row.website_url, row.domain);
 }
 
-/** 可点击外链：优先 website_url，否则由 domain 构造首页 URL。 */
+/** 可点击外链：保留 http(s)；裸 host 用 http://（不强制 https）。 */
 export function brandWebsiteUrl(row: BrandVisual): string | null {
   const url = row.website_url?.trim();
-  if (url) return url;
+  if (url) return externalHref(url);
   const domain = row.domain?.trim();
-  if (domain) return faviconUrlFromHost(domain);
+  if (domain) return externalHref(domain);
   return null;
 }

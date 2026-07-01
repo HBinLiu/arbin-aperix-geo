@@ -25,8 +25,14 @@ export function loadSetupCache(): SetupCache | null {
     if (!data.topicRows) {
       data.topicRows = [];
     }
-    if (!data.promptRows) {
-      data.promptRows = [];
+    if (!data.uploadFiles) {
+      data.uploadFiles = [];
+    }
+    if (data.brandIntro === undefined) {
+      data.brandIntro = "";
+    }
+    if (data.brandWebsiteUrl === undefined) {
+      data.brandWebsiteUrl = "";
     }
     data.competitorRows = normalizeCompetitorRows(data.competitorRows);
     return data;
@@ -49,6 +55,9 @@ export function defaultSetupCache(): SetupCache {
     mode: "domain",
     websiteUrl: "",
     brandName: "",
+    brandIntro: "",
+    brandWebsiteUrl: "",
+    uploadFiles: [],
     region: "CN",
     language: "zh-CN",
     topicRows: [],

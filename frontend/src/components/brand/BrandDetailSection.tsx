@@ -6,6 +6,7 @@ import { BrandSectionCard } from "@/components/brand/BrandSectionCard";
 import { EditBrandDialog } from "@/components/brand/EditBrandDialog";
 import { FaviconImage } from "@/components/common/FaviconImage";
 import { Button } from "@/components/ui/button";
+import { externalHref } from "@/lib/domain";
 import { DASHBOARD_SETUP_PATH } from "@/lib/dashboard";
 import { clearSetupCache } from "@/lib/setup";
 import { useTenantSubscription } from "@/hooks/useTenantSubscription";
@@ -179,7 +180,7 @@ export function BrandDetailSection({ subject }: BrandDetailSectionProps) {
           <DetailField label="网站">
             {websiteUrl ? (
               <a
-                href={websiteUrl}
+                href={externalHref(websiteUrl)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-muted-foreground inline-flex min-w-0 max-w-full items-center gap-1 hover:text-primary hover:underline"

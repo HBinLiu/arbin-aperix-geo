@@ -31,7 +31,7 @@ def create_topic(
     current: CurrentUser,
 ) -> Topic:
     get_subject_for_user(db, current, subject_id)
-    t = Topic(subject_id=subject_id, name=body.name.strip())
+    t = Topic(subject_id=subject_id, name=body.name.strip(), decision_dimension="")
     db.add(t)
     db.commit()
     db.refresh(t)

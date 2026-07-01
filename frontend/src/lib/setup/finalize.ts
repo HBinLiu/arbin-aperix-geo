@@ -4,13 +4,17 @@ import type { FinalizeSetupInput } from "@/types";
 export function buildFinalizePayload(input: FinalizeSetupInput) {
   const topicsToPersist = selectedTopicRows(input.topicRows);
 
-  const promptsByTopicId = new Map<string, { text: string; funnel_stage: string; search_intent: string }[]>();
+  const promptsByTopicId = new Map<
+    string,
+    { text: string; funnel_stage: string; search_intent: string; decision_type: string }[]
+  >();
   for (const row of selectedPromptRows(input.promptRows)) {
     const list = promptsByTopicId.get(row.topicId) ?? [];
     list.push({
       text: row.text.trim(),
       funnel_stage: row.funnelStage ?? "mofu",
       search_intent: row.searchIntent ?? "commercial",
+      decision_type: row.decisionType?.trim() ?? "",
     });
     promptsByTopicId.set(row.topicId, list);
   }

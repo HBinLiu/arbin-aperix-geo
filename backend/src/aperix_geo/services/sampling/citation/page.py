@@ -12,7 +12,7 @@ from aperix_geo.services.crawl.metadata import SeoProfile, extract_page_metadata
 from aperix_geo.services.crawl.settings import PageCrawlSettings
 from aperix_geo.services.crawl.types import PageFetchResult
 from aperix_geo.utils.cache import SingleFlightWaitTimeout, run_single_flight
-from aperix_geo.utils.net import citation_from, filter_citation_urls, host_from, is_citation_host
+from aperix_geo.utils.net import filter_citation_urls, host_from, is_citation_host, registrable_from
 from aperix_geo.utils.net import crawl_cache_url
 from aperix_geo.utils.text import truncate_text
 
@@ -74,7 +74,7 @@ class CitationPageMeta:
 
 
 def _primary_domain(url: str) -> str:
-    return citation_from(url)
+    return registrable_from(url)
 
 
 def _citation_url_priority(url: str, *, own_root: str | None, competitor_roots: set[str]) -> tuple[int, str]:

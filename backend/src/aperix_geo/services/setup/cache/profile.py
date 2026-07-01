@@ -20,6 +20,7 @@ def profile_hash(
     region: str,
     language: str,
     website_url: str = "",
+    materials_fingerprint: str = "",
 ) -> str:
     payload = {
         "subject_type": subject_type,
@@ -27,6 +28,7 @@ def profile_hash(
         "region": region.strip(),
         "language": language.strip(),
         "website_url": website_url.strip(),
+        "materials_fingerprint": materials_fingerprint.strip(),
     }
     raw = json.dumps(payload, ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(raw.encode()).hexdigest()[:16]

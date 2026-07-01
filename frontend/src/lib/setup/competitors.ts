@@ -41,8 +41,7 @@ export function rowsToPersist(mode: SubjectMode, rows: CompetitorRow[]): { compe
       if (domain.length < 3 || seen.has(domain)) continue;
       seen.add(domain);
       const brand = r.name.trim() || registrableDomain(domain);
-      const websiteUrl =
-        r.websiteUrl.trim() || websiteUrlFromInput(rawInput) || `https://${domain}/`;
+      const websiteUrl = r.websiteUrl.trim() || websiteUrlFromInput(rawInput) || domain;
       competitors.push({
         domain,
         website_url: websiteUrl,
@@ -61,9 +60,14 @@ export function rowsToPersist(mode: SubjectMode, rows: CompetitorRow[]): { compe
     const key = brand.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
+    const rawInput = r.domain.trim();
+    const domain = registrableDomain(rawInput);
+    const hasDomain = domain.length >= 3;
     competitors.push({
-      domain: "",
-      website_url: "",
+      domain: hasDomain ? domain : "",
+      website_url:
+        r.websiteUrl.trim() ||
+        (hasDomain ? websiteUrlFromInput(rawInput) || domain : ""),
       brand,
       summary: r.summary.trim(),
       aliases: [...r.aliases],

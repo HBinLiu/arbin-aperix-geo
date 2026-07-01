@@ -21,7 +21,6 @@ from aperix_geo.utils.net import (
     extract_urls,
     host_from,
     is_brand_domain,
-    registrable_domain,
 )
 
 # 品牌域名解析时排除的泛域/媒体站（与竞品发现无关，仅用于 search 结果过滤）

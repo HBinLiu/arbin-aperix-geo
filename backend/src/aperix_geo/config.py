@@ -139,6 +139,17 @@ class Settings(BaseSettings):
     qianwen_web_search_enabled: bool = True
     qianwen_generation_timeout_s: float = Field(default=120.0, ge=10.0, le=600.0)
 
+    # --- 向量 Embedding（品牌知识库索引 · OpenAI 兼容 /embeddings）---
+    embedding_api_key: str = ""
+    embedding_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    embedding_model: str = "text-embedding-v4"
+    embedding_dimensions: int = Field(default=1024, ge=64, le=4096)
+    embedding_batch_size: int = Field(default=25, ge=1, le=100)
+    embedding_timeout_s: float = Field(default=60.0, ge=5.0, le=300.0)
+    knowledge_chunk_size: int = Field(default=500, ge=100, le=2000)
+    knowledge_chunk_overlap: int = Field(default=64, ge=0, le=500)
+    knowledge_chunk_max_per_source: int = Field(default=500, ge=1, le=5000)
+
     # --- 大模型：月之暗面 · Kimi（Dispatch 采样）---
     kimi_api_key: str = ""
     kimi_base_url: str = "https://api.moonshot.cn/v1"
@@ -177,6 +188,14 @@ class Settings(BaseSettings):
 
     # 设置向导 Redis 会话 TTL（秒）；0=永不过期。finalize 成功仍会主动删除。
     setup_session_ttl_s: int = Field(default=86_400, ge=0, le=604_800)
+    setup_upload_dir: str = Field(
+        default="data/setup_uploads",
+        description="品牌 Setup 会话期上传文件目录",
+    )
+    knowledge_upload_dir: str = Field(
+        default="data/knowledge_uploads",
+        description="finalize 后知识库 upload 持久化目录",
+    )
 
     # uvicorn：见 `python -m aperix_geo` / 控制台命令 `aperix-geo-api`
     api_host: str = "0.0.0.0"

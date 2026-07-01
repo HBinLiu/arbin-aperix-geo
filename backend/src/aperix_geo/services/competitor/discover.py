@@ -1,23 +1,29 @@
-"""竞品发现：豆包联网 → 交叉验算（head 抓取 + 打分）→ brand 规范化。"""
+"""竞品发现：域名模式（豆包 → 交叉验算）；品牌模式（豆包 URL 优先 → SearXNG 兜底）。"""
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Literal
+from collections.abc import Callable
+from typing import Any
 
 from aperix_geo.config import get_settings
-from aperix_geo.utils.net import registrable_from
+from aperix_geo.services.competitor.brand_domain import reconcile_brand_competitor_domains
 from aperix_geo.services.competitor.cross_validate import expand_ranked_domains, run_cross_validate
 from aperix_geo.services.competitor.doubao import (
     discover_competitors_via_doubao,
     pool_from_discovered_competitors,
 )
 from aperix_geo.services.competitor.enrich import enrich_discovered_competitors
-from aperix_geo.services.competitor.types import CrossValidateResult, DiscoveredCompetitor, NicheProfile
+from aperix_geo.services.competitor.types import (
+    CrossValidateResult,
+    DiscoveredCompetitor,
+    NicheProfile,
+    SiteHead,
+    SubjectType,
+)
+from aperix_geo.utils.net import registrable_from
 
 logger = logging.getLogger(__name__)
-
-SubjectType = Literal["domain", "brand"]
 
 
 def _exclude_self_domain(domains: list[str], *, target: str) -> list[str]:
@@ -25,28 +31,102 @@ def _exclude_self_domain(domains: list[str], *, target: str) -> list[str]:
     return [d for d in domains if registrable_from(d) != self_domain]
 
 
-def _merge_doubao_candidates(
+def _merge_candidates(
     existing: dict[str, DiscoveredCompetitor],
     batch: list[DiscoveredCompetitor],
+    *,
+    key_fn: Callable[[DiscoveredCompetitor], str],
 ) -> int:
     added = 0
     for item in batch:
-        domain = registrable_from(str(item.get("domain") or ""))
-        if domain:
-            if domain in existing:
-                continue
-            existing[domain] = item
-            added += 1
-            continue
-        brand_key = str(item.get("brand") or "").strip().casefold()
-        if not brand_key:
-            continue
-        key = f"brand:{brand_key}"
-        if key in existing:
+        key = key_fn(item)
+        if not key or key in existing:
             continue
         existing[key] = item
         added += 1
     return added
+
+
+def _domain_key(item: DiscoveredCompetitor) -> str:
+    return registrable_from(str(item.get("domain") or ""))
+
+
+def _brand_key(item: DiscoveredCompetitor) -> str:
+    return str(item.get("brand") or "").strip().casefold()
+
+
+def _merge_doubao_batch(
+    profile: NicheProfile,
+    *,
+    round_idx: int,
+    max_rounds: int,
+    subject_type: SubjectType,
+    target: str,
+    website_url: str,
+    region: str,
+    language: str,
+    key_fn: Callable[[DiscoveredCompetitor], str],
+    candidates: dict[str, DiscoveredCompetitor],
+    no_new_label: str,
+) -> tuple[list[DiscoveredCompetitor], int]:
+    """拉取一轮豆包结果并合并到 candidates；返回 (batch, added)。"""
+    batch = discover_competitors_via_doubao(
+        profile,
+        subject_type=subject_type,
+        target=target,
+        website_url=website_url,
+        region=region,
+        language=language,
+    )
+    if not batch:
+        return [], 0
+    added = _merge_candidates(candidates, batch, key_fn=key_fn)
+    if added == 0:
+        logger.info("竞品发现: 第 %d/%d 轮无新%s，停止", round_idx, max_rounds, no_new_label)
+    return batch, added
+
+
+def _gather_doubao_candidates(
+    profile: NicheProfile,
+    *,
+    subject_type: SubjectType,
+    target: str,
+    website_url: str = "",
+    region: str = "CN",
+    language: str = "zh-CN",
+    key_fn: Callable[[DiscoveredCompetitor], str],
+    no_new_label: str,
+    early_stop_count: int | None = None,
+) -> dict[str, DiscoveredCompetitor]:
+    """多轮豆包联网，按 key_fn 去重合并；early_stop_count 满足时提前结束（品牌模式）。"""
+    settings = get_settings()
+    max_rounds = settings.competitor_search_rounds
+    candidates: dict[str, DiscoveredCompetitor] = {}
+
+    for round_idx in range(1, max_rounds + 1):
+        batch, added = _merge_doubao_batch(
+            profile,
+            round_idx=round_idx,
+            max_rounds=max_rounds,
+            subject_type=subject_type,
+            target=target,
+            website_url=website_url,
+            region=region,
+            language=language,
+            key_fn=key_fn,
+            candidates=candidates,
+            no_new_label=no_new_label,
+        )
+        if not batch:
+            if candidates:
+                break
+            continue
+        if added == 0:
+            break
+        if early_stop_count is not None and len(candidates) >= early_stop_count:
+            break
+
+    return candidates
 
 
 def _select_after_cross_validate(
@@ -99,15 +179,15 @@ def _attach_cross_validate_scores(
     return enriched
 
 
-def _run_doubao_cross_validate_loop(
+def _run_domain_discover_loop(
     profile: NicheProfile,
     *,
-    subject_type: SubjectType,
     target: str,
     website_url: str = "",
     region: str = "CN",
     language: str = "zh-CN",
 ) -> tuple[list[DiscoveredCompetitor], CrossValidateResult | None]:
+    """域名模式：豆包联网 → head 抓取 → 交叉验算 LLM 打分。"""
     settings = get_settings()
     max_rounds = settings.competitor_search_rounds
     result_min = settings.competitor_result_min
@@ -116,36 +196,32 @@ def _run_doubao_cross_validate_loop(
     finalized: list[DiscoveredCompetitor] = []
 
     for round_idx in range(1, max_rounds + 1):
-        batch = discover_competitors_via_doubao(
+        batch, added = _merge_doubao_batch(
             profile,
-            subject_type=subject_type,
+            round_idx=round_idx,
+            max_rounds=max_rounds,
+            subject_type="domain",
             target=target,
             website_url=website_url,
             region=region,
             language=language,
-            round_idx=round_idx,
-            round_total=max_rounds,
+            key_fn=_domain_key,
+            candidates=candidate_by_key,
+            no_new_label="域名",
         )
         if not batch:
             if finalized:
                 break
             continue
-
-        added = _merge_doubao_candidates(candidate_by_key, batch)
         if added == 0:
-            logger.info("竞品发现: 第 %d/%d 轮无新域名，停止", round_idx, max_rounds)
             break
 
         pool_candidates = list(candidate_by_key.values())
-        domain_candidates = [c for c in pool_candidates if c.get("domain")]
-        if not domain_candidates:
-            continue
-
-        pool = pool_from_discovered_competitors(domain_candidates)
+        pool = pool_from_discovered_competitors(pool_candidates)
         validation = run_cross_validate(
             profile,
             target_domain=target,
-            target_website_url=website_url if subject_type == "domain" else "",
+            target_website_url=website_url,
             pool=pool,
             prior=validation,
             round_idx=round_idx,
@@ -166,6 +242,43 @@ def _run_doubao_cross_validate_loop(
     return finalized, validation
 
 
+def _run_brand_discover_loop(
+    profile: NicheProfile,
+    *,
+    target: str,
+    region: str = "CN",
+    language: str = "zh-CN",
+) -> tuple[list[DiscoveredCompetitor], dict[str, SiteHead]]:
+    """品牌模式：豆包（brand + 可选 website_url）→ 校验 → SearXNG 兜底 → enrich。"""
+    settings = get_settings()
+    result_min = settings.competitor_result_min
+
+    candidates = _gather_doubao_candidates(
+        profile,
+        subject_type="brand",
+        target=target,
+        region=region,
+        language=language,
+        key_fn=_brand_key,
+        no_new_label="品牌",
+        early_stop_count=result_min,
+    )
+    brand_items = list(candidates.values())[: settings.competitor_result_max]
+    if not brand_items:
+        return [], {}
+
+    resolved, heads = reconcile_brand_competitor_domains(brand_items)
+
+    if resolved and len(resolved) < result_min:
+        logger.warning(
+            "竞品发现: 品牌模式竞品 %d 个（目标>=%d）",
+            len(resolved),
+            result_min,
+        )
+
+    return resolved, heads
+
+
 def discover_competitors(
     profile: NicheProfile,
     *,
@@ -177,58 +290,31 @@ def discover_competitors(
 ) -> dict[str, Any]:
     """竞品发现统一入口（域名/品牌模式）。"""
     try:
-        competitors, validation = _run_doubao_cross_validate_loop(
-            profile,
-            subject_type=subject_type,
-            target=target,
-            website_url=website_url,
-            region=region,
-            language=language,
-        )
+        if subject_type == "domain":
+            competitors, validation = _run_domain_discover_loop(
+                profile,
+                target=target,
+                website_url=website_url,
+                region=region,
+                language=language,
+            )
+            heads = validation.heads if validation is not None else {}
+        else:
+            competitors, heads = _run_brand_discover_loop(
+                profile,
+                target=target,
+                region=region,
+                language=language,
+            )
+            validation = None
     except Exception:
         logger.warning("竞品发现: 豆包联网失败", exc_info=True)
         return {"competitors": [], "discovery_source": "doubao"}
 
-    if not competitors or validation is None:
+    if not competitors:
         return {"competitors": [], "discovery_source": "doubao"}
 
-    competitors = enrich_discovered_competitors(
-        competitors,
-        heads=validation.heads,
-    )
-    competitors = _attach_cross_validate_scores(competitors, validation)
+    competitors = enrich_discovered_competitors(competitors, heads=heads)
+    if validation is not None:
+        competitors = _attach_cross_validate_scores(competitors, validation)
     return {"competitors": competitors, "discovery_source": "doubao"}
-
-
-def discover_domain_competitors(
-    profile: NicheProfile,
-    domain: str,
-    *,
-    website_url: str = "",
-    region: str = "CN",
-    language: str = "zh-CN",
-) -> dict[str, Any]:
-    return discover_competitors(
-        profile,
-        subject_type="domain",
-        target=domain,
-        website_url=website_url,
-        region=region,
-        language=language,
-    )
-
-
-def discover_brand_competitors(
-    profile: NicheProfile,
-    brand: str,
-    *,
-    region: str,
-    language: str,
-) -> dict[str, Any]:
-    return discover_competitors(
-        profile,
-        subject_type="brand",
-        target=brand,
-        region=region,
-        language=language,
-    )

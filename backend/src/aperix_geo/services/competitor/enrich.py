@@ -8,8 +8,7 @@ from typing import Any
 from aperix_geo.services.competitor.head_fetch import fetch_site_heads
 from aperix_geo.services.competitor.types import DiscoveredCompetitor, SiteHead
 from aperix_geo.services.subject.domain_fields import prepare_domain_and_website_url
-from aperix_geo.utils.domains import title_alias_candidates
-from aperix_geo.utils.net import ensure_brand, parse_url, registrable_from
+from aperix_geo.utils.net import ensure_brand, parse_url, registrable_from, title_alias_candidates
 
 logger = logging.getLogger(__name__)
 

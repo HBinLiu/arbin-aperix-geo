@@ -23,10 +23,8 @@ def validate_subject_fields(subject: Subject) -> None:
 def validate_brand_competitors(subject: Subject) -> None:
     if subject.type != SubjectType.brand:
         return
-    has_brand_only = any(
-        (c.brand or "").strip() and not (c.domain or "").strip() for c in subject.competitors
-    )
-    if not has_brand_only:
+    has_brand = any((c.brand or "").strip() for c in subject.competitors)
+    if not has_brand:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="brand subject requires at least one competitor brand",

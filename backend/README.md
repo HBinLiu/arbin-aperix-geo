@@ -112,7 +112,7 @@ python3 scripts/sampling_reparse.py --dry-run  # 重算已有回复的 parsed �
 | `sampling/citation/page.py` | 引用页 `text_snippet`、品牌提及检测 |
 | `competitor/web_context.py` | 竞品首页 LLM 画像 |
 | `competitor/head_fetch.py` | 竞品候选站 title + 结构化 SEO（`SeoProfile.CROSS_VALIDATE`，`include_body=False`） |
-| `competitor/research.py` | 主体调研 payload（含首页 SEO） |
+| `setup/llm/payloads.py` | Setup 各 LLM 阶段 user message（含域名 site_data） |
 | `crawl/enrich.py` | 资讯 URL SEO enrichment（`SeoProfile.ARTICLE_DISCOVERY`） |
 
 常量：`HEAD_PARSE_MAX_CHARS=120_000`（全量 SEO 解析上限），`PAGE_CRAWL_SEO_MAX_CHARS` 默认 `64_000`（SEO-only 抓取上限），`MIN_BODY_CHARS=40`（与 `PageFetchResult.fetch_ok` 阈值一致）。SEO-only 场景默认不启用 Crawl4AI 兜底（`PAGE_CRAWL_SEO_FALLBACK_ENABLED=false`）。
@@ -147,7 +147,7 @@ python3 scripts/sampling_reparse.py --dry-run  # 重算已有回复的 parsed �
 2. **topics**：用户确认竞品 → profile_summary LLM + 监测主题 LLM
 3. **终选竞品**：及格分 Top N（`COMPETITOR_RESULT_MAX`）
 
-环境变量见 `backend/.env.example`：`COMPETITOR_*`、`DOUBAO_*`；`SEARXNG_BASE_URL` 用于品牌 Step1 调研与竞品发现。安装 Crawl4AI 浏览器（正文类抓取兜底）：
+环境变量见 `backend/.env.example`：`COMPETITOR_*`、`DOUBAO_*`；`SEARXNG_BASE_URL` 可选，用于采样后开集品牌域名回填（Setup 竞品发现不用 SearXNG）。安装 Crawl4AI 浏览器（正文类抓取兜底）：
 
 ```bash
 crawl4ai-setup

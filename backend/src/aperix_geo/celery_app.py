@@ -65,6 +65,7 @@ def make_celery() -> Celery:
         "aperix_geo.tasks.brand",
         "aperix_geo.tasks.alert",
         "aperix_geo.tasks.billing",
+        "aperix_geo.tasks.knowledge",
     ]
     return app
 

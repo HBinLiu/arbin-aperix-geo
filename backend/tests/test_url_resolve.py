@@ -31,11 +31,11 @@ def test_prepare_domain_and_website_url_preserves_user_input() -> None:
 
     domain, url = prepare_domain_and_website_url(
         "aibase.com",
-        "https://geo.aibase.com/about",
+        "geo.aibase.com/about",
         probe=False,
     )
     assert domain == "aibase.com"
-    assert url == "https://geo.aibase.com/about"
+    assert url == "geo.aibase.com/about"
 
 
 def test_resolve_website_without_probe() -> None:
@@ -111,6 +111,30 @@ def test_apex_homepage_urls(monkeypatch) -> None:
     urls = apex_homepage_urls("example.com")
     assert urls[0] == "https://example.com/"
     assert urls[1] == "https://www.example.com/"
+
+
+def test_website_candidates_includes_http_fallback(monkeypatch) -> None:
+    from aperix_geo.utils.url import website_candidates
+
+    monkeypatch.setattr(
+        "aperix_geo.utils.url.host_resolves",
+        lambda host: host in {"chinatea.com.cn", "www.chinatea.com.cn"},
+    )
+    urls = website_candidates("chinatea.com.cn")
+    assert urls[0] == "https://www.chinatea.com.cn/"
+    assert "http://www.chinatea.com.cn/" in urls
+    assert "http://chinatea.com.cn/" in urls
+
+
+def test_website_candidates_prefers_explicit_http_url(monkeypatch) -> None:
+    from aperix_geo.utils.url import website_candidates
+
+    monkeypatch.setattr("aperix_geo.utils.url.host_resolves", lambda host: True)
+    urls = website_candidates(
+        "chinatea.com.cn",
+        preferred_url="http://www.chinatea.com.cn/",
+    )
+    assert urls[0] == "http://www.chinatea.com.cn"
 
 
 def test_profile_crawl_urls_user_input_first() -> None:

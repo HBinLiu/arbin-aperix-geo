@@ -4,6 +4,7 @@ export type GeneratedPromptItem = {
   text: string;
   funnel_stage: string;
   search_intent: string;
+  decision_type?: string;
 };
 
 export type TopicRow = {
@@ -17,9 +18,9 @@ export type PromptRow = {
   text: string;
   topicId: string;
   selected: boolean;
-  /** 仅用于 finalize 落库，Setup UI 不展示 */
   funnelStage?: string;
   searchIntent?: string;
+  decisionType?: string;
 };
 
 export type DiscoveredCompetitor = {
@@ -38,11 +39,22 @@ export type CompetitorRow = {
   selected: boolean;
 };
 
+export type SetupUploadFile = {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  status: string;
+};
+
 export type SetupCache = {
   sessionId: string;
   mode: SubjectMode;
   websiteUrl: string;
   brandName: string;
+  brandIntro: string;
+  brandWebsiteUrl: string;
+  uploadFiles: SetupUploadFile[];
   region: string;
   language: string;
   topicRows: TopicRow[];

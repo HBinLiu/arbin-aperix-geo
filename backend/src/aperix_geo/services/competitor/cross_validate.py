@@ -63,7 +63,7 @@ def _target_payload(
         "industry": profile["industry"],
         "features": profile["features"],
         "customers": profile["customers"],
-        "keywords": profile["keywords"],
+        "search_queries": profile.get("search_queries", ""),
     }
     payload.update(_site_fields_from_head(head, brand_fallback=profile.get("company") or ""))
     return payload

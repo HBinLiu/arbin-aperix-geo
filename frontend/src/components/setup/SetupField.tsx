@@ -15,7 +15,7 @@ const setupControlOpen =
   "data-[state=open]:border-primary data-[state=open]:ring-[3px] data-[state=open]:ring-primary/30";
 
 /** 为 Select 的 focus ring / 阴影预留垂直空间；水平由 Input 默认 mx-0.5 负责 */
-const setupControlShellClass = "relative w-full min-w-0 overflow-visible py-0.5";
+const setupControlShellClass = "relative w-full min-w-0 overflow-visible p-0.5";
 
 export function SetupFieldGroup({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={cn("ml-0.5 space-y-2 overflow-visible", className)}>{children}</div>;

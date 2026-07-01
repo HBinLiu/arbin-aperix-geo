@@ -24,14 +24,17 @@ from aperix_geo.services.billing.quota import (
     assert_platform_capacity,
     get_limits_for_tenant,
 )
+from aperix_geo.services.competitor.enrich import enrich_confirmed_competitors
 from aperix_geo.services.competitor.types import SiteHead
 from aperix_geo.services.competitor.persist import apply_competitors
+from aperix_geo.services.setup.decision_type import normalize_decision_type
+from aperix_geo.services.setup.topic_items import topic_name_key
 from aperix_geo.services.prompts.taxonomy import normalize_funnel_stage, normalize_search_intent
 from aperix_geo.services.brand.sync import sync_subject_brands_from_setup
 from aperix_geo.services.sampling.platforms import resolve_subject_sampling_platforms
 from aperix_geo.services.sampling.workflow.jobs import create_and_enqueue_sampling_job
 from aperix_geo.services.setup.cache import delete_session, get_session
-from aperix_geo.services.competitor.enrich import enrich_confirmed_competitors
+from aperix_geo.services.knowledge.persist import enqueue_knowledge_index, persist_brand_knowledge_from_setup
 from aperix_geo.services.setup.helpers import (
     company_from_session,
     confirmed_competitors_from_session,
@@ -72,6 +75,8 @@ def finalize_setup(
         raw_domain=raw_domain,
         raw_website_url=raw_website,
     )
+    if st == SubjectType.brand and website_url:
+        domain = registrable_from(website_url) or ""
 
     topic_items = [t for t in body.topics if t.name.strip()]
     if not topic_items:
@@ -162,6 +167,16 @@ def finalize_setup(
     db.flush()
     sync_subject_brands_from_setup(db, subject=subject)
 
+    if st == SubjectType.brand:
+        knowledge = persist_brand_knowledge_from_setup(
+            db,
+            subject=subject,
+            setup_session=setup_session,
+            user_id=user.id,
+        )
+        if knowledge is not None:
+            enqueue_knowledge_index(subject.id)
+
     platforms = resolve_subject_sampling_platforms(subject)
     if not platforms:
         db.rollback()
@@ -177,16 +192,20 @@ def finalize_setup(
 
     topics: list[Topic] = []
     for item in topic_items:
-        topic = Topic(subject_id=subject.id, name=item.name.strip())
+        topic = Topic(
+            subject_id=subject.id,
+            name=item.name.strip(),
+            decision_dimension="",
+        )
         db.add(topic)
         db.flush()
         topics.append(topic)
 
     seen_hashes: set[str] = set()
     prompts: list[Prompt] = []
-    topic_by_name = {t.name: t for t in topics}
+    topic_by_key = {topic_name_key(t.name): t for t in topics}
     for topic_item in topic_items:
-        topic = topic_by_name.get(topic_item.name.strip())
+        topic = topic_by_key.get(topic_name_key(topic_item.name.strip()))
         if not topic:
             continue
         for prompt_item in topic_item.prompts:
@@ -204,6 +223,7 @@ def finalize_setup(
                 text_hash=th,
                 funnel_stage=normalize_funnel_stage(prompt_item.funnel_stage),
                 search_intent=normalize_search_intent(prompt_item.search_intent),
+                decision_type=normalize_decision_type(prompt_item.decision_type),
                 enabled=True,
             )
             db.add(prompt)

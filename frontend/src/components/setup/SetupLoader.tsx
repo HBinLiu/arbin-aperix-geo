@@ -16,7 +16,7 @@ export function SetupLoader() {
         )}
         aria-hidden
       />
-      <p className="text-muted-foreground text-sm">这可能需要一些时间...</p>
+      <p className="text-muted-foreground text-sm">大概需要1~2分钟，请耐心等待...</p>
     </div>
   );
 }

@@ -7,7 +7,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import httpx
 
-from aperix_geo.utils.domains import is_brand_domain, is_valid_hostname, normalize_host, registrable_domain, registrable_from, strip_hostname
+from aperix_geo.utils.domains import is_brand_domain, registrable_domain, registrable_from, strip_hostname
 from aperix_geo.utils.http import HTML_FETCH_HEADERS
 
 _URL_RE = re.compile(r"https?://[^\s\)\]\"']+", re.IGNORECASE)
@@ -96,11 +96,6 @@ def host_from_url(url: str) -> str | None:
     return host or None
 
 
-def citation_from(url_or_host: str) -> str:
-    """Registrable domain (eTLD+1) for citation aggregation keys."""
-    return registrable_from(url_or_host)
-
-
 def citation_registrable_key(value: str) -> str:
     """Normalize URL/hostname input to ``tb_citation_domains.domain`` key (eTLD+1)."""
     text = (value or "").strip()
@@ -108,9 +103,9 @@ def citation_registrable_key(value: str) -> str:
         return ""
     if "://" in text or text.startswith("//"):
         raw = text if not text.startswith("//") else f"https:{text}"
-        return citation_from(raw) or ""
+        return registrable_from(raw) or ""
     if "/" in text and "." in text.split("/", 1)[0]:
-        return citation_from(f"https://{text}") or ""
+        return registrable_from(f"https://{text}") or ""
     root = registrable_from(text) or registrable_from(f"https://{text}")
     return root.lower() if root else text.split("/", 1)[0].lower()
 
@@ -172,9 +167,9 @@ def host_resolves_public(host: str, *, timeout_s: float | None = None) -> bool:
     return dns_host_resolves_public(key, timeout_s=timeout_s)
 
 
-def _homepage_https_urls(domain: str, *, prefer_www: bool) -> list[str]:
+def _homepage_hosts(domain: str, *, prefer_www: bool) -> list[str]:
     """
-    候选首页 URL（仅 HTTPS）。
+    候选首页主机名（www / 裸域）。
 
     prefer_www=True：www 优先（竞品 head 抓取等）。
     prefer_www=False：裸域优先（画像回退、favicon 等）。
@@ -197,8 +192,43 @@ def _homepage_https_urls(domain: str, *, prefer_www: bool) -> list[str]:
             hosts.append(www)
     if not hosts:
         hosts = [root]
+    return hosts
 
-    return [f"https://{h}/" for h in hosts]
+
+def _homepage_scheme_urls(domain: str, *, prefer_www: bool, scheme: str) -> list[str]:
+    return [f"{scheme}://{h}/" for h in _homepage_hosts(domain, prefer_www=prefer_www)]
+
+
+def append_http_homepage_variants(urls: list[str]) -> list[str]:
+    """在 HTTPS 首页候选后追加同 host 的 HTTP 变体（去重保序）。"""
+    seen = set(urls)
+    out = list(urls)
+    for url in urls:
+        if not url.startswith("https://"):
+            continue
+        http_url = f"http://{url[8:]}"
+        if http_url not in seen:
+            seen.add(http_url)
+            out.append(http_url)
+    return out
+
+
+def homepage_url_candidates(
+    domain: str,
+    *,
+    prefer_www: bool = True,
+    include_http: bool = False,
+) -> list[str]:
+    """有序首页 URL 候选（HTTPS www/裸域；可选 HTTP 兜底）。"""
+    urls = _homepage_scheme_urls(domain, prefer_www=prefer_www, scheme="https")
+    if include_http:
+        return append_http_homepage_variants(urls)
+    return urls
+
+
+def _homepage_https_urls(domain: str, *, prefer_www: bool) -> list[str]:
+    """候选首页 URL（仅 HTTPS）。"""
+    return homepage_url_candidates(domain, prefer_www=prefer_www, include_http=False)
 
 
 def homepage_urls(domain: str) -> list[str]:
@@ -217,51 +247,22 @@ def apex_homepage_urls(domain: str) -> list[str]:
 
 
 def website_candidates(domain: str, *, preferred_url: str = "") -> list[str]:
-    """URL 候选：优先给定链接，再试 domain 的 www/裸域首页。"""
+    """URL 候选：优先给定链接，再试 HTTPS www/裸域，最后试 HTTP（部分站点仅开 80 端口）。"""
     seen: set[str] = set()
     out: list[str] = []
     preferred = parse_url(preferred_url)
     if preferred and preferred not in seen:
         seen.add(preferred)
         out.append(preferred)
-    for url in homepage_urls(domain):
+    for url in homepage_url_candidates(domain, prefer_www=True, include_http=True):
         if url not in seen:
             seen.add(url)
             out.append(url)
     return out
 
 
-def probe_first_reachable_url(
-    urls: list[str],
-    *,
-    timeout_s: float = 5.0,
-) -> str | None:
-    """轻量可达性探测：httpx GET，status<400 即视为可打开（不用 Crawl4AI）。"""
-    from aperix_geo.utils.http import HTML_FETCH_HEADERS
-
-    candidates: list[str] = []
-    seen: set[str] = set()
-    for raw in urls:
-        url = parse_url(raw)
-        if url and url not in seen:
-            seen.add(url)
-            candidates.append(url)
-    if not candidates:
-        return None
-
-    try:
-        with httpx.Client(headers=HTML_FETCH_HEADERS, follow_redirects=True) as client:
-            for url in candidates:
-                resolved = _probe_reachable_root_url(url, timeout_s=timeout_s, client=client)
-                if resolved:
-                    return resolved
-    except OSError:
-        return None
-    return None
-
-
 def parse_url(raw: str) -> str:
-    """Validate user URL input (HttpUrl + plausible host) and return a fetchable http(s) URL."""
+    """Validate user URL input and return a fetchable http(s) URL (preserves scheme; bare defaults to http)."""
     from pydantic import ValidationError
 
     from aperix_geo.schemas.url_fields import normalize_validated_http_url
@@ -270,7 +271,7 @@ def parse_url(raw: str) -> str:
     if not s:
         return ""
     if not re.match(r"^https?://", s, re.I):
-        s = f"https://{s.lstrip('/')}"
+        s = f"http://{s.lstrip('/')}"
     try:
         validated = normalize_validated_http_url(s)
     except ValidationError:
@@ -325,24 +326,6 @@ def website_fallback(domain: str) -> str:
     return f"https://{root}"
 
 
-def _website_url_candidates(domain: str) -> list[str]:
-    root = registrable_domain(domain)
-    if not root:
-        return []
-    hosts: list[str] = []
-    if host_resolves(f"www.{root}"):
-        hosts.append(f"www.{root}")
-    if root not in hosts:
-        hosts.append(root)
-    if not hosts:
-        hosts = [root]
-    urls: list[str] = []
-    for host in hosts:
-        for scheme in ("https", "http"):
-            urls.append(f"{scheme}://{host}")
-    return urls
-
-
 def _probe_reachable_root_url(url: str, *, timeout_s: float, client: httpx.Client) -> str | None:
     try:
         resp = client.get(url, follow_redirects=True, timeout=timeout_s)
@@ -366,7 +349,7 @@ def resolve_website(raw: str, *, timeout_s: float = 5.0, probe: bool = True) -> 
     if probe:
         try:
             with httpx.Client(headers=HTML_FETCH_HEADERS, follow_redirects=True) as client:
-                for candidate in _website_url_candidates(domain):
+                for candidate in website_candidates(domain):
                     resolved = _probe_reachable_root_url(candidate, timeout_s=timeout_s, client=client)
                     if resolved:
                         return domain, resolved

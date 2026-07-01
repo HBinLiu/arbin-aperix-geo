@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from aperix_geo.db.models import CitationDomain, CitationUrl
 from aperix_geo.services.sampling.parsed import ParsedSamplingResult
 from aperix_geo.utils.coerce import safe_int
-from aperix_geo.utils.net import citation_from, filter_citation_urls, host_from, is_citation_host
+from aperix_geo.utils.net import filter_citation_urls, host_from, is_citation_host, registrable_from
 
 
 def _headings_text(headings: Any) -> str:
@@ -41,7 +41,7 @@ def citations_from_parsed(parsed: dict[str, Any] | ParsedSamplingResult) -> list
         if not key or key in seen:
             continue
         host = host_from(key)
-        domain = citation_from(key)
+        domain = registrable_from(key)
         if not domain or not is_citation_host(host):
             continue
         seen.add(key)

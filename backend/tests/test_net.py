@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from aperix_geo.utils.net import (
     brand_from,
-    citation_from,
     citation_registrable_key,
     favicon_from,
     host_from,
@@ -29,8 +28,8 @@ def test_brand_from() -> None:
     assert brand_from("96.8") == ""
 
 
-def test_citation_from() -> None:
-    assert citation_from("https://docs.acme-brand.com/b") == "acme-brand.com"
+def test_registrable_from_citation_url() -> None:
+    assert registrable_from("https://docs.acme-brand.com/b") == "acme-brand.com"
 
 
 def test_favicon_from_keeps_subdomain() -> None:

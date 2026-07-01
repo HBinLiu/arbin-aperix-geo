@@ -2,7 +2,6 @@ import * as React from "react";
 import { Globe, Plus, Trash2 } from "lucide-react";
 
 import { FaviconImage } from "@/components/common/FaviconImage";
-import { SetupTextInput } from "@/components/setup/SetupField";
 import { Button } from "@/components/ui/button";
 import { Input, InputGroup } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -23,8 +22,8 @@ type SetupStepCompetitorProps = {
   onChange: (rows: CompetitorRow[]) => void;
 };
 
-/** 三列轨道：站点名（宽）| 主域名（窄）| Checkbox+删除 */
-const COMPETITOR_COLS = "grid-cols-[minmax(0,1fr)_minmax(0,12rem)_auto]" as const;
+/** 三列轨道：竞品名称 | 主域名 | Checkbox+删除 */
+const COMPETITOR_COLS = "grid-cols-[minmax(0,12.5rem)_minmax(0,1fr)_auto]" as const;
 
 const competitorTableGrid = cn("grid w-full items-center gap-x-4 gap-y-1", COMPETITOR_COLS);
 
@@ -38,12 +37,14 @@ const competitorCheckboxClass =
 const competitorActionCellClass =
   "flex h-9 w-9 shrink-0 items-center justify-center justify-self-center self-center";
 
-type CompetitorDomainTableProps = {
+type CompetitorTableProps = {
   rows: CompetitorRow[];
+  draftName: string;
   draftDomain: string;
   allSelected: boolean;
   atMax: boolean;
   maxCompetitors: number;
+  onDraftNameChange: (value: string) => void;
   onDraftDomainChange: (value: string) => void;
   onToggleAll: (checked: boolean) => void;
   onUpdateRow: (id: string, patch: Partial<CompetitorRow>) => void;
@@ -51,23 +52,88 @@ type CompetitorDomainTableProps = {
   onAddFromDraft: () => void;
 };
 
-function CompetitorDomainTable({
+function DomainInput({
+  value,
+  websiteUrl,
+  onChange,
+  onBlurNormalize,
+  placeholder,
+  ariaLabel,
+  className,
+  onKeyDown,
+}: {
+  value: string;
+  websiteUrl?: string;
+  onChange: (value: string) => void;
+  onBlurNormalize?: (raw: string) => void;
+  placeholder: string;
+  ariaLabel: string;
+  className?: string;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
+}) {
+  const faviconUrl = faviconUrlFromWebsite(websiteUrl, value);
+  return (
+    <div className={cn("border-input relative min-w-0 border-l", className)}>
+      <div className="pointer-events-none absolute top-1/2 left-2.5 flex -translate-y-1/2 items-center">
+        {faviconUrl ? (
+          <FaviconImage url={faviconUrl} size={20} iconClassName="size-5" />
+        ) : (
+          <Globe className="text-muted-foreground size-5" aria-hidden />
+        )}
+      </div>
+      <Input
+        variant="merged"
+        controlSize="sm"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={
+          onBlurNormalize
+            ? (e) => {
+                onBlurNormalize(e.target.value.trim());
+              }
+            : undefined
+        }
+        placeholder={placeholder}
+        aria-label={ariaLabel}
+        className="w-full pl-10"
+        onKeyDown={onKeyDown}
+      />
+    </div>
+  );
+}
+
+function CompetitorTable({
   rows,
+  draftName,
   draftDomain,
   allSelected,
   atMax,
   maxCompetitors,
+  onDraftNameChange,
   onDraftDomainChange,
   onToggleAll,
   onUpdateRow,
   onRemoveRow,
   onAddFromDraft,
-}: CompetitorDomainTableProps) {
+}: CompetitorTableProps) {
+  const handleDraftKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      onAddFromDraft();
+    }
+  };
+
+  const normalizeDomain = (raw: string, onPatch: (main: string, websiteUrl: string) => void) => {
+    const main = registrableDomain(raw);
+    if (!main) return;
+    onPatch(main, websiteUrlFromInput(raw) || raw.trim());
+  };
+
   return (
     <div className={competitorTableGrid}>
       <div className={competitorHeaderGridClass}>
         <span className="text-foreground flex h-9 items-center text-sm font-semibold">
-          站点名称（{rows.length}/{maxCompetitors}）
+          竞品名称（{rows.length}/{maxCompetitors}）
         </span>
         <span className="text-foreground flex h-9 items-center text-sm font-semibold">主域名</span>
         <div className={cn(competitorRowActionsClass, "col-start-3")}>
@@ -84,9 +150,7 @@ function CompetitorDomainTable({
       </div>
 
       <div className={cn("col-span-full grid gap-x-4 gap-y-2 pl-2", COMPETITOR_COLS)}>
-        {rows.map((row) => {
-          const faviconUrl = faviconUrlFromWebsite(row.websiteUrl, row.domain);
-          return (
+        {rows.map((row) => (
           <React.Fragment key={row.id}>
             <InputGroup className="col-span-2 grid h-9 grid-cols-subgrid">
               <Input
@@ -94,36 +158,21 @@ function CompetitorDomainTable({
                 controlSize="sm"
                 value={row.name}
                 onChange={(e) => onUpdateRow(row.id, { name: e.target.value })}
-                placeholder="站点名称"
-                aria-label={`${row.domain || "竞品"} 站点名称`}
+                placeholder="竞品名称"
+                aria-label={`${row.domain || "竞品"} 名称`}
               />
-              <div className="border-input relative min-w-0 border-l">
-                <div className="pointer-events-none absolute top-1/2 left-2.5 flex -translate-y-1/2 items-center">
-                  {faviconUrl ? (
-                    <FaviconImage url={faviconUrl} size={20} iconClassName="size-5" />
-                  ) : (
-                    <Globe className="text-muted-foreground size-5" aria-hidden />
-                  )}
-                </div>
-                <Input
-                  variant="merged"
-                  controlSize="sm"
-                  value={row.domain}
-                  onChange={(e) => onUpdateRow(row.id, { domain: e.target.value })}
-                  onBlur={(e) => {
-                    const raw = e.target.value.trim();
-                    const main = registrableDomain(raw);
-                    if (!main) return;
-                    onUpdateRow(row.id, {
-                      domain: main,
-                      websiteUrl: websiteUrlFromInput(raw) || `https://${main}/`,
-                    });
-                  }}
-                  placeholder="主域名"
-                  aria-label={`${row.name || "竞品"} 主域名`}
-                  className="w-full pl-10"
-                />
-              </div>
+              <DomainInput
+                value={row.domain}
+                websiteUrl={row.websiteUrl}
+                onChange={(value) => onUpdateRow(row.id, { domain: value })}
+                onBlurNormalize={(raw) =>
+                  normalizeDomain(raw, (main, websiteUrl) =>
+                    onUpdateRow(row.id, { domain: main, websiteUrl }),
+                  )
+                }
+                placeholder="主域名"
+                ariaLabel={`${row.name || "竞品"} 主域名`}
+              />
             </InputGroup>
             <div className={cn(competitorRowActionsClass, "col-start-3")}>
               <div className={competitorActionCellClass}>
@@ -148,125 +197,53 @@ function CompetitorDomainTable({
               </div>
             </div>
           </React.Fragment>
-          );
-        })}
+        ))}
       </div>
 
       {!atMax ? (
-        <div className="col-span-full flex w-full items-center gap-x-4 px-1.5 pt-2">
-          <SetupTextInput
-            value={draftDomain}
-            onChange={(e) => onDraftDomainChange(e.target.value)}
-            placeholder="输入竞品主域名"
-            leading={<Globe className="text-muted-foreground size-5" aria-hidden />}
-            containerClassName="min-w-0 flex-1 basis-0"
-            className="w-full"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                onAddFromDraft();
-              }
-            }}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            className="text-muted-foreground h-9 shrink-0 gap-1.5 whitespace-nowrap rounded-md bg-muted-background px-4 text-sm font-normal"
-            onClick={onAddFromDraft}
-          >
-            <Plus className="size-4 shrink-0" />
-            添加竞争对手
-          </Button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function CompetitorBrandTable({
-  rows,
-  allSelected,
-  atMax,
-  maxCompetitors,
-  onToggleAll,
-  onUpdateRow,
-  onRemoveRow,
-  onAddBrandRow,
-}: {
-  rows: CompetitorRow[];
-  allSelected: boolean;
-  atMax: boolean;
-  maxCompetitors: number;
-  onToggleAll: (checked: boolean) => void;
-  onUpdateRow: (id: string, patch: Partial<CompetitorRow>) => void;
-  onRemoveRow: (id: string) => void;
-  onAddBrandRow: () => void;
-}) {
-  return (
-    <div className={cn(competitorTableGrid, "grid-cols-[minmax(0,1fr)_auto]")}>
-      <div className="text-muted-foreground flex min-h-9 items-center justify-between px-0.5 text-xs font-medium">
-        <span>竞品品牌 ({rows.length}/{maxCompetitors})</span>
-        <div className={competitorRowActionsClass}>
-          <div className={competitorActionCellClass}>
-            <Checkbox
-              checked={allSelected}
-              onCheckedChange={(v) => onToggleAll(v === true)}
-              aria-label="全选竞品品牌"
-              className={competitorCheckboxClass}
+        <div className={cn("col-span-full grid gap-x-4 px-1.5 pt-2", COMPETITOR_COLS)}>
+          <InputGroup className="col-span-2 grid h-9 grid-cols-subgrid">
+            <Input
+              variant="merged"
+              controlSize="sm"
+              value={draftName}
+              onChange={(e) => onDraftNameChange(e.target.value)}
+              placeholder="填写竞品名称"
+              aria-label="新竞品名称"
+              onKeyDown={handleDraftKeyDown}
             />
+            <DomainInput
+              value={draftDomain}
+              onChange={onDraftDomainChange}
+              placeholder="填写品牌URL"
+              ariaLabel="新竞品主域名"
+              onBlurNormalize={(raw) => {
+                const main = registrableDomain(raw);
+                if (!main) return;
+                onDraftDomainChange(main);
+              }}
+              onKeyDown={handleDraftKeyDown}
+            />
+          </InputGroup>
+          <div className={cn(competitorRowActionsClass, "col-start-3")}>
+            <Button
+              type="button"
+              variant="outline"
+              className="text-muted-foreground h-9 shrink-0 gap-1.5 whitespace-nowrap rounded-md bg-muted-background px-4 text-sm font-normal"
+              onClick={onAddFromDraft}
+            >
+              <Plus className="size-4 shrink-0" />
+              添加竞品
+            </Button>
           </div>
-          <span aria-hidden className={cn(competitorActionCellClass, "pointer-events-none")} />
         </div>
-      </div>
-
-      {rows.map((row) => (
-        <React.Fragment key={row.id}>
-          <Input
-            controlSize="sm"
-            value={row.name}
-            onChange={(e) => onUpdateRow(row.id, { name: e.target.value })}
-            placeholder="竞品品牌名称"
-          />
-          <div className={competitorRowActionsClass}>
-            <div className={competitorActionCellClass}>
-              <Checkbox
-                checked={row.selected}
-                onCheckedChange={(v) => onUpdateRow(row.id, { selected: v === true })}
-                className={competitorCheckboxClass}
-              />
-            </div>
-            <div className={competitorActionCellClass}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground size-9"
-                onClick={() => onRemoveRow(row.id)}
-                aria-label="删除"
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            </div>
-          </div>
-        </React.Fragment>
-      ))}
-
-      {!atMax ? (
-        <Button
-          type="button"
-          variant="outline"
-          className="text-muted-foreground col-span-2 h-9 w-fit gap-1.5 rounded-md px-4 text-sm font-normal"
-          onClick={onAddBrandRow}
-        >
-          <Plus className="size-4" />
-          添加竞争对手
-        </Button>
       ) : null}
     </div>
   );
 }
 
 export function SetupStepCompetitor({ mode, rows, onChange }: SetupStepCompetitorProps) {
+  const [draftName, setDraftName] = React.useState("");
   const [draftDomain, setDraftDomain] = React.useState("");
   const { data: subscription } = useTenantSubscription();
   const maxCompetitors = maxCompetitorsPerSubject(subscription);
@@ -286,62 +263,74 @@ export function SetupStepCompetitor({ mode, rows, onChange }: SetupStepCompetito
     onChange(rows.map((r) => ({ ...r, selected: checked })));
   };
 
-  const addFromDraft = () => {
-    const raw = draftDomain.trim();
-    const main = registrableDomain(raw);
-    if (!main || main.length < 3 || atMax) return;
-    if (rows.some((r) => registrableDomain(r.domain) === main)) {
-      setDraftDomain("");
-      return;
-    }
-    onChange([
-      ...rows,
-      newCompetitorRow({
-        name: displayNameFromDomainInput(main),
-        domain: main,
-        websiteUrl: websiteUrlFromInput(raw) || `https://${main}/`,
-        selected: true,
-      }),
-    ]);
+  const clearDraft = () => {
+    setDraftName("");
     setDraftDomain("");
   };
 
-  const addBrandRow = () => {
+  const addFromDraft = () => {
     if (atMax) return;
-    onChange([...rows, newCompetitorRow({ name: "", selected: true })]);
+    const name = draftName.trim();
+    const raw = draftDomain.trim();
+    const main = registrableDomain(raw);
+
+    if (mode === "domain") {
+      if (!main || main.length < 3) return;
+      if (rows.some((r) => registrableDomain(r.domain) === main)) {
+        clearDraft();
+        return;
+      }
+      onChange([
+        ...rows,
+        newCompetitorRow({
+          name: name || displayNameFromDomainInput(main),
+          domain: main,
+          websiteUrl: websiteUrlFromInput(raw) || main,
+          selected: true,
+        }),
+      ]);
+    } else {
+      if (!name) return;
+      if (rows.some((r) => r.name.trim().toLowerCase() === name.toLowerCase())) {
+        clearDraft();
+        return;
+      }
+      onChange([
+        ...rows,
+        newCompetitorRow({
+          name,
+          domain: main && main.length >= 3 ? main : "",
+          websiteUrl:
+            main && main.length >= 3
+              ? websiteUrlFromInput(raw) || main
+              : "",
+          selected: true,
+        }),
+      ]);
+    }
+    clearDraft();
   };
 
   return (
     <div className="flex w-full max-w-3xl flex-col gap-4">
-      {mode === "domain" ? (
-        <CompetitorDomainTable
-          rows={rows}
-          draftDomain={draftDomain}
-          allSelected={allSelected}
-          atMax={atMax}
-          maxCompetitors={maxCompetitors}
-          onDraftDomainChange={setDraftDomain}
-          onToggleAll={toggleAll}
-          onUpdateRow={updateRow}
-          onRemoveRow={removeRow}
-          onAddFromDraft={addFromDraft}
-        />
-      ) : (
-        <CompetitorBrandTable
-          rows={rows}
-          allSelected={allSelected}
-          atMax={atMax}
-          maxCompetitors={maxCompetitors}
-          onToggleAll={toggleAll}
-          onUpdateRow={updateRow}
-          onRemoveRow={removeRow}
-          onAddBrandRow={addBrandRow}
-        />
-      )}
+      <CompetitorTable
+        rows={rows}
+        draftName={draftName}
+        draftDomain={draftDomain}
+        allSelected={allSelected}
+        atMax={atMax}
+        maxCompetitors={maxCompetitors}
+        onDraftNameChange={setDraftName}
+        onDraftDomainChange={setDraftDomain}
+        onToggleAll={toggleAll}
+        onUpdateRow={updateRow}
+        onRemoveRow={removeRow}
+        onAddFromDraft={addFromDraft}
+      />
 
-      <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
+      <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-2 pt-1 pl-2.5 text-xs">
         <span>已选择 {selectedCount} 项</span>
-        <span>最多可添加 {maxCompetitors} 个竞争对手。</span>
+        <span>最多可添加 {maxCompetitors} 个竞争对手</span>
       </div>
     </div>
   );

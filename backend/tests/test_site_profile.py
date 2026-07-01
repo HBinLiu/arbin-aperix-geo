@@ -1,14 +1,12 @@
 """Tests for micro-niche profile normalization and search query."""
 
 from aperix_geo.services.competitor.profile import (
-    MAX_MONITORING_TOPICS,
     _split_tags,
     build_search_query,
     merge_profile_updates,
-    keywords_list,
-    monitoring_topics_from_llm,
     normalize_niche_profile,
     profile_from_dict,
+    search_queries_list,
 )
 from aperix_geo.services.competitor.summary import (
     fallback_profile_summary,
@@ -31,10 +29,10 @@ def test_normalize_profile_micro_niche() -> None:
     assert profile["industry"] == "医疗影像AI诊断与辅助决策系统"
     assert "AI辅助结节检测" in profile["features"]
     assert profile["features"].count("、") <= 2
-    assert "肺结节AI筛查" in profile["keywords"]
+    assert "肺结节AI筛查" in profile["search_queries"]
 
 
-def test_keywords_list() -> None:
+def test_search_queries_list() -> None:
     profile = normalize_niche_profile(
         {
             "industry": "跨境支付",
@@ -44,7 +42,7 @@ def test_keywords_list() -> None:
         },
         entity="example.com",
     )
-    assert keywords_list(profile) == ["跨境B2B", "多币种", "企业全球", "国际汇款"]
+    assert search_queries_list(profile) == ["跨境B2B", "多币种", "企业全球", "国际汇款"]
 
 
 def test_merge_profile_updates_keywords() -> None:
@@ -57,9 +55,9 @@ def test_merge_profile_updates_keywords() -> None:
             "keywords": "旧词一、旧词二",
         },
     )
-    merged = merge_profile_updates(base, keywords=["跨境支付", "多币种账户", "企业钱包", "国际汇款"])
-    assert "跨境支付" in merged["keywords"]
-    assert "旧词一" not in merged["keywords"]
+    merged = merge_profile_updates(base, search_queries=["跨境支付", "多币种账户", "企业钱包", "国际汇款"])
+    assert "跨境支付" in merged["search_queries"]
+    assert "旧词一" not in merged["search_queries"]
 
 
 def test_keywords_accepts_five() -> None:
@@ -73,8 +71,8 @@ def test_keywords_accepts_five() -> None:
         },
     )
     keywords = ["主题一", "主题二", "主题三", "主题四", "主题五"]
-    merged = merge_profile_updates(base, keywords=keywords)
-    assert _split_tags(merged["keywords"]) == keywords
+    merged = merge_profile_updates(base, search_queries=keywords)
+    assert _split_tags(merged["search_queries"]) == keywords
 
 
 def test_keywords_not_truncated() -> None:
@@ -92,7 +90,7 @@ def test_keywords_not_truncated() -> None:
         },
         entity="example.com",
     )
-    parts = _split_tags(profile["keywords"])
+    parts = _split_tags(profile["search_queries"])
     assert parts == [
         "跨境B2B收款平台",
         "多币种",
@@ -117,13 +115,6 @@ def test_search_query_prefers_keywords() -> None:
     assert "肺结节AI筛查" in q
 
 
-def test_monitoring_topics_from_llm_parses_list() -> None:
-    topics = monitoring_topics_from_llm(
-        {"monitoring_topics": ["A", "B", "C", "D", "E"]},
-    )
-    assert topics == ["A", "B", "C", "D", "E"]
-
-
 def test_fallback_profile_summary_sections() -> None:
     profile = profile_from_dict(
         {
@@ -131,7 +122,7 @@ def test_fallback_profile_summary_sections() -> None:
             "industry": "跨境 B2B 支付",
             "features": "多币种收款、合规结汇",
             "customers": "出海中小企业",
-            "keywords": "跨境收款、多币种账户",
+            "search_queries": "跨境收款、多币种账户",
         },
     )
     summary = fallback_profile_summary(profile, entity="示例品牌", region_label="中国大陆")
@@ -190,30 +181,6 @@ def test_replace_summary_section() -> None:
     assert "面向细分赛道" in updated
     assert "信息科主任" in updated
     assert "旧定位" not in updated
-
-
-def test_monitoring_topics_from_llm_truncates_to_max() -> None:
-    topics = monitoring_topics_from_llm(
-        {"monitoring_topics": ["1", "2", "3", "4", "5", "6"]},
-    )
-    assert topics == ["1", "2", "3", "4", "5"]
-    assert len(topics) == MAX_MONITORING_TOPICS
-
-
-def test_monitoring_topics_from_llm_parses_delimited_string() -> None:
-    topics = monitoring_topics_from_llm({"monitoring_topics": "A、B、C"})
-    assert topics == ["A", "B", "C"]
-
-
-def test_monitoring_topics_from_llm_skips_empty_entries() -> None:
-    topics = monitoring_topics_from_llm(
-        {"monitoring_topics": ["  ", "有效主题", "", "另一条"]},
-    )
-    assert topics == ["有效主题", "另一条"]
-
-
-def test_monitoring_topics_from_llm_empty_payload() -> None:
-    assert monitoring_topics_from_llm({}) == []
 
 
 def test_company_from_session() -> None:

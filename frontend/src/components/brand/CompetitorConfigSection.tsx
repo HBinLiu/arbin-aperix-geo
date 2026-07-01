@@ -158,7 +158,7 @@ export function CompetitorConfigSection({ subjectId, subjectType }: CompetitorCo
     }
     addMutation.mutate({
       domain,
-      website_url: websiteUrlFromInput(raw) || `https://${domain}/`,
+      website_url: websiteUrlFromInput(raw) || domain,
       brand: displayNameFromDomainInput(domain),
       summary: "",
     });

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import NotRequired, TypedDict
+from typing import Literal, NotRequired, TypedDict
+
+SubjectType = Literal["domain", "brand"]
 
 
 class NicheProfile(TypedDict):
@@ -11,7 +13,11 @@ class NicheProfile(TypedDict):
     industry: str
     features: str
     customers: str
-    keywords: str
+    search_queries: str
+    category_terms: str
+    scenario_terms: str
+    audience_terms: str
+    pain_terms: str
 
 
 class DiscoveredCompetitor(TypedDict):

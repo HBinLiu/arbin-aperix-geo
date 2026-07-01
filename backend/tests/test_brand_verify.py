@@ -8,6 +8,7 @@ from aperix_geo.services.brand.verify import (
     accept_discovered_domain,
     homepage_matches_both_brands,
     site_head_matches_brand,
+    site_head_primary_matches_brand,
     verify_domain_homepage,
 )
 from aperix_geo.services.competitor.types import SiteHead
@@ -28,8 +29,20 @@ def test_site_head_rejects_unreachable() -> None:
     assert not site_head_matches_brand(head, "DeepRank")
 
 
+def test_site_head_primary_rejects_body_only_mention() -> None:
+    """集团站正文提子公司品牌、标题不含该品牌时，不应视为官网。"""
+    head = SiteHead(
+        "fenjiu.com.cn",
+        "山西杏花村汾酒集团有限责任公司",
+        "竹叶青茶叶是集团旗下知名茶品牌",
+        True,
+    )
+    assert site_head_matches_brand(head, "竹叶青")
+    assert not site_head_primary_matches_brand(head, "竹叶青")
+
+
 @patch("aperix_geo.services.brand.verify.verify_domain_homepage", return_value=False)
-@patch("aperix_geo.services.brand.verify.registrable_domain", return_value=True)
+@patch("aperix_geo.services.brand.verify.registrable_root_has_dns", return_value=True)
 def test_accept_discovered_domain_host_match_skips_homepage(
     _mock_dns: object,
     mock_homepage: object,
@@ -55,7 +68,7 @@ def test_homepage_matches_both_brands_rejects_single_name() -> None:
 
 
 @patch("aperix_geo.services.brand.verify.fetch_site_heads")
-@patch("aperix_geo.services.brand.verify.registrable_domain", return_value=True)
+@patch("aperix_geo.services.brand.verify.registrable_root_has_dns", return_value=True)
 def test_verify_domain_homepage_uses_head_fetch(mock_dns: object, mock_fetch: object) -> None:
     mock_fetch.return_value = {
         "paypal.com": SiteHead("paypal.com", "贝宝中国", "", True),

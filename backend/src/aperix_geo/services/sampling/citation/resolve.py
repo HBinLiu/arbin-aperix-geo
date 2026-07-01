@@ -20,7 +20,6 @@ from aperix_geo.services.sampling.citation.scope import (
 from aperix_geo.services.sampling.mentions import CompetitorEntry, collect_match_terms
 from aperix_geo.services.sampling.signal_draft import EntitySignalDraft
 from aperix_geo.utils.net import (
-    citation_from,
     filter_citation_urls,
     host_from,
     host_under_root,
@@ -111,7 +110,7 @@ def fetch_citation_pages_for_urls(
             pages_by_url[meta.url] = meta
 
     return [
-        pages_by_url.get(url) or CitationPageMeta(url=url, domain=citation_from(url))
+        pages_by_url.get(url) or CitationPageMeta(url=url, domain=registrable_from(url))
         for url in safe_urls
     ]
 

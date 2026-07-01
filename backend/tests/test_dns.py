@@ -5,8 +5,24 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import dns.resolver
+import pytest
 
-from aperix_geo.utils.dns import dns_timeout_s, host_has_dns_records, host_resolves_public, registrable_domain, resolve_host_addresses
+from aperix_geo.utils.dns import (
+    clear_dns_cache,
+    dns_timeout_s,
+    host_has_dns_records,
+    host_resolves_public,
+    registrable_root_has_dns,
+    resolve_host_addresses,
+)
+
+
+@pytest.fixture(autouse=True)
+def _dns_test_isolation() -> None:
+    """Avoid cross-test DNS L1 cache hits masking resolver mocks."""
+    clear_dns_cache()
+    yield
+    clear_dns_cache()
 
 
 @patch("aperix_geo.config.get_settings")
@@ -25,8 +41,10 @@ def test_dns_cache_ttl_s_reads_config(mock_settings) -> None:
     assert dns_cache_ttl_s() == 3600
 
 
+@patch("aperix_geo.config.get_settings")
 @patch("dns.resolver.Resolver.resolve")
-def test_host_has_dns_records_true_on_a_record(mock_resolve: MagicMock) -> None:
+def test_host_has_dns_records_true_on_a_record(mock_resolve: MagicMock, mock_settings) -> None:
+    mock_settings.return_value.dns_cache_ttl_s = 0
     mock_resolve.return_value = [MagicMock()]
     assert host_has_dns_records("stripe.com") is True
     mock_resolve.assert_called_once_with("stripe.com", "A")
@@ -38,24 +56,26 @@ def test_host_has_dns_records_false_on_nxdomain(mock_resolve: MagicMock) -> None
     assert host_has_dns_records("missing.example") is False
 
 
+@patch("aperix_geo.config.get_settings")
 @patch("dns.resolver.Resolver.resolve")
-def test_host_has_dns_records_tries_aaaa_after_no_answer(mock_resolve: MagicMock) -> None:
+def test_host_has_dns_records_tries_aaaa_after_no_answer(mock_resolve: MagicMock, mock_settings) -> None:
+    mock_settings.return_value.dns_cache_ttl_s = 0
     mock_resolve.side_effect = [dns.resolver.NoAnswer(), [MagicMock()]]
     assert host_has_dns_records("ipv6-only.example") is True
     assert mock_resolve.call_count == 2
 
 
 @patch("aperix_geo.utils.dns.host_has_dns_records")
-def test_registrable_domain_checks_www_fallback(mock_has: MagicMock) -> None:
+def test_registrable_root_has_dns_checks_www_fallback(mock_has: MagicMock) -> None:
     mock_has.side_effect = [False, True]
-    assert registrable_domain("stripe.com") is True
+    assert registrable_root_has_dns("stripe.com") is True
     assert mock_has.call_args_list[0].args == ("stripe.com",)
     assert mock_has.call_args_list[1].args == ("www.stripe.com",)
 
 
 @patch("aperix_geo.utils.dns.host_has_dns_records", return_value=False)
-def test_registrable_domain_rejects_invalid_format(_mock_has: MagicMock) -> None:
-    assert registrable_domain("96.8") is False
+def test_registrable_root_has_dns_rejects_invalid_format(_mock_has: MagicMock) -> None:
+    assert registrable_root_has_dns("96.8") is False
 
 
 @patch("dns.resolver.Resolver.resolve")

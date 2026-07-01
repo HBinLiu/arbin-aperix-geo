@@ -55,6 +55,7 @@ def _session_prompt_context(
     return {
         "entity": entity,
         "confirmed_topics": confirmed_topics,
+        "topic_clusters": session.get("topic_clusters") if isinstance(session.get("topic_clusters"), list) else [],
         "industry": str(profile.get("industry") or ""),
         "features": str(profile.get("features") or ""),
         "customers": str(profile.get("customers") or ""),
@@ -89,6 +90,7 @@ def generate_setup_prompts_for_session(
     prompts_hash = prompts_generation_hash(
         entity=ctx["entity"],
         topics=ctx["confirmed_topics"],
+        topic_clusters=ctx["topic_clusters"],
         competitors=ctx["competitors"],
         industry=ctx["industry"],
         features=ctx["features"],
@@ -125,6 +127,7 @@ def generate_setup_prompts_for_session(
     items = generate_setup_prompts(
         entity=ctx["entity"],
         topics=ctx["confirmed_topics"],
+        topic_clusters=ctx["topic_clusters"],
         industry=ctx["industry"],
         features=ctx["features"],
         customers=ctx["customers"],

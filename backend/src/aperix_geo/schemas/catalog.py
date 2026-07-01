@@ -106,6 +106,7 @@ class GeneratedPromptOut(BaseModel):
     text: str
     funnel_stage: str
     search_intent: str
+    decision_type: str = Field(default="", max_length=32)
 
 
 class TopicPromptsOut(BaseModel):
@@ -117,6 +118,7 @@ class SetupPromptItem(BaseModel):
     text: str = Field(..., min_length=1)
     funnel_stage: str = Field(default="mofu", max_length=8)
     search_intent: str = Field(default="commercial", max_length=16)
+    decision_type: str = Field(default="", max_length=32)
 
 
 class SetupTopicItem(BaseModel):
@@ -139,6 +141,41 @@ class SetupDiscoverRequest(BaseModel):
 class SetupDiscoverResponse(BaseModel):
     session_id: str = Field(..., description="Redis 会话 ID，后续步骤须携带")
     competitors: list[SetupDiscoverCompetitorOut] = Field(default_factory=list)
+
+
+class SetupSessionCreateRequest(BaseModel):
+    brand: str = Field(..., min_length=1, max_length=200)
+    region: str = Field(default="CN", max_length=32)
+    language: str = Field(default="zh-CN", max_length=16)
+    session_id: str | None = Field(default=None, description="复用已有 session")
+
+
+class SetupSessionCreateResponse(BaseModel):
+    session_id: str
+
+
+class SetupMaterialsSaveRequest(BaseModel):
+    session_id: str = Field(..., min_length=1)
+    brand_intro: str = Field(..., min_length=1)
+    website_url: str = Field(default="")
+
+    @field_validator("website_url", mode="before")
+    @classmethod
+    def _validate_website_url(cls, v: object) -> str:
+        return validate_optional_http_url(v)
+
+
+class SetupMaterialsSaveResponse(BaseModel):
+    session_id: str
+    materials_saved: bool = True
+
+
+class SetupUploadFileOut(BaseModel):
+    id: str
+    name: str
+    mime: str
+    size: int
+    status: str = "ok"
 
 
 class SetupCompetitorsResponse(BaseModel):
@@ -164,8 +201,12 @@ class SetupTopicsRequest(BaseModel):
     )
 
 
+class SetupMonitoringTopicOut(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+
+
 class SetupTopicsResponse(BaseModel):
-    monitoring_topics: list[str] = Field(default_factory=list)
+    topics: list[SetupMonitoringTopicOut] = Field(default_factory=list)
 
 
 class SetupFinalizeBody(BaseModel):
@@ -191,6 +232,7 @@ class TopicOut(BaseModel):
     id: UUID
     subject_id: UUID
     name: str
+    decision_dimension: str = ""
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -201,6 +243,7 @@ class PromptCreate(BaseModel):
     text: str = Field(..., min_length=1)
     funnel_stage: str = Field(default="mofu", max_length=8)
     search_intent: str = Field(default="commercial", max_length=16)
+    decision_type: str = Field(default="", max_length=32)
     enabled: bool = True
 
 
@@ -208,6 +251,7 @@ class PromptBatchItem(BaseModel):
     text: str = Field(..., min_length=1)
     funnel_stage: str = Field(default="mofu", max_length=8)
     search_intent: str = Field(default="commercial", max_length=16)
+    decision_type: str = Field(default="", max_length=32)
 
 
 class PromptBatchCreate(BaseModel):
@@ -220,6 +264,7 @@ class PromptUpdate(BaseModel):
     text: str | None = None
     funnel_stage: str | None = Field(default=None, max_length=8)
     search_intent: str | None = Field(default=None, max_length=16)
+    decision_type: str | None = Field(default=None, max_length=32)
     enabled: bool | None = None
 
 
@@ -230,6 +275,7 @@ class PromptOut(BaseModel):
     text: str
     funnel_stage: str
     search_intent: str
+    decision_type: str = ""
     enabled: bool
     created_at: datetime
 

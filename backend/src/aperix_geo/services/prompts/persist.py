@@ -12,6 +12,7 @@ from aperix_geo.db.models import Prompt, Subject, Topic
 from aperix_geo.services.billing.exceptions import QuotaExceededError
 from aperix_geo.services.billing.quota import assert_can_add_prompts, remaining_prompt_slots
 from aperix_geo.services.prompts.taxonomy import normalize_funnel_stage, normalize_search_intent
+from aperix_geo.services.setup.decision_type import normalize_decision_type
 from aperix_geo.utils.text import prompt_text_hash
 
 
@@ -23,16 +24,22 @@ class _PromptInput(Protocol):
     text: str
     funnel_stage: str
     search_intent: str
+    decision_type: str
 
 
-def _read_prompt_item(item: _PromptInput | Mapping[str, str]) -> tuple[str, str, str]:
+def _decision_type_from_mapping(item: Mapping[str, str]) -> str:
+    return str(item.get("decision_type") or "")
+
+
+def _read_prompt_item(item: _PromptInput | Mapping[str, str]) -> tuple[str, str, str, str]:
     if isinstance(item, Mapping):
         return (
             str(item.get("text") or ""),
             str(item.get("funnel_stage") or "mofu"),
             str(item.get("search_intent") or "commercial"),
+            _decision_type_from_mapping(item),
         )
-    return item.text, item.funnel_stage, item.search_intent
+    return item.text, item.funnel_stage, item.search_intent, item.decision_type
 
 
 def get_topic_for_subject(db: Session, subject_id: UUID, topic_id: UUID) -> Topic:
@@ -82,6 +89,7 @@ def _build_prompt(
     text: str,
     funnel_stage: str,
     search_intent: str,
+    decision_type: str = "",
     enabled: bool,
 ) -> Prompt:
     normalized = text.strip()
@@ -92,6 +100,7 @@ def _build_prompt(
         text_hash=prompt_text_hash(normalized),
         funnel_stage=normalize_funnel_stage(funnel_stage),
         search_intent=normalize_search_intent(search_intent),
+        decision_type=normalize_decision_type(decision_type),
         enabled=enabled,
     )
 
@@ -104,6 +113,7 @@ def create_subject_prompt(
     text: str,
     funnel_stage: str = "mofu",
     search_intent: str = "commercial",
+    decision_type: str = "",
     enabled: bool = True,
 ) -> Prompt:
     get_topic_for_subject(db, subject_id, topic_id)
@@ -123,6 +133,7 @@ def create_subject_prompt(
         text=normalized,
         funnel_stage=funnel_stage,
         search_intent=search_intent,
+        decision_type=decision_type,
         enabled=enabled,
     )
     db.add(prompt)
@@ -147,7 +158,7 @@ def batch_create_subject_prompts(
     pending_hashes: set[str] = set()
     created: list[Prompt] = []
     for item in items:
-        text, funnel_stage, search_intent = _read_prompt_item(item)
+        text, funnel_stage, search_intent, decision_type = _read_prompt_item(item)
         normalized = text.strip()
         if not normalized:
             continue
@@ -163,6 +174,7 @@ def batch_create_subject_prompts(
             text=normalized,
             funnel_stage=funnel_stage,
             search_intent=search_intent,
+            decision_type=decision_type,
             enabled=True,
         )
         db.add(prompt)
