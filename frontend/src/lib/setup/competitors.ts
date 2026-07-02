@@ -1,5 +1,5 @@
 import { DEFAULT_MAX_COMPETITORS } from "@/lib/billing/limits";
-import { hostnameFromWebsiteInput, registrableDomain, websiteUrlFromInput } from "@/lib/domain";
+import { coalesceWebsiteUrl, hostnameFromWebsiteInput, registrableDomain } from "@/lib/domain";
 import type { CompetitorItem, CompetitorRow, DiscoveredCompetitor, SubjectMode } from "@/types";
 
 export function newCompetitorRow(partial?: Partial<CompetitorRow>): CompetitorRow {
@@ -126,7 +126,7 @@ export function rowsToPersist(mode: SubjectMode, rows: CompetitorRow[]): { compe
       if (domain.length < 3 || seen.has(domain)) continue;
       seen.add(domain);
       const brand = r.name.trim() || registrableDomain(domain);
-      const websiteUrl = r.websiteUrl.trim() || websiteUrlFromInput(rawInput) || domain;
+      const websiteUrl = r.websiteUrl.trim() || coalesceWebsiteUrl(rawInput, domain);
       competitors.push({
         domain,
         website_url: websiteUrl,
@@ -152,7 +152,7 @@ export function rowsToPersist(mode: SubjectMode, rows: CompetitorRow[]): { compe
       domain: hasDomain ? domain : "",
       website_url:
         r.websiteUrl.trim() ||
-        (hasDomain ? websiteUrlFromInput(rawInput) || domain : ""),
+        (hasDomain ? coalesceWebsiteUrl(rawInput, domain) : ""),
       brand,
       summary: r.summary.trim(),
       aliases: [...r.aliases],

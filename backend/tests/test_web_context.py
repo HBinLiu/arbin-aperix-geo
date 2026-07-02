@@ -38,13 +38,11 @@ def test_fetch_site_homepage_tries_user_url_before_apex(mock_resolve, mock_fetch
 
 @patch("aperix_geo.services.competitor.web_context.fetch_page")
 @patch("aperix_geo.services.competitor.web_context.host_resolves", return_value=True)
-def test_fetch_site_homepage_falls_back_to_apex(mock_resolve, mock_fetch) -> None:
+def test_fetch_site_homepage_uses_single_url_for_bare_host(mock_resolve, mock_fetch) -> None:
     calls: list[str] = []
 
     def fake_fetch(url: str, **kwargs) -> PageFetchResult:
         calls.append(url)
-        if "www." in url:
-            return PageFetchResult(url=url, source="none")
         html = (
             "<html><head><title>SheepGeo</title></head>"
             "<body>" + ("content " * 20) + "</body></html>"
@@ -59,6 +57,5 @@ def test_fetch_site_homepage_falls_back_to_apex(mock_resolve, mock_fetch) -> Non
 
     mock_fetch.side_effect = fake_fetch
     ctx = fetch_site_homepage_context("sheepgeo.com", user_url="sheepgeo.com")
-    assert ctx.url.rstrip("/") == "https://sheepgeo.com"
-    assert calls[0] == "https://sheepgeo.com"
-    assert all("www." not in u for u in calls[:2])
+    assert ctx.url.rstrip("/") == "http://sheepgeo.com"
+    assert calls == ["http://sheepgeo.com"]

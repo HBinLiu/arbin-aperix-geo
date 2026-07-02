@@ -24,6 +24,14 @@ _DIMENSIONS = [
 
 
 @pytest.fixture(autouse=True)
+def _skip_style_llm_judge(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "aperix_geo.services.prompts.setup.evaluate_query_style_via_llm",
+        lambda **kwargs: ([], {}),
+    )
+
+
+@pytest.fixture(autouse=True)
 def _skip_keyword_prompt_qa(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "aperix_geo.services.prompts.setup.validate_generated_prompts",
@@ -33,7 +41,7 @@ def _skip_keyword_prompt_qa(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(autouse=True)
 def _force_llm_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
-    """现有 LLM 单测假定走 chat_completion；seed 路径有产出时会跳过 LLM。"""
+    """现有 LLM 单测假定走 chat_completion；主路径为 LLM，seed 为空时才会在 LLM 失败时用到。"""
 
     def _empty_seeds(*, topics, **kwargs):
         return [{"topic": topic, "prompts": []} for topic in topics]
@@ -231,7 +239,7 @@ def test_generate_setup_prompts_exact_topic_match_only(mock_chat) -> None:
 
 
 @patch("aperix_geo.services.prompts.setup.chat_completion")
-def test_generate_setup_prompts_strips_punctuation(mock_chat) -> None:
+def test_generate_setup_prompts_preserves_punctuation(mock_chat) -> None:
     payload = {
         "topics": [
             {
@@ -259,6 +267,4 @@ def test_generate_setup_prompts_strips_punctuation(mock_chat) -> None:
         prompts_per_topic=4,
     )
     texts = [p["text"] for p in rows[0]["prompts"]]
-    assert "跨境收款怎么选" in texts
-    assert "跨境收款怎么选？" not in texts
-    assert all("？" not in t and "?" not in t for t in texts)
+    assert "跨境收款怎么选？" in texts

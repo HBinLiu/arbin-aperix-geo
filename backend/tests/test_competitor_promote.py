@@ -219,11 +219,13 @@ def _subject_with_brand() -> tuple[Subject, Brand]:
     return subject, brand
 
 
+@patch("aperix_geo.services.competitor.promote.assert_competitor_capacity")
 @patch("aperix_geo.services.competitor.promote.backfill_competitor_signal_grid", return_value=2)
 @patch("aperix_geo.services.competitor.promote.migrate_open_brand_signals_to_competitor", return_value=(3, 1))
 def test_promote_open_brand_to_competitor_creates_competitor_and_updates_brand(
     _mock_migrate: MagicMock,
     _mock_backfill: MagicMock,
+    _mock_capacity: MagicMock,
 ) -> None:
     subject, brand = _subject_with_brand()
     db = MagicMock()

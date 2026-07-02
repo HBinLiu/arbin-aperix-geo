@@ -101,6 +101,24 @@ def test_fetch_site_heads_prefers_http_website_url(mock_crawl_settings, mock_fet
 
 @patch("aperix_geo.services.competitor.head_fetch.fetch_page")
 @patch("aperix_geo.services.competitor.head_fetch.page_crawl_settings")
+def test_fetch_site_heads_skips_variants_for_invalid_preferred_url(
+    mock_crawl_settings, mock_fetch_page
+) -> None:
+    mock_crawl_settings.return_value.max_chars = 120_000
+    mock_crawl_settings.return_value.seo_max_chars = 64_000
+    mock_crawl_settings.return_value.crawl_fallback = True
+    mock_crawl_settings.return_value.concurrency = 2
+
+    heads = fetch_site_heads(
+        ["zhuyeqing-tea.com"],
+        preferred_urls={"zhuyeqing-tea.com": "zhuyeqing-tea.com"},
+    )
+    assert heads["zhuyeqing-tea.com"].reachable is False
+    mock_fetch_page.assert_not_called()
+
+
+@patch("aperix_geo.services.competitor.head_fetch.fetch_page")
+@patch("aperix_geo.services.competitor.head_fetch.page_crawl_settings")
 def test_fetch_site_heads_unreachable(mock_crawl_settings, mock_fetch_page) -> None:
     mock_crawl_settings.return_value.fetch_timeout_s = 8.0
     mock_crawl_settings.return_value.crawl_timeout_s = 45.0

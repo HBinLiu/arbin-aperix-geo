@@ -8,6 +8,7 @@ from aperix_geo.services.favicon._citation import (
     favicon_cached_for_domain,
     maybe_cache_favicon_from_page_html,
 )
+from aperix_geo.services.sampling.citation.cache.url_meta import clear_url_citation_page_cache
 
 
 def test_maybe_cache_favicon_skips_when_domain_already_cached(tmp_path, monkeypatch) -> None:
@@ -57,6 +58,7 @@ def test_maybe_cache_favicon_from_page_html(mock_fetch: MagicMock, tmp_path, mon
 @patch("aperix_geo.services.favicon._citation.fetch_first_icon")
 def test_fetch_citation_page_meta_caches_favicon(mock_fetch: MagicMock, tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("FAVICON_STORAGE_DIR", str(tmp_path))
+    clear_url_citation_page_cache()
     mock_fetch.return_value = (b"ico", "image/x-icon")
 
     from aperix_geo.services.sampling.citation.page import fetch_citation_page_meta
@@ -66,7 +68,11 @@ def test_fetch_citation_page_meta_caches_favicon(mock_fetch: MagicMock, tmp_path
     fetched.source = "httpx"
     fetched.fetch_ok = True
     fetched.final_url = "https://blog.wise.com/post"
-    fetched.html = '<html><head><link rel="icon" href="/favicon.ico"></head><body><p>x</p></body></html>'
+    fetched.html = (
+        "<html><head><title>Wise Blog</title>"
+        "<link rel=\"icon\" href=\"/favicon.ico\"></head>"
+        "<body><p>" + ("wise blog post " * 30) + "</p></body></html>"
+    )
     fetched.markdown = ""
 
     settings = MagicMock()
@@ -74,6 +80,11 @@ def test_fetch_citation_page_meta_caches_favicon(mock_fetch: MagicMock, tmp_path
 
     with (
         patch("aperix_geo.services.sampling.citation.page.fetch_page", return_value=fetched),
+        patch(
+            "aperix_geo.services.sampling.citation.cache.url_meta.get_url_citation_page",
+            return_value=None,
+        ),
+        patch("aperix_geo.services.sampling.citation.page._read_cached_page_fetch", return_value=None),
         patch("aperix_geo.services.favicon._citation.get_settings", return_value=settings),
     ):
         meta = fetch_citation_page_meta("https://blog.wise.com/post")

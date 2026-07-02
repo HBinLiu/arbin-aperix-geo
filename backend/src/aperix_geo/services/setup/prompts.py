@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from uuid import UUID
@@ -78,6 +79,7 @@ def generate_setup_prompts_for_session(
     """按 session 生成初始提示词；同时写入用户确认后的 monitoring_topics。"""
     require_deepseek_api_key()
     assert_ai_usage_available(db, tenant_id)
+    t0 = time.perf_counter()
 
     session = get_session(user_id=user_id, session_id=session_id)
     if session is None:
@@ -87,6 +89,12 @@ def generate_setup_prompts_for_session(
         session,
         topics=topics,
         exclude_prompts=exclude_prompts,
+    )
+    logger.info(
+        "设置向导·提示词 开始 session=%s target=%r 主题=%d",
+        session_id[:8],
+        ctx["entity"],
+        len(ctx["confirmed_topics"]),
     )
     prompts_hash = prompts_generation_hash(
         entity=ctx["entity"],
@@ -108,8 +116,9 @@ def generate_setup_prompts_for_session(
             patch={"monitoring_topics": ctx["confirmed_topics"]},
         )
         logger.info(
-            "设置向导·提示词 缓存命中 session=%s 主题=%d 问句=%d",
+            "设置向导·提示词 完成 session=%s 耗时=%.1fs 主题=%d 问句=%d 来源=缓存",
             session_id[:8],
+            time.perf_counter() - t0,
             len(ctx["confirmed_topics"]),
             sum(len(row.get("prompts") or []) for row in cached),
         )
@@ -147,11 +156,12 @@ def generate_setup_prompts_for_session(
             "prompts_cache": items,
         },
     )
+    db.commit()
     logger.info(
-        "设置向导·提示词 新生成 session=%s 主题=%d 问句=%d",
+        "设置向导·提示词 完成 session=%s 耗时=%.1fs 主题=%d 问句=%d 来源=生成",
         session_id[:8],
+        time.perf_counter() - t0,
         len(ctx["confirmed_topics"]),
         sum(len(row.get("prompts") or []) for row in items),
     )
-    db.commit()
     return items

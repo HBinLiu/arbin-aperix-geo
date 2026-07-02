@@ -11,7 +11,7 @@ from aperix_geo.services.crawl import PageFetchResult, fetch_page, page_crawl_se
 from aperix_geo.services.crawl.metadata import PageMetadata, SeoProfile, extract_metadata_from_fetch
 from aperix_geo.services.crawl.settings import PageCrawlSettings, seo_fetch_max_chars
 from aperix_geo.services.crawl.seo import SeoMetadata, seo_prose_text
-from aperix_geo.utils.net import website_candidates, registrable_from
+from aperix_geo.utils.net import explicit_http_url, homepage_fetch_urls, registrable_from
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,20 @@ def _fetch_one_sync(
     seo_profile: SeoProfile,
     preferred_url: str = "",
 ) -> SiteHead:
-    urls = website_candidates(domain, preferred_url=preferred_url)
+    has_preferred = bool(preferred_url.strip())
+    if has_preferred and not explicit_http_url(preferred_url):
+        logger.debug(
+            "页面抓取跳过：preferred_url 非完整 http(s) URL domain=%s url=%r",
+            domain,
+            preferred_url.strip(),
+        )
+        return SiteHead(domain=domain, title="", description="", reachable=False)
+
+    urls = homepage_fetch_urls(
+        domain,
+        website_url=preferred_url,
+        probe_variants=not has_preferred,
+    )
     if not urls:
         return SiteHead(domain=domain, title="", description="", reachable=False)
 

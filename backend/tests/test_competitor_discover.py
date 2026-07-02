@@ -74,7 +74,7 @@ def test_parse_keeps_all_valid_rows() -> None:
     assert items[-1]["domain"] == "c9.com"
 
 
-def test_parse_uses_domain_when_website_url_missing() -> None:
+def test_parse_skips_bare_domain_without_http_url() -> None:
     text = """
     {"competitors": [
       {"domain": "ghost.io", "brand": "Ghost", "website_url": ""},
@@ -86,10 +86,24 @@ def test_parse_uses_domain_when_website_url_missing() -> None:
         mode="domain",
         self_domain="sheepgeo.com",
     )
-    assert len(items) == 2
-    assert items[0]["domain"] == "ghost.io"
-    assert items[0]["website_url"] == "ghost.io"
-    assert items[1]["domain"] == "profound.ai"
+    assert len(items) == 1
+    assert items[0]["domain"] == "profound.ai"
+
+
+def test_parse_rejects_bare_domain_in_website_url() -> None:
+    text = """
+    {"competitors": [
+      {"brand": "Ghost", "website_url": "ghost.io"},
+      {"brand": "Profound", "website_url": "https://profound.ai"}
+    ]}
+    """
+    items = parse_doubao_competitors_payload(
+        text,
+        mode="domain",
+        self_domain="sheepgeo.com",
+    )
+    assert len(items) == 1
+    assert items[0]["domain"] == "profound.ai"
 
 
 def test_parse_brand_mode_dedupes_by_brand() -> None:

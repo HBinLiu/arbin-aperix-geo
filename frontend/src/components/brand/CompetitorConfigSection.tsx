@@ -31,7 +31,7 @@ import {
   findCompetitorDuplicate,
   type SubjectIdentity,
 } from "@/lib/setup";
-import { registrableDomain, websiteUrlFromInput } from "@/lib/domain";
+import { coalesceWebsiteUrl, registrableDomain } from "@/lib/domain";
 import { clearAnalysisCatalog, queryKeys, sessionCatalogQueryOptions } from "@/lib/queries";
 import { toast } from "@/lib/toast";
 import type { CompetitorItem, Subject } from "@/types";
@@ -195,7 +195,7 @@ export function CompetitorConfigSection({ subject }: CompetitorConfigSectionProp
     }
     addMutation.mutate({
       domain,
-      website_url: websiteUrlFromInput(raw) || domain,
+      website_url: coalesceWebsiteUrl(raw, domain),
       brand: displayNameFromDomainInput(domain),
       summary: "",
     });

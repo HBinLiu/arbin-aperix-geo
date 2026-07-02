@@ -208,30 +208,9 @@ def test_discover_icon_url_batches_with_page_url(monkeypatch) -> None:
         "aperix_geo.services.favicon._candidates.icons_from_page_url",
         lambda page_url, timeout_s: ["https://staticfile.example.com/icon.ico"],
     )
-    class _FakeSources:
-        def page_icons_from_fetch(self) -> list[str]:
-            return []
-
-        def page_icons_from_crawl4ai(self) -> list[str]:
-            return []
-
-        def subdomain_icons_from_fetch(self) -> list[str]:
-            return []
-
-        def subdomain_icons_from_crawl4ai(self) -> list[str]:
-            return []
-
     monkeypatch.setattr(
-        "aperix_geo.services.favicon._candidates._HomepageHtmlSources",
-        lambda domain, timeout_s: _FakeSources(),
-    )
-    monkeypatch.setattr(
-        "aperix_geo.services.favicon._candidates.main_standard_path_urls",
-        lambda _d: [],
-    )
-    monkeypatch.setattr(
-        "aperix_geo.services.favicon._candidates.cdn_prefix_standard_path_urls",
-        lambda _d: [],
+        "aperix_geo.services.favicon._candidates.standard_path_urls_for_page",
+        lambda _page: ["https://m.example.com/favicon.ico"],
     )
 
     batches = discover_icon_url_batches(
@@ -239,7 +218,10 @@ def test_discover_icon_url_batches_with_page_url(monkeypatch) -> None:
         timeout_s=5.0,
         page_url="https://m.example.com/article",
     )
-    assert batches[0] == ["https://staticfile.example.com/icon.ico"]
+    assert batches == [
+        ["https://staticfile.example.com/icon.ico"],
+        ["https://m.example.com/favicon.ico"],
+    ]
 
 
 def test_resolve_favicon_network_with_page_url(monkeypatch) -> None:

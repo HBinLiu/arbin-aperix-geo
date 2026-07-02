@@ -28,6 +28,7 @@ def test_profile_hash_includes_website_url() -> None:
     assert fp1 != fp2
 
 
+@patch("aperix_geo.services.subject.duplicate.assert_tenant_subject_unique")
 @patch("aperix_geo.services.setup.discover.discover_competitors_for_session")
 @patch("aperix_geo.services.setup.discover.create_session")
 @patch("aperix_geo.services.setup.discover.set_profile_cache")
@@ -41,9 +42,33 @@ def test_discover_setup_uses_profile_cache(
     mock_set_cache,
     mock_create_session,
     mock_discover,
+    _mock_unique,
 ) -> None:
     profile = normalize_niche_profile(
-        {"industry": "SaaS", "search_queries": ["AI SaaS"]},
+        {
+            "industry": "SaaS",
+            "features": ["AI 可见度", "品牌引用分析", "多平台监测", "竞品对标", "GEO 监测"],
+            "customers": "市场团队",
+            "search_queries": [
+                "AI可见度监测市场团队怎么做",
+                "品牌引用分析SEO团队怎么看",
+                "多平台监测竞品对标",
+                "品牌搜索可见度市场团队怎么选",
+                "GEO品牌监测配置方法",
+            ],
+            "topic_lexicon": {
+                "category_terms": [
+                    "AI 可见度监测",
+                    "品牌搜索可见度",
+                    "多平台GEO监测",
+                    "品牌引用分析",
+                    "GEO品牌监测",
+                ],
+                "scenario_terms": ["品牌监测"],
+                "audience_terms": ["市场团队"],
+                "pain_terms": ["引用率"],
+            },
+        },
         entity="example.com",
     )
     mock_get_cache.return_value = {

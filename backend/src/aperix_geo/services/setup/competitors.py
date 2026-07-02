@@ -100,6 +100,14 @@ def discover_competitors_for_session(
         search_queries=sq,
     )
 
+    logger.info(
+        "设置向导·发现·竞品 开始 session=%s type=%s target=%r",
+        session_id[:8],
+        subject_type,
+        target,
+    )
+    t0 = time.perf_counter()
+
     cached = cached_competitors_result(session, competitors_hash=competitors_hash)
     if cached is not None:
         competitors = cached["competitors"]
@@ -112,21 +120,18 @@ def discover_competitors_for_session(
             competitors=competitors,
         )
         logger.info(
-            "设置向导·发现·竞品 缓存命中 session=%s 竞品=%d",
+            "设置向导·发现·竞品 完成 session=%s 来源=缓存 耗时=%.1fs 竞品=%d",
             session_id[:8],
+            time.perf_counter() - t0,
             len(competitors),
         )
         return competitors
 
-    logger.info("设置向导·发现·竞品 开始 session=%s type=%s target=%r", session_id[:8], subject_type, target)
-    t0 = time.perf_counter()
-
-    website_url = str(session.get("website_url") or "").strip() if subject_type == "domain" else ""
     result = discover_competitors(
         profile,
         subject_type=subject_type,  # type: ignore[arg-type]
         target=target,
-        website_url=website_url,
+        website_url=str(session.get("website_url") or "").strip() if subject_type == "domain" else "",
         region=region,
         language=language,
     )

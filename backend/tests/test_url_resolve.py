@@ -38,6 +38,15 @@ def test_prepare_domain_and_website_url_preserves_user_input() -> None:
     assert url == "geo.aibase.com/about"
 
 
+def test_prepare_domain_and_website_url_skips_probe_without_explicit_url() -> None:
+    from aperix_geo.services.subject.domain_fields import prepare_domain_and_website_url
+
+    domain, url = prepare_domain_and_website_url("example.com", "", probe=False)
+    assert domain == "example.com"
+    assert url.startswith("https://")
+    assert "example.com" in url
+
+
 def test_resolve_website_without_probe() -> None:
     domain, url = resolve_website("https://www.stripe.com/pricing", probe=False)
     assert domain == "stripe.com"

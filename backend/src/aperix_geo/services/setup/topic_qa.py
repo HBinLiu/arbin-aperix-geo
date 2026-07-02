@@ -1,7 +1,8 @@
 """监测主题簇结构校验。
 
 硬校验（默认）：条数、长度、枚举、主体名禁令、核心词锚定。
-质量校验（strict_quality=True）：问句形态、泛词、近重复、修饰词、核心词覆盖——仅打 warning。
+质量校验（strict_quality=True）：泛词、近重复、修饰词、核心词覆盖等升级为 hard fail。
+问句风格由 query_style_llm 软评；默认模式不对 seed 修饰词逐条打 warning。
 """
 
 from __future__ import annotations
@@ -252,13 +253,10 @@ def validate_topic_lexicon_precision(
             text = str(seed.get("text") or "").strip()
             if not match_core_keyword(text, [core]):
                 raise ValueError(f"种子问句须含本主题核心词「{core}」：{text}")
-            if not match_modifier(text, preferred_modifiers):
-                msg = (
+            if strict_quality and not match_modifier(text, preferred_modifiers):
+                raise ValueError(
                     f"种子问句须含本主题优先修饰词（{'、'.join(preferred_modifiers[:3])}）：{text}"
                 )
-                if strict_quality:
-                    raise ValueError(msg)
-                logger.warning("监测主题质量: %s", msg)
 
     if strict_quality:
         _reject_near_duplicate_topic_names(topic_names)

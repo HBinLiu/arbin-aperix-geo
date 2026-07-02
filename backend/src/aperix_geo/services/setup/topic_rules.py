@@ -64,6 +64,18 @@ def build_topic_plan_guidance(profile: NicheProfile) -> dict[str, Any]:
         "max_seed_text_len": MAX_SEED_TEXT_LEN,
         "min_core_keyword_topics": min_category_hits,
         "core_keyword_coverage": "5 个 topic 各绑定 1 个不同 core_keyword（系统会按 keyword_plan 绑定 topic name）",
+        "long_tail_examples": list(plan["long_tail_examples"]),
+        "seed_style_rules": [
+            "每个 topic 内 5 条 seed：decision 互异，去掉 core 与 modifiers 后句法骨架互异",
+            "5 个 topic 之间禁止复用同一组固定句式，仅替换 core_keyword",
+            "须从 long_tail_examples 分散仿写不同问法，勿复制同一套五句式",
+            "像用户向 AI 随口提问；modifiers 自然嵌入，勿机械拼接 preferred_modifiers 原文",
+        ],
+        "forbidden_seed_shapes": [
+            "禁止 5 个 topic 共用同一批固定句式（仅换 core）",
+            "禁止同一 topic 内多条 seed 仅换 decision 而句法相同",
+            "禁止对称排比式批量生成（前缀/后缀/疑问结构完全一致）",
+        ],
         "anchor_lexicon_keys": [
             "category_terms",
             "scenario_terms",
@@ -77,8 +89,7 @@ def build_topic_plan_guidance(profile: NicheProfile) -> dict[str, Any]:
             "须完整包含 1 个 core_keyword（禁止仅靠片段匹配）",
             "5 条 topic 不得近重复（包含关系）且不得使用竞品对标/对比分析等泛词作 topic name",
             "不得含主体/竞品名与问句标记",
-            "seed 须含本 topic 的 core_keyword + topic_keyword_map.preferred_modifiers 中至少 1 个修饰词",
-            "同一 topic 的 seed 须覆盖不同 decision；不同 topic 不得复用同一后缀句式",
+            f"同一 topic 至少 {MIN_SEED_QUERIES_PER_TOPIC} 条 seed，句法骨架互异优先于 decision 标签覆盖",
         ],
         **_naming_examples(profile),
     }

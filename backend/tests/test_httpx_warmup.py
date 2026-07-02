@@ -1,14 +1,17 @@
 """Tests for httpx client warmup and citation snippet truncation."""
 
+import threading
 from unittest.mock import patch
 
+import aperix_geo.services.crawl._httpx as httpx_mod
 from aperix_geo.services.crawl._httpx import get_httpx_client, warmup_http_stack
 from aperix_geo.services.crawl.types import PageFetchResult
 from aperix_geo.services.sampling.citation.page import _citation_meta_from_fetch
 
 
 def test_warmup_http_stack_initializes_clients() -> None:
-    with patch("aperix_geo.services.crawl._httpx.httpx.Client") as mock_client_cls:
+    httpx_mod._local = threading.local()
+    with patch.object(httpx_mod.httpx, "Client") as mock_client_cls:
         warmup_http_stack()
     assert mock_client_cls.call_count == 2
 

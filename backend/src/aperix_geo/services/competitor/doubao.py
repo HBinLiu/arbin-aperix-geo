@@ -20,7 +20,7 @@ from aperix_geo.services.providers.prompts import (
     competitor_doubao_discover_brand_user_content,
     competitor_doubao_discover_domain_user_content,
 )
-from aperix_geo.utils.net import registrable_from
+from aperix_geo.utils.net import explicit_http_url, registrable_from
 
 
 def pool_from_discovered_competitors(competitors: list[DiscoveredCompetitor]) -> CandidatePool:
@@ -29,9 +29,11 @@ def pool_from_discovered_competitors(competitors: list[DiscoveredCompetitor]) ->
     by_domain: dict[str, CandidateMeta] = {}
     for item in competitors:
         domain = registrable_from(str(item.get("domain") or ""))
+        url = str(item.get("website_url") or "").strip()
         if not domain or domain in by_domain:
             continue
-        url = str(item.get("website_url") or "").strip() or f"https://{domain}/"
+        if not url or not explicit_http_url(url):
+            continue
         by_domain[domain] = CandidateMeta(
             domain=domain,
             brand=str(item.get("brand") or "").strip(),

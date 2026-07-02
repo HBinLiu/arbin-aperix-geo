@@ -9,7 +9,7 @@ from typing import Any
 from aperix_geo.config import get_settings
 from aperix_geo.services.competitor.diagnostics import log_cross_validate_score
 from aperix_geo.services.competitor.head_fetch import fetch_site_heads
-from aperix_geo.utils.net import registrable_from
+from aperix_geo.utils.net import explicit_http_url, registrable_from
 from aperix_geo.services.competitor.types import (
     CandidateMeta,
     CandidatePool,
@@ -86,7 +86,7 @@ def _ensure_target_head(
     if not key or key in heads:
         return heads
     preferred: dict[str, str] = {}
-    url = target_website_url.strip()
+    url = explicit_http_url(target_website_url)
     if url:
         preferred[key] = url
     return {**heads, **fetch_site_heads([key], preferred_urls=preferred)}
@@ -240,9 +240,10 @@ def run_cross_validate(
         )
 
     preferred_urls = {
-        d: meta.website_url
+        d: url
         for d in new_hosts
-        if (meta := pool.by_domain.get(d)) and meta.website_url
+        if (meta := pool.by_domain.get(d))
+        and (url := explicit_http_url(meta.website_url))
     }
     new_heads = fetch_site_heads(new_hosts, preferred_urls=preferred_urls)
     heads = {**heads, **new_heads}

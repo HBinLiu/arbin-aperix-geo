@@ -170,8 +170,8 @@ def _select_seeds_for_core(
         )
 
     if len(used_modifiers) < 2:
-        logger.warning(
-            "监测主题质量: 主题「%s」seed 修饰词覆盖不足（%d 种）",
+        logger.debug(
+            "监测主题 bind: 主题「%s」seed 修饰词覆盖 %d 种",
             core,
             len(used_modifiers),
         )
@@ -210,7 +210,7 @@ def bind_topic_clusters_to_cores(
     if len(cores) < MIN_TOPIC_CORE_KEYWORDS:
         raise ValueError(
             f"niche_profile 核心词不足 {MIN_TOPIC_CORE_KEYWORDS} 条（topic 绑定），"
-            f"当前 {len(cores)} 条"
+            f"当前 {len(cores)} 条；请回到 Discover 补全 category_terms（至少 5 条）"
         )
 
     bound: list[TopicCluster] = []

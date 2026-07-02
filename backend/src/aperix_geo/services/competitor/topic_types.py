@@ -7,7 +7,7 @@ from typing import TypedDict
 MAX_MONITORING_TOPICS = 5
 MIN_TOPIC_NAME_LEN = 2
 MAX_TOPIC_NAME_LEN = 12
-MIN_SEED_QUERIES_PER_TOPIC = 3
+MIN_SEED_QUERIES_PER_TOPIC = 5
 
 
 class SeedQuery(TypedDict):

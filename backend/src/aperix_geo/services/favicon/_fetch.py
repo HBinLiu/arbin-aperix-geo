@@ -13,6 +13,7 @@ from aperix_geo.services.favicon._domain import favicon_homepage_urls
 from aperix_geo.services.favicon._parse import dedupe_urls
 from aperix_geo.services.favicon._storage import persist_favicon
 from aperix_geo.utils.http import HTML_PAGE_FETCH_HEADERS
+from aperix_geo.utils.net import explicit_http_url
 
 _MAX_ICON_BYTES = 512_000
 _MAX_ICON_SIDE_PX = 512
@@ -169,8 +170,16 @@ def fetch_icon_bytes(
     return body, _guess_media_type(url, resp.headers.get("content-type"), body)
 
 
-def _warm_homepage_cookies(client: httpx.Client, domain: str, *, timeout_s: float) -> None:
-    for home in favicon_homepage_urls(domain):
+def _warm_homepage_cookies(
+    client: httpx.Client,
+    domain: str,
+    *,
+    timeout_s: float,
+    page_url: str | None = None,
+) -> None:
+    explicit = explicit_http_url(page_url.strip()) if page_url and page_url.strip() else ""
+    homes = [explicit] if explicit else favicon_homepage_urls(domain)
+    for home in homes:
         if _client_get(
             client,
             home,
@@ -204,7 +213,7 @@ def resolve_favicon_network(
     page_url: str | None = None,
 ) -> tuple[bytes, str] | None:
     client = get_icon_httpx_client()
-    _warm_homepage_cookies(client, host, timeout_s=timeout_s)
+    _warm_homepage_cookies(client, host, timeout_s=timeout_s, page_url=page_url)
 
     for batch in discover_icon_url_batches(host, timeout_s=timeout_s, page_url=page_url):
         if not batch:

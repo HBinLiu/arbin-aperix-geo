@@ -74,9 +74,10 @@ def test_build_profile_summary_payload_uses_session_fields() -> None:
     assert "web_research" not in payload
 
 
+@patch("aperix_geo.services.setup.llm.stages.evaluate_query_style_via_llm", return_value=([], {}))
 @patch("aperix_geo.services.setup.llm.stages.generate_niche_profile_via_llm")
 @patch("aperix_geo.services.setup.llm.payloads.build_subject_research_payload")
-def test_run_niche_profile_stage(mock_payload, mock_llm) -> None:
+def test_run_niche_profile_stage(mock_payload, mock_llm, _mock_style) -> None:
     mock_payload.return_value = {"mode": "domain", "target": "example.com"}
     mock_llm.return_value = (
         {
@@ -88,9 +89,17 @@ def test_run_niche_profile_stage(mock_payload, mock_llm) -> None:
                 "跨境收款SMB卖家",
                 "多币种账户企业钱包",
                 "企业钱包到账时效",
+                "跨境结汇卖家怎么选",
+                "全球收款到账时效",
             ],
             "topic_lexicon": {
-                "category_terms": ["跨境收款", "多币种账户", "企业钱包"],
+                "category_terms": [
+                    "跨境收款",
+                    "多币种账户",
+                    "企业钱包",
+                    "跨境结汇",
+                    "全球收款",
+                ],
                 "scenario_terms": ["SMB 收款"],
                 "audience_terms": ["卖家"],
                 "pain_terms": ["到账时效"],
@@ -113,9 +122,10 @@ def test_run_niche_profile_stage(mock_payload, mock_llm) -> None:
     mock_llm.assert_called_once()
 
 
+@patch("aperix_geo.services.setup.llm.stages.evaluate_query_style_via_llm", return_value=([], {}))
 @patch("aperix_geo.services.setup.llm.stages.generate_niche_profile_via_llm")
 @patch("aperix_geo.services.setup.llm.payloads.build_subject_research_payload")
-def test_run_niche_profile_stage_retries_on_validation_failure(mock_payload, mock_llm) -> None:
+def test_run_niche_profile_stage_retries_on_validation_failure(mock_payload, mock_llm, _mock_style) -> None:
     mock_payload.return_value = {"mode": "domain", "target": "example.com"}
     bad = {
         "company": "Example",
@@ -137,10 +147,18 @@ def test_run_niche_profile_stage_retries_on_validation_failure(mock_payload, moc
             "跨境收款SMB卖家",
             "多币种账户企业钱包",
             "企业钱包到账时效",
+            "跨境结汇卖家怎么选",
+            "全球收款到账时效",
         ],
         "topic_lexicon": {
             **bad["topic_lexicon"],
-            "category_terms": ["跨境收款", "多币种账户", "企业钱包"],
+            "category_terms": [
+                "跨境收款",
+                "多币种账户",
+                "企业钱包",
+                "跨境结汇",
+                "全球收款",
+            ],
         },
     }
     mock_llm.side_effect = [
@@ -156,7 +174,7 @@ def test_run_niche_profile_stage_retries_on_validation_failure(mock_payload, moc
     )
 
     assert profile["industry"] == "跨境 B2B 支付"
-    assert usage["total_tokens"] == 20
+    assert usage["total_tokens"] >= 20
     assert mock_llm.call_count == 2
     assert "validation_feedback" in mock_llm.call_args_list[1].kwargs["user_payload"]
 

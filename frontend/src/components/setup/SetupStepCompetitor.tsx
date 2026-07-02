@@ -13,7 +13,7 @@ import {
   newCompetitorRow,
   type SubjectIdentity,
 } from "@/lib/setup";
-import { registrableDomain, websiteUrlFromInput } from "@/lib/domain";
+import { coalesceWebsiteUrl, registrableDomain } from "@/lib/domain";
 import { toast } from "@/lib/toast";
 import type { CompetitorRow, SubjectMode } from "@/types";
 import { cn } from "@/lib/utils";
@@ -125,7 +125,7 @@ function CompetitorTable({
   const normalizeDomain = (raw: string, onPatch: (main: string, websiteUrl: string) => void) => {
     const main = registrableDomain(raw);
     if (!main) return;
-    onPatch(main, websiteUrlFromInput(raw) || raw.trim());
+    onPatch(main, coalesceWebsiteUrl(raw, main));
   };
 
   return (
@@ -294,7 +294,7 @@ export function SetupStepCompetitor({ mode, subject, rows, onChange }: SetupStep
         newCompetitorRow({
           name,
           domain: main,
-          websiteUrl: websiteUrlFromInput(raw) || main,
+          websiteUrl: coalesceWebsiteUrl(raw, main),
           selected: true,
         }),
       ]);
@@ -327,7 +327,7 @@ export function SetupStepCompetitor({ mode, subject, rows, onChange }: SetupStep
           domain: main && main.length >= 3 ? main : "",
           websiteUrl:
             main && main.length >= 3
-              ? websiteUrlFromInput(raw) || main
+              ? coalesceWebsiteUrl(raw, main)
               : "",
           selected: true,
         }),

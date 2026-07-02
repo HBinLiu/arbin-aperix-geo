@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 from aperix_geo.services.favicon._domain import favicon_homepage_urls
 from aperix_geo.services.favicon._parse import (
@@ -11,6 +11,7 @@ from aperix_geo.services.favicon._parse import (
     page_icon_candidates_from_html,
     subdomain_favicon_candidates_from_html,
 )
+from aperix_geo.utils.net import explicit_http_url
 
 _MAX_PAGE_HTML_CHARS = 400_000
 _HEADLESS_MIN_TIMEOUT_S = 8.0
@@ -25,6 +26,15 @@ _STANDARD_ICON_PATHS = (
 )
 _CDN_HOST_PREFIXES = ("static", "cdn", "img", "assets")
 _QUICK_FAVICON_PATHS = ("/favicon.ico", "/favicon.png", "/apple-touch-icon.png")
+
+
+def standard_path_urls_for_page(page_url: str) -> list[str]:
+    """给定完整页面 URL，仅在同 origin 上尝试常见 favicon 路径。"""
+    parsed = urlparse(page_url.strip())
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return []
+    base = f"{parsed.scheme}://{parsed.netloc}/"
+    return dedupe_urls(urljoin(base, path) for path in _QUICK_FAVICON_PATHS)
 
 
 def _urls_for_homes(domain: str, paths: tuple[str, ...]) -> list[str]:
@@ -155,18 +165,19 @@ def discover_icon_url_batches(
 ) -> list[list[str]]:
     """Return icon URL batches in fetch priority order."""
     wait_s = max(timeout_s, _HEADLESS_MIN_TIMEOUT_S)
-    src = _HomepageHtmlSources(domain, timeout_s=wait_s)
-    batches: list[list[str]] = []
-    if page_url and page_url.strip():
-        batches.append(icons_from_page_url(page_url.strip(), timeout_s=wait_s))
-    batches.extend(
-        [
-            src.page_icons_from_fetch(),
-            src.page_icons_from_crawl4ai(),
-            main_standard_path_urls(domain),
-            src.subdomain_icons_from_fetch(),
-            src.subdomain_icons_from_crawl4ai(),
-            cdn_prefix_standard_path_urls(domain),
+    explicit = explicit_http_url(page_url.strip()) if page_url and page_url.strip() else ""
+    if explicit:
+        return [
+            icons_from_page_url(explicit, timeout_s=wait_s),
+            standard_path_urls_for_page(explicit),
         ]
-    )
-    return batches
+
+    src = _HomepageHtmlSources(domain, timeout_s=wait_s)
+    return [
+        src.page_icons_from_fetch(),
+        src.page_icons_from_crawl4ai(),
+        main_standard_path_urls(domain),
+        src.subdomain_icons_from_fetch(),
+        src.subdomain_icons_from_crawl4ai(),
+        cdn_prefix_standard_path_urls(domain),
+    ]

@@ -5,7 +5,7 @@ import { getDomain } from "tldts";
  *
  * - `domain`（主体/竞品字段）→ eTLD+1，用 `registrableDomain`
  * - `website_url`（存储）→ 用户输入；有 scheme 则保留；裸 host/path 不补 scheme
- * - 抓取 / favicon API → 后端 `parse_url` 补 scheme（裸域默认 http://）
+ * - 抓取 / favicon API → `coalesceWebsiteUrl` / `externalHref`（须完整 http(s)）
  * - 可点击外链 → `externalHref`（裸 host 补 http://）
  */
 
@@ -53,6 +53,14 @@ export function websiteUrlFromInput(raw: string): string {
   if (!s) return "";
   if (/^https?:\/\//i.test(s)) return s;
   return s.replace(/^\/+/, "");
+}
+
+/** 抓取/API 用：有 scheme 直接用；否则裸 host 补 http://（与后端 explicit_http_url + fallback 对齐）。 */
+export function coalesceWebsiteUrl(rawInput: string, domain: string): string {
+  const trimmed = rawInput.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  const host = domain.trim() || registrableDomain(trimmed);
+  return host ? externalHref(host) : externalHref(trimmed);
 }
 
 /**

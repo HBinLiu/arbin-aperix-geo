@@ -3,7 +3,7 @@ import {
   DISCOVER_PROFILE_TIMEOUT_MS,
   GENERATE_PROMPTS_TIMEOUT_MS,
 } from "@/api/client";
-import { websiteUrlFromInput } from "@/lib/domain";
+import { coalesceWebsiteUrl, registrableDomain } from "@/lib/domain";
 import {
   buildFinalizePayload,
   promptRowsFromGenerated,
@@ -44,7 +44,10 @@ export async function saveSetupMaterials(input: {
   await api.put("/subjects/setup/materials", {
     session_id: input.sessionId.trim(),
     brand_intro: input.brandIntro,
-    website_url: websiteUrlFromInput(input.brandWebsiteUrl ?? ""),
+    website_url: coalesceWebsiteUrl(
+      input.brandWebsiteUrl ?? "",
+      registrableDomain(input.brandWebsiteUrl ?? ""),
+    ),
   });
 }
 

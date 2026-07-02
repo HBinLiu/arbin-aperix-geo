@@ -49,7 +49,7 @@ def test_parse_analysis_passes_absa_open_brands_to_citation() -> None:
         patch("aperix_geo.services.sampling.parse.context.get_settings", return_value=mock_settings),
         patch(
             "aperix_geo.services.sampling.parse.analysis.analyze_response_absa",
-            return_value=absa,
+            return_value=(absa, True),
         ) as analyze,
         patch(
             "aperix_geo.services.sampling.parse.analysis.fetch_citation_pages_for_urls",

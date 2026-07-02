@@ -12,9 +12,11 @@ from aperix_geo.services.competitor.summary import (
     generate_profile_summary_via_llm,
     generate_topic_plan_via_llm,
     merge_competitors_into_summary,
+    merge_llm_usage,
 )
 from aperix_geo.services.competitor.topic_types import TopicCluster
 from aperix_geo.services.competitor.types import NicheProfile
+from aperix_geo.services.setup.keyword_plan import build_keyword_plan
 from aperix_geo.services.setup.llm.payloads import (
     build_profile_summary_payload,
     build_subject_research_payload,
@@ -25,11 +27,51 @@ from aperix_geo.services.setup.profile_qa import (
     sanitize_profile_lexicon,
     validate_profile_lexicon,
 )
+from aperix_geo.services.setup.query_style_llm import (
+    evaluate_query_style_via_llm,
+    style_groups_for_profile,
+    style_groups_for_topics,
+)
 from aperix_geo.services.setup.topic_bind import bind_topic_clusters_to_cores
 from aperix_geo.services.setup.topic_parse import parse_topic_plan_response
 from aperix_geo.services.setup.topic_qa import collect_subject_names, validate_topic_clusters
 
 logger = logging.getLogger(__name__)
+
+_MAX_STAGE_ATTEMPTS = 2
+_LOG_FEEDBACK_CHARS = 96
+
+
+def _log_style_feedback(
+    *,
+    stage: str,
+    entity_key: str,
+    feedback: list[str],
+    attempt: int,
+    final_pass: bool,
+) -> None:
+    raw = feedback[0] if feedback else ""
+    preview = (
+        raw
+        if len(raw) <= _LOG_FEEDBACK_CHARS
+        else raw[: _LOG_FEEDBACK_CHARS - 1].rstrip() + "…"
+    )
+    if final_pass:
+        logger.info(
+            "Setup %s 问句风格软评未完全达标仍放行 entity=%r: %s",
+            stage,
+            entity_key,
+            preview,
+        )
+        return
+    logger.info(
+        "Setup %s 问句风格软评需重试 entity=%r attempt=%d (%d 条): %s",
+        stage,
+        entity_key,
+        attempt + 1,
+        len(feedback),
+        preview,
+    )
 
 
 def run_niche_profile_stage(
@@ -58,21 +100,20 @@ def run_niche_profile_stage(
     usage: dict[str, Any] = {}
     last_error: Exception | None = None
     validation_feedback: list[str] = []
-    for attempt in range(2):
+    for attempt in range(_MAX_STAGE_ATTEMPTS):
+        user_payload = dict(research_payload)
+        if validation_feedback:
+            user_payload["validation_feedback"] = validation_feedback
         try:
-            user_payload = dict(research_payload)
-            if validation_feedback:
-                user_payload["validation_feedback"] = validation_feedback
             data, call_usage = generate_niche_profile_via_llm(
                 entity_key=target,
                 user_payload=user_payload,
             )
-            usage = call_usage
+            usage = merge_llm_usage(usage, call_usage)
             profile = normalize_niche_profile(data, entity=target)
             profile = repair_profile_search_queries(profile)
             profile = sanitize_profile_lexicon(profile)
             validate_profile_lexicon(profile)
-            return profile, research_payload, usage
         except ValueError as exc:
             last_error = exc
             validation_feedback = [str(exc)]
@@ -82,6 +123,36 @@ def run_niche_profile_stage(
                 attempt + 1,
                 exc,
             )
+            continue
+
+        plan = build_keyword_plan(profile)
+        style_feedback, style_usage = evaluate_query_style_via_llm(
+            stage="profile",
+            groups=style_groups_for_profile(plan=plan),
+            long_tail_examples=plan["long_tail_examples"],
+            entity_key=target,
+        )
+        usage = merge_llm_usage(usage, style_usage)
+        if style_feedback:
+            if attempt < _MAX_STAGE_ATTEMPTS - 1:
+                validation_feedback = style_feedback
+                last_error = ValueError(style_feedback[0])
+                _log_style_feedback(
+                    stage="微观利基",
+                    entity_key=target,
+                    feedback=style_feedback,
+                    attempt=attempt,
+                    final_pass=False,
+                )
+                continue
+            _log_style_feedback(
+                stage="微观利基",
+                entity_key=target,
+                feedback=style_feedback,
+                attempt=attempt,
+                final_pass=True,
+            )
+        return profile, research_payload, usage
 
     raise ValueError(f"微观利基画像失败：{last_error}") from last_error
 
@@ -100,6 +171,7 @@ def run_topic_generation_stage(
         entity_key=entity_key,
         competitors=competitors,
     )
+    plan = build_keyword_plan(profile)
 
     usage: dict[str, Any] = {}
     last_error: Exception | None = None
@@ -110,7 +182,7 @@ def run_topic_generation_stage(
         profile=profile,
         competitors=competitors,
     )
-    for attempt in range(2):
+    for attempt in range(_MAX_STAGE_ATTEMPTS):
         try:
             if validation_feedback:
                 payload = build_topic_plan_payload(
@@ -124,7 +196,7 @@ def run_topic_generation_stage(
                 entity_key=entity_key,
                 user_payload=payload,
             )
-            usage = call_usage
+            usage = merge_llm_usage(usage, call_usage)
             clusters = parse_topic_plan_response(data)
             clusters = bind_topic_clusters_to_cores(clusters, profile=profile)
             validate_topic_clusters(
@@ -132,7 +204,6 @@ def run_topic_generation_stage(
                 subject_names=subject_names,
                 profile=profile,
             )
-            return clusters, usage
         except ValueError as exc:
             last_error = exc
             validation_feedback = [str(exc)]
@@ -142,6 +213,35 @@ def run_topic_generation_stage(
                 attempt + 1,
                 exc,
             )
+            continue
+
+        style_feedback, style_usage = evaluate_query_style_via_llm(
+            stage="topics",
+            groups=style_groups_for_topics(clusters),
+            long_tail_examples=plan["long_tail_examples"],
+            entity_key=entity_key,
+        )
+        usage = merge_llm_usage(usage, style_usage)
+        if style_feedback:
+            if attempt < _MAX_STAGE_ATTEMPTS - 1:
+                validation_feedback = style_feedback
+                last_error = ValueError(style_feedback[0])
+                _log_style_feedback(
+                    stage="主题种子",
+                    entity_key=entity_key,
+                    feedback=style_feedback,
+                    attempt=attempt,
+                    final_pass=False,
+                )
+                continue
+            _log_style_feedback(
+                stage="主题种子",
+                entity_key=entity_key,
+                feedback=style_feedback,
+                attempt=attempt,
+                final_pass=True,
+            )
+        return clusters, usage
 
     raise ValueError(f"主题规划失败：{last_error}") from last_error
 

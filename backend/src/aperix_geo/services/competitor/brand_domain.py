@@ -9,7 +9,7 @@ from aperix_geo.services.brand.verify import accept_discovered_domain
 from aperix_geo.services.competitor.head_fetch import fetch_site_heads
 from aperix_geo.services.competitor.types import DiscoveredCompetitor, SiteHead
 from aperix_geo.services.subject.domain_fields import prepare_domain_and_website_url
-from aperix_geo.utils.net import registrable_from
+from aperix_geo.utils.net import coalesce_explicit_http_url, explicit_http_url, registrable_from
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ def _resolve_brand_domain(
 ) -> str:
     """豆包候选域先过 accept_discovered_domain；失败再 SearXNG。"""
     normalized = registrable_from(candidate_domain or candidate_url)
-    preferred_url = candidate_url.strip()
+    preferred_url = explicit_http_url(candidate_url)
     if preferred_url and registrable_from(preferred_url) != normalized:
         preferred_url = ""
     if normalized:
@@ -43,7 +43,6 @@ def _resolve_brand_domain(
 def _row_from_domain(
     item: DiscoveredCompetitor,
     *,
-    brand: str,
     domain: str,
     heads: dict[str, SiteHead],
 ) -> tuple[DiscoveredCompetitor, SiteHead | None]:
@@ -54,16 +53,15 @@ def _row_from_domain(
         return row, None  # type: ignore[return-value]
 
     head = heads.get(registrable_from(domain))
-    doubao_url = str(item.get("website_url") or "").strip()
-    preferred_url = ""
-    if head and head.resolved_url:
-        preferred_url = head.resolved_url
-    elif doubao_url and registrable_from(doubao_url) == registrable_from(domain):
-        preferred_url = doubao_url
+    doubao_url = coalesce_explicit_http_url(str(item.get("website_url") or ""))
+    fetch_url = coalesce_explicit_http_url(
+        head.resolved_url if head and head.reachable else "",
+        doubao_url,
+    )
 
     verified_domain, website_url = prepare_domain_and_website_url(
         domain,
-        preferred_url,
+        fetch_url,
         probe=False,
     )
     if not verified_domain:
@@ -71,7 +69,7 @@ def _row_from_domain(
 
     row = dict(item)
     row["domain"] = verified_domain
-    row["website_url"] = website_url or doubao_url or verified_domain
+    row["website_url"] = coalesce_explicit_http_url(website_url, fetch_url, doubao_url)
     return row, head  # type: ignore[return-value]
 
 
@@ -108,8 +106,9 @@ def reconcile_brand_competitor_domains(
             )
         )
         reg = registrable_from(candidate_domain or candidate_url)
-        if reg and candidate_url and registrable_from(candidate_url) == reg:
-            preferred_urls[reg] = candidate_url
+        fetch_url = coalesce_explicit_http_url(candidate_url)
+        if reg and fetch_url and registrable_from(fetch_url) == reg:
+            preferred_urls[reg] = fetch_url
 
     unique_domains = sorted({registrable_from(d) for d in resolved_domains if d})
     heads = (
@@ -125,7 +124,7 @@ def reconcile_brand_competitor_domains(
         if not brand:
             out.append(item)
             continue
-        row, head = _row_from_domain(item, brand=brand, domain=domain, heads=heads)
+        row, head = _row_from_domain(item, domain=domain, heads=heads)
         out.append(row)
         key = registrable_from(str(row.get("domain") or ""))
         if key and head is not None:

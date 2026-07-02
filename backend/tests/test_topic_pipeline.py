@@ -9,6 +9,7 @@ from aperix_geo.services.competitor.profile import (
     search_queries_list,
     topic_lexicon_dict,
 )
+from aperix_geo.services.competitor.topic_types import MIN_SEED_QUERIES_PER_TOPIC
 from aperix_geo.services.setup.topic_parse import parse_topic_plan_response
 from aperix_geo.services.setup.topic_bind import bind_topic_clusters_to_cores
 from aperix_geo.services.setup.topic_qa import collect_subject_names, validate_topic_clusters
@@ -36,25 +37,45 @@ def _minimal_profile(*, entity: str = "test.com") -> dict:
                 "audience_terms": ["测试客群"],
                 "pain_terms": ["测试痛点"],
             },
-            "search_queries": ["测试核心词A测试场景测试客群"],
+            "search_queries": ["测试核心词A测试场景测试客群怎么做"],
         },
         entity=entity,
     )
 
 
 def _seed(text: str, *, dimension: str = "scenario_fit") -> dict[str, str]:
+    body = text.strip()
+    if not body.endswith(("吗", "呢", "选", "看", "做")) and "怎么" not in body and "如何" not in body:
+        body = f"{body}怎么做"
     return {
-        "text": text,
+        "text": body,
         "intent": "commercial",
         "funnel": "mofu",
         "decision": dimension,
     }
 
 
+_EXTRA_DECISIONS = (
+    "trust_risk",
+    "solution_comparison",
+    "price_value",
+    "category_awareness",
+    "scenario_fit",
+)
+_EXTRA_SUFFIXES = ("怎么看", "注意什么", "有哪些", "怎么选", "差异")
+
+
 def _cluster(name: str, seeds: list[dict[str, str]]) -> dict:
+    out = list(seeds)
+    while len(out) < MIN_SEED_QUERIES_PER_TOPIC:
+        src = out[(len(out) - len(seeds)) % len(seeds)] if seeds else _seed(name)
+        text = str(src.get("text") or name).strip()
+        suffix = _EXTRA_SUFFIXES[(len(out) - len(seeds)) % len(_EXTRA_SUFFIXES)]
+        decision = _EXTRA_DECISIONS[len(out) % len(_EXTRA_DECISIONS)]
+        out.append(_seed(f"{text}{suffix}", dimension=decision))
     return {
         "name": name,
-        "seed_queries": seeds,
+        "seed_queries": out,
     }
 
 
@@ -70,7 +91,7 @@ def test_normalize_profile_splits_lexicon_and_search_queries() -> None:
                 "audience_terms": ["企业采购"],
                 "pain_terms": ["茶叶保存"],
             },
-            "search_queries": ["高端绿茶商务送礼", "明前绿茶礼盒采购", "礼盒茶企业采购保存"],
+            "search_queries": ["高端绿茶商务送礼怎么选", "明前绿茶礼盒采购", "礼盒茶企业采购保存"],
         },
         entity="竹叶青",
     )
@@ -82,14 +103,14 @@ def test_parse_topic_plan_response() -> None:
     clusters = parse_topic_plan_response(
         {
             "topic_clusters": [
-                _cluster(
-                    "商务送礼选茶",
-                    [
+                {
+                    "name": "商务送礼选茶",
+                    "seed_queries": [
                         _seed("商务场合送什么茶叶合适"),
                         _seed("商务送礼茶叶怎么选"),
                         _seed("企业送礼选什么茶"),
                     ],
-                )
+                }
             ]
         }
     )
@@ -109,7 +130,7 @@ def test_validate_topic_clusters_accepts_five_topics() -> None:
                 "audience_terms": ["企业采购"],
                 "pain_terms": ["茶叶保存"],
             },
-            "search_queries": ["高端绿茶商务送礼", "明前绿茶礼盒采购", "礼盒茶企业采购保存"],
+            "search_queries": ["高端绿茶商务送礼怎么选", "明前绿茶礼盒采购", "礼盒茶企业采购保存"],
         },
         entity="竹叶青",
     )
@@ -186,7 +207,7 @@ def test_validate_rejects_subject_name_in_topic() -> None:
                 "audience_terms": ["企业采购"],
                 "pain_terms": ["茶叶保存"],
             },
-            "search_queries": ["高端绿茶商务送礼", "明前绿茶礼盒采购", "礼盒茶企业采购保存"],
+            "search_queries": ["高端绿茶商务送礼怎么选", "明前绿茶礼盒采购", "礼盒茶企业采购保存"],
         },
         entity="竹叶青",
     )
@@ -287,7 +308,7 @@ def _bamatea_profile() -> dict:
                 "audience_terms": ["企业采购", "高端客群"],
                 "pain_terms": ["茶叶保存", "礼盒选型"],
             },
-            "search_queries": ["高端铁观音商务送礼", "岩茶礼盒企业采购", "高端红茶礼盒选型采购"],
+            "search_queries": ["高端铁观音商务送礼怎么选", "岩茶礼盒企业采购", "高端红茶礼盒选型采购"],
         },
         entity="八马茶业",
     )
@@ -339,7 +360,7 @@ def _geo_saas_profile() -> dict:
                 "pain_terms": ["AI引用率", "品牌声量"],
             },
             "search_queries": [
-                "AI可见度监测市场团队多平台工具",
+                "AI可见度监测市场团队多平台工具怎么用",
                 "品牌搜索可见度SEO团队监测方法",
                 "品牌引用分析AI引用率怎么算",
                 "多平台GEO监测市场团队配置",
@@ -396,9 +417,13 @@ def test_rejects_topic_without_full_core_keyword() -> None:
                         _seed("多平台GEO监测主流AI平台监测怎么做"),
                         _seed("多平台GEO监测多平台配置方法"),
                         _seed("多平台GEO监测市场团队品牌曝光统计"),
+                        _seed("多平台GEO监测AI引用率差异"),
+                        _seed("多平台GEO监测主流平台配置"),
                         _seed("GEO品牌监测竞品对标分析差异"),
                         _seed("GEO品牌监测市场团队曝光统计"),
                         _seed("GEO品牌监测AI引用率怎么看"),
+                        _seed("GEO品牌监测主流平台差异"),
+                        _seed("GEO品牌监测配置方法对比"),
                     ],
                 ),
             ]
@@ -420,9 +445,9 @@ def test_sanitize_profile_demotes_modifier_only_category_terms() -> None:
                 "pain_terms": ["AI引用率"],
             },
             "search_queries": [
-                "AI可见度监测市场团队工具",
+                "AI可见度监测市场团队工具怎么选",
                 "品牌搜索可见度多平台监测",
-                "品牌引用分析AI引用率评估",
+                "品牌引用分析AI引用率怎么算",
             ],
         },
         entity="aibase.com",
@@ -454,11 +479,11 @@ def test_bind_topic_clusters_replaces_generic_and_duplicate_names() -> None:
                 ),
                 _cluster(
                     "品牌提及率分析",
-                    [_seed("多平台GEO监测多平台监测主流AI平台怎么做"), _seed("多平台GEO监测多平台监测配置方法"), _seed("多平台GEO监测市场团队品牌曝光统计")],
+                    [_seed("多平台GEO监测多平台监测主流AI平台怎么做"), _seed("多平台GEO监测多平台监测配置方法"), _seed("多平台GEO监测市场团队品牌曝光统计"), _seed("多平台GEO监测AI引用率差异"), _seed("多平台GEO监测主流平台配置")],
                 ),
                 _cluster(
                     "竞品对标",
-                    [_seed("竞品对标分析多平台监测表现差异"), _seed("竞品对标分析市场团队AI可见度怎么比"), _seed("竞品对标分析AI引用率差异怎么看"), _seed("GEO品牌监测竞品对标分析差异"), _seed("GEO品牌监测市场团队曝光统计"), _seed("GEO品牌监测AI引用率怎么看")],
+                    [_seed("竞品对标分析多平台监测表现差异"), _seed("竞品对标分析市场团队AI可见度怎么比"), _seed("竞品对标分析AI引用率差异怎么看"), _seed("GEO品牌监测竞品对标分析差异"), _seed("GEO品牌监测市场团队曝光统计"), _seed("GEO品牌监测AI引用率怎么看"), _seed("GEO品牌监测主流平台差异"), _seed("GEO品牌监测配置方法对比")],
                 ),
             ]
         }
@@ -488,9 +513,9 @@ def test_validate_rejects_near_duplicate_topic_names() -> None:
                 "pain_terms": ["AI引用率"],
             },
             "search_queries": [
-                "品牌提及率市场团队多平台监测",
-                "品牌搜索可见度多平台监测",
-                "品牌引用分析AI引用率评估",
+                "品牌提及率市场团队多平台监测怎么做",
+                "品牌搜索可见度多平台监测怎么看",
+                "品牌引用分析AI引用率怎么算",
             ],
         },
         entity="aibase.com",
@@ -528,9 +553,9 @@ def test_validate_default_tolerates_near_duplicate_topic_names() -> None:
                 "pain_terms": ["AI引用率"],
             },
             "search_queries": [
-                "品牌提及率市场团队多平台监测",
-                "品牌搜索可见度多平台监测",
-                "品牌引用分析AI引用率评估",
+                "品牌提及率市场团队多平台监测怎么做",
+                "品牌搜索可见度多平台监测怎么看",
+                "品牌引用分析AI引用率怎么算",
             ],
         },
         entity="aibase.com",

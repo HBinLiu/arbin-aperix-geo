@@ -53,7 +53,9 @@ def test_sentiment_score_helpers() -> None:
     assert sentiment_label_from_score(50.0) == "neutral"
     assert sentiment_label_from_score(45.0) == "neutral"
     assert sentiment_label_from_score(55.0) == "neutral"
-    assert sentiment_label_from_score(55.1) == "positive"
+    assert sentiment_label_from_score(55.1) == "neutral"
+    assert sentiment_label_from_score(70.0) == "neutral"
+    assert sentiment_label_from_score(70.1) == "positive"
     assert sentiment_label_from_score(44.9) == "negative"
     assert sentiment_label_from_score(25.0) == "negative"
 

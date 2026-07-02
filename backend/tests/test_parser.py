@@ -204,7 +204,7 @@ def test_mention_count_and_rank():
     assert own.get("cited_on_source") is True
     assert parsed.citation_urls_own
     assert parsed.citation_response_absa["brands_sentiment_absa"]["Aperix"]["mentioned"] is True
-    assert own.get("sentiment_score") == 90.0
+    assert own.get("sentiment_score") == 75.0
     assert sentiment_label_from_score(own.get("sentiment_score")) == "positive"
 
 

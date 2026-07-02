@@ -8,7 +8,13 @@ from typing import Any
 from aperix_geo.services.competitor.head_fetch import fetch_site_heads
 from aperix_geo.services.competitor.types import DiscoveredCompetitor, SiteHead
 from aperix_geo.services.subject.domain_fields import prepare_domain_and_website_url
-from aperix_geo.utils.net import ensure_brand, parse_url, registrable_from, title_alias_candidates
+from aperix_geo.utils.net import (
+    coalesce_explicit_http_url,
+    ensure_brand,
+    explicit_http_url,
+    registrable_from,
+    title_alias_candidates,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +104,8 @@ def enrich_open_set_brand_aliases(
     if not reg:
         return normalize_competitor_aliases(existing, brand=brand)
     if head is None:
-        preferred = {reg: website_url.strip()} if website_url.strip() else {}
+        fetch_url = explicit_http_url(website_url.strip())
+        preferred = {reg: fetch_url} if fetch_url else {}
         head = fetch_site_heads([reg], preferred_urls=preferred).get(reg)
     return enrich_entity_aliases(
         brand=brand,
@@ -275,14 +282,16 @@ def enrich_confirmed_competitor_dict(
         return out
 
     seed = _confirmed_seed_item(item, cache_seed=cache_seed)
-    user_website_url = parse_url(str(seed.get("website_url") or ""))
+    fetch_url = coalesce_explicit_http_url(
+        str(seed.get("website_url") or ""),
+        str((cache_seed or {}).get("website_url") or ""),
+        head.resolved_url if head else "",
+    )
     domain, website_url = prepare_domain_and_website_url(
         domain_raw,
-        user_website_url,
-        probe=not bool(user_website_url),
+        fetch_url,
+        probe=False,
     )
-    if not user_website_url and head is not None and head.resolved_url:
-        website_url = head.resolved_url.strip()
     seed["domain"] = domain
     seed["website_url"] = website_url
 
@@ -340,13 +349,12 @@ def enrich_confirmed_competitors(
         if not domain:
             continue
         domain_hosts.append(domain)
-        url = str(item.get("website_url") or "").strip()
-        if url:
-            preferred_urls[domain] = url
-        elif cache := cache_by_domain.get(domain):
-            cached_url = str(cache.get("website_url") or "").strip()
-            if cached_url:
-                preferred_urls[domain] = cached_url
+        fetch_url = coalesce_explicit_http_url(
+            str(item.get("website_url") or ""),
+            str((cache_by_domain.get(domain) or {}).get("website_url") or ""),
+        )
+        if fetch_url:
+            preferred_urls[domain] = fetch_url
 
     for domain in extra_head_domains or []:
         reg = registrable_from(domain)

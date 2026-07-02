@@ -36,7 +36,7 @@ def test_prefers_doubao_url_when_verified(mock_accept, mock_search, mock_fetch) 
     mock_accept.assert_called_once_with(
         "dayitea.com",
         "大益茶业",
-        preferred_url="https://www.dayitea.com/",
+        preferred_url="https://www.dayitea.com",
     )
     mock_search.assert_not_called()
 

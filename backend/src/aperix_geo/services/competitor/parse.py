@@ -6,9 +6,8 @@ from typing import Any
 
 from aperix_geo.services.competitor.enrich import normalize_competitor_aliases
 from aperix_geo.services.competitor.types import DiscoveredCompetitor, SubjectType
-from aperix_geo.services.subject.domain_fields import prepare_domain_and_website_url
 from aperix_geo.utils.json import extract_json_object
-from aperix_geo.utils.net import ensure_brand, registrable_from
+from aperix_geo.utils.net import ensure_brand, explicit_http_url, registrable_from
 
 
 def _brand_only_item(row: dict[str, Any], *, brand: str) -> DiscoveredCompetitor:
@@ -20,15 +19,18 @@ def _brand_only_item(row: dict[str, Any], *, brand: str) -> DiscoveredCompetitor
 
 
 def _url_from_row(row: dict[str, Any]) -> str:
-    return str(row.get("website_url") or row.get("url") or row.get("domain") or "").strip()
+    return str(row.get("website_url") or row.get("url") or "").strip()
 
 
 def _apply_parsed_url(item: DiscoveredCompetitor, raw_url: str) -> bool:
-    domain, website_url = prepare_domain_and_website_url("", raw_url, probe=False)
-    if not domain or not website_url:
+    validated = explicit_http_url(raw_url)
+    if not validated:
+        return False
+    domain = registrable_from(validated)
+    if not domain:
         return False
     item["domain"] = domain
-    item["website_url"] = website_url
+    item["website_url"] = validated
     return True
 
 

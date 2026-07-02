@@ -4,27 +4,19 @@ from __future__ import annotations
 
 from urllib.parse import urlparse
 
-from aperix_geo.schemas.url_fields import validate_optional_http_url
 from aperix_geo.utils.net import (
     append_http_homepage_variants,
+    explicit_http_url,
     favicon_from,
     homepage_url_candidates,
     is_valid_hostname,
-    parse_url,
     registrable_from,
 )
 
 
 def resolve_favicon_request_url(raw: str) -> tuple[str, str] | None:
     """将 API ``url`` 参数解析为 (favicon_cache_key, fetchable_page_url)。"""
-    page_url = parse_url(raw)
-    if not page_url:
-        try:
-            stored = validate_optional_http_url(raw)
-        except ValueError:
-            stored = ""
-        if stored:
-            page_url = parse_url(stored)
+    page_url = explicit_http_url(raw)
     if not page_url:
         return None
     domain = favicon_from(page_url)

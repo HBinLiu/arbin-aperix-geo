@@ -12,7 +12,7 @@ import {
 } from "@/api/setup";
 import { maxCompetitorsPerSubject } from "@/lib/billing/limits";
 import { useTenantSubscription } from "@/hooks/useTenantSubscription";
-import { hostnameFromWebsiteInput, websiteUrlFromInput } from "@/lib/domain";
+import { coalesceWebsiteUrl, hostnameFromWebsiteInput, registrableDomain } from "@/lib/domain";
 import {
   clearSetupCache,
   defaultSetupCache,
@@ -260,7 +260,10 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
       await saveSetupMaterials({
         sessionId,
         brandIntro,
-        brandWebsiteUrl: websiteUrlFromInput(brandWebsiteUrl),
+        brandWebsiteUrl: coalesceWebsiteUrl(
+          brandWebsiteUrl,
+          registrableDomain(brandWebsiteUrl),
+        ),
       });
       const result = await discoverSetup({
         mode: "brand",

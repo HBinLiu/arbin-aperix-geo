@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input, InputGroup, inputControlClass } from "@/components/ui/input";
 import type { CompetitorItem } from "@/types";
-import { hostnameFromWebsiteInput, registrableDomain, websiteUrlFromInput } from "@/lib/domain";
+import { coalesceWebsiteUrl, hostnameFromWebsiteInput, registrableDomain } from "@/lib/domain";
 import { competitorDuplicateMessage, findCompetitorDuplicate, type SubjectIdentity } from "@/lib/setup";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
@@ -189,7 +189,7 @@ export function EditCompetitorDialog({
       const website_url =
         domain === currentDomain
           ? competitor.website_url
-          : websiteUrlFromInput(raw) || domain;
+          : coalesceWebsiteUrl(raw, domain);
 
       onSubmit({
         domain,

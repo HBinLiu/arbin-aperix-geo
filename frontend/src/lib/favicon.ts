@@ -1,8 +1,8 @@
 import {
+  coalesceWebsiteUrl,
+  externalHref,
   faviconDomainKey,
-  hostnameFromWebsiteInput,
   registrableDomain,
-  websiteUrlFromInput,
 } from "@/lib/domain";
 
 export type FaviconInput = {
@@ -12,7 +12,10 @@ export type FaviconInput = {
 
 /** 将用户输入或站点 URL 解析为 favicon 请求参数（后端按 domain 缓存，按 url 抓取）。 */
 export function resolveFaviconInput(raw: string): FaviconInput | null {
-  const pageUrl = websiteUrlFromInput(raw);
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const domain = registrableDomain(trimmed);
+  const pageUrl = coalesceWebsiteUrl(trimmed, domain);
   if (!pageUrl) return null;
 
   const host = faviconDomainKey(pageUrl);
@@ -20,9 +23,9 @@ export function resolveFaviconInput(raw: string): FaviconInput | null {
   return { host, pageUrl };
 }
 
-/** 仅有 host/domain 时构造页面 URL（保留原协议；裸 host 不补 https）。 */
+/** 仅有 host/domain 时构造页面 URL（裸 host 补 http://）。 */
 export function faviconUrlFromHost(host: string): string {
-  return websiteUrlFromInput(host);
+  return externalHref(host.trim());
 }
 
 export type FaviconClientStatus = "ok" | "miss";
@@ -70,7 +73,7 @@ export function faviconUrlFromWebsite(
   domain: string | null | undefined,
 ): string | null {
   const url = websiteUrl?.trim();
-  if (url) return url;
+  if (url) return coalesceWebsiteUrl(url, domain?.trim() || registrableDomain(url));
   const host = domain?.trim();
   if (!host) return null;
   return faviconUrlFromHost(host);
@@ -83,8 +86,8 @@ export function faviconUrlFromDomainInput(
 ): string | null {
   const source = raw.trim();
   if (!source) return null;
-  const domain = registrableDomain(hostnameFromWebsiteInput(source) || source);
+  const domain = registrableDomain(source);
   if (!domain) return null;
-  const pageUrl = websiteUrl?.trim() || websiteUrlFromInput(source) || domain;
+  const pageUrl = coalesceWebsiteUrl(websiteUrl?.trim() || source, domain);
   return faviconUrlFromWebsite(pageUrl, domain);
 }

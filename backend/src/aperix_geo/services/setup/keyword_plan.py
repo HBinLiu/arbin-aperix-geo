@@ -9,8 +9,7 @@ from typing import Any, TypedDict
 from aperix_geo.services.competitor.profile import search_queries_list, topic_lexicon_dict
 from aperix_geo.services.competitor.types import NicheProfile
 
-MIN_CORE_KEYWORDS = 3
-MIN_TOPIC_CORE_KEYWORDS = 5
+MIN_CORE_KEYWORDS = MIN_TOPIC_CORE_KEYWORDS = 5
 MIN_LONG_TAIL_LEN = 8
 
 
@@ -231,9 +230,33 @@ def select_topic_core_keywords(
     """Topic 步 deterministic 绑定的核心词列表（去重、去包含、过滤泛词）。"""
     plan = build_keyword_plan(profile)
     cores = dedupe_substring_terms(plan["core_keywords"])
-    return [
+    selected = [
         term for term in cores if not is_modifier_only_category_term(term, profile=profile)
-    ][:count]
+    ]
+    if len(selected) >= count:
+        return selected[:count]
+
+    anchors = search_query_anchor_terms(profile)
+    seen = {_compact_casefold(term) for term in selected}
+    for query in plan["long_tail_examples"]:
+        hit = match_core_keyword(query, anchors)
+        if not hit:
+            continue
+        key = _compact_casefold(hit)
+        if key in seen:
+            continue
+        if is_broad_lexicon_term(hit, profile):
+            continue
+        if is_modifier_only_category_term(hit, profile=profile):
+            continue
+        seen.add(key)
+        selected.append(hit)
+
+    selected = dedupe_substring_terms(selected)
+    selected = [
+        term for term in selected if not is_modifier_only_category_term(term, profile=profile)
+    ]
+    return selected[:count]
 
 
 def search_query_anchor_terms(profile: NicheProfile) -> list[str]:

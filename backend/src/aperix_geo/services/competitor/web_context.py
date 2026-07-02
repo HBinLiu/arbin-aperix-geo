@@ -9,14 +9,15 @@ from urllib.parse import urlparse
 from aperix_geo.services.crawl import fetch_page, page_crawl_settings
 from aperix_geo.services.crawl.metadata import extract_page_metadata, homepage_metadata_dict, SeoProfile
 from aperix_geo.services.crawl.settings import PageCrawlSettings
-from aperix_geo.utils.text import truncate_text
 from aperix_geo.utils.net import (
+    coalesce_explicit_http_url,
     host_from,
     host_resolves,
     parse_url,
-    profile_crawl_urls,
+    profile_homepage_fetch_urls,
     registrable_from,
 )
+from aperix_geo.utils.text import truncate_text
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +34,10 @@ class HomepageContext:
 
 
 def _dns_reachable(user_url: str, root: str) -> bool:
+    probe_url = coalesce_explicit_http_url(user_url) or parse_url(user_url.strip())
     hosts: list[str] = []
-    normalized = parse_url(user_url)
-    if normalized:
-        host = urlparse(normalized).hostname
+    if probe_url:
+        host = urlparse(probe_url).hostname
         if host:
             hosts.append(host)
     if root:
@@ -64,11 +65,15 @@ def fetch_site_homepage_context(
     if not root and not raw_input:
         return HomepageContext(url="", metadata={}, markdown="")
 
-    if not _dns_reachable(raw_input, root):
+    if not _dns_reachable(user_url, root):
         logger.info("竞品发现: 跳过首页抓取，DNS 解析失败 域名=%s", root or raw_input)
         return HomepageContext(url="", metadata={}, markdown="")
 
-    candidates = profile_crawl_urls(raw_input, root=root)
+    candidates = profile_homepage_fetch_urls(
+        user_url=user_url,
+        domain=domain,
+        root=root,
+    )
 
     last_url = candidates[0] if candidates else ""
     for start_url in candidates:

@@ -270,6 +270,12 @@ def discover_setup(
             existing = session_for_materials
 
     t0 = time.perf_counter()
+    logger.info(
+        "设置向导·发现 开始 session=%s type=%s target=%r",
+        sid[:8] if sid else "new",
+        subject_type,
+        target,
+    )
     if existing is not None:
         session_id = sid
         profile_dict = dict(existing.get("profile") or {})

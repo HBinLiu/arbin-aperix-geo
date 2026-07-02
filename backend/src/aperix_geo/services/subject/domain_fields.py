@@ -4,7 +4,20 @@ from __future__ import annotations
 
 from aperix_geo.db.models import SubjectType
 from aperix_geo.schemas.url_fields import validate_optional_http_url
-from aperix_geo.utils.net import registrable_from, resolve_website
+from aperix_geo.utils.net import (
+    coalesce_explicit_http_url,
+    registrable_from,
+    resolve_website,
+    website_fallback,
+)
+
+
+def _optional_stored_url(raw: str) -> str:
+    """存储层 website_url（可含裸 host/path，不触发网络探测）。"""
+    try:
+        return validate_optional_http_url(raw.strip())
+    except ValueError:
+        return ""
 
 
 def prepare_domain_and_website_url(
@@ -13,22 +26,23 @@ def prepare_domain_and_website_url(
     *,
     probe: bool = True,
 ) -> tuple[str, str]:
-    """归一为 (registrable_domain, website_url)。用户输入原样保留（http(s) 或裸域名/路径）。"""
+    """归一为 (registrable_domain, website_url)。"""
     domain = registrable_from(raw_domain or raw_website_url)
     if not domain:
         return "", ""
 
-    user_url = raw_website_url.strip()
-    if user_url:
-        try:
-            validated = validate_optional_http_url(user_url)
-        except ValueError:
-            validated = ""
-        if validated:
-            return domain, validated
+    fetch_url = coalesce_explicit_http_url(raw_website_url)
+    if fetch_url:
+        return domain, fetch_url
 
-    _, website_url = resolve_website(domain, probe=probe)
-    return domain, website_url
+    stored = _optional_stored_url(raw_website_url)
+    if stored:
+        return domain, stored
+
+    if probe:
+        _, website_url = resolve_website(domain, probe=True)
+        return domain, website_url
+    return domain, website_fallback(domain)
 
 
 def apply_subject_domain_fields(
@@ -45,15 +59,16 @@ def apply_subject_domain_fields(
     if subject_type == SubjectType.domain:
         return prepare_domain_and_website_url(raw_domain, raw_website_url, probe=probe)
 
-    try:
-        website_url = validate_optional_http_url(raw_website_url.strip())
-    except ValueError:
-        website_url = ""
-    if website_url:
-        return "", website_url
+    fetch_url = coalesce_explicit_http_url(raw_website_url)
+    if fetch_url:
+        return "", fetch_url
+
+    stored = _optional_stored_url(raw_website_url)
+    if stored:
+        return "", stored
+
     if raw_domain.strip():
         domain = registrable_from(raw_domain)
         if domain:
-            _, website_url = resolve_website(domain, probe=probe)
-            return "", website_url
+            return "", website_fallback(domain)
     return "", ""

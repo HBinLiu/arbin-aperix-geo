@@ -7,8 +7,7 @@ import pytest
 from aperix_geo.services.competitor.profile import normalize_niche_profile
 from aperix_geo.services.setup.keyword_plan import build_keyword_plan
 from aperix_geo.services.setup.prompt_qa import (
-    prompt_contains_punctuation,
-    strip_prompt_punctuation,
+    collect_prompt_quality_feedback,
     validate_generated_prompts,
 )
 
@@ -22,38 +21,82 @@ def _prompt_profile(*, topic: str = "铁观音") -> dict:
                 "audience_terms": ["企业采购"],
                 "pain_terms": ["茶叶保存"],
             },
-            "search_queries": [f"{topic}商务送礼企业采购"],
+            "search_queries": [f"{topic}商务送礼企业采购怎么选"],
         },
         entity="tea.com",
     )
 
 
-def test_strip_prompt_punctuation() -> None:
-    assert strip_prompt_punctuation("商务送礼选什么茶？") == "商务送礼选什么茶"
-    assert strip_prompt_punctuation("岩茶礼盒，怎么选") == "岩茶礼盒怎么选"
-    assert strip_prompt_punctuation("What is GEO?") == "What is GEO"
-
-
-def test_validate_rejects_punctuation() -> None:
+def test_validate_accepts_punctuation() -> None:
     profile = _prompt_profile()
-    with pytest.raises(ValueError, match="不得含标点"):
-        validate_generated_prompts(
-            [
-                {
-                    "topic": "铁观音",
-                    "prompts": [
-                        {
-                            "text": "商务场合送什么茶？",
-                            "funnel_stage": "mofu",
-                            "search_intent": "commercial",
-                            "decision_type": "scenario_fit",
-                        }
-                    ],
-                }
+    validate_generated_prompts(
+        [
+            {
+                "topic": "铁观音",
+                "prompts": [
+                    {
+                        "text": "商务场合送铁观音什么茶？",
+                        "funnel_stage": "mofu",
+                        "search_intent": "commercial",
+                        "decision_type": "scenario_fit",
+                    }
+                ],
+            }
+        ],
+        keyword_plan=build_keyword_plan(profile),
+        min_types=1,
+    )
+
+
+def test_collect_prompt_quality_feedback_flags_insufficient_skeleton_kinds() -> None:
+    profile = normalize_niche_profile(
+        {
+            "topic_lexicon": {
+                "category_terms": ["GEO品牌监测"],
+                "scenario_terms": ["多平台对比分析"],
+                "audience_terms": ["品牌营销人员"],
+                "pain_terms": ["难以量化可见度"],
+            },
+            "search_queries": ["GEO品牌监测品牌营销人员怎么做"],
+        },
+        entity="example.com",
+    )
+    plan = build_keyword_plan(profile)
+    same_suffix = "GEO品牌监测多平台对比分析怎么做"
+    items = [
+        {
+            "topic": "GEO品牌监测",
+            "prompts": [
+                {"text": same_suffix, "funnel_stage": "mofu", "search_intent": "commercial", "decision_type": "solution_comparison"},
+                {"text": same_suffix, "funnel_stage": "mofu", "search_intent": "commercial", "decision_type": "scenario_fit"},
+                {"text": same_suffix, "funnel_stage": "mofu", "search_intent": "commercial", "decision_type": "price_value"},
+                {"text": same_suffix, "funnel_stage": "mofu", "search_intent": "informational", "decision_type": "trust_risk"},
             ],
-            keyword_plan=build_keyword_plan(profile),
-            min_types=1,
-        )
+        },
+    ]
+    feedback = collect_prompt_quality_feedback(items, keyword_plan=plan)
+    assert any("句法骨架仅" in line for line in feedback)
+
+
+def test_validate_accepts_title_like_text_without_hard_tone_check() -> None:
+    profile = _prompt_profile()
+    validate_generated_prompts(
+        [
+            {
+                "topic": "铁观音",
+                "prompts": [
+                    {
+                        "text": "铁观音商务送礼基础概念",
+                        "funnel_stage": "tofu",
+                        "search_intent": "informational",
+                        "decision_type": "category_awareness",
+                    }
+                ],
+            }
+        ],
+        keyword_plan=build_keyword_plan(profile),
+        min_types=1,
+    )
 
 
 def test_validate_accepts_plain_text() -> None:
@@ -76,7 +119,7 @@ def test_validate_accepts_plain_text() -> None:
                         "decision_type": "solution_comparison",
                     },
                     {
-                        "text": "铁观音商务送礼茶叶保存方法",
+                        "text": "铁观音商务送礼茶叶怎么保存",
                         "funnel_stage": "bofu",
                         "search_intent": "transactional",
                         "decision_type": "price_value",
@@ -129,11 +172,6 @@ def test_validate_rejects_topic_without_resolved_core() -> None:
         )
 
 
-def test_prompt_contains_punctuation() -> None:
-    assert prompt_contains_punctuation("有问号吗？")
-    assert not prompt_contains_punctuation("没有标点")
-
-
 def test_validate_rejects_cross_topic_duplicate_skeleton() -> None:
     profile = normalize_niche_profile(
         {
@@ -144,7 +182,7 @@ def test_validate_rejects_cross_topic_duplicate_skeleton() -> None:
                 "pain_terms": ["AI引用率"],
             },
             "search_queries": [
-                "AI可见度监测市场团队工具",
+                "AI可见度监测市场团队工具怎么选",
                 "品牌搜索可见度多平台监测评估",
                 "品牌引用分析AI引用率评估",
             ],
@@ -171,13 +209,13 @@ def test_validate_rejects_cross_topic_duplicate_skeleton() -> None:
                             "decision_type": "trust_risk",
                         },
                         {
-                            "text": "AI可见度监测AI引用率对比方案",
+                            "text": "AI可见度监测AI引用率怎么对比",
                             "funnel_stage": "bofu",
                             "search_intent": "commercial",
                             "decision_type": "solution_comparison",
                         },
                         {
-                            "text": "AI可见度监测市场团队选型差异",
+                            "text": "AI可见度监测市场团队怎么选型",
                             "funnel_stage": "mofu",
                             "search_intent": "commercial",
                             "decision_type": "price_value",
@@ -200,13 +238,13 @@ def test_validate_rejects_cross_topic_duplicate_skeleton() -> None:
                             "decision_type": "trust_risk",
                         },
                         {
-                            "text": "品牌搜索可见度AI引用率对比方案",
+                            "text": "品牌搜索可见度AI引用率怎么对比",
                             "funnel_stage": "bofu",
                             "search_intent": "commercial",
                             "decision_type": "solution_comparison",
                         },
                         {
-                            "text": "品牌搜索可见度市场团队选型差异",
+                            "text": "品牌搜索可见度市场团队怎么选型",
                             "funnel_stage": "mofu",
                             "search_intent": "commercial",
                             "decision_type": "price_value",

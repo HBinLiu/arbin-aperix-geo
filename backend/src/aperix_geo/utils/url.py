@@ -282,6 +282,59 @@ def parse_url(raw: str) -> str:
     return validated
 
 
+def explicit_http_url(raw: str) -> str:
+    """仅接受输入已含 http:// 或 https:// 的 URL（拒绝裸域名，避免变体探测）。"""
+    text = raw.strip()
+    if not text or not re.match(r"^https?://", text, re.I):
+        return ""
+    return parse_url(text)
+
+
+def coalesce_explicit_http_url(*raw_candidates: str) -> str:
+    """按序取第一个合法完整 http(s) URL。"""
+    for raw in raw_candidates:
+        url = explicit_http_url(raw)
+        if url:
+            return url
+    return ""
+
+
+def homepage_fetch_urls(
+    domain: str,
+    *,
+    website_url: str = "",
+    probe_variants: bool = False,
+) -> list[str]:
+    """首页类抓取 URL 列表。
+
+    - ``website_url`` 非空：只试完整 http(s) 或 bare host 单次 ``parse_url``，不 www/http 变体探测
+    - ``website_url`` 为空且 ``probe_variants``：``website_candidates(domain)``（仅 SearXNG 等无 URL 兜底）
+    """
+    raw = website_url.strip()
+    if raw:
+        url = explicit_http_url(raw)
+        if url:
+            return [url]
+        single = parse_url(raw)
+        return [single] if single else []
+    if probe_variants:
+        return website_candidates(domain, preferred_url="")
+    return []
+
+
+def profile_homepage_fetch_urls(
+    *,
+    user_url: str,
+    domain: str,
+    root: str,
+) -> list[str]:
+    """Discover 主体首页：有 user_url 时单链；否则 ``profile_crawl_urls`` 兜底。"""
+    if user_url.strip():
+        host = registrable_from(domain or user_url) or root
+        return homepage_fetch_urls(host, website_url=user_url, probe_variants=False)
+    return profile_crawl_urls(user_url or domain, root=root)
+
+
 def profile_crawl_urls(raw_input: str, *, root: str) -> list[str]:
     """Setup 画像首页抓取顺序：用户输入的完整 URL 优先，失败后再试 apex/www 候选。"""
     urls: list[str] = []

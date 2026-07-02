@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -58,12 +59,23 @@ def finalize_setup(
     session_id: str,
     body: SetupFinalizeBody,
 ) -> tuple[Subject, SamplingJob]:
+    t0 = time.perf_counter()
     setup_session_id = session_id.strip()
     setup_session = get_session(user_id=str(user.id), session_id=setup_session_id)
     if setup_session is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="setup session not found")
 
     st = SubjectType(setup_session["subject_type"])
+    target = str(setup_session.get("target") or "").strip()
+    prompt_count = sum(len(topic.prompts) for topic in body.topics)
+    logger.info(
+        "设置向导·落库 开始 session=%s type=%s target=%r 主题=%d 问句=%d",
+        setup_session_id[:8],
+        st.value,
+        target,
+        len(body.topics),
+        prompt_count,
+    )
     if st == SubjectType.domain:
         raw_domain = str(setup_session.get("domain") or setup_session.get("target") or "").strip()
         raw_website = str(setup_session.get("website_url") or setup_session.get("domain") or "").strip()
@@ -244,8 +256,9 @@ def finalize_setup(
     db.refresh(subject)
     delete_session(user_id=str(user.id), session_id=setup_session_id)
     logger.info(
-        "设置向导·落库 完成 session=%s subject=%s 主题=%d 问句=%d 别名=%d",
+        "设置向导·落库 完成 session=%s 耗时=%.1fs subject=%s 主题=%d 问句=%d 别名=%d",
         setup_session_id[:8],
+        time.perf_counter() - t0,
         subject.id,
         len(topics),
         len(prompts),

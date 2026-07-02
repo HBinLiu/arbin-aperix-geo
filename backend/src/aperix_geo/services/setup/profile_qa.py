@@ -10,6 +10,7 @@ from aperix_geo.services.competitor.profile import (
     topic_lexicon_dict,
 )
 from aperix_geo.services.competitor.types import NicheProfile
+from aperix_geo.services.setup.query_style import validate_search_queries_style
 from aperix_geo.services.setup.keyword_plan import (
     MIN_CORE_KEYWORDS,
     MIN_LONG_TAIL_LEN,
@@ -20,20 +21,28 @@ from aperix_geo.services.setup.keyword_plan import (
     is_modifier_only_category_term,
     match_core_keyword,
     search_query_anchor_terms,
+    select_topic_core_keywords,
 )
+
+
+def _compose_search_query(core: str, plan: KeywordPlan, *, index: int = 0) -> str:
+    """用 profile 词表 modifiers 组合长尾问句（无硬编码后缀）。"""
+    mods = plan["all_modifiers"]
+    if not mods:
+        return core
+    m1 = mods[index % len(mods)]
+    m2 = mods[(index + 1) % len(mods)] if len(mods) > 1 else m1
+    q = f"{core}{m1}{m2}"
+    if len(q) < MIN_LONG_TAIL_LEN:
+        q = f"{core}{m1}"
+    return q
 
 
 def _synthesize_search_queries(plan: KeywordPlan) -> list[str]:
     core = plan["core_keywords"]
-    mods = plan["all_modifiers"]
     out: list[str] = []
     for i, term in enumerate(core[:MAX_SEARCH_QUERIES]):
-        m1 = mods[i % len(mods)] if mods else "对比"
-        m2 = mods[(i + 1) % len(mods)] if len(mods) > 1 else "方案"
-        q = f"{term}{m1}{m2}"
-        if len(q) < MIN_LONG_TAIL_LEN:
-            q = f"{term}{m1}{m2}怎么选"
-        out.append(q)
+        out.append(_compose_search_query(term, plan, index=i))
     return out
 
 
@@ -59,9 +68,7 @@ def repair_profile_search_queries(profile: NicheProfile) -> NicheProfile:
         if match_core_keyword(candidate, anchors) and len(candidate) >= MIN_LONG_TAIL_LEN:
             repaired.append(candidate)
             continue
-        tail = "".join(plan["all_modifiers"][:2]) if plan["all_modifiers"] else "怎么选"
-        fallback = f"{primary}{tail}"
-        repaired.append(fallback if len(fallback) >= MIN_LONG_TAIL_LEN else f"{primary}怎么选")
+        repaired.append(_compose_search_query(primary, plan, index=len(repaired)))
 
     if not repaired:
         repaired = _synthesize_search_queries(plan)
@@ -138,13 +145,13 @@ def _dedupe_terms_local(terms: list[str]) -> list[str]:
 
 
 def validate_profile_lexicon(profile: NicheProfile) -> None:
-    """确保 profile 具备可用的 SEO 式核心词与长尾范例。"""
+    """确保 profile 具备可用的核心词与长尾问句范例。"""
     plan = build_keyword_plan(profile)
-    core = plan["core_keywords"]
-    if len(core) < MIN_CORE_KEYWORDS:
+    usable_cores = select_topic_core_keywords(profile, count=MIN_CORE_KEYWORDS)
+    if len(usable_cores) < MIN_CORE_KEYWORDS:
         raise ValueError(
             f"topic_lexicon 核心词不足：category_terms/features 至少提供 {MIN_CORE_KEYWORDS} 条"
-            f"具体核心词，当前 {len(core)} 条"
+            f"可绑定 topic 的具体核心词，当前 {len(usable_cores)} 条"
         )
 
     long_tails = plan["long_tail_examples"]
@@ -158,6 +165,8 @@ def validate_profile_lexicon(profile: NicheProfile) -> None:
             raise ValueError(f"search_queries 每条须 ≥{MIN_LONG_TAIL_LEN} 字：{q}")
         if not match_core_keyword(q, anchors):
             raise ValueError(f"search_queries 须含至少 1 个核心词：{q}")
+
+    validate_search_queries_style(long_tails, plan=plan)
 
     if not plan["all_modifiers"]:
         raise ValueError(

@@ -14,7 +14,6 @@ from aperix_geo.services.setup.keyword_plan import (
     seed_candidates_from_plan,
     topic_modifiers_for_core,
 )
-from aperix_geo.services.setup.prompt_qa import strip_prompt_punctuation
 from aperix_geo.services.setup.topic_items import topic_name_key
 from aperix_geo.services.setup.topic_seed import parse_seed
 
@@ -50,7 +49,7 @@ def _cluster_for_topic(
 
 
 def _skeleton_key(text: str, *, core: str, plan: KeywordPlan) -> str:
-    body = strip_prompt_punctuation(text)
+    body = text.strip()
     skeleton = prompt_text_skeleton(body, core=core, modifiers=plan["all_modifiers"])
     return skeleton if len(skeleton) >= MIN_SKELETON_LEN else body.casefold()
 
@@ -63,7 +62,7 @@ def _prompt_from_seed(seed: dict[str, str]) -> dict[str, str]:
     )
 
     return {
-        "text": strip_prompt_punctuation(str(seed.get("text") or ""))[:MAX_PROMPT_TEXT_LEN],
+        "text": str(seed.get("text") or "").strip()[:MAX_PROMPT_TEXT_LEN],
         "funnel_stage": normalize_funnel_stage(str(seed.get("funnel") or "")),
         "search_intent": normalize_search_intent(str(seed.get("intent") or "")),
         "decision_type": normalize_decision_type(str(seed.get("decision") or "")) or "scenario_fit",
@@ -73,7 +72,7 @@ def _prompt_from_seed(seed: dict[str, str]) -> dict[str, str]:
 def _prompt_from_candidate(text: str, *, tag_index: int) -> dict[str, str]:
     decision, funnel, intent = _PROMPT_TAG_ROTATION[tag_index % len(_PROMPT_TAG_ROTATION)]
     return {
-        "text": strip_prompt_punctuation(text)[:MAX_PROMPT_TEXT_LEN],
+        "text": text.strip()[:MAX_PROMPT_TEXT_LEN],
         "funnel_stage": funnel,
         "search_intent": intent,
         "decision_type": decision,

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import time
 from typing import Any
 
 from uuid import UUID
@@ -77,6 +78,7 @@ def run_setup_topics_step(
 ) -> list[dict[str, str]]:
     """用户确认竞品后：补全竞品字段 → 监测主题 → profile_summary（均写入 session）。"""
     require_deepseek_api_key()
+    t0 = time.perf_counter()
 
     session = get_session(user_id=user_id, session_id=session_id)
     if session is None:
@@ -92,6 +94,14 @@ def run_setup_topics_step(
     target = str(session.get("target") or "").strip()
     if not target:
         raise ValueError("setup session missing target")
+
+    logger.info(
+        "设置向导·主题 开始 session=%s type=%s target=%r 竞品=%d",
+        session_id[:8],
+        subject_type,
+        target,
+        len(confirmed),
+    )
 
     region = str(session.get("region") or "CN")
     language = str(session.get("language") or "zh-CN")
@@ -163,8 +173,9 @@ def run_setup_topics_step(
     ):
         raise ValueError("setup session not found")
     logger.info(
-        "设置向导·主题 完成 session=%s 竞品=%d 主题=%d 摘要=%d字 重生成主题=%s 已写入 session.competitors",
+        "设置向导·主题 完成 session=%s 耗时=%.1fs 竞品=%d 主题=%d 摘要=%d字 重生成主题=%s",
         session_id[:8],
+        time.perf_counter() - t0,
         len(confirmed),
         len(topic_names),
         len(profile_summary),
