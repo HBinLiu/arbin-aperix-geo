@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from aperix_geo.services.analysis.entity import AnalysisEntity
+from aperix_geo.services.analysis.entity import AnalysisEntity, entity_display_name
 
 
 def metric_period(
@@ -58,7 +58,7 @@ def build_rank_table_rows(
     has_previous: bool,
 ) -> list[dict[str, Any]]:
     prev = previous or {}
-    display = {entity.label: entity.display_name for entity in entities}
+    display = {entity.label: entity_display_name(entity) for entity in entities}
     domains = {entity.label: entity.domain for entity in entities}
     rows: list[dict[str, Any]] = []
     for label in sorted(

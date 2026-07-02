@@ -29,7 +29,7 @@ def test_build_brands_returns_page_payload() -> None:
         {
             "brand_id": str(brand_id),
             "label": "Stripe",
-            "display_name": "Stripe",
+            "brand": "Stripe",
             "domain": "stripe.com",
             "response_count": 4,
             "visibility_rate": 0.75,

@@ -13,7 +13,7 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
-import { ANALYSIS_ENTITY_OWN } from "@/lib/analysis";
+import { ANALYSIS_ENTITY_OWN, entityDisplayName } from "@/lib/analysis";
 import {
   faviconCandidateUrls,
   faviconUrlFromHost,
@@ -45,7 +45,7 @@ function EntityFilterOption({ entity }: { entity: AnalysisEntityRef }) {
   return (
     <span className="flex min-w-0 flex-1 items-center gap-2">
       <BrandRankIcon label={entity.label} size="sm" faviconLoadingSpinner={false} />
-      <span className="min-w-0 flex-1 truncate">{entity.display_name}</span>
+      <span className="min-w-0 flex-1 truncate">{entityDisplayName(entity)}</span>
       {isOwn ? (
         <TextBadge variant="primary" className="shrink-0 px-2 py-0.5 text-xs font-semibold">
           拥有
@@ -159,7 +159,7 @@ export function AnalysisFilterBar({
           variant="primary"
           leading={entityLeading}
           value={entityId || ANALYSIS_ENTITY_OWN}
-          displayValue={selectedEntity?.display_name ?? "所有品牌"}
+          displayValue={selectedEntity ? entityDisplayName(selectedEntity) : "所有品牌"}
           placeholder="分析对象"
           contentClassName="min-w-[14rem]"
           onValueChange={(id) => onChange((prev) => ({ ...prev, entityId: id }))}

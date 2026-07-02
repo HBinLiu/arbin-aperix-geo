@@ -1,17 +1,21 @@
 import { api } from "@/api/client";
-import type { GeneratedPromptItem, SubjectPrompt, SubjectTopic } from "@/types";
+import type { GeneratedPromptItem, PromptTaxonomy, SubjectPrompt, SubjectTopic } from "@/types";
 
 export type PromptCreateBody = {
   topic_id: string;
   text: string;
   funnel_stage?: string;
   search_intent?: string;
+  decision_type?: string;
   enabled?: boolean;
 };
 
 export type PromptUpdateBody = {
   topic_id?: string;
   text?: string;
+  funnel_stage?: string;
+  search_intent?: string;
+  decision_type?: string;
   enabled?: boolean;
 };
 
@@ -70,8 +74,14 @@ export type PromptBatchCreateBody = {
     text: string;
     funnel_stage?: string;
     search_intent?: string;
+    decision_type?: string;
   }>;
 };
+
+export async function fetchPromptTaxonomy(): Promise<PromptTaxonomy> {
+  const { data } = await api.get<PromptTaxonomy>("/prompts/taxonomy");
+  return data;
+}
 
 export async function batchCreateSubjectPrompts(
   subjectId: string,
@@ -84,6 +94,9 @@ export async function batchCreateSubjectPrompts(
 export type GenerateSubjectPromptsBody = {
   topic_id: string;
   count: number;
+  funnel_stage: string;
+  search_intent: string;
+  decision_type: string;
 };
 
 export async function previewSubjectPrompts(

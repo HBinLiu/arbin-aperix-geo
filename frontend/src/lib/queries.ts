@@ -483,6 +483,7 @@ export const queryKeys = {
   samplingPlatforms: ["sampling", "platforms"] as const,
   subjectCompetitors: (subjectId: string) => ["subject-competitors", subjectId] as const,
   subjectPrompts: (subjectId: string) => ["subject-prompts", subjectId] as const,
+  promptTaxonomy: ["prompt-taxonomy"] as const,
   subjectTopics: (subjectId: string) => ["subject-topics", subjectId] as const,
   promptDetail: (
     subjectId: string,

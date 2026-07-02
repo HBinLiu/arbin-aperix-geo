@@ -7,7 +7,7 @@ import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
 import { useAnalysisOutletContext } from "@/hooks/useAnalysisContext";
 import { useAnalysisFiltersState } from "@/hooks/useAnalysisFiltersState";
 import { useVisibilityAnalysis } from "@/hooks/useVisibilityAnalysis";
-import { ANALYSIS_DIMENSIONS, entityChartLabels } from "@/lib/analysis";
+import { ANALYSIS_DIMENSIONS, entityChartLabels, entityLegendLabels } from "@/lib/analysis";
 import { VISIBILITY_METRICS, VISIBILITY_SECTION_HEIGHT } from "@/lib/analysis/visibility";
 import type { VisibilityMetricId } from "@/lib/analysis/visibility";
 
@@ -28,6 +28,7 @@ export function VisibilityPage() {
   const { filters, setFilters } = useAnalysisFiltersState();
   const { entities } = useAnalysisFilter();
   const entityLabels = useMemo(() => entityChartLabels(entities), [entities]);
+  const legendLabels = useMemo(() => entityLegendLabels(entities), [entities]);
 
   const { isLoading, ownLabel, focusLabel, metrics, topicVisibilityRanks } =
     useVisibilityAnalysis(subjectId, filters, entities);
@@ -62,6 +63,7 @@ export function VisibilityPage() {
                     definition={definition}
                     metric={metrics[definition.id]}
                     topLabels={entityLabels}
+                    legendLabels={legendLabels}
                     ownLabel={focusLabel}
                     scopeKey={`${subjectId}:${definition.id}`}
                     loading={isLoading}

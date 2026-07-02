@@ -6,7 +6,7 @@ export {
   localDatesToIso,
   previousDateRange,
 } from "@/lib/analysis/date";
-export { entityChartLabels, entityRankFlags, focusEntityLabel, ownEntityLabel } from "@/lib/analysis/entities";
+export { entityChartLabels, entityDisplayName, entityLegendLabels, entityRankFlags, focusEntityLabel, ownEntityLabel } from "@/lib/analysis/entities";
 export {
   formatDelta,
   formatRank,
@@ -81,6 +81,7 @@ export {
   chartColorAtIndex,
   chartColorForKey,
   chartColorFromLookup,
+  chartDisplayLabel,
   chartRowValue,
   computeChartDataRange,
   CHART_HEIGHT,

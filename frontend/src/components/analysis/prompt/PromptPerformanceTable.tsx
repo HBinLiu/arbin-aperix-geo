@@ -26,7 +26,9 @@ import {
   PROMPT_TABLE_COLUMNS,
 } from "@/components/analysis/prompt/performanceTableLayout";
 import type { PromptPerformanceRow } from "@/lib/analysis/prompt";
+import { taxonomyOptionLabel } from "@/lib/prompt/taxonomy";
 import { promptDetailPath } from "@/lib/analysis/nav";
+import { usePromptTaxonomy } from "@/hooks/usePromptTaxonomy";
 import { cn } from "@/lib/utils";
 
 type SortKey = "visibility" | "sentiment" | "averageRank" | "citationRate";
@@ -109,6 +111,7 @@ export function PromptPerformanceTable({
   onPageSizeChange,
 }: PromptPerformanceTableProps) {
   const navigate = useNavigate();
+  const { taxonomy } = usePromptTaxonomy();
 
   const handlePageSizeChange = (nextPageSize: number) => {
     onPageSizeChange(nextPageSize);
@@ -158,6 +161,7 @@ export function PromptPerformanceTable({
                 />
               </span>
             </th>
+            <th style={promptTableColumnCellStyle(promptTableColumn("decision"))}>决策场景</th>
             <th style={promptTableColumnCellStyle(promptTableColumn("visibility"))}>
               <SortableHeader
                 label="可见度"
@@ -208,9 +212,9 @@ export function PromptPerformanceTable({
             </th>
             <th style={promptTableColumnCellStyle(promptTableColumn("intent"))}>
               <span className="inline-flex items-center gap-1">
-                意图
+                搜索意图
                 <ColumnHelp
-                  label="意图"
+                  label="搜索意图"
                   description="识别查询背后的搜索意图类别。通过区分教育性流量驱动因素和推动直接购买的高价值关键词，帮助调整内容策略；交易型（T）、对比型（C）、了解型（I）。"
                 />
               </span>
@@ -249,6 +253,14 @@ export function PromptPerformanceTable({
                   className="text-foreground font-medium" 
                   style={promptTableColumnCellStyle(promptTableColumn("funnel"))}>
                   <PromptFunnelBadge stage={row.funnelStage} />
+                </td>
+                <td
+                  className="text-foreground font-medium"
+                  style={promptTableColumnCellStyle(promptTableColumn("decision"))}
+                >
+                  <span className="line-clamp-2 text-sm">
+                    {taxonomyOptionLabel(taxonomy.decision_types, row.decisionType)}
+                  </span>
                 </td>
                 <td
                   className="text-foreground font-medium"

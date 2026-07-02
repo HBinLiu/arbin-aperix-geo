@@ -10,7 +10,6 @@ import { useDiagnosisContent } from "@/hooks/useDiagnosisContent";
 import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
 import {
   diagnosisPriorityActionSummary,
-  resolveDiagnosisCompetitors,
   type DiagnosisContentRow,
 } from "@/lib/diagnosis/content";
 import { DIAGNOSIS_BASE_PATH, diagnosisContentDetailPath } from "@/lib/diagnosis/nav";
@@ -40,7 +39,7 @@ function PriorityActionRow({
   rank: number;
   entities: AnalysisEntityRef[];
 }) {
-  const competitors = resolveDiagnosisCompetitors(row.competitors, entities);
+  const competitors = row.competitors;
   const summary = diagnosisPriorityActionSummary(row, entities);
 
   return (

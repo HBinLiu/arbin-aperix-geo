@@ -148,6 +148,7 @@ type ChartTooltipProps = {
   model: ChartModel;
   valueFormatter: (v: number) => string;
   tooltipLabel?: string;
+  legendLabels?: Readonly<Record<string, string>>;
 };
 
 export function ChartTooltip({
@@ -156,6 +157,7 @@ export function ChartTooltip({
   model,
   valueFormatter,
   tooltipLabel,
+  legendLabels,
 }: ChartTooltipProps) {
   if (!active || !payload?.length) return null;
 
@@ -182,6 +184,7 @@ export function ChartTooltip({
     valueFormatter,
     colorLookup: model.colorLookup,
     fallbackLabel: tooltipLabel,
+    legendLabels,
   });
 
   if (rows.length === 0) return null;

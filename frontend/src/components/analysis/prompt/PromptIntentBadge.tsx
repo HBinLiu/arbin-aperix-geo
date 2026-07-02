@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 
 type PromptIntentBadgeProps = {
   intent: string | null | undefined;
+  tooltipLabel?: string;
   className?: string;
 };
 
@@ -16,11 +17,11 @@ function intentBadgeVariant(label: string): SemanticBadgeVariant {
 }
 
 /** 提示词意图标记（I/C/T） */
-export function PromptIntentBadge({ intent, className }: PromptIntentBadgeProps) {
+export function PromptIntentBadge({ intent, tooltipLabel, className }: PromptIntentBadgeProps) {
   const label = searchIntentBadgeLetter(intent);
   if (!label) return null;
 
-  const tooltip = searchIntentLabel(intent);
+  const tooltip = tooltipLabel?.trim() || searchIntentLabel(intent);
 
   return (
     <Tooltip>

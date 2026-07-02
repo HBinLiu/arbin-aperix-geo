@@ -30,13 +30,14 @@ export type PromptTableColumn = {
 /** 提示词表列配置 */
 export const PROMPT_TABLE_COLUMNS: readonly PromptTableColumn[] = [
   { id: "prompt", minWidth: 300, flex: true },
-  { id: "topic", minWidth: 180 },
+  { id: "topic", minWidth: 160 },
   { id: "funnel", minWidth: 120 },
-  { id: "visibility", minWidth: 150 },
-  { id: "sentiment", minWidth: 150 },
-  { id: "rank", minWidth: 150 },
-  { id: "citation", minWidth: 150 },
-  { id: "intent", minWidth: 100 },
+  { id: "decision", minWidth: 140 },
+  { id: "visibility", minWidth: 120 },
+  { id: "sentiment", minWidth: 140 },
+  { id: "rank", minWidth: 120 },
+  { id: "citation", minWidth: 120 },
+  { id: "intent", minWidth: 110 },
 ];
 
 /**

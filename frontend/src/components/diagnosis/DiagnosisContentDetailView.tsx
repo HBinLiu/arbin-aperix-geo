@@ -1,8 +1,8 @@
+import { brandDisplayLabel } from "@/lib/brand/display";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { DEFAULT_TABLE_PAGE_SIZE } from "@/components/analysis/common/TablePagination";
-import { buildBrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
 import { ColumnHelp } from "@/components/analysis/prompt/PerformanceMetricCells";
 import { PromptDetailResponseTable } from "@/components/analysis/prompt/PromptDetailResponseTable";
 import { performanceTableClasses } from "@/components/analysis/prompt/performanceTableLayout";
@@ -136,8 +136,8 @@ function BrandCompetitorTable({
                     onClick={() => onBrandClick(row)}
                   >
                     <BrandRankLabel
-                      label={row.display_name || row.label}
-                      icon={buildBrandRankIcon(row.domain ?? row.label)}
+                      label={brandDisplayLabel(row)}
+                      domain={row.domain}
                       size="sm"
                     />
                   </button>
@@ -208,7 +208,7 @@ function SourceCompetitorTable({
                     >
                       <BrandRankLabel
                         label={host}
-                        icon={buildBrandRankIcon(host)}
+                        domain={row.domain}
                         size="sm"
                       />
                     </button>

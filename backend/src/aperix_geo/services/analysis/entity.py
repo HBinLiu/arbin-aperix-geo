@@ -24,19 +24,25 @@ class AnalysisEntity:
     id: str
     kind: Literal["own", "competitor"]
     label: str
-    display_name: str
+    brand: str
     domain: str
     competitor_id: UUID | None = None
 
 
+def entity_display_name(entity: AnalysisEntity) -> str:
+    brand = (entity.brand or "").strip()
+    domain = (entity.domain or "").strip()
+    label = (entity.label or "").strip()
+    return brand or domain or label
+
+
 def own_entity(subject: Subject) -> AnalysisEntity:
     label = own_label(subject)
-    display = (subject.brand or subject.domain or label).strip() or label
     return AnalysisEntity(
         id=OWN_ENTITY_ID,
         kind="own",
         label=label,
-        display_name=display,
+        brand=(subject.brand or "").strip(),
         domain=subject_rank_domain(subject),
         competitor_id=None,
     )
@@ -50,13 +56,12 @@ def competitor_entities(subject: Subject) -> list[AnalysisEntity]:
         if not label or label in seen:
             continue
         seen.add(label)
-        display = (competitor.brand or competitor.domain or label).strip() or label
         out.append(
             AnalysisEntity(
                 id=str(competitor.id),
                 kind="competitor",
                 label=label,
-                display_name=display,
+                brand=(competitor.brand or "").strip(),
                 domain=competitor_rank_domain(domain=competitor.domain or ""),
                 competitor_id=competitor.id,
             )
@@ -66,6 +71,15 @@ def competitor_entities(subject: Subject) -> list[AnalysisEntity]:
 
 def list_analysis_entities(subject: Subject) -> list[AnalysisEntity]:
     return [own_entity(subject), *competitor_entities(subject)]
+
+
+def entity_brand_name(subject: Subject, entity_id: str) -> str:
+    if entity_id == OWN_ENTITY_ID:
+        return (subject.brand or "").strip()
+    for competitor in subject.competitors or []:
+        if str(competitor.id) == entity_id:
+            return (competitor.brand or "").strip()
+    return ""
 
 
 def entity_chart_labels(entities: list[AnalysisEntity]) -> list[str]:

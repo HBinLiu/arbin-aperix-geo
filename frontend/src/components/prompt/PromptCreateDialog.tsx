@@ -8,17 +8,26 @@ import {
   DialogTitle,
   useDialog,
 } from "@/components/ui/dialog";
+import { taxonomySelectOptions } from "@/lib/prompt/taxonomy";
+import type { PromptTaxonomy } from "@/types";
 
 type PromptFormMode = "create" | "edit";
 
 type PromptCreateDialogProps = {
   open: boolean;
   mode?: PromptFormMode;
+  taxonomy: PromptTaxonomy;
   topicId: string;
   onTopicIdChange: (value: string) => void;
   topicOptions: { value: string; label: string }[];
   text: string;
   onTextChange: (value: string) => void;
+  funnelStage: string;
+  onFunnelStageChange: (value: string) => void;
+  searchIntent: string;
+  onSearchIntentChange: (value: string) => void;
+  decisionType: string;
+  onDecisionTypeChange: (value: string) => void;
   submitting?: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: () => void;
@@ -54,17 +63,35 @@ function PromptCreateDialogFooter({
 export function PromptCreateDialog({
   open,
   mode = "create",
+  taxonomy,
   topicId,
   onTopicIdChange,
   topicOptions,
   text,
   onTextChange,
+  funnelStage,
+  onFunnelStageChange,
+  searchIntent,
+  onSearchIntentChange,
+  decisionType,
+  onDecisionTypeChange,
   submitting = false,
   onOpenChange,
   onSubmit,
 }: PromptCreateDialogProps) {
   const isEdit = mode === "edit";
-  const canSubmit = Boolean(topicId && text.trim());
+  const taxonomyReady =
+    taxonomy.funnel_stages.length > 0 &&
+    taxonomy.search_intents.length > 0 &&
+    taxonomy.decision_types.length > 0;
+  const canSubmit = Boolean(
+    taxonomyReady &&
+      topicId &&
+      text.trim() &&
+      funnelStage &&
+      searchIntent &&
+      decisionType,
+  );
   const titleId = isEdit ? "prompt-edit-dialog-title" : "prompt-create-dialog-title";
 
   return (
@@ -94,6 +121,35 @@ export function PromptCreateDialog({
               disabled={submitting}
             />
           </Field>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="营销漏斗" required>
+              <SetupSelect
+                id={isEdit ? "edit-prompt-funnel" : "create-prompt-funnel"}
+                value={funnelStage}
+                onChange={onFunnelStageChange}
+                options={taxonomySelectOptions(taxonomy.funnel_stages)}
+              />
+            </Field>
+            
+            <Field label="搜索意图" required>
+              <SetupSelect
+                id={isEdit ? "edit-prompt-intent" : "create-prompt-intent"}
+                value={searchIntent}
+                onChange={onSearchIntentChange}
+                options={taxonomySelectOptions(taxonomy.search_intents)}
+              />
+            </Field>
+
+            <Field label="决策场景" required>
+              <SetupSelect
+                id={isEdit ? "edit-prompt-decision" : "create-prompt-decision"}
+                value={decisionType}
+                onChange={onDecisionTypeChange}
+                options={taxonomySelectOptions(taxonomy.decision_types)}
+              />
+            </Field>
+          </div>
         </div>
 
         <PromptCreateDialogFooter

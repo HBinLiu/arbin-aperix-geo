@@ -1,5 +1,7 @@
 import type { CSSProperties } from "react";
 
+import { entityDisplayName } from "@/lib/analysis/entities";
+import { mentionedBrandDisplayLabel } from "@/lib/brand/display";
 import type {
   AnalysisEntityRef,
   CitationMentionedBrand,
@@ -105,32 +107,47 @@ export function gapReplySubtext(own: number, total: number): string {
 function buildCompetitorEntityLookup(
   entities: AnalysisEntityRef[],
 ): Map<string, AnalysisEntityRef> {
-  return new Map(
-    entities.filter((entity) => entity.kind === "competitor").map((entity) => [entity.label, entity]),
-  );
+  const out = new Map<string, AnalysisEntityRef>();
+  for (const entity of entities) {
+    if (entity.kind !== "competitor") continue;
+    out.set(entity.label, entity);
+    const domain = entity.domain?.trim();
+    if (domain) out.set(domain, entity);
+    const brand = entity.brand?.trim();
+    if (brand) out.set(brand, entity);
+  }
+  return out;
 }
 
 function competitorBrandDisplayName(
-  rankLabel: string,
+  brand: CitationMentionedBrand,
   entityByLabel: Map<string, AnalysisEntityRef>,
 ): string {
-  return entityByLabel.get(rankLabel)?.display_name ?? rankLabel;
+  if (brand.brand?.trim()) return brand.brand.trim();
+  const entity = entityByLabel.get(brand.label);
+  if (entity) return entityDisplayName(entity);
+  return mentionedBrandDisplayLabel(brand);
 }
 
-/** 诊断竞品：文案用 brand（display_name），favicon 仍用 rank label（多为域名） */
+/** 诊断竞品：文案用 brand，favicon 仍用 rank label（多为域名） */
 export function resolveDiagnosisCompetitors(
   competitors: CitationMentionedBrand[],
   entities: AnalysisEntityRef[] = [],
 ): CitationMentionedBrand[] {
   const entityByLabel = buildCompetitorEntityLookup(entities);
   return competitors.map((brand) => {
+    if (brand.brand?.trim()) {
+      return brand;
+    }
     const entity = entityByLabel.get(brand.label);
     if (!entity) {
       return brand;
     }
+    const display = entityDisplayName(entity);
     return {
-      label: entity.display_name,
-      domain: entity.label !== entity.display_name ? entity.label : brand.domain,
+      label: brand.label,
+      brand: entity.brand?.trim() || display,
+      domain: entity.domain || brand.domain,
     };
   });
 }
@@ -142,7 +159,7 @@ function formatCompetitorLabels(
 ): string {
   const labels = competitors
     .slice(0, limit)
-    .map((brand) => competitorBrandDisplayName(brand.label, entityByLabel))
+    .map((brand) => competitorBrandDisplayName(brand, entityByLabel))
     .filter(Boolean);
   if (labels.length === 0) {
     return "";
@@ -190,7 +207,10 @@ export function diagnosisPriorityActionSummary(
   return `AI 提及率 ${row.mentionRate}，${row.mentionSub}`;
 }
 
-export function buildDiagnosisContentRows(items: ContentOpportunityItem[]): DiagnosisContentRow[] {
+export function buildDiagnosisContentRows(
+  items: ContentOpportunityItem[],
+  entities: AnalysisEntityRef[] = [],
+): DiagnosisContentRow[] {
   return items.map((item) => ({
     id: item.id,
     promptId: item.prompt_id,
@@ -203,7 +223,7 @@ export function buildDiagnosisContentRows(items: ContentOpportunityItem[]): Diag
     mentionRateNum: item.mention_rate,
     mentionSub: gapReplySubtext(item.mention_own_count, item.mention_total_count),
     platforms: item.platforms,
-    competitors: item.competitors.map((label) => ({ label, domain: null })),
+    competitors: resolveDiagnosisCompetitors(item.competitors ?? [], entities),
     brandGap: formatGapRate(item.brand_gap_rate),
     brandGapNum: item.brand_gap_rate,
     brandGapPriority: item.brand_gap_priority,

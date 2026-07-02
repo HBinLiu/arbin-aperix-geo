@@ -19,6 +19,7 @@ from aperix_geo.services.billing.exceptions import QuotaExceededError
 from aperix_geo.services.billing.quota import assert_ai_usage_available, consume_ai_usage, usage_reference
 from aperix_geo.services.billing.usage_tokens import SETUP_LLM_PLATFORM
 from aperix_geo.services.providers import LLMProviderError
+from aperix_geo.services.prompts.taxonomy import PromptTaxonomyLock, prompt_taxonomy_lock
 
 
 def generate_subject_prompt_candidates(
@@ -27,6 +28,7 @@ def generate_subject_prompt_candidates(
     subject: Subject,
     topic: Topic,
     count: int,
+    taxonomy_lock: PromptTaxonomyLock,
 ) -> list[dict[str, str]]:
     """Call LLM and return up to ``count`` prompt rows for the topic (not persisted)."""
     remaining = remaining_prompt_slots_for_subject(db, subject.id)
@@ -70,6 +72,7 @@ def generate_subject_prompt_candidates(
         prompts_per_topic=take,
         exclude_prompts=existing_prompts,
         on_live_call=_bill,
+        taxonomy_lock=taxonomy_lock,
     )
     db.commit()
 
@@ -80,12 +83,14 @@ def generate_subject_prompt_candidates(
         if not text:
             continue
         rows.append(
-            {
-                "text": text,
-                "funnel_stage": str(row.get("funnel_stage") or "mofu"),
-                "search_intent": str(row.get("search_intent") or "commercial"),
-                "decision_type": str(row.get("decision_type") or ""),
-            }
+            taxonomy_lock.apply_prompt_row(
+                {
+                    "text": text,
+                    "funnel_stage": str(row.get("funnel_stage") or taxonomy_lock.funnel_stage),
+                    "search_intent": str(row.get("search_intent") or taxonomy_lock.search_intent),
+                    "decision_type": str(row.get("decision_type") or taxonomy_lock.decision_type),
+                }
+            )
         )
     if not rows:
         raise ValueError("未能生成任何提示词")
@@ -99,9 +104,23 @@ def generate_subject_prompt_candidates_for_topic(
     subject_id: UUID,
     topic_id: UUID,
     count: int,
+    funnel_stage: str,
+    search_intent: str,
+    decision_type: str,
 ) -> list[dict[str, str]]:
     topic = get_topic_for_subject(db, subject_id, topic_id)
-    return generate_subject_prompt_candidates(db, subject=subject, topic=topic, count=count)
+    lock = prompt_taxonomy_lock(
+        funnel_stage=funnel_stage,
+        search_intent=search_intent,
+        decision_type=decision_type,
+    )
+    return generate_subject_prompt_candidates(
+        db,
+        subject=subject,
+        topic=topic,
+        count=count,
+        taxonomy_lock=lock,
+    )
 
 
 def map_generate_error(exc: Exception) -> tuple[int, str]:

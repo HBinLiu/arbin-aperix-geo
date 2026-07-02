@@ -21,6 +21,7 @@ from aperix_geo.services.analysis.diagnosis_sql import (
 )
 from aperix_geo.services.analysis.entity import (
     competitor_entities,
+    entity_display_name,
     list_analysis_entities,
     own_entity,
     resolve_analysis_entity,
@@ -162,7 +163,7 @@ def _build_report_context(
         "average_rank_metric": average_rank_metric,
         "competitors": [
             {
-                "label": entity.display_name,
+                "label": entity_display_name(entity),
                 "domain": entity.domain,
                 "logo": favicon_data_url(entity.domain),
             }
@@ -244,7 +245,7 @@ def _build_report_context(
             ),
         },
         "key_insight": _build_key_insight(
-            brand=own_entity(subject).display_name,
+            brand=entity_display_name(own_entity(subject)),
             overview=overview,
             summary=diagnosis_summary,
         ),
@@ -317,7 +318,7 @@ def build_brand_report_payload(
 
     return {
         "meta": {
-            "brand": own.display_name,
+            "brand": entity_display_name(own),
             "domain": own.domain,
             "logo": favicon_data_url(own.domain),
             "subject_id": str(subject.id),

@@ -16,6 +16,7 @@ from aperix_geo.services.setup.keyword_plan import (
 )
 from aperix_geo.services.setup.topic_items import topic_name_key
 from aperix_geo.services.setup.topic_seed import parse_seed
+from aperix_geo.services.prompts.taxonomy import PromptTaxonomyLock
 
 MAX_PROMPT_TEXT_LEN = 28
 MIN_SKELETON_LEN = 4
@@ -54,29 +55,40 @@ def _skeleton_key(text: str, *, core: str, plan: KeywordPlan) -> str:
     return skeleton if len(skeleton) >= MIN_SKELETON_LEN else body.casefold()
 
 
-def _prompt_from_seed(seed: dict[str, str]) -> dict[str, str]:
+def _prompt_from_seed(
+    seed: dict[str, str],
+    *,
+    taxonomy_lock: PromptTaxonomyLock | None = None,
+) -> dict[str, str]:
     from aperix_geo.services.prompts.taxonomy import (
         normalize_decision_type,
         normalize_funnel_stage,
         normalize_search_intent,
     )
 
-    return {
+    row = {
         "text": str(seed.get("text") or "").strip()[:MAX_PROMPT_TEXT_LEN],
         "funnel_stage": normalize_funnel_stage(str(seed.get("funnel") or "")),
         "search_intent": normalize_search_intent(str(seed.get("intent") or "")),
         "decision_type": normalize_decision_type(str(seed.get("decision") or "")) or "scenario_fit",
     }
+    return taxonomy_lock.apply_prompt_row(row) if taxonomy_lock is not None else row
 
 
-def _prompt_from_candidate(text: str, *, tag_index: int) -> dict[str, str]:
+def _prompt_from_candidate(
+    text: str,
+    *,
+    tag_index: int,
+    taxonomy_lock: PromptTaxonomyLock | None = None,
+) -> dict[str, str]:
     decision, funnel, intent = _PROMPT_TAG_ROTATION[tag_index % len(_PROMPT_TAG_ROTATION)]
-    return {
+    row = {
         "text": text.strip()[:MAX_PROMPT_TEXT_LEN],
         "funnel_stage": funnel,
         "search_intent": intent,
         "decision_type": decision,
     }
+    return taxonomy_lock.apply_prompt_row(row) if taxonomy_lock is not None else row
 
 
 def build_prompts_for_topic(
@@ -87,6 +99,7 @@ def build_prompts_for_topic(
     topic_index: int,
     limit: int,
     excluded: set[str],
+    taxonomy_lock: PromptTaxonomyLock | None = None,
 ) -> list[dict[str, str]]:
     """seed 1:1 转 prompt，再用 profile 长尾候选扩展至 limit 条。"""
     plan = build_keyword_plan(profile)
@@ -126,7 +139,7 @@ def build_prompts_for_topic(
         return True
 
     for seed in seeds:
-        try_add_row(_prompt_from_seed(seed))
+        try_add_row(_prompt_from_seed(seed, taxonomy_lock=taxonomy_lock))
 
     for idx, text in enumerate(
         seed_candidates_from_plan(
@@ -139,7 +152,7 @@ def build_prompts_for_topic(
     ):
         if len(out) >= cap:
             break
-        try_add_row(_prompt_from_candidate(text, tag_index=idx))
+        try_add_row(_prompt_from_candidate(text, tag_index=idx, taxonomy_lock=taxonomy_lock))
 
     return out
 
@@ -151,6 +164,7 @@ def build_prompts_from_seeds(
     profile: NicheProfile,
     limit: int,
     excluded: set[str] | None = None,
+    taxonomy_lock: PromptTaxonomyLock | None = None,
 ) -> list[dict[str, Any]]:
     blocked = excluded or set()
     return [
@@ -163,6 +177,7 @@ def build_prompts_from_seeds(
                 topic_index=idx,
                 limit=limit,
                 excluded=blocked,
+                taxonomy_lock=taxonomy_lock,
             ),
         }
         for idx, topic in enumerate(topics)

@@ -32,7 +32,7 @@ function BrandInlineChip({ label, iconLabel }: { label: string; iconLabel: strin
       variant="primary"
       className="mx-0.5 inline-flex h-auto items-center gap-1 rounded-md px-1 py-0.5 align-baseline"
     >
-      <BrandRankIcon label={iconLabel} size="xs" />
+      <BrandRankIcon label={iconLabel} size="xs" shape="circle" />
       <span className="text-xs font-medium">{label}</span>
     </TextBadge>
   );
@@ -153,10 +153,7 @@ function buildMarkdownComponents(mentionTerms: ResponseMentionTerm[]): Component
 
 /** AI 回复 Markdown 正文，含提及品牌主色 Badge */
 export function ReplyMarkdownContent({ text, mentionTerms, className }: ReplyMarkdownContentProps) {
-  const components = useMemo(
-    () => buildMarkdownComponents(mentionTerms),
-    [mentionTerms],
-  );
+  const components = useMemo(() => buildMarkdownComponents(mentionTerms), [mentionTerms]);
 
   return (
     <div className={cn("text-muted-foreground text-left text-sm leading-7", className)}>

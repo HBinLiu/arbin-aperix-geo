@@ -438,19 +438,20 @@ def _order_clause(*, sort_by: str | None, order: str) -> str:
     return f"{column} {direction}, prompt_id ASC"
 
 
-def _row_to_item(row: Any) -> dict[str, Any]:
+def _row_to_item(row: Any, *, subject: Subject) -> dict[str, Any]:
     prompt_id = row.prompt_id
     mention_rate = float(row.mention_rate or 0)
     average_rank = float(row.average_rank) if row.average_rank is not None else None
     brand_gap_rate = float(row.brand_gap_rate or 0)
     source_gap_rate = float(row.source_gap_rate or 0)
     platforms = list(row.platforms or [])
+    catalog_by_label = _entity_catalog_by_label(subject)
     item = {
         "id": str(prompt_id),
         "prompt_id": str(prompt_id),
         "prompt_text": row.prompt_text,
         "platforms": platforms,
-        "competitors": list(row.competitors or []),
+        "competitors": _competitors_payload(list(row.competitors or []), catalog_by_label),
         "brand_gap_rate": brand_gap_rate,
         "brand_gap_priority": gap_action_priority(brand_gap_rate),
         "source_gap_rate": source_gap_rate,
@@ -562,7 +563,7 @@ def _query_diagnosis_content_page(
         return [], 0
 
     total = int(rows[0].total_count or 0)
-    items = [_row_to_item(row) for row in rows]
+    items = [_row_to_item(row, subject=subject) for row in rows]
     return items, total
 
 
@@ -933,6 +934,39 @@ def _entity_catalog(subject: Subject) -> dict[str, Any]:
     return {entity.id: entity for entity in list_analysis_entities(subject)}
 
 
+def _entity_catalog_by_label(subject: Subject) -> dict[str, Any]:
+    return {entity.label: entity for entity in list_analysis_entities(subject)}
+
+
+def _competitors_payload(
+    labels: list[str],
+    catalog_by_label: dict[str, Any],
+) -> list[dict[str, str | None]]:
+    out: list[dict[str, str | None]] = []
+    seen: set[str] = set()
+    for raw in labels:
+        label = (raw or "").strip()
+        if not label:
+            continue
+        dedupe = label.casefold()
+        if dedupe in seen:
+            continue
+        seen.add(dedupe)
+        entity = catalog_by_label.get(label)
+        if entity is None:
+            out.append({"label": label, "brand": label, "domain": None})
+            continue
+        brand = (entity.brand or "").strip() or None
+        out.append(
+            {
+                "label": entity.label,
+                "brand": brand,
+                "domain": (entity.domain or "").strip() or None,
+            }
+        )
+    return out
+
+
 def _competitor_source_domain_count(
     *,
     subject: Subject,
@@ -998,7 +1032,7 @@ def _brand_breakdown_rows(
             {
                 "entity_id": entity.id,
                 "label": entity.label,
-                "display_name": entity.display_name,
+                "brand": entity.brand or None,
                 "domain": entity.domain or None,
                 "platforms": list(row.platforms or []),
                 "contribution_rate": float(row.contribution_rate or 0),
@@ -1025,7 +1059,7 @@ def _source_breakdown_rows(
             {
                 "entity_id": entity.id,
                 "label": entity.label,
-                "display_name": entity.display_name,
+                "brand": entity.brand or None,
                 "domain": entity.domain or None,
                 "platforms": list(row.platforms or []),
                 "contribution_rate": float(row.contribution_rate or 0),

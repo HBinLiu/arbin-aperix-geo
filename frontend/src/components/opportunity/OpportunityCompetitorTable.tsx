@@ -216,14 +216,12 @@ export function OpportunityCompetitorTable({
                   <td className="min-w-0 overflow-hidden px-4 whitespace-normal">
                     <BrandRankLabel
                       label={row.label}
-                      icon={row.icon}
                       domain={row.domain}
                       isOwn={false}
                       geoMetrics={rankBoardRowToBrandGeoMetrics({
                         id: row.brandId,
                         label: row.label,
                         domain: row.domain,
-                        icon: row.icon,
                         isOwn: false,
                         visibility: row.visibility,
                         visibilityNum: 0,

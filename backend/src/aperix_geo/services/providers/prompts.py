@@ -348,8 +348,21 @@ SETUP_WIZARD_PROMPTS_SYSTEM = """你是中国大陆市场的 GEO 监测问句设
 SETUP_WIZARD_PROMPTS_USER_PREFIX = "请生成初始监测提示词：\n"
 
 
-def setup_wizard_prompts_system(*, n: int) -> str:
-    return SETUP_WIZARD_PROMPTS_SYSTEM.format(n=n)
+def setup_wizard_prompts_system(*, n: int, taxonomy_lock: dict[str, str] | None = None) -> str:
+    base = SETUP_WIZARD_PROMPTS_SYSTEM.format(n=n)
+    if not taxonomy_lock:
+        return base
+    funnel = taxonomy_lock.get("funnel", "")
+    intent = taxonomy_lock.get("intent", "")
+    decision = taxonomy_lock.get("decision", "")
+    return (
+        f"{base}\n\n"
+        "# 分类固定（hard，覆盖上文「组合级覆盖」）\n"
+        "每条 prompt 的 funnel / intent / decision **必须全部为**：\n"
+        f"- funnel: {funnel}\n"
+        f"- intent: {intent}\n"
+        f"- decision: {decision}"
+    )
 
 
 # --- Setup 问句风格软评（evaluate_query_style_via_llm） ---

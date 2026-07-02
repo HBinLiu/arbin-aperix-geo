@@ -1,6 +1,6 @@
 import { api } from "@/api/client";
 import { buildAnalysisParams } from "@/lib/analysis/filters";
-import type { AnalysisEntitiesData, AnalysisQueryFilters, PlatformMatrixRowDimension } from "@/types";
+import type { AnalysisEntitiesData, AnalysisEntityRef, AnalysisQueryFilters, PlatformMatrixRowDimension } from "@/types";
 import type {
   BacklinkOpportunityData,
   BacklinkOpportunityDetailData,
@@ -36,9 +36,29 @@ import type {
 } from "@/types";
 import { normalizePlatformMatrixCells } from "@/lib/analysis/platform";
 
+type LegacyAnalysisEntity = AnalysisEntityRef & { display_name?: string };
+
+function normalizeAnalysisEntities(data: AnalysisEntitiesData): AnalysisEntitiesData {
+  return {
+    entities: data.entities.map((entity) => {
+      const raw = entity as LegacyAnalysisEntity;
+      if (raw.brand?.trim()) {
+        const { display_name: _legacy, ...rest } = raw;
+        return rest;
+      }
+      const legacy = raw.display_name?.trim();
+      if (legacy && legacy !== raw.label) {
+        const { display_name: _legacy, ...rest } = raw;
+        return { ...rest, brand: legacy };
+      }
+      return entity;
+    }),
+  };
+}
+
 export async function fetchAnalysisEntities(subjectId: string): Promise<AnalysisEntitiesData> {
   const { data } = await api.get<AnalysisEntitiesData>(`/subjects/${subjectId}/entities`);
-  return data;
+  return normalizeAnalysisEntities(data);
 }
 
 export async function fetchOverview(

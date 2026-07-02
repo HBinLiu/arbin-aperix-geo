@@ -13,6 +13,7 @@ from aperix_geo.schemas.catalog import (
     PromptBatchCreate,
     PromptCreate,
     PromptOut,
+    PromptTaxonomyOut,
     PromptUpdate,
 )
 from aperix_geo.services.billing.exceptions import QuotaExceededError
@@ -27,11 +28,28 @@ from aperix_geo.services.prompts.persist import (
     create_subject_prompt,
     get_topic_for_subject,
 )
-from aperix_geo.services.prompts.taxonomy import normalize_funnel_stage, normalize_search_intent
-from aperix_geo.services.prompts.taxonomy import normalize_decision_type
+from aperix_geo.services.prompts.taxonomy import (
+    normalize_decision_type,
+    normalize_funnel_stage,
+    normalize_search_intent,
+    prompt_taxonomy_meta,
+)
 from aperix_geo.utils.text import prompt_text_hash
 
 router = APIRouter(tags=["prompts"])
+
+
+@router.get("/prompts/taxonomy", response_model=PromptTaxonomyOut)
+def get_prompt_taxonomy(_current: CurrentUser) -> PromptTaxonomyOut:
+    meta = prompt_taxonomy_meta()
+    return PromptTaxonomyOut(
+        funnel_stages=[{"value": item.value, "label": item.label} for item in meta.funnel_stages],
+        search_intents=[{"value": item.value, "label": item.label} for item in meta.search_intents],
+        decision_types=[{"value": item.value, "label": item.label} for item in meta.decision_types],
+        default_funnel_stage=meta.default_funnel_stage,
+        default_search_intent=meta.default_search_intent,
+        default_decision_type=meta.default_decision_type,
+    )
 
 
 def _validation_error(exc: PromptValidationError) -> HTTPException:
@@ -160,6 +178,9 @@ def _generate_candidates(
             subject_id=subject_id,
             topic_id=body.topic_id,
             count=body.count,
+            funnel_stage=body.funnel_stage,
+            search_intent=body.search_intent,
+            decision_type=body.decision_type,
         )
     except Exception as exc:
         code, detail = map_generate_error(exc)

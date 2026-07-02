@@ -469,6 +469,7 @@ def query_prompt_metrics(
                 "topic_name": topic.name if topic else None,
                 "funnel_stage": prompt.funnel_stage,
                 "search_intent": prompt.search_intent,
+                "decision_type": prompt.decision_type,
                 "visibility_rate": metrics.get("visibility_rate"),
                 "mention_rate": metrics.get("mention_rate"),
                 "average_rank": metrics.get("average_rank"),

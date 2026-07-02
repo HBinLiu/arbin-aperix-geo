@@ -34,6 +34,33 @@ logger = logging.getLogger(__name__)
 __all__ = ["FetchSource", "PageFetchResult", "fetch_page"]
 
 
+def _decode_http_response(resp: httpx.Response, *, max_chars: int) -> str:
+    raw = resp.content
+    if not raw:
+        return ""
+    byte_limit = min(len(raw), max(max_chars * 4, 262_144))
+    chunk = raw[:byte_limit]
+
+    encoding = resp.charset_encoding
+    if encoding:
+        try:
+            return chunk.decode(encoding, errors="replace")[:max_chars]
+        except (LookupError, UnicodeDecodeError):
+            pass
+
+    try:
+        import chardet
+
+        detected = chardet.detect(chunk)
+        enc = (detected.get("encoding") or "").strip()
+        if enc:
+            return chunk.decode(enc, errors="replace")[:max_chars]
+    except Exception:
+        pass
+
+    return chunk.decode("utf-8", errors="replace")[:max_chars]
+
+
 @dataclass(frozen=True)
 class _PageCache:
     cache_url: str
@@ -112,7 +139,7 @@ def _httpx_fetch(url: str, *, timeout_s: float, max_chars: int) -> PageFetchResu
                 http_status=status,
                 source="none",
             )
-        html = resp.text[:max_chars]
+        html = _decode_http_response(resp, max_chars=max_chars)
         result = PageFetchResult(
             url=key,
             final_url=final_url,

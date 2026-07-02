@@ -9,6 +9,7 @@ import {
   formatSentimentScore,
 } from "@/lib/analysis/format";
 import { resolvePlatformMeta } from "@/lib/analysis/shared";
+import { entityDisplayName } from "@/lib/analysis/entities";
 import type {
   AnalysisEntityRef,
   PlatformAnalysisData,
@@ -213,8 +214,8 @@ export function buildPlatformMatrixRows(
     rowDimension === "competitor"
       ? entities.map((entity) => ({
           id: entity.id,
-          label: entity.display_name,
-          domain: entity.label,
+      label: entityDisplayName(entity),
+      domain: entity.label,
           isOwn: entity.kind === "own",
           isFocus: entity.id === data.entity_id,
         }))

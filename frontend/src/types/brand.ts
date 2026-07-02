@@ -17,8 +17,23 @@ export type SubjectPrompt = {
   text: string;
   funnel_stage: string;
   search_intent: string;
+  decision_type: string;
   enabled: boolean;
   created_at: string;
+};
+
+export type PromptTaxonomyOption = {
+  value: string;
+  label: string;
+};
+
+export type PromptTaxonomy = {
+  funnel_stages: PromptTaxonomyOption[];
+  search_intents: PromptTaxonomyOption[];
+  decision_types: PromptTaxonomyOption[];
+  default_funnel_stage: string;
+  default_search_intent: string;
+  default_decision_type: string;
 };
 
 export type CompetitorItem = {

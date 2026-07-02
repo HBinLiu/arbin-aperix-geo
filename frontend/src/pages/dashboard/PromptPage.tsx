@@ -10,6 +10,7 @@ import { PromptToolbar } from "@/components/prompt/PromptToolbar";
 import { PromptTopicSidebar } from "@/components/prompt/PromptTopicSidebar";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
 import { usePromptManagement } from "@/hooks/usePromptManagement";
+import { usePromptTaxonomy } from "@/hooks/usePromptTaxonomy";
 import {
   filterPrompts,
   PROMPT_QUOTA_LIMIT,
@@ -57,6 +58,7 @@ export function PromptContent() {
     previewPrompts,
     batchCreatePrompts,
   } = usePromptManagement(subject.id);
+  const { taxonomy } = usePromptTaxonomy();
 
   const [selectedTopicId, setSelectedTopicId] = useState<string>(PROMPT_TOPIC_ALL);
   const [enabledFilter, setEnabledFilter] = useState<PromptEnabledFilter>("all");
@@ -66,12 +68,18 @@ export function PromptContent() {
   const [topicName, setTopicName] = useState("");
   const [promptText, setPromptText] = useState("");
   const [promptTopicId, setPromptTopicId] = useState("");
+  const [promptFunnelStage, setPromptFunnelStage] = useState(taxonomy.default_funnel_stage);
+  const [promptSearchIntent, setPromptSearchIntent] = useState(taxonomy.default_search_intent);
+  const [promptDecisionType, setPromptDecisionType] = useState(taxonomy.default_decision_type);
   const [promptFormMode, setPromptFormMode] = useState<"create" | "edit">("create");
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [generateOpen, setGenerateOpen] = useState(false);
   const [generateTopicId, setGenerateTopicId] = useState("");
+  const [generateFunnelStage, setGenerateFunnelStage] = useState(taxonomy.default_funnel_stage);
+  const [generateSearchIntent, setGenerateSearchIntent] = useState(taxonomy.default_search_intent);
+  const [generateDecisionType, setGenerateDecisionType] = useState(taxonomy.default_decision_type);
   const [generateCount, setGenerateCount] = useState(1);
   const [toggleConfirmRow, setToggleConfirmRow] = useState<PromptTableRow | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState | null>(null);
@@ -128,6 +136,9 @@ export function PromptContent() {
     setPromptTopicId(
       selectedTopicId === PROMPT_TOPIC_ALL ? (topics[0]?.id ?? "") : selectedTopicId,
     );
+    setPromptFunnelStage(taxonomy.default_funnel_stage);
+    setPromptSearchIntent(taxonomy.default_search_intent);
+    setPromptDecisionType(taxonomy.default_decision_type);
     setPromptFormMode("create");
     setDialog({ type: "add-prompt" });
   };
@@ -135,6 +146,9 @@ export function PromptContent() {
   const openEditPrompt = (row: PromptTableRow) => {
     setPromptText(row.text);
     setPromptTopicId(row.topicId);
+    setPromptFunnelStage(row.funnelStage || taxonomy.default_funnel_stage);
+    setPromptSearchIntent(row.searchIntent || taxonomy.default_search_intent);
+    setPromptDecisionType(row.decisionType || taxonomy.default_decision_type);
     setPromptFormMode("edit");
     setDialog({ type: "edit-prompt", row });
   };
@@ -201,6 +215,10 @@ export function PromptContent() {
       toast.error("请选择主题。");
       return;
     }
+    if (!promptFunnelStage || !promptSearchIntent || !promptDecisionType) {
+      toast.error("请完整选择搜索意图、营销漏斗与决策场景。");
+      return;
+    }
 
     const isEdit = promptFormMode === "edit";
     if (!isEdit && subjectPromptRemaining(prompts) <= 0) {
@@ -216,6 +234,9 @@ export function PromptContent() {
           body: {
             text,
             topic_id: promptTopicId,
+            funnel_stage: promptFunnelStage,
+            search_intent: promptSearchIntent,
+            decision_type: promptDecisionType,
           },
         });
         toast.success("提示词已更新。");
@@ -223,6 +244,9 @@ export function PromptContent() {
         await createPrompt.mutateAsync({
           topic_id: promptTopicId,
           text,
+          funnel_stage: promptFunnelStage,
+          search_intent: promptSearchIntent,
+          decision_type: promptDecisionType,
           enabled: true,
         });
         toast.success("提示词已创建。");
@@ -242,14 +266,26 @@ export function PromptContent() {
       selectedTopicId === PROMPT_TOPIC_ALL ? (topics[0]?.id ?? "") : selectedTopicId;
     const remaining = subjectPromptRemaining(prompts);
     setGenerateTopicId(topicId);
+    setGenerateFunnelStage(taxonomy.default_funnel_stage);
+    setGenerateSearchIntent(taxonomy.default_search_intent);
+    setGenerateDecisionType(taxonomy.default_decision_type);
     setGenerateCount(remaining > 0 ? Math.min(9, remaining) : 0);
     setGenerateOpen(true);
   };
 
-  const handleGeneratePreview = async (input: { topicId: string; count: number }) => {
+  const handleGeneratePreview = async (input: {
+    topicId: string;
+    count: number;
+    funnelStage: string;
+    searchIntent: string;
+    decisionType: string;
+  }) => {
     return previewPrompts.mutateAsync({
       topic_id: input.topicId,
       count: input.count,
+      funnel_stage: input.funnelStage,
+      search_intent: input.searchIntent,
+      decision_type: input.decisionType,
     });
   };
 
@@ -266,6 +302,7 @@ export function PromptContent() {
           text: item.text,
           funnel_stage: item.funnel_stage,
           search_intent: item.search_intent,
+          decision_type: item.decision_type,
         })),
       });
 
@@ -287,40 +324,65 @@ export function PromptContent() {
     if (!uploadFile) return;
 
     const content = await uploadFile.text();
-    const { rows, errors } = parsePromptCsv(content);
+    const { rows, skippedCount: invalidSkipped, errors } = parsePromptCsv(content, taxonomy);
     if (errors.length > 0) {
       toast.error(errors[0]);
       return;
     }
 
+    const topicByName = new Map(topics.map((topic) => [topic.name.toLowerCase(), topic.id]));
+    const importRows = rows.filter((row) => topicByName.has(row.topic.toLowerCase()));
+    const topicSkipped = rows.length - importRows.length;
+    const filteredSkipped = invalidSkipped + topicSkipped;
+
+    if (importRows.length === 0) {
+      toast.error(
+        filteredSkipped > 0
+          ? `没有可导入的数据，已跳过 ${filteredSkipped} 条无效行。`
+          : "CSV 中没有可导入的数据行。",
+      );
+      return;
+    }
+
     setUploading(true);
     try {
-      const topicByName = new Map(topics.map((topic) => [topic.name.toLowerCase(), topic.id]));
       let created = 0;
-      let skipped = 0;
+      let duplicateSkipped = 0;
 
-      for (const row of rows) {
-        let topicId = topicByName.get(row.topic.toLowerCase());
-        if (!topicId) {
-          const topic = await createTopic.mutateAsync({ name: row.topic });
-          topicId = topic.id;
-          topicByName.set(row.topic.toLowerCase(), topicId);
-        }
+      for (const row of importRows) {
+        const topicId = topicByName.get(row.topic.toLowerCase());
+        if (!topicId) continue;
 
         try {
           await createPrompt.mutateAsync({
             topic_id: topicId,
             text: row.prompt,
+            funnel_stage: row.funnelStage,
+            search_intent: row.searchIntent,
+            decision_type: row.decisionType,
             enabled: true,
           });
           created += 1;
         } catch {
-          skipped += 1;
+          duplicateSkipped += 1;
         }
       }
 
-      const suffix = skipped > 0 ? `，跳过 ${skipped} 条` : "";
-      toast.success(`成功导入 ${created} 条提示词${suffix}。`);
+      const totalSkipped = filteredSkipped + duplicateSkipped;
+      if (created === 0) {
+        toast.error(
+          totalSkipped > 0
+            ? `未能导入任何提示词，已跳过 ${totalSkipped} 条。`
+            : "未能导入任何提示词。",
+        );
+        return;
+      }
+
+      const parts = [`成功导入 ${created} 条提示词`];
+      if (totalSkipped > 0) {
+        parts.push(`跳过 ${totalSkipped} 条`);
+      }
+      toast.success(`${parts.join("，")}。`);
       setUploadOpen(false);
       setUploadFile(null);
     } catch {
@@ -381,6 +443,7 @@ export function PromptContent() {
           <PromptTable
             rows={filteredPrompts}
             topics={topics}
+            taxonomy={taxonomy}
             selectedIds={selectedIds}
             onSelectedIdsChange={setSelectedIds}
             onEdit={openEditPrompt}
@@ -393,9 +456,16 @@ export function PromptContent() {
 
       <PromptGenerateDialog
         open={generateOpen}
+        taxonomy={taxonomy}
         topicId={generateTopicId}
         onTopicIdChange={setGenerateTopicId}
         topicOptions={topicOptions}
+        funnelStage={generateFunnelStage}
+        onFunnelStageChange={setGenerateFunnelStage}
+        searchIntent={generateSearchIntent}
+        onSearchIntentChange={setGenerateSearchIntent}
+        decisionType={generateDecisionType}
+        onDecisionTypeChange={setGenerateDecisionType}
         count={generateCount}
         onCountChange={setGenerateCount}
         remaining={generateRemaining}
@@ -410,6 +480,7 @@ export function PromptContent() {
 
       <PromptUploadDialog
         open={uploadOpen}
+        taxonomy={taxonomy}
         file={uploadFile}
         onFileChange={setUploadFile}
         submitting={uploading}
@@ -453,11 +524,18 @@ export function PromptContent() {
       <PromptCreateDialog
         open={dialog?.type === "add-prompt" || dialog?.type === "edit-prompt"}
         mode={promptFormMode}
+        taxonomy={taxonomy}
         topicId={promptTopicId}
         onTopicIdChange={setPromptTopicId}
         topicOptions={topicOptions}
         text={promptText}
         onTextChange={setPromptText}
+        funnelStage={promptFunnelStage}
+        onFunnelStageChange={setPromptFunnelStage}
+        searchIntent={promptSearchIntent}
+        onSearchIntentChange={setPromptSearchIntent}
+        decisionType={promptDecisionType}
+        onDecisionTypeChange={setPromptDecisionType}
         submitting={createPrompt.isPending || updatePrompt.isPending}
         onOpenChange={(open) => !open && closeDialog()}
         onSubmit={() => void handleSavePrompt()}

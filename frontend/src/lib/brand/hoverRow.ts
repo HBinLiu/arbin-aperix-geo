@@ -1,4 +1,5 @@
 import { faviconUrlFromHost } from "@/lib/favicon";
+import { brandDisplayLabel } from "@/lib/brand/display";
 import type { CompetitorItem, Subject } from "@/types";
 
 /**
@@ -15,7 +16,7 @@ export type BrandHoverHints = {
 };
 
 export function brandRowLabel(row: Pick<CompetitorItem, "brand" | "domain">): string {
-  return row.brand.trim() || row.domain;
+  return brandDisplayLabel({ brand: row.brand, domain: row.domain });
 }
 
 function normalize(value: string): string {

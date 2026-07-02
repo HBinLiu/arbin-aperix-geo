@@ -1,14 +1,13 @@
-import { BrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
+import { BrandRankIcon, type BrandRankIconShape, type BrandRankIconSize } from "@/components/analysis/common/BrandRankIcon";
 import { CompetitorHoverCard } from "@/components/brand/CompetitorHoverCard";
 import { LabelHoverPortal } from "@/components/brand/LabelHoverPortal";
 import { TextBadge } from "@/components/ui/badge";
 import { useBrandHoverRow } from "@/hooks/useBrandHoverRow";
+import { brandIconFaviconLabel } from "@/lib/brand/iconColor";
+import { brandRowLabel } from "@/lib/brand/hoverRow";
 import type { BrandGeoMetrics } from "@/lib/brand/geoMetrics";
 import { cn } from "@/lib/utils";
 import type { CompetitorItem } from "@/types";
-
-type BrandRankIconSize = "sm" | "default" | "lg";
-type BrandRankIconShape = "square" | "circle";
 
 type BrandRankLabelProps = {
   label: string;
@@ -48,18 +47,20 @@ export function BrandRankLabel({
   className,
 }: BrandRankLabelProps) {
   const resolvedHoverRow = useBrandHoverRow(label, hoverRow, domain);
+  const displayLabel = brandRowLabel(resolvedHoverRow) || label.trim();
+  const faviconLabel = brandIconFaviconLabel(displayLabel, domain ?? resolvedHoverRow.domain);
 
   return (
     <div className={cn("flex min-w-0 w-full items-center gap-2", className)}>
-      {icon ?? <BrandRankIcon label={label} size={size} shape={shape} />}
+      {icon ?? <BrandRankIcon label={faviconLabel} size={size} shape={shape} />}
       {showHover ? (
         <LabelHoverPortal
-          label={label}
+          label={displayLabel}
           content={<CompetitorHoverCard row={resolvedHoverRow} geoMetrics={geoMetrics} />}
           contentClassName={HOVER_CARD_ANIMATION}
         />
       ) : (
-        <p className="truncate text-sm font-medium">{label}</p>
+        <p className="truncate text-sm font-medium">{displayLabel}</p>
       )}
       {isOwn ? (
         <TextBadge variant="primary" className="shrink-0">

@@ -1,8 +1,7 @@
 import { CircleHelp } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
-import { AnalysisRankTable, type RankRow } from "@/components/analysis/common/AnalysisRankTable";
-import { buildBrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
+import { AnalysisRankTable } from "@/components/analysis/common/AnalysisRankTable";
 import { SentimentMetricCell } from "@/components/analysis/prompt/PerformanceMetricCells";
 import { SentimentDistributionChart } from "@/components/analysis/sentiment/SentimentDistributionChart";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -104,14 +103,7 @@ export function SentimentOverviewSection({
   overview,
   loading = false,
 }: SentimentOverviewSectionProps) {
-  const rankRowsWithIcons = useMemo(
-    () =>
-      overview.rankRows.map((row: RankRow) => ({
-        ...row,
-        icon: buildBrandRankIcon(row.domain ?? ""),
-      })),
-    [overview.rankRows],
-  );
+  const rankRows = overview.rankRows;
 
   return (
     <div
@@ -138,7 +130,7 @@ export function SentimentOverviewSection({
             title="情感倾向排名"
             entityHeader="品牌"
             valueHeader="情感倾向"
-            rows={rankRowsWithIcons}
+            rows={rankRows}
             renderValue={(row) => (
               <SentimentMetricCell value={row.value} label={row.sentimentLabel} />
             )}

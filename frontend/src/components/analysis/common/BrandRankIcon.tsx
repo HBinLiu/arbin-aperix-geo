@@ -1,14 +1,15 @@
-import { memo, type ReactNode } from "react";
+import { memo, useMemo, type CSSProperties, type ReactNode } from "react";
 import { Globe } from "lucide-react";
 
 import { FaviconImage } from "@/components/common/FaviconImage";
+import { brandIconColor } from "@/lib/brand/iconColor";
 import { faviconUrlFromHost } from "@/lib/favicon";
 import { cn } from "@/lib/utils";
 
 const DOMAIN_LABEL = /\.[a-z]{2,}/i;
 
-type BrandRankIconSize = "xs" | "sm" | "default" | "lg";
-type BrandRankIconShape = "square" | "circle";
+export type BrandRankIconSize = "xs" | "sm" | "default" | "lg";
+export type BrandRankIconShape = "square" | "circle";
 
 const SIZE_CONFIG = {
   xs: {
@@ -49,6 +50,10 @@ function brandRankRoundedClass(shape: BrandRankIconShape): string {
   return shape === "circle" ? "rounded-full" : "rounded-md";
 }
 
+function brandIconFillStyle(color: string): CSSProperties {
+  return { backgroundColor: color, color: "#ffffff" };
+}
+
 function brandRankFavicon(
   label: string,
   size: BrandRankIconSize = "default",
@@ -67,17 +72,8 @@ function brandRankFavicon(
   );
 }
 
-export function buildBrandRankIcon(
-  label: string,
-  size: BrandRankIconSize = "default",
-  shape: BrandRankIconShape = "square",
-  showLoadingSpinner = true,
-): ReactNode | undefined {
-  if (!DOMAIN_LABEL.test(label)) return undefined;
-  return brandRankFavicon(label, size, shape, showLoadingSpinner);
-}
-
-type BrandRankIconProps = {
+export type BrandRankIconProps = {
+  /** favicon 解析用（通常为 domain）；无域名时用展示名首字母 */
   label: string | null;
   icon?: ReactNode;
   size?: BrandRankIconSize;
@@ -87,7 +83,7 @@ type BrandRankIconProps = {
   faviconLoadingSpinner?: boolean;
 };
 
-/** 品牌排名图标：域名 favicon 或首字母占位，与 AnalysisRankTable 一致 */
+/** 品牌图标：有 favicon 时原样展示；无图标时首字母占位并按 label 着色 */
 export const BrandRankIcon = memo(function BrandRankIcon({
   label,
   icon,
@@ -98,6 +94,10 @@ export const BrandRankIcon = memo(function BrandRankIcon({
 }: BrandRankIconProps) {
   const config = SIZE_CONFIG[size];
   const roundedClass = brandRankRoundedClass(shape);
+  const letterColor = useMemo(
+    () => brandIconColor(label ?? ""),
+    [label],
+  );
 
   if (!label) {
     return (
@@ -115,7 +115,11 @@ export const BrandRankIcon = memo(function BrandRankIcon({
     );
   }
 
-  const resolvedIcon = icon ?? buildBrandRankIcon(label, size, shape, faviconLoadingSpinner);
+  const resolvedIcon = icon ?? (
+    DOMAIN_LABEL.test(label)
+      ? brandRankFavicon(label, size, shape, faviconLoadingSpinner)
+      : undefined
+  );
 
   if (resolvedIcon) {
     return (
@@ -136,19 +140,28 @@ export const BrandRankIcon = memo(function BrandRankIcon({
   return (
     <span
       className={cn(
-        "bg-background text-muted-foreground flex shrink-0 items-center justify-center font-semibold",
+        "flex shrink-0 items-center justify-center font-semibold",
         roundedClass,
         config.box,
         config.letterText,
         className,
       )}
+      style={brandIconFillStyle(letterColor)}
     >
       {label.slice(0, 1).toUpperCase()}
     </span>
   );
 });
 
-const DEFAULT_MAX_VISIBLE = 3;
+/** 兼容旧用法：返回 BrandRankIcon 节点 */
+export function buildBrandRankIcon(
+  label: string,
+  props?: Omit<BrandRankIconProps, "label">,
+): ReactNode | undefined {
+  const trimmed = label.trim();
+  if (!trimmed) return undefined;
+  return <BrandRankIcon label={trimmed} {...props} />;
+}
 
 type BrandRankIconGroupProps = {
   labels: string[];
@@ -158,6 +171,8 @@ type BrandRankIconGroupProps = {
   className?: string;
   iconClassName?: string;
 };
+
+const DEFAULT_MAX_VISIBLE = 3;
 
 /** 多品牌图标叠放；空列表显示 —，超出 maxVisible 显示 +N */
 export function BrandRankIconGroup({

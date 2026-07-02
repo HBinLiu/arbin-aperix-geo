@@ -14,7 +14,8 @@ import {
   useDialog,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import type { GeneratedPromptItem } from "@/types";
+import { taxonomyOptionLabel, taxonomySelectOptions } from "@/lib/prompt/taxonomy";
+import type { GeneratedPromptItem, PromptTaxonomy } from "@/types";
 import { cn } from "@/lib/utils";
 
 type CandidateRow = GeneratedPromptItem & {
@@ -24,16 +25,29 @@ type CandidateRow = GeneratedPromptItem & {
 
 type PromptGenerateDialogProps = {
   open: boolean;
+  taxonomy: PromptTaxonomy;
   topicId: string;
   onTopicIdChange: (value: string) => void;
   topicOptions: { value: string; label: string }[];
+  funnelStage: string;
+  onFunnelStageChange: (value: string) => void;
+  searchIntent: string;
+  onSearchIntentChange: (value: string) => void;
+  decisionType: string;
+  onDecisionTypeChange: (value: string) => void;
   count: number;
   onCountChange: (value: number) => void;
   remaining: number;
   previewLoading?: boolean;
   confirmLoading?: boolean;
   onOpenChange: (open: boolean) => void;
-  onPreview: (input: { topicId: string; count: number }) => Promise<GeneratedPromptItem[]>;
+  onPreview: (input: {
+    topicId: string;
+    count: number;
+    funnelStage: string;
+    searchIntent: string;
+    decisionType: string;
+  }) => Promise<GeneratedPromptItem[]>;
   onConfirm: (input: {
     topicId: string;
     items: GeneratedPromptItem[];
@@ -45,7 +59,7 @@ const promptCheckboxClass =
 
 const selectListGrid = cn(
   "grid w-full items-start gap-x-3 gap-y-2",
-  "grid-cols-[auto_minmax(0,1fr)_5rem_4rem]",
+  "grid-cols-[auto_minmax(0,1fr)_5rem_4rem_6rem]",
 );
 
 const funnelIntentCellClass = "flex min-h-9 items-center justify-center";
@@ -53,9 +67,16 @@ const funnelIntentCellClass = "flex min-h-9 items-center justify-center";
 /** 提示词管理 · 生成提示词对话框（左侧配置，右侧预览多选） */
 export function PromptGenerateDialog({
   open,
+  taxonomy,
   topicId,
   onTopicIdChange,
   topicOptions,
+  funnelStage,
+  onFunnelStageChange,
+  searchIntent,
+  onSearchIntentChange,
+  decisionType,
+  onDecisionTypeChange,
   count,
   onCountChange,
   remaining,
@@ -73,7 +94,19 @@ export function PromptGenerateDialog({
     }
   }, [open]);
 
-  const canPreview = Boolean(topicId && count > 0 && remaining > 0);
+  const taxonomyReady =
+    taxonomy.funnel_stages.length > 0 &&
+    taxonomy.search_intents.length > 0 &&
+    taxonomy.decision_types.length > 0;
+  const canPreview = Boolean(
+    taxonomyReady &&
+      topicId &&
+      count > 0 &&
+      remaining > 0 &&
+      funnelStage &&
+      searchIntent &&
+      decisionType,
+  );
   const hasCandidates = candidates.length > 0;
   const selectedCount = candidates.filter((row) => row.selected).length;
   const allSelected = hasCandidates && candidates.every((row) => row.selected);
@@ -82,7 +115,13 @@ export function PromptGenerateDialog({
   const handlePreview = async () => {
     if (!canPreview) return;
     try {
-      const items = await onPreview({ topicId, count });
+      const items = await onPreview({
+        topicId,
+        count,
+        funnelStage,
+        searchIntent,
+        decisionType,
+      });
       setCandidates(
         items.map((item) => ({
           ...item,
@@ -131,7 +170,7 @@ export function PromptGenerateDialog({
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-5">
           <div className="flex min-h-0 flex-1 gap-6 md:flex-row md:items-stretch md:gap-8">
-            <div className="md:w-[240px] md:shrink-0">
+            <div className="md:w-[260px] md:shrink-0">
               <div className="space-y-4">
                 <Field label="主题" required>
                   <SetupSelect
@@ -139,6 +178,33 @@ export function PromptGenerateDialog({
                     value={topicId}
                     onChange={onTopicIdChange}
                     options={topicOptions}
+                  />
+                </Field>
+
+                <Field label="搜索意图" required>
+                  <SetupSelect
+                    id="generate-intent"
+                    value={searchIntent}
+                    onChange={onSearchIntentChange}
+                    options={taxonomySelectOptions(taxonomy.search_intents)}
+                  />
+                </Field>
+
+                <Field label="营销漏斗" required>
+                  <SetupSelect
+                    id="generate-funnel"
+                    value={funnelStage}
+                    onChange={onFunnelStageChange}
+                    options={taxonomySelectOptions(taxonomy.funnel_stages)}
+                  />
+                </Field>
+
+                <Field label="决策场景" required>
+                  <SetupSelect
+                    id="generate-decision"
+                    value={decisionType}
+                    onChange={onDecisionTypeChange}
+                    options={taxonomySelectOptions(taxonomy.decision_types)}
                   />
                 </Field>
 
@@ -207,6 +273,9 @@ export function PromptGenerateDialog({
                         <span className={cn(funnelIntentCellClass, "text-foreground text-sm font-semibold")}>
                           意图
                         </span>
+                        <span className={cn(funnelIntentCellClass, "text-foreground text-sm font-semibold")}>
+                          决策
+                        </span>
                       </div>
                     </div>
 
@@ -233,6 +302,11 @@ export function PromptGenerateDialog({
                             </div>
                             <div className={cn(funnelIntentCellClass, "pl-1")}>
                               <PromptIntentBadge intent={row.search_intent} />
+                            </div>
+                            <div className={cn(funnelIntentCellClass, "justify-start px-1")}>
+                              <span className="text-foreground line-clamp-2 text-center text-xs leading-snug">
+                                {taxonomyOptionLabel(taxonomy.decision_types, row.decision_type)}
+                              </span>
                             </div>
                           </div>
                         ))}

@@ -1,16 +1,10 @@
 import { BrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { mentionedBrandDisplayLabel } from "@/lib/brand/display";
+import { brandIconFaviconLabel } from "@/lib/brand/iconColor";
 import type { CitationMentionedBrand } from "@/types";
 
 const VISIBLE_LIMIT = 5;
-
-function brandFaviconTarget(brand: CitationMentionedBrand): string {
-  return brand.domain ?? brand.label;
-}
-
-function brandDisplayLabel(brand: CitationMentionedBrand): string {
-  return brand.domain ?? brand.label;
-}
 
 type MentionedBrandsCellProps = {
   brands: CitationMentionedBrand[];
@@ -36,14 +30,21 @@ export function MentionedBrandsCell({ brands }: MentionedBrandsCellProps) {
           onClick={(event) => event.stopPropagation()}
         >
           <span className="flex items-center -space-x-1">
-            {visible.map((brand, index) => (
-              <span
-                key={`${brand.label}-${brand.domain ?? index}`}
-                className="ring-background inline-flex rounded-full ring-2"
-              >
-                <BrandRankIcon label={brandFaviconTarget(brand)} size="sm" shape="circle" />
-              </span>
-            ))}
+            {visible.map((brand, index) => {
+              const displayLabel = mentionedBrandDisplayLabel(brand);
+              return (
+                <span
+                  key={`${displayLabel}-${brand.domain ?? index}`}
+                  className="ring-background inline-flex rounded-full ring-2"
+                >
+                  <BrandRankIcon
+                    label={brandIconFaviconLabel(displayLabel, brand.domain)}
+                    size="sm"
+                    shape="circle"
+                  />
+                </span>
+              );
+            })}
           </span>
           {overflow > 0 ? (
             <span className="text-muted-foreground ml-1 shrink-0 text-xs tabular-nums">
@@ -59,15 +60,22 @@ export function MentionedBrandsCell({ brands }: MentionedBrandsCellProps) {
         className="border-border w-auto min-w-48 border bg-muted-background px-3 py-2.5 text-foreground shadow-lg"
       >
         <ul className="flex max-h-60 flex-col gap-2 overflow-y-auto overscroll-contain pr-1">
-          {brands.map((brand, index) => (
-            <li
-              key={`${brand.label}-${brand.domain ?? index}`}
-              className="flex items-center gap-2"
-            >
-              <BrandRankIcon label={brandFaviconTarget(brand)} size="sm" shape="circle" />
-              <span className="text-sm font-normal">{brandDisplayLabel(brand)}</span>
-            </li>
-          ))}
+          {brands.map((brand, index) => {
+            const displayLabel = mentionedBrandDisplayLabel(brand);
+            return (
+              <li
+                key={`${displayLabel}-${brand.domain ?? index}`}
+                className="flex items-center gap-2"
+              >
+                <BrandRankIcon
+                  label={brandIconFaviconLabel(displayLabel, brand.domain)}
+                  size="sm"
+                  shape="circle"
+                />
+                <span className="text-sm font-normal">{displayLabel}</span>
+              </li>
+            );
+          })}
         </ul>
       </TooltipContent>
     </Tooltip>

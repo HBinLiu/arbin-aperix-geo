@@ -12,21 +12,36 @@ export type PromptTableRow = {
   text: string;
   topicId: string;
   topicName: string;
+  funnelStage: string;
+  searchIntent: string;
+  decisionType: string;
   enabled: boolean;
   createdAt: string;
   createdAtLabel: string;
 };
 
-export const PROMPT_TABLE_COLUMNS = [
-  { id: "select", width: "3%", minWidth: 40 },
-  { id: "index", width: "4%", minWidth: 50 },
-  { id: "text", width: "40%", minWidth: 220 },
-  { id: "topic", width: "20%", minWidth: 160 },
-  { id: "createdAt", width: "20%", minWidth: 160 },
-  { id: "action", width: "13%", minWidth: 160 },
-] as const;
+export type PromptMgmtTableColumn = {
+  id: string;
+  width: string;
+  minWidth: number;
+};
 
-export const PROMPT_TABLE_MIN_WIDTH = PROMPT_TABLE_COLUMNS.reduce(
+/** 列宽百分比（合计 100%）；minWidth 供窄屏横向滚动 */
+export const PROMPT_MGMT_TABLE_COLUMNS: readonly PromptMgmtTableColumn[] = [
+  { id: "select", width: "4%", minWidth: 45 },
+  { id: "index", width: "4%", minWidth: 45 },
+  { id: "text", width: "25%", minWidth: 200 },
+  { id: "topic", width: "12%", minWidth: 140 },
+  { id: "funnelStage", width: "9%", minWidth: 100 },
+  { id: "searchIntent", width: "9%", minWidth: 100 },
+  { id: "decisionType", width: "10%", minWidth: 120 },
+  { id: "createdAt", width: "13.5%", minWidth: 150 },
+  { id: "action", width: "13.5%", minWidth: 150 },
+];
+
+export const PROMPT_MGMT_TABLE_COLUMN_COUNT = PROMPT_MGMT_TABLE_COLUMNS.length;
+
+export const PROMPT_TABLE_MIN_WIDTH = PROMPT_MGMT_TABLE_COLUMNS.reduce(
   (sum, column) => sum + column.minWidth,
   0,
 );
@@ -41,12 +56,21 @@ export function subjectPromptRemaining(prompts: SubjectPrompt[]): number {
   return Math.max(0, PROMPT_QUOTA_LIMIT - prompts.length);
 }
 
-export function promptColumnStyle(column: { width: string; minWidth: number }): CSSProperties {
+export function promptMgmtTableColumn(id: string): PromptMgmtTableColumn {
+  const column = PROMPT_MGMT_TABLE_COLUMNS.find((item) => item.id === id);
+  if (!column) {
+    throw new Error(`Unknown prompt management table column: ${id}`);
+  }
+  return column;
+}
+
+export function promptMgmtTableColumnColStyle(column: PromptMgmtTableColumn): CSSProperties {
   return { width: column.width, minWidth: column.minWidth };
 }
 
-export function promptTextCellStyle(minWidth: number): CSSProperties {
-  return { minWidth, maxWidth: 0 };
+/** 提示词列：配合 table-fixed 做 truncate */
+export function promptMgmtTextCellStyle(column: PromptMgmtTableColumn): CSSProperties {
+  return { minWidth: column.minWidth, maxWidth: 0 };
 }
 
 export function formatPromptCreatedAt(value: string): string {
@@ -86,6 +110,9 @@ export function buildPromptTableRows(
     text: prompt.text,
     topicId: prompt.topic_id,
     topicName: topicById.get(prompt.topic_id) ?? "—",
+    funnelStage: prompt.funnel_stage,
+    searchIntent: prompt.search_intent,
+    decisionType: prompt.decision_type,
     enabled: prompt.enabled,
     createdAt: prompt.created_at,
     createdAtLabel: formatPromptCreatedAt(prompt.created_at),

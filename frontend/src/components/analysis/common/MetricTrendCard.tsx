@@ -21,6 +21,7 @@ type MetricTrendCardProps = {
   multiSeries?: MultiSeriesPoint[];
   singleSeries?: { date: string; value: number | null }[];
   labels?: string[];
+  legendLabels?: Record<string, string>;
   hiddenLegendKeys?: Set<string>;
   onToggleLegendKey?: (key: string) => void;
   previousSeries?: MultiSeriesPoint[];
@@ -84,6 +85,7 @@ export function MetricTrendCard({
   multiSeries,
   singleSeries,
   labels = [],
+  legendLabels,
   hiddenLegendKeys,
   onToggleLegendKey,
   previousSeries,
@@ -119,6 +121,7 @@ export function MetricTrendCard({
       multiSeries,
       singleSeries,
       labels,
+      legendLabels,
       hiddenLegendKeys,
       onToggleLegendKey,
       previousSeries: overlayPrevious ? previousSeries : undefined,
@@ -134,6 +137,7 @@ export function MetricTrendCard({
       multiSeries,
       singleSeries,
       labels,
+      legendLabels,
       hiddenLegendKeys,
       onToggleLegendKey,
       overlayPrevious,

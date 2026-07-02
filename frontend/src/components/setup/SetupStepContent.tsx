@@ -155,7 +155,7 @@ export function SetupStepContent({ view, actions }: SetupStepContentProps) {
               id="wiz-brand"
               value={brandName}
               onChange={(e) => onBrandNameChange(e.target.value)}
-              placeholder="该名称将用于品牌的识别，请准确填写"
+              placeholder="用于品牌识别，请准确填写"
               leading={<Boxes className="text-muted-foreground size-5" aria-hidden />}
             />
           </SetupFieldGroup>

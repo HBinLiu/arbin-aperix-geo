@@ -75,8 +75,8 @@ def test_build_rank_returns_sorted_items_with_display_names() -> None:
     assert len(payload["items"]) == 2
     own = next(item for item in payload["items"] if item["is_own"])
     comp = next(item for item in payload["items"] if not item["is_own"])
-    assert own["display_name"] == "Aperix"
+    assert own["brand"] == "Aperix"
     assert own["domain"] == "aperix.com"
-    assert comp["display_name"] == "Beta"
+    assert comp["brand"] == "Beta"
     assert comp["domain"] == "beta.com"
     assert payload["items"][0]["visibility_rate"] >= payload["items"][1]["visibility_rate"]

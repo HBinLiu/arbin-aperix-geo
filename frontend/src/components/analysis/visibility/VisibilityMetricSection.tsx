@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 
-import { AnalysisRankTable, AVERAGE_RANK_TABLE_SORT, type RankRow } from "@/components/analysis/common/AnalysisRankTable";
-import { buildBrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
+import { AnalysisRankTable, AVERAGE_RANK_TABLE_SORT } from "@/components/analysis/common/AnalysisRankTable";
 import { MetricTrendCard } from "@/components/analysis/common/MetricTrendCard";
 import { AverageRankBarChart } from "@/components/analysis/visibility/AverageRankBarChart";
 import { ShareVoiceDonutChart } from "@/components/analysis/visibility/ShareVoiceDonutChart";
@@ -15,14 +14,11 @@ import {
 
 const sectionMinHeight = { minHeight: VISIBILITY_SECTION_HEIGHT };
 
-function withRankIcons(rows: RankRow[]) {
-  return rows.map((row) => ({ ...row, icon: buildBrandRankIcon(row.domain ?? "") }));
-}
-
 type VisibilityMetricSectionProps = {
   definition: VisibilityMetricDefinition;
   metric: VisibilityMetricBundle;
   topLabels: string[];
+  legendLabels?: Record<string, string>;
   ownLabel: string;
   scopeKey: string;
   loading: boolean;
@@ -33,13 +29,14 @@ export function VisibilityMetricSection({
   definition,
   metric,
   topLabels,
+  legendLabels,
   ownLabel,
   scopeKey,
   loading,
 }: VisibilityMetricSectionProps) {
   const isLineChart = definition.chartType === "line";
   const chartUi = useVisibilityChartUI(topLabels, ownLabel, scopeKey);
-  const rankRows = useMemo(() => withRankIcons(metric.rankRows), [metric.rankRows]);
+  const rankRows = metric.rankRows;
 
   const chart = useMemo(() => {
     const chartClassName = "min-h-[120px] w-full flex-1";
@@ -86,6 +83,7 @@ export function VisibilityMetricSection({
             chart={chart}
             multiSeries={isLineChart ? metric.series : undefined}
             labels={isLineChart ? chartUi.chartLabels : undefined}
+            legendLabels={isLineChart ? legendLabels : undefined}
             hiddenLegendKeys={isLineChart ? chartUi.hiddenLegendKeys : undefined}
             onToggleLegendKey={isLineChart ? chartUi.toggleLegendKey : undefined}
             previousSeries={isLineChart ? metric.previousSeries : undefined}

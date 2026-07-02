@@ -170,7 +170,6 @@ export function RankBoardTable({ rows, loading = false, className }: RankBoardTa
                 <td className="min-w-0 overflow-hidden px-4 whitespace-normal">
                   <BrandRankLabel
                     label={row.label}
-                    icon={row.icon}
                     domain={row.domain}
                     isOwn={row.isOwn}
                     geoMetrics={rankBoardRowToBrandGeoMetrics(row)}

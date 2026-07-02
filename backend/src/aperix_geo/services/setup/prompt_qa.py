@@ -1,8 +1,7 @@
 """Setup 提示词生成 QA。
 
 硬校验（默认）：结构、枚举、核心词锚定。
-质量 retry：同 topic 句法骨架不足 → collect_prompt_quality_feedback；问法风格 → query_style_llm 软评。
-默认不打 quality warning（避免与 LLM 软评重复刷屏）；strict_quality=True 供测试/审查。
+strict_quality=True 供测试/审查。
 """
 
 from __future__ import annotations
@@ -19,9 +18,7 @@ from aperix_geo.services.setup.keyword_plan import (
     resolve_topic_core_keyword,
     topic_modifiers_for_core,
 )
-from aperix_geo.services.setup.query_style import (
-    MIN_SKELETON_KINDS_PER_TOPIC,
-)
+from aperix_geo.services.setup.query_style import MIN_SKELETON_KINDS_PER_TOPIC
 from aperix_geo.services.setup.topic_items import topic_name_key
 
 MIN_PROMPT_DECISION_TYPES = 4

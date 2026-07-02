@@ -120,7 +120,7 @@ def entity_metrics_rows_from_index(
             {
                 "id": entity.id,
                 "label": entity.label,
-                "display_name": entity.display_name,
+                "brand": entity.brand or None,
                 "kind": entity.kind,
                 "is_own": entity.kind == "own",
                 "metrics": metrics_to_dict(metrics),
@@ -383,7 +383,7 @@ def mentioned_brands_for_response(
                 continue
             seen.add(key)
             domain = (row.primary_domain or "").strip() or None
-            out.append({"label": label, "domain": domain})
+            out.append({"label": label, "brand": label, "domain": domain})
             continue
 
         entity = entity_by_id.get(row.entity_id)
@@ -391,7 +391,8 @@ def mentioned_brands_for_response(
             continue
         seen.add(entity.label)
         domain = (entity.domain or "").strip() or None
-        out.append({"label": entity.label, "domain": domain})
+        brand = (entity.brand or "").strip() or None
+        out.append({"label": entity.label, "brand": brand, "domain": domain})
     return out
 
 

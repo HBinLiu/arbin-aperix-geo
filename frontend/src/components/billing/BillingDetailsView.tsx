@@ -806,7 +806,7 @@ function QuotaRecordsContent() {
 
   useEffect(() => {
     setPage(1);
-  }, [pageSize, sort, activeFilters]);
+  }, [pageSize, sort, activeFilters.days, activeFilters.record_type]);
 
   function handleSort(column: QuotaRecordSortField) {
     setSort((prev) => cycleBillingSort(prev, column));

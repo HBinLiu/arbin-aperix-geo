@@ -10,10 +10,13 @@ import {
   useDialog,
 } from "@/components/ui/dialog";
 import { downloadPromptCsvTemplate } from "@/lib/prompt/upload";
+import { taxonomyOptionLabels } from "@/lib/prompt/taxonomy";
 import { cn } from "@/lib/utils";
+import type { PromptTaxonomy } from "@/types";
 
 type PromptUploadDialogProps = {
   open: boolean;
+  taxonomy: PromptTaxonomy;
   file: File | null;
   onFileChange: (file: File | null) => void;
   submitting?: boolean;
@@ -49,6 +52,7 @@ function PromptUploadDialogFooter({
 /** 提示词管理 · CSV 上传对话框 */
 export function PromptUploadDialog({
   open,
+  taxonomy,
   file,
   onFileChange,
   submitting = false,
@@ -81,7 +85,7 @@ export function PromptUploadDialog({
               <div>
                 <p className="text-sm font-semibold">CSV 文件格式</p>
                 <p className="text-muted-foreground mt-1 text-xs">
-                  必填列（需包含表头行）：主题、提示词
+                  必填列（需包含表头行）：主题、提示词、搜索意图、营销漏斗、决策场景
                 </p>
               </div>
               <Button
@@ -90,7 +94,7 @@ export function PromptUploadDialog({
                 size="sm"
                 className="shrink-0 gap-1.5"
                 disabled={submitting}
-                onClick={downloadPromptCsvTemplate}
+                onClick={() => downloadPromptCsvTemplate(taxonomy)}
               >
                 <Download className="size-3.5" aria-hidden />
                 下载模板
@@ -98,16 +102,38 @@ export function PromptUploadDialog({
             </div>
 
             <div className="space-y-3 text-sm">
-              <div className="border-border border-b pb-3">
-                <p className="font-medium">主题</p>
-                <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-                  您希望跟踪的关键概念或关注领域。
-                </p>
+              <div className="border-border grid gap-4 border-b pb-3 sm:grid-cols-2">
+                <div>
+                  <p className="font-medium">主题</p>
+                  <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
+                    您希望跟踪的主题，请准确填写。
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium">提示词</p>
+                  <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
+                    将发送至 AI 答案引擎的独立查询。
+                  </p>
+                </div>
+              </div>
+              <div className="border-border grid gap-4 border-b pb-3 sm:grid-cols-2">
+                <div>
+                  <p className="font-medium">营销漏斗</p>
+                  <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
+                    可选值：{taxonomyOptionLabels(taxonomy.funnel_stages)}。
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium">搜索意图</p>
+                  <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
+                    可选值：{taxonomyOptionLabels(taxonomy.search_intents)}。
+                  </p>
+                </div>
               </div>
               <div>
-                <p className="font-medium">提示词</p>
+                <p className="font-medium">决策场景</p>
                 <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-                  将发送至 AI 答案引擎的独立查询。
+                  可选值：{taxonomyOptionLabels(taxonomy.decision_types)}。
                 </p>
               </div>
             </div>

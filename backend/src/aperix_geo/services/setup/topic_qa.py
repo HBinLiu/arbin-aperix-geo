@@ -1,13 +1,11 @@
 """监测主题簇结构校验。
 
-硬校验（默认）：条数、长度、枚举、主体名禁令、核心词锚定。
-质量校验（strict_quality=True）：泛词、近重复、修饰词、核心词覆盖等升级为 hard fail。
-问句风格由 query_style_llm 软评；默认模式不对 seed 修饰词逐条打 warning。
+硬校验：条数、长度、枚举、主体名禁令、核心词锚定。
+strict_quality=True 时额外校验泛词、近重复、修饰词覆盖等（供测试/审查）。
 """
 
 from __future__ import annotations
 
-import logging
 import re
 from typing import Any
 
@@ -38,8 +36,6 @@ from aperix_geo.services.setup.topic_rules import (
     MIN_CATEGORY_TOPIC_HITS,
 )
 from aperix_geo.services.setup.keyword_plan import _compact_casefold
-
-logger = logging.getLogger(__name__)
 
 _QUERY_MARKERS = ("?", "？", "怎么", "如何", "哪个", "哪些", "哪家", "为什么", "是否", "多少")
 _DECISION_SUFFIX_RE = re.compile(
@@ -171,16 +167,6 @@ def _topic_name_has_query_shape(name: str) -> bool:
     return name.endswith(("吗", "呢"))
 
 
-def _warn_near_duplicate_topic_names(names: list[str]) -> None:
-    compact_names = [(name, _compact_casefold(name)) for name in names]
-    for i, (left, lc) in enumerate(compact_names):
-        for j, (right, rc) in enumerate(compact_names):
-            if i >= j or len(lc) < 2 or len(rc) < 2:
-                continue
-            if lc in rc or rc in lc:
-                logger.warning("监测主题质量: 主题名过于相近 %s / %s", left, right)
-
-
 def _reject_near_duplicate_topic_names(names: list[str]) -> None:
     compact_names = [(name, _compact_casefold(name)) for name in names]
     for i, (left, lc) in enumerate(compact_names):
@@ -191,24 +177,18 @@ def _reject_near_duplicate_topic_names(names: list[str]) -> None:
                 raise ValueError(f"监测主题名过于相近：{left} / {right}")
 
 
-def _reject_generic_standalone_topic(name: str, *, profile: NicheProfile) -> None:
-    if is_modifier_only_category_term(name, profile=profile):
-        raise ValueError(f"监测主题不得使用场景/对比类泛词：{name}")
-
-
 def validate_topic_lexicon_precision(
     clusters: list[TopicCluster],
     *,
     profile: NicheProfile,
     strict_quality: bool = False,
 ) -> None:
-    """主题/种子须完整包含核心词；种子修饰词等为质量项。"""
+    """主题/种子须完整包含核心词。"""
     plan = build_keyword_plan(profile)
     core_keywords = plan["core_keywords"]
     if not core_keywords:
         raise ValueError("niche_profile 缺少可用核心词（category_terms/features）")
 
-    lexicon_terms = _lexicon_terms(profile)
     used_cores: set[str] = set()
     topic_names: list[str] = []
     core_order = select_topic_core_keywords(profile)
@@ -218,16 +198,11 @@ def validate_topic_lexicon_precision(
         name = str(cluster.get("name") or "").strip()
         topic_names.append(name)
 
-        if _topic_name_has_query_shape(name):
-            msg = f"监测主题名不得采用问句/问法形态：{name}"
-            if strict_quality:
-                raise ValueError(msg)
-            logger.warning("监测主题质量: %s", msg)
-        elif is_modifier_only_category_term(name, profile=profile):
-            msg = f"监测主题不得使用场景/对比类泛词：{name}"
-            if strict_quality:
-                raise ValueError(msg)
-            logger.warning("监测主题质量: %s", msg)
+        if strict_quality:
+            if _topic_name_has_query_shape(name):
+                raise ValueError(f"监测主题名不得采用问句/问法形态：{name}")
+            if is_modifier_only_category_term(name, profile=profile):
+                raise ValueError(f"监测主题不得使用场景/对比类泛词：{name}")
 
         core = resolve_topic_core_keyword(name, plan)
         if not core:
@@ -242,12 +217,11 @@ def validate_topic_lexicon_precision(
             topic_index=core_index.get(core.casefold(), 0),
         )
 
-        orphan = _unanchored_suffix(name, core, lexicon_terms)
-        if orphan:
-            msg = f"监测主题名含未锚定词根「{orphan}」：{name}"
-            if strict_quality:
-                raise ValueError(msg)
-            logger.warning("监测主题质量: %s", msg)
+        if strict_quality:
+            lexicon_terms = _lexicon_terms(profile)
+            orphan = _unanchored_suffix(name, core, lexicon_terms)
+            if orphan:
+                raise ValueError(f"监测主题名含未锚定词根「{orphan}」：{name}")
 
         for seed in cluster.get("seed_queries") or []:
             text = str(seed.get("text") or "").strip()
@@ -268,20 +242,6 @@ def validate_topic_lexicon_precision(
         if len(used_cores) < required:
             raise ValueError(
                 f"5 条主题须覆盖至少 {required} 个不同核心词，实际 {len(used_cores)} 个"
-            )
-    else:
-        _warn_near_duplicate_topic_names(topic_names)
-        if len(used_cores) < MAX_MONITORING_TOPICS:
-            logger.warning(
-                "监测主题质量: 5 条主题建议各绑定 1 个不同核心词，实际 %d 个",
-                len(used_cores),
-            )
-        required = min(MIN_CATEGORY_TOPIC_HITS, len(core_keywords))
-        if len(used_cores) < required:
-            logger.warning(
-                "监测主题质量: 建议覆盖至少 %d 个不同核心词，实际 %d 个",
-                required,
-                len(used_cores),
             )
 
 

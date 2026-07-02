@@ -222,6 +222,9 @@ class SetupFinalizeResponse(BaseModel):
 class GenerateSubjectPromptsRequest(BaseModel):
     topic_id: UUID
     count: int = Field(..., ge=1, le=50)
+    funnel_stage: str = Field(..., min_length=1, max_length=8)
+    search_intent: str = Field(..., min_length=1, max_length=16)
+    decision_type: str = Field(..., min_length=1, max_length=32)
 
 
 class TopicCreate(BaseModel):
@@ -235,6 +238,20 @@ class TopicOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class PromptTaxonomyOptionOut(BaseModel):
+    value: str
+    label: str
+
+
+class PromptTaxonomyOut(BaseModel):
+    funnel_stages: list[PromptTaxonomyOptionOut]
+    search_intents: list[PromptTaxonomyOptionOut]
+    decision_types: list[PromptTaxonomyOptionOut]
+    default_funnel_stage: str
+    default_search_intent: str
+    default_decision_type: str
 
 
 class PromptCreate(BaseModel):

@@ -282,7 +282,7 @@ export function PromptDetailResponseDialog({
                 <ul className="space-y-2">
                   {mentionBrands.map((item) => (
                     <li key={item.label} className="flex items-center gap-2 rounded-md py-1">
-                      <BrandRankIcon label={item.iconLabel} size="sm" />
+                      <BrandRankIcon label={item.iconLabel} size="sm" shape="circle" />
                       <span className="min-w-0 flex-1 truncate text-sm font-medium">{item.label}</span>
                       <SentimentValue
                         value={item.scoreLabel}

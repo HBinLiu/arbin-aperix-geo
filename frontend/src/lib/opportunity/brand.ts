@@ -1,4 +1,4 @@
-import { brandListIcon } from "@/lib/brand/display";
+import { brandDisplayLabel } from "@/lib/brand/display";
 import {
   formatRate,
   formatRankMetric,
@@ -46,13 +46,12 @@ function formatSentiment(value: number | null | undefined): string {
 
 export function buildBrandRows(items: BrandItem[]): BrandRow[] {
   return items.map((item) => {
-    const displayName = item.display_name.trim() || item.label;
+    const displayName = brandDisplayLabel(item);
     const domain = item.domain.trim() || null;
     return {
       brandId: item.brand_id,
       label: displayName,
       domain,
-      icon: brandListIcon(displayName, domain),
       visibility: formatRate(item.visibility_rate ?? 0),
       shareVoice: formatShareVoice(item.share_voice),
       mention: formatRate(item.mention_rate ?? 0),

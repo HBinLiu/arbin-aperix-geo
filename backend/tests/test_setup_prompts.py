@@ -24,14 +24,6 @@ _DIMENSIONS = [
 
 
 @pytest.fixture(autouse=True)
-def _skip_style_llm_judge(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        "aperix_geo.services.prompts.setup.evaluate_query_style_via_llm",
-        lambda **kwargs: ([], {}),
-    )
-
-
-@pytest.fixture(autouse=True)
 def _skip_keyword_prompt_qa(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "aperix_geo.services.prompts.setup.validate_generated_prompts",
@@ -39,10 +31,8 @@ def _skip_keyword_prompt_qa(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-@pytest.fixture(autouse=True)
-def _force_llm_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
-    """现有 LLM 单测假定走 chat_completion；主路径为 LLM，seed 为空时才会在 LLM 失败时用到。"""
-
+@pytest.fixture
+def _empty_seed_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     def _empty_seeds(*, topics, **kwargs):
         return [{"topic": topic, "prompts": []} for topic in topics]
 
@@ -141,7 +131,7 @@ def test_generate_setup_prompts_passes_exclude_prompts(mock_chat) -> None:
 
 
 @patch("aperix_geo.services.prompts.setup.chat_completion")
-def test_generate_setup_prompts_raises_on_llm_error(mock_chat) -> None:
+def test_generate_setup_prompts_raises_on_llm_error(mock_chat, _empty_seed_fallback) -> None:
     mock_chat.side_effect = ValueError("missing topics array")
 
     with pytest.raises(ValueError):
@@ -206,25 +196,7 @@ def test_generate_setup_prompts_exact_topic_match_only(mock_chat) -> None:
             }
         ]
     }
-    retry = {
-        "topics": [
-            {
-                "topic": "跨境支付",
-                "prompts": [
-                    {
-                        "text": "问句B",
-                        "funnel": "mofu",
-                        "intent": "commercial",
-                        "decision": "scenario_fit",
-                    }
-                ],
-            }
-        ]
-    }
-    mock_chat.side_effect = [
-        (json.dumps(batch), "deepseek", 100.0),
-        (json.dumps(retry), "deepseek", 50.0),
-    ]
+    mock_chat.return_value = (json.dumps(batch), "deepseek", 100.0)
 
     rows = generate_setup_prompts(
         entity="Acme",
@@ -234,8 +206,8 @@ def test_generate_setup_prompts_exact_topic_match_only(mock_chat) -> None:
     )
     by_topic = {row["topic"]: row["prompts"][0]["text"] for row in rows}
     assert by_topic["AI 搜索可见度"] == "问句A"
-    assert by_topic["跨境支付"] == "问句B"
-    assert mock_chat.call_count == 2
+    assert by_topic["跨境支付"]
+    assert mock_chat.call_count == 1
 
 
 @patch("aperix_geo.services.prompts.setup.chat_completion")

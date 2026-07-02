@@ -29,7 +29,8 @@ def build_analysis_entities(subject: Subject) -> dict[str, Any]:
                 "id": entity.id,
                 "kind": entity.kind,
                 "label": entity.label,
-                "display_name": entity.display_name,
+                "brand": entity.brand or None,
+                "domain": entity.domain,
                 "competitor_id": str(entity.competitor_id) if entity.competitor_id else None,
             }
             for entity in list_analysis_entities(subject)

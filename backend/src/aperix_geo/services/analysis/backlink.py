@@ -120,7 +120,7 @@ def _backlink_mentioned_competitors(
             if key in own_keys or key in seen:
                 continue
             seen.add(key)
-            items.append({"label": name, "domain": competitor_domains.get(name)})
+            items.append({"label": name, "brand": name, "domain": competitor_domains.get(name)})
     return items
 
 

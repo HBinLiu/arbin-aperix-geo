@@ -100,7 +100,7 @@ def _mentioned_brands_for_records(
                 continue
             seen.add(name)
             labels.append(name)
-    return [{"label": label, "domain": competitor_domains.get(label)} for label in labels]
+    return [{"label": label, "brand": label, "domain": competitor_domains.get(label)} for label in labels]
 
 
 def _aggregate_url_row(

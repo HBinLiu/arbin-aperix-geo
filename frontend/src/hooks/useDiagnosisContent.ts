@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 
 import { fetchDiagnosisContent } from "@/api/analysis";
+import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
 import { platformFilterKey, topicFilterKey, toAnalysisQueryFilters } from "@/lib/analysis";
 import { buildDiagnosisContentRows } from "@/lib/diagnosis/content";
 import { paginatedListResult, usePaginatedQuery } from "@/hooks/usePaginatedQuery";
@@ -20,6 +21,7 @@ export function useDiagnosisContent(
   listRequest: DiagnosisContentListRequest,
   enabled = true,
 ) {
+  const { entities } = useAnalysisFilter();
   const queryFilters = useMemo(() => toAnalysisQueryFilters(filters), [filters]);
   const { from, to, entityId, platformIds, topicIds } = queryFilters;
   const platformKey = platformFilterKey(platformIds);
@@ -52,8 +54,8 @@ export function useDiagnosisContent(
 
   const list = paginatedListResult(query, { page, pageSize });
   const rows = useMemo(
-    () => buildDiagnosisContentRows(query.data?.items ?? []),
-    [query.data?.items],
+    () => buildDiagnosisContentRows(query.data?.items ?? [], entities),
+    [entities, query.data?.items],
   );
 
   return { ...list, rows };

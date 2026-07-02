@@ -210,7 +210,7 @@ def _entity_metrics_rows_from_aggs(
             {
                 "id": entity.id,
                 "label": entity.label,
-                "display_name": entity.display_name,
+                "brand": entity.brand or None,
                 "kind": entity.kind,
                 "is_own": entity.kind == "own",
                 "metrics": metrics_to_dict(metrics),

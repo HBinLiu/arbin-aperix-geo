@@ -12,6 +12,7 @@ import { useDashboardOverview } from "@/hooks/useDashboardOverview";
 import { useSubjectPipeline } from "@/hooks/useSubjectPipeline";
 import {
   entityChartLabels,
+  entityLegendLabels,
   formatRate,
   VISIBILITY_METRICS,
 } from "@/lib/analysis";
@@ -43,6 +44,7 @@ function OverviewMetricsContent({ subjectId }: { subjectId: string }) {
   const { filters, setFilters } = useAnalysisFiltersState();
   const { entities } = useAnalysisFilter();
   const entityLabels = useMemo(() => entityChartLabels(entities), [entities]);
+  const legendLabels = useMemo(() => entityLegendLabels(entities), [entities]);
 
   const { isLoading, metrics, focusLabel, visibilityMetric, topicRows } =
     useDashboardOverview(subjectId, filters, entities);
@@ -106,6 +108,7 @@ function OverviewMetricsContent({ subjectId }: { subjectId: string }) {
           definition={VISIBILITY_DEF}
           metric={visibilityMetric}
           topLabels={entityLabels}
+          legendLabels={legendLabels}
           ownLabel={focusLabel}
           scopeKey={`${subjectId}:overview-visibility`}
           loading={isLoading}

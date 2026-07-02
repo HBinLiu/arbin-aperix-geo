@@ -14,22 +14,19 @@ from aperix_geo.services.providers.prompts import (
     setup_wizard_prompts_system,
 )
 from aperix_geo.services.providers import chat_completion
-from aperix_geo.services.prompts.taxonomy import normalize_funnel_stage, normalize_search_intent
-from aperix_geo.services.prompts.taxonomy import normalize_decision_type
+from aperix_geo.services.prompts.taxonomy import (
+    PromptTaxonomyLock,
+    normalize_decision_type,
+    normalize_funnel_stage,
+    normalize_search_intent,
+)
 from aperix_geo.services.setup.keyword_plan import (
     build_keyword_plan,
     build_topic_keyword_map,
     keyword_plan_to_dict,
 )
 from aperix_geo.services.setup.prompt_seed import build_prompts_from_seeds
-from aperix_geo.services.setup.prompt_qa import (
-    collect_prompt_quality_feedback,
-    validate_generated_prompts,
-)
-from aperix_geo.services.setup.query_style_llm import (
-    evaluate_query_style_via_llm,
-    style_groups_for_prompts,
-)
+from aperix_geo.services.setup.prompt_qa import validate_generated_prompts
 from aperix_geo.services.setup.topic_items import clusters_for_prompt_topics, topic_name_key
 from aperix_geo.utils.json import extract_json_object
 
@@ -47,6 +44,7 @@ def _normalize_generated_prompts(
     *,
     limit: int,
     excluded: set[str] | None = None,
+    taxonomy_lock: PromptTaxonomyLock | None = None,
 ) -> list[dict[str, str]]:
     blocked = excluded or set()
     out: list[dict[str, str]] = []
@@ -61,14 +59,15 @@ def _normalize_generated_prompts(
         if not text or text in seen or text in blocked:
             continue
         seen.add(text)
-        out.append(
-            {
-                "text": text,
-                "funnel_stage": funnel_stage,
-                "search_intent": search_intent,
-                "decision_type": decision_type,
-            }
-        )
+        row = {
+            "text": text,
+            "funnel_stage": funnel_stage,
+            "search_intent": search_intent,
+            "decision_type": decision_type,
+        }
+        if taxonomy_lock is not None:
+            row = taxonomy_lock.apply_prompt_row(row)
+        out.append(row)
         if len(out) >= limit:
             break
     return out
@@ -88,6 +87,7 @@ def _build_user_payload(
     exclude_prompts: list[str],
     profile: NicheProfile,
     validation_feedback: list[str] | None = None,
+    taxonomy_lock: PromptTaxonomyLock | None = None,
 ) -> dict[str, Any]:
     n = max(1, min(int(prompts_per_topic), PROMPT_MAX_PER_TOPIC))
     clusters = clusters_for_prompt_topics(topics, topic_clusters)
@@ -107,6 +107,8 @@ def _build_user_payload(
     }
     if validation_feedback:
         payload["validation_feedback"] = [s.strip() for s in validation_feedback if s.strip()]
+    if taxonomy_lock is not None:
+        payload["taxonomy_lock"] = taxonomy_lock.to_llm_payload()
     return payload
 
 
@@ -116,8 +118,13 @@ def _invoke_setup_prompts_llm(
     on_live_call: Callable[[dict[str, Any]], None] | None = None,
 ) -> list[dict[str, Any]]:
     n = int(user_payload.get("prompts_per_topic") or PROMPT_PER_TOPIC)
+    taxonomy_lock = user_payload.get("taxonomy_lock")
+    lock_payload = taxonomy_lock if isinstance(taxonomy_lock, dict) else None
     messages = [
-        {"role": "system", "content": setup_wizard_prompts_system(n=n)},
+        {
+            "role": "system",
+            "content": setup_wizard_prompts_system(n=n, taxonomy_lock=lock_payload),
+        },
         {
             "role": "user",
             "content": f"{SETUP_WIZARD_PROMPTS_USER_PREFIX}{json.dumps(user_payload, ensure_ascii=False, indent=2)}",
@@ -155,13 +162,19 @@ def _prompts_from_row(
     *,
     limit: int,
     excluded: set[str],
+    taxonomy_lock: PromptTaxonomyLock | None = None,
 ) -> list[dict[str, str]]:
     if not row:
         return []
     raw_prompts = row.get("prompts")
     if not isinstance(raw_prompts, list):
         return []
-    return _normalize_generated_prompts(raw_prompts, limit=limit, excluded=excluded)
+    return _normalize_generated_prompts(
+        raw_prompts,
+        limit=limit,
+        excluded=excluded,
+        taxonomy_lock=taxonomy_lock,
+    )
 
 
 def _merge_prompt_lists(
@@ -200,6 +213,40 @@ def _validate_prompt_batch(
         raise
 
 
+def _fill_prompt_gaps_from_seeds(
+    result: list[dict[str, Any]],
+    *,
+    topic_clusters: list[dict[str, Any]] | None,
+    profile: NicheProfile,
+    n: int,
+    excluded: set[str],
+    taxonomy_lock: PromptTaxonomyLock | None = None,
+) -> None:
+    """用 profile 长尾候选补齐 LLM 未产满的主题，避免额外 LLM 重试。"""
+    topics_needing_fill = [
+        str(item["topic"])
+        for item in result
+        if 0 < len(item.get("prompts") or []) < n or not item.get("prompts")
+    ]
+    if not topics_needing_fill:
+        return
+    seed_items = build_prompts_from_seeds(
+        topics=topics_needing_fill,
+        topic_clusters=topic_clusters,
+        profile=profile,
+        limit=n,
+        excluded=excluded,
+        taxonomy_lock=taxonomy_lock,
+    )
+    by_topic = {str(item["topic"]): item for item in seed_items}
+    for item in result:
+        topic = str(item["topic"])
+        extra = by_topic.get(topic, {}).get("prompts") or []
+        if not extra:
+            continue
+        item["prompts"] = _merge_prompt_lists(item.get("prompts") or [], extra, limit=n)
+
+
 def _generate_setup_prompts_via_llm(
     *,
     entity: str,
@@ -215,6 +262,7 @@ def _generate_setup_prompts_via_llm(
     excluded: set[str],
     excluded_list: list[str],
     on_live_call: Callable[[str, dict[str, Any]], None] | None,
+    taxonomy_lock: PromptTaxonomyLock | None = None,
 ) -> list[dict[str, Any]]:
     user_payload = _build_user_payload(
         entity=entity,
@@ -228,6 +276,7 @@ def _generate_setup_prompts_via_llm(
         prompts_per_topic=n,
         exclude_prompts=excluded_list,
         profile=profile,
+        taxonomy_lock=taxonomy_lock,
     )
     keyword_plan = build_keyword_plan(profile)
     cluster_payload = clusters_for_prompt_topics(cleaned_topics, topic_clusters)
@@ -247,116 +296,29 @@ def _generate_setup_prompts_via_llm(
         _invoke_setup_prompts_llm(user_payload, on_live_call=_bill(f"batch:{billing_key}"))
     )
     result: list[dict[str, Any]] = []
-    retry_topics: list[str] = []
-
     for topic in cleaned_topics:
-        prompts = _prompts_from_row(by_name.get(topic_name_key(topic)), limit=n, excluded=excluded)
-        if not prompts:
-            retry_topics.append(topic)
+        prompts = _prompts_from_row(
+            by_name.get(topic_name_key(topic)),
+            limit=n,
+            excluded=excluded,
+            taxonomy_lock=taxonomy_lock,
+        )
         result.append({"topic": topic, "prompts": prompts})
 
-    try:
-        _validate_prompt_batch(result, keyword_plan=keyword_plan, topic_clusters=cluster_payload)
-    except ValueError as first_error:
-        feedback = [str(first_error)]
-        retry_payload = _build_user_payload(
-            entity=entity,
-            topics=cleaned_topics,
-            topic_clusters=topic_clusters,
-            industry=industry,
-            features=features,
-            customers=customers,
-            competitors=competitor_list,
-            aliases=list(aliases or []),
-            prompts_per_topic=n,
-            exclude_prompts=excluded_list,
-            profile=profile,
-            validation_feedback=feedback,
-        )
-        by_name = _rows_by_topic_name(
-            _invoke_setup_prompts_llm(retry_payload, on_live_call=_bill(f"retry-all:{billing_key}"))
-        )
-        result = []
-        retry_topics = []
-        for topic in cleaned_topics:
-            prompts = _prompts_from_row(by_name.get(topic_name_key(topic)), limit=n, excluded=excluded)
-            if not prompts:
-                retry_topics.append(topic)
-            result.append({"topic": topic, "prompts": prompts})
-        _validate_prompt_batch(result, keyword_plan=keyword_plan, topic_clusters=cluster_payload)
-
-    quality_feedback = collect_prompt_quality_feedback(result, keyword_plan=keyword_plan)
-    style_feedback, style_usage = evaluate_query_style_via_llm(
-        stage="prompts",
-        groups=style_groups_for_prompts(result),
-        long_tail_examples=keyword_plan["long_tail_examples"],
-        entity_key=entity,
+    _fill_prompt_gaps_from_seeds(
+        result,
+        topic_clusters=topic_clusters,
+        profile=profile,
+        n=n,
+        excluded=excluded,
+        taxonomy_lock=taxonomy_lock,
     )
-    if style_usage and on_live_call is not None:
-        on_live_call(f"style-judge:{billing_key}", style_usage)
-    quality_feedback = [*quality_feedback, *style_feedback]
-    if quality_feedback:
-        logger.info(
-            "设置向导提示词: 结构/风格 feedback 重试 (%d 条)",
-            len(quality_feedback),
-        )
-        quality_payload = _build_user_payload(
-            entity=entity,
-            topics=cleaned_topics,
-            topic_clusters=topic_clusters,
-            industry=industry,
-            features=features,
-            customers=customers,
-            competitors=competitor_list,
-            aliases=list(aliases or []),
-            prompts_per_topic=n,
-            exclude_prompts=excluded_list,
-            profile=profile,
-            validation_feedback=quality_feedback,
-        )
-        by_name = _rows_by_topic_name(
-            _invoke_setup_prompts_llm(
-                quality_payload,
-                on_live_call=_bill(f"retry-quality:{billing_key}"),
-            )
-        )
-        result = []
-        retry_topics = []
-        for topic in cleaned_topics:
-            prompts = _prompts_from_row(by_name.get(topic_name_key(topic)), limit=n, excluded=excluded)
-            if not prompts:
-                retry_topics.append(topic)
-            result.append({"topic": topic, "prompts": prompts})
-        _validate_prompt_batch(result, keyword_plan=keyword_plan, topic_clusters=cluster_payload)
 
-    for topic in retry_topics:
-        current = next(item for item in result if item["topic"] == topic)
-        retry_exclude = excluded_list + [p["text"] for p in current["prompts"]]
-        retry_payload = _build_user_payload(
-            entity=entity,
-            topics=[topic],
-            topic_clusters=clusters_for_prompt_topics([topic], topic_clusters),
-            industry=industry,
-            features=features,
-            customers=customers,
-            competitors=competitor_list,
-            aliases=list(aliases or []),
-            prompts_per_topic=n,
-            exclude_prompts=retry_exclude,
-            profile=profile,
-        )
-        retry_row = _rows_by_topic_name(
-            _invoke_setup_prompts_llm(
-                retry_payload,
-                on_live_call=_bill(f"retry:{topic}:{billing_key}"),
-            )
-        ).get(topic_name_key(topic))
-        extra = _prompts_from_row(retry_row, limit=n, excluded=excluded)
-        for item in result:
-            if item["topic"] != topic:
-                continue
-            item["prompts"] = _merge_prompt_lists(item["prompts"], extra, limit=n)
-            break
+    empty = [str(item["topic"]) for item in result if not item["prompts"]]
+    if empty:
+        raise ValueError(f"以下监测主题未生成有效问句：{'、'.join(empty)}")
+
+    _validate_prompt_batch(result, keyword_plan=keyword_plan, topic_clusters=cluster_payload)
 
     short = [str(item["topic"]) for item in result if 0 < len(item["prompts"]) < n]
     if short:
@@ -365,12 +327,6 @@ def _generate_setup_prompts_via_llm(
             n,
             "、".join(short),
         )
-
-    empty = [str(item["topic"]) for item in result if not item["prompts"]]
-    if empty:
-        raise ValueError(f"以下监测主题未生成有效问句：{'、'.join(empty)}")
-
-    _validate_prompt_batch(result, keyword_plan=keyword_plan, topic_clusters=cluster_payload)
 
     logger.info(
         "设置向导提示词(LLM): entity=%r topics=%d prompts=%d",
@@ -395,6 +351,7 @@ def generate_setup_prompts(
     prompts_per_topic: int = PROMPT_PER_TOPIC,
     exclude_prompts: list[str] | None = None,
     on_live_call: Callable[[str, dict[str, Any]], None] | None = None,
+    taxonomy_lock: PromptTaxonomyLock | None = None,
 ) -> list[dict[str, Any]]:
     """每个主题返回至多 prompts_per_topic 条提示词（LLM 优先，失败时回退 seed）。"""
     cleaned_topics = [t.strip() for t in topics if t.strip()]
@@ -421,6 +378,7 @@ def generate_setup_prompts(
             excluded=excluded,
             excluded_list=excluded_list,
             on_live_call=on_live_call,
+            taxonomy_lock=taxonomy_lock,
         )
     except ValueError as exc:
         logger.info("设置向导提示词: LLM 未产出有效问句，回退 seed: %s", exc)
@@ -433,6 +391,7 @@ def generate_setup_prompts(
         profile=profile,
         limit=n,
         excluded=excluded,
+        taxonomy_lock=taxonomy_lock,
     )
     empty_seed = [str(item["topic"]) for item in seed_result if not item["prompts"]]
     if empty_seed:

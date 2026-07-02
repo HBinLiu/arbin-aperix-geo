@@ -1,9 +1,5 @@
-import {
-  formatRate,
-  formatRankMetric,
-  formatSentimentScore,
-} from "@/lib/analysis/format";
-import { brandListIcon } from "@/lib/brand/display";
+import { brandDisplayLabel } from "@/lib/brand/display";
+import { formatRate, formatRankMetric, formatSentimentScore } from "@/lib/analysis/format";
 import type { RankData } from "@/types";
 import type { ReactNode } from "react";
 
@@ -65,13 +61,12 @@ export function buildRankBoardRows(data: RankData): RankBoardRow[] {
     const averageRank = formatAverageRank(item.average_rank);
     const citationNum = item.citation_rate ?? 0;
     const sentiment = formatSentiment(item.sentiment_score);
-    const displayName = item.display_name.trim() || item.label;
+    const displayName = brandDisplayLabel(item);
 
     return {
       id: item.entity_id,
       label: displayName,
       domain: item.domain || null,
-      icon: brandListIcon(displayName, item.domain || null),
       isOwn: item.is_own,
       visibility: formatRate(visibilityNum),
       visibilityNum,

@@ -35,7 +35,7 @@ function matchNames(row: CompetitorItem, label: string, item: RankBoardItem): bo
       .map(normalize)
       .filter(Boolean),
   );
-  const sources = [item.display_name, item.label, item.domain].map(normalize).filter(Boolean);
+  const sources = [item.brand, item.label, item.domain].map(normalize).filter(Boolean);
   return sources.some((name) => targets.has(name));
 }
 

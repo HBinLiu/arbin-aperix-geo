@@ -20,6 +20,7 @@ import {
 } from "@/components/analysis/common/ChartChrome";
 import {
   buildChartModel,
+  chartDisplayLabel,
   CHART_HEIGHT,
   type MultiSeriesPoint,
   type SingleSeriesPoint,
@@ -45,6 +46,8 @@ export type SimpleLineChartProps = {
   variant?: "line" | "area";
   /** 单序列 tooltip 标签（如「引用次数」） */
   tooltipLabel?: string;
+  /** series key → 展示名（brand 优先，否则 domain）；不传则沿用 key */
+  legendLabels?: Record<string, string>;
   className?: string;
   height?: number;
 };
@@ -75,6 +78,7 @@ export function SimpleLineChart({
   yAxisMode = "rate",
   variant = "line",
   tooltipLabel,
+  legendLabels,
   className,
   height,
 }: SimpleLineChartProps) {
@@ -113,6 +117,15 @@ export function SimpleLineChart({
     ],
   );
 
+  const legendItems = useMemo(
+    () =>
+      model.legendItems.map((item) => ({
+        ...item,
+        label: chartDisplayLabel(item.key, legendLabels, item.label),
+      })),
+    [model.legendItems, legendLabels],
+  );
+
   const tooltipContent = useCallback(
     (props: TooltipProps<number, string>) => (
       <ChartTooltip
@@ -121,9 +134,10 @@ export function SimpleLineChart({
         model={model}
         valueFormatter={valueFormatter}
         tooltipLabel={tooltipLabel}
+        legendLabels={legendLabels}
       />
     ),
-    [model, valueFormatter, tooltipLabel],
+    [model, valueFormatter, tooltipLabel, legendLabels],
   );
 
   const { plotRef, xAxisLayout } = useChartDateAxisLayout({
@@ -133,7 +147,7 @@ export function SimpleLineChart({
     marginRight: CHART_MARGIN.right,
   });
 
-  const legendHeight = model.legendItems.length > 0 ? 44 : 0;
+  const legendHeight = legendItems.length > 0 ? 44 : 0;
   const plotHeight = fixedHeight ? Math.max(chartHeight - legendHeight, 120) : undefined;
   const rootStyle = fixedHeight ? { height: chartHeight, minHeight: chartHeight } : undefined;
 
@@ -238,9 +252,9 @@ export function SimpleLineChart({
           </ChartComponent>
         </ResponsiveContainer>
       </div>
-      {model.legendItems.length > 0 ? (
+      {legendItems.length > 0 ? (
         <div className="shrink-0 pt-1">
-          <ChartLegendContent items={model.legendItems} />
+          <ChartLegendContent items={legendItems} />
         </div>
       ) : null}
     </div>

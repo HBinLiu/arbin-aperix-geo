@@ -23,14 +23,26 @@ function entitySignals(parsed: LlmResponseParsed | null | undefined): EntitySign
   return parsed?.entity_signals ?? [];
 }
 
-function mentionedEntitySignals(parsed: LlmResponseParsed | null | undefined): EntitySignalRecord[] {
-  return entitySignals(parsed).filter(
-    (signal) => signal.mentioned === true && signal.entity_label.trim().length > 0,
-  );
+function signalDomain(signal: EntitySignalRecord): string {
+  return (signal.domain ?? signal.primary_domain ?? "").trim();
+}
+
+function signalBrand(signal: EntitySignalRecord): string {
+  return (signal.brand ?? "").trim();
+}
+
+function mentionDisplayLabel(signal: EntitySignalRecord): string {
+  return signalBrand(signal) || signalDomain(signal) || signal.entity_label.trim();
 }
 
 function mentionIconLabel(signal: EntitySignalRecord): string {
-  return (signal.primary_domain || signal.entity_label).trim();
+  return signalDomain(signal) || signalBrand(signal) || signal.entity_label.trim();
+}
+
+function mentionedEntitySignals(parsed: LlmResponseParsed | null | undefined): EntitySignalRecord[] {
+  return entitySignals(parsed).filter(
+    (signal) => signal.mentioned === true && mentionDisplayLabel(signal).length > 0,
+  );
 }
 
 export function responseMentionBrands(
@@ -38,7 +50,7 @@ export function responseMentionBrands(
 ): ResponseMentionBrand[] {
   const rows: Array<ResponseMentionBrand & { sortKey: number }> = mentionedEntitySignals(parsed).map(
     (signal) => ({
-      label: signal.entity_label,
+      label: mentionDisplayLabel(signal),
       iconLabel: mentionIconLabel(signal),
       mentioned: true,
       scoreLabel:
@@ -84,7 +96,9 @@ function defaultTermsForSignal(signal: EntitySignalRecord): string[] {
   if (signal.match_terms?.length) {
     return signal.match_terms;
   }
-  return [signal.entity_label, signal.primary_domain ?? ""].filter((term) => term.trim().length > 0);
+  return [signalBrand(signal), signalDomain(signal), signal.entity_label].filter(
+    (term) => term.length > 0,
+  );
 }
 
 function addMentionTerm(
@@ -110,7 +124,7 @@ export function responseMentionedBrandTerms(
 
   for (const signal of mentionedEntitySignals(parsed)) {
     const iconLabel = mentionIconLabel(signal);
-    const canonicalLabel = signal.entity_label.trim() || iconLabel;
+    const canonicalLabel = mentionDisplayLabel(signal);
     for (const term of defaultTermsForSignal(signal)) {
       addMentionTerm(rows, seen, term, iconLabel, canonicalLabel);
     }

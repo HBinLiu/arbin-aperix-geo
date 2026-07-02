@@ -1,7 +1,6 @@
 import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { buildBrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
 import {
   platformMatrixSkeletonGridColumns,
   platformMatrixTableClasses,
@@ -227,7 +226,7 @@ export function PlatformMatrixTable({
                     {rowDimension === "competitor" ? (
                       <BrandRankLabel
                         label={row.label}
-                        icon={buildBrandRankIcon(row.domain ?? "")}
+                        domain={row.domain}
                         size="sm"
                         isOwn={row.isOwn}
                         isFocus={row.isFocus}

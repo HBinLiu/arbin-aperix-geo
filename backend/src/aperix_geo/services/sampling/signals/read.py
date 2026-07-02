@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import LLMResponse, LLMResponseSignal, Subject
-from aperix_geo.services.analysis.entity import list_analysis_entities
+from aperix_geo.services.analysis.entity import entity_brand_name, list_analysis_entities
 from aperix_geo.services.sampling.parsed import ParsedSamplingResult
 from aperix_geo.services.sampling.signal_draft import drafts_to_records
 from aperix_geo.services.sampling.signals.match import match_terms_for_entity_signal
@@ -31,17 +31,20 @@ def _signal_record(
     primary_domain: str,
     **fields: object,
 ) -> dict[str, object]:
+    domain = primary_domain.strip()
     return {
         "entity_id": entity_id,
         "entity_kind": entity_kind,
         "entity_label": entity_label,
-        "primary_domain": primary_domain,
+        "brand": entity_brand_name(subject, entity_id),
+        "domain": domain,
+        "primary_domain": domain,
         "match_terms": match_terms_for_entity_signal(
             subject,
             entity_id=entity_id,
             entity_kind=entity_kind,
             entity_label=entity_label,
-            primary_domain=primary_domain,
+            primary_domain=domain,
         ),
         **fields,
     }

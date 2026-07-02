@@ -77,7 +77,7 @@ export function formatMonthlyVisits(value: number | null | undefined): string {
   return String(value);
 }
 
-/** 过滤 SSR 模板占位 title（如 {{content.leadTitle}}），回退到 URL。 */
+/** 过滤 SSR 模板占位 title（如 {{content.leadTitle}}），无有效 title 时回退到 URL。 */
 const TEMPLATE_TITLE_RE = /\{\{[^}]+\}\}/;
 
 export function citationUrlDisplayTitle(title: string | null | undefined, url: string): string {

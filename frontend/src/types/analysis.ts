@@ -4,7 +4,8 @@ export type AnalysisEntityRef = {
   id: string;
   kind: "own" | "competitor";
   label: string;
-  display_name: string;
+  brand?: string | null;
+  domain?: string;
   competitor_id: string | null;
 };
 
@@ -81,7 +82,7 @@ export type DashboardOverviewData = {
 export type RankBoardItem = {
   entity_id: string;
   label: string;
-  display_name: string;
+  brand?: string | null;
   domain: string;
   is_own: boolean;
   visibility_rate: number | null;
@@ -105,6 +106,7 @@ export type PromptPerformance = {
   topic_name: string | null;
   funnel_stage: string | null;
   search_intent: string | null;
+  decision_type: string | null;
   visibility_rate: number | null;
   mention_rate: number | null;
   average_rank: number | null;
@@ -268,6 +270,7 @@ export type CitationDomainRow = {
 
 export type CitationMentionedBrand = {
   label: string;
+  brand?: string | null;
   domain: string | null;
 };
 
@@ -406,7 +409,7 @@ export type ContentOpportunityItem = {
   mention_total_count: number;
   average_rank: number | null;
   mention_issue_type: DiagnosisIssueType;
-  competitors: string[];
+  competitors: CitationMentionedBrand[];
   brand_gap_rate: number;
   brand_gap_priority: OpportunityPriority;
   brand_own_count: number;
@@ -455,8 +458,7 @@ export type ContentOpportunityDetailRow = {
   entity_id: string;
   /** 内部分析键（常为域名） */
   label: string;
-  /** 展示用品牌名 */
-  display_name: string;
+  brand?: string | null;
   domain: string | null;
   platforms: string[];
   contribution_rate: number;
@@ -520,7 +522,7 @@ export type BacklinkOpportunitySortField = "priority" | "prompt_count" | "chat_c
 export type BrandItem = {
   brand_id: string;
   label: string;
-  display_name: string;
+  brand?: string | null;
   domain: string;
   visibility_rate: number | null;
   mention_rate: number | null;
@@ -688,6 +690,8 @@ export type EntitySignalRecord = {
   entity_id: string;
   entity_kind: "own" | "competitor" | "other";
   entity_label: string;
+  brand?: string | null;
+  domain?: string | null;
   brand_id?: string | null;
   primary_domain?: string | null;
   match_terms?: string[];

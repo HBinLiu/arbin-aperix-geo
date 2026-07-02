@@ -18,7 +18,7 @@ def _rank_item(row: dict[str, Any], *, domain: str) -> dict[str, Any]:
     return {
         "entity_id": row["id"],
         "label": row["label"],
-        "display_name": row["display_name"],
+        "brand": row.get("brand"),
         "domain": domain,
         "is_own": row["is_own"],
         "visibility_rate": metrics.get("visibility_rate"),

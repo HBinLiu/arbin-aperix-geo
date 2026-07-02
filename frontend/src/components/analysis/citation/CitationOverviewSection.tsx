@@ -1,7 +1,4 @@
-import { useMemo } from "react";
-
-import { AnalysisRankTable, type RankRow } from "@/components/analysis/common/AnalysisRankTable";
-import { buildBrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
+import { AnalysisRankTable } from "@/components/analysis/common/AnalysisRankTable";
 import { MetricTrendCard } from "@/components/analysis/common/MetricTrendCard";
 import { useVisibilityChartUI } from "@/hooks/useVisibilityChartUI";
 import {
@@ -12,13 +9,10 @@ import {
 } from "@/lib/analysis/citation";
 import { formatDelta, formatRate } from "@/lib/analysis/format";
 
-function withRankIcons(rows: RankRow[]) {
-  return rows.map((row) => ({ ...row, icon: buildBrandRankIcon(row.domain ?? "") }));
-}
-
 type CitationOverviewSectionProps = {
   overview: CitationOverviewData;
   chartLabels: string[];
+  legendLabels?: Record<string, string>;
   ownLabel: string;
   subjectScopeKey: string;
   loading?: boolean;
@@ -27,12 +21,13 @@ type CitationOverviewSectionProps = {
 export function CitationOverviewSection({
   overview,
   chartLabels,
+  legendLabels,
   ownLabel,
   subjectScopeKey,
   loading = false,
 }: CitationOverviewSectionProps) {
   const chartUi = useVisibilityChartUI(chartLabels, ownLabel, subjectScopeKey);
-  const rankRows = useMemo(() => withRankIcons(overview.rankRows), [overview.rankRows]);
+  const rankRows = overview.rankRows;
 
   return (
     <div
@@ -54,6 +49,7 @@ export function CitationOverviewSection({
             delta={formatDelta(overview.ownValue, overview.prevOwnValue)}
             multiSeries={overview.series}
             labels={chartUi.chartLabels}
+            legendLabels={legendLabels}
             hiddenLegendKeys={chartUi.hiddenLegendKeys}
             onToggleLegendKey={chartUi.toggleLegendKey}
             previousSeries={overview.previousSeries}

@@ -10,7 +10,7 @@ import { useAnalysisFilter } from "@/hooks/useAnalysisFilter";
 import { useAnalysisFiltersState } from "@/hooks/useAnalysisFiltersState";
 import { useCitationAnalysis } from "@/hooks/useCitationAnalysis";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
-import { ANALYSIS_DIMENSIONS, entityChartLabels } from "@/lib/analysis";
+import { ANALYSIS_DIMENSIONS, entityChartLabels, entityLegendLabels } from "@/lib/analysis";
 
 const CITATION_META = ANALYSIS_DIMENSIONS.find((d) => d.id === "citation")!;
 
@@ -21,6 +21,7 @@ export function CitationPage() {
   const { entities } = useAnalysisFilter();
   const { subject } = useDashboardContext();
   const chartLabels = useMemo(() => entityChartLabels(entities), [entities]);
+  const legendLabels = useMemo(() => entityLegendLabels(entities), [entities]);
   const [linkSearch, setLinkSearch] = useState("");
   const [debouncedLinkSearch, setDebouncedLinkSearch] = useState("");
 
@@ -75,6 +76,7 @@ export function CitationPage() {
         <CitationOverviewSection
           overview={overview}
           chartLabels={chartLabels}
+          legendLabels={legendLabels}
           ownLabel={ownLabel}
           subjectScopeKey={`${subjectId}:citation`}
           loading={isLoading}

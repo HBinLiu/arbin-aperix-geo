@@ -1,12 +1,12 @@
 import type { RankRow } from "@/components/analysis/common/AnalysisRankTable";
 import type { ShareVoiceSlice } from "@/components/analysis/visibility/ShareVoiceDonutChart";
+import { entityDisplayName, entityRankFlags } from "@/lib/analysis/entities";
 import {
   formatDelta,
   formatRate,
   formatRankMetric,
   formatScoreDelta,
 } from "@/lib/analysis/format";
-import { entityRankFlags } from "@/lib/analysis/entities";
 import { ANALYSIS_DIMENSIONS } from "@/lib/analysis/nav";
 import type { SingleSeriesPoint } from "@/lib/analysis/chart";
 import type {
@@ -181,16 +181,15 @@ function visibilityRankRows(
 }
 
 function shareVoicePieSlices(
-  entityLabels: string[],
+  entities: AnalysisEntityRef[],
   table: DashboardOverviewRankRow[] | undefined,
 ): ShareVoiceSlice[] {
   const byId = Object.fromEntries((table ?? []).map((row) => [row.id, row]));
-  return entityLabels.map((id) => {
-    const row = byId[id];
-    const domain = row?.domain?.trim();
+  return entities.map((entity) => {
+    const row = byId[entity.label];
     return {
-      label: domain || id,
-      colorKey: id,
+      label: row?.label?.trim() || entityDisplayName(entity),
+      colorKey: entity.label,
       value: row?.cur_value ?? 0,
     };
   });
@@ -217,7 +216,7 @@ export function buildVisibilityMetricBundle(
 
   if (def.id === "shareVoice") {
     return {
-      pieSlices: shareVoicePieSlices(entityLabels, config.table(data)),
+      pieSlices: shareVoicePieSlices(entities, config.table(data)),
       ownValue: metric.current ?? undefined,
       prevOwnValue: metric.previous ?? undefined,
       rankRows,

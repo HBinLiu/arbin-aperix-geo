@@ -29,6 +29,7 @@ type ShareVoiceDonutChartProps = {
 
 type PieTooltipPayload = {
   color?: string;
+  colorKey?: string;
 };
 
 export function ShareVoiceDonutChart({
@@ -51,6 +52,7 @@ export function ShareVoiceDonutChart({
           name: s.label,
           value: s.value,
           color: chartColorFromLookup(colorLookup, colorKey),
+          colorKey,
         };
       }),
     [colorLookup, slices],
@@ -74,9 +76,11 @@ export function ShareVoiceDonutChart({
     const entry = payload[0];
     const label = String(entry.name ?? "");
     const value = Number(entry.value ?? 0);
+    const piePayload = entry.payload as PieTooltipPayload | undefined;
+    const colorKey = piePayload?.colorKey ?? label;
     const color =
-      (entry.payload as PieTooltipPayload | undefined)?.color ??
-      chartColorFromLookup(colorLookup, label);
+      piePayload?.color ??
+      chartColorFromLookup(colorLookup, colorKey);
 
     return (
       <ChartMetricTooltipPanel

@@ -287,12 +287,11 @@ def query_brands_page(
         )
         label = ensure_brand(str(row.brand or "").strip(), domain=str(row.domain or "").strip())
         domain = str(row.domain or "").strip()
-        display_name = label or domain or str(row.brand_id)
         items.append(
             {
                 "brand_id": str(row.brand_id),
-                "label": label or domain or display_name,
-                "display_name": display_name,
+                "label": label or domain or str(row.brand_id),
+                "brand": label or None,
                 "domain": domain,
                 **metrics_to_dict(metrics),
             }

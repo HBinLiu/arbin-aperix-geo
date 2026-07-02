@@ -131,6 +131,21 @@ export const CHART_Y_LABEL_CHAR_WIDTH = 8;
 export const PREVIOUS_PERIOD_SUFFIX = " (上一期)";
 export const SINGLE_SERIES_KEY = "当前";
 
+/** series key → 展示名（legendLabels 由 entityDisplayName 构建；支持「上一期」后缀 key） */
+export function chartDisplayLabel(
+  seriesKey: string,
+  legendLabels?: Readonly<Record<string, string>>,
+  fallback?: string,
+): string {
+  const resolved = fallback ?? seriesKey;
+  if (!legendLabels) return resolved;
+  if (seriesKey.endsWith(PREVIOUS_PERIOD_SUFFIX)) {
+    const baseKey = seriesKey.slice(0, -PREVIOUS_PERIOD_SUFFIX.length);
+    return `${legendLabels[baseKey] ?? baseKey}${PREVIOUS_PERIOD_SUFFIX}`;
+  }
+  return legendLabels[seriesKey] ?? resolved;
+}
+
 /** 从扁平行读取序列值（Recharts row payload） */
 export function chartRowValue(row: ChartRow, key: string): number {
   const value = row[key];
@@ -525,6 +540,7 @@ export function buildChartTooltipRows({
   valueFormatter,
   colorLookup,
   fallbackLabel,
+  legendLabels,
 }: {
   valuesByKey: Record<string, number>;
   labels: string[];
@@ -537,6 +553,8 @@ export function buildChartTooltipRows({
   colorLookup?: ReadonlyMap<string, string>;
   /** 单序列模式（dataKey 为 SINGLE_SERIES_KEY）时的展示标签 */
   fallbackLabel?: string;
+  /** series key → 展示名（brand 优先） */
+  legendLabels?: Readonly<Record<string, string>>;
 }): ChartTooltipRow[] {
   const activeLabels = getActiveChartLabels(labels, hiddenLegendKeys);
   const isPreviousPeriodMode =
@@ -550,7 +568,7 @@ export function buildChartTooltipRows({
     const displayLabels =
       activeLabels.length > 0 ? activeLabels : [fallbackLabel ?? SINGLE_SERIES_KEY];
     return displayLabels.map((lab) => ({
-      label: lab,
+      label: chartDisplayLabel(lab, legendLabels),
       value: valueFormatter(singleSeriesValue),
       color: color(lab),
     }));
@@ -561,7 +579,7 @@ export function buildChartTooltipRows({
     if (showCurrentSeries !== false) {
       activeLabels.forEach((lab) => {
         rows.push({
-          label: lab,
+          label: chartDisplayLabel(lab, legendLabels),
           value: valueFormatter(valuesByKey[lab] ?? 0),
           color: color(lab),
         });
@@ -571,7 +589,7 @@ export function buildChartTooltipRows({
       activeLabels.forEach((lab) => {
         const key = previousPeriodDataKey(lab);
         rows.push({
-          label: key,
+          label: chartDisplayLabel(key, legendLabels),
           value: valueFormatter(valuesByKey[key] ?? 0),
           color: color(lab),
         });
@@ -584,7 +602,7 @@ export function buildChartTooltipRows({
 
   return activeLabels
     .map((lab) => ({
-      label: lab,
+      label: chartDisplayLabel(lab, legendLabels),
       value: valueFormatter(valuesByKey[lab] ?? 0),
       color: color(lab),
       sortValue: valuesByKey[lab] ?? 0,

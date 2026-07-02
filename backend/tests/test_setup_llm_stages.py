@@ -74,10 +74,9 @@ def test_build_profile_summary_payload_uses_session_fields() -> None:
     assert "web_research" not in payload
 
 
-@patch("aperix_geo.services.setup.llm.stages.evaluate_query_style_via_llm", return_value=([], {}))
 @patch("aperix_geo.services.setup.llm.stages.generate_niche_profile_via_llm")
 @patch("aperix_geo.services.setup.llm.payloads.build_subject_research_payload")
-def test_run_niche_profile_stage(mock_payload, mock_llm, _mock_style) -> None:
+def test_run_niche_profile_stage(mock_payload, mock_llm) -> None:
     mock_payload.return_value = {"mode": "domain", "target": "example.com"}
     mock_llm.return_value = (
         {
@@ -122,10 +121,9 @@ def test_run_niche_profile_stage(mock_payload, mock_llm, _mock_style) -> None:
     mock_llm.assert_called_once()
 
 
-@patch("aperix_geo.services.setup.llm.stages.evaluate_query_style_via_llm", return_value=([], {}))
 @patch("aperix_geo.services.setup.llm.stages.generate_niche_profile_via_llm")
 @patch("aperix_geo.services.setup.llm.payloads.build_subject_research_payload")
-def test_run_niche_profile_stage_retries_on_validation_failure(mock_payload, mock_llm, _mock_style) -> None:
+def test_run_niche_profile_stage_retries_on_validation_failure(mock_payload, mock_llm) -> None:
     mock_payload.return_value = {"mode": "domain", "target": "example.com"}
     bad = {
         "company": "Example",

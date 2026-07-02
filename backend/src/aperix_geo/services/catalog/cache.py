@@ -9,7 +9,7 @@ from aperix_geo.config import get_settings
 from aperix_geo.utils.cache import TieredJsonCache
 
 _ENTITIES_CACHE = TieredJsonCache(
-    redis_prefix="aperix:catalog:entities:v1:",
+    redis_prefix="aperix:catalog:entities:v2:",
     l1_max_entries=256,
     strip_expires_on_read=True,
 )

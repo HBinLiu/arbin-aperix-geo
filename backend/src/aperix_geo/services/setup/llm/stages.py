@@ -16,7 +16,6 @@ from aperix_geo.services.competitor.summary import (
 )
 from aperix_geo.services.competitor.topic_types import TopicCluster
 from aperix_geo.services.competitor.types import NicheProfile
-from aperix_geo.services.setup.keyword_plan import build_keyword_plan
 from aperix_geo.services.setup.llm.payloads import (
     build_profile_summary_payload,
     build_subject_research_payload,
@@ -27,51 +26,13 @@ from aperix_geo.services.setup.profile_qa import (
     sanitize_profile_lexicon,
     validate_profile_lexicon,
 )
-from aperix_geo.services.setup.query_style_llm import (
-    evaluate_query_style_via_llm,
-    style_groups_for_profile,
-    style_groups_for_topics,
-)
 from aperix_geo.services.setup.topic_bind import bind_topic_clusters_to_cores
 from aperix_geo.services.setup.topic_parse import parse_topic_plan_response
 from aperix_geo.services.setup.topic_qa import collect_subject_names, validate_topic_clusters
 
 logger = logging.getLogger(__name__)
 
-_MAX_STAGE_ATTEMPTS = 2
-_LOG_FEEDBACK_CHARS = 96
-
-
-def _log_style_feedback(
-    *,
-    stage: str,
-    entity_key: str,
-    feedback: list[str],
-    attempt: int,
-    final_pass: bool,
-) -> None:
-    raw = feedback[0] if feedback else ""
-    preview = (
-        raw
-        if len(raw) <= _LOG_FEEDBACK_CHARS
-        else raw[: _LOG_FEEDBACK_CHARS - 1].rstrip() + "…"
-    )
-    if final_pass:
-        logger.info(
-            "Setup %s 问句风格软评未完全达标仍放行 entity=%r: %s",
-            stage,
-            entity_key,
-            preview,
-        )
-        return
-    logger.info(
-        "Setup %s 问句风格软评需重试 entity=%r attempt=%d (%d 条): %s",
-        stage,
-        entity_key,
-        attempt + 1,
-        len(feedback),
-        preview,
-    )
+_MAX_PROFILE_ATTEMPTS = 2
 
 
 def run_niche_profile_stage(
@@ -100,7 +61,7 @@ def run_niche_profile_stage(
     usage: dict[str, Any] = {}
     last_error: Exception | None = None
     validation_feedback: list[str] = []
-    for attempt in range(_MAX_STAGE_ATTEMPTS):
+    for attempt in range(_MAX_PROFILE_ATTEMPTS):
         user_payload = dict(research_payload)
         if validation_feedback:
             user_payload["validation_feedback"] = validation_feedback
@@ -125,33 +86,6 @@ def run_niche_profile_stage(
             )
             continue
 
-        plan = build_keyword_plan(profile)
-        style_feedback, style_usage = evaluate_query_style_via_llm(
-            stage="profile",
-            groups=style_groups_for_profile(plan=plan),
-            long_tail_examples=plan["long_tail_examples"],
-            entity_key=target,
-        )
-        usage = merge_llm_usage(usage, style_usage)
-        if style_feedback:
-            if attempt < _MAX_STAGE_ATTEMPTS - 1:
-                validation_feedback = style_feedback
-                last_error = ValueError(style_feedback[0])
-                _log_style_feedback(
-                    stage="微观利基",
-                    entity_key=target,
-                    feedback=style_feedback,
-                    attempt=attempt,
-                    final_pass=False,
-                )
-                continue
-            _log_style_feedback(
-                stage="微观利基",
-                entity_key=target,
-                feedback=style_feedback,
-                attempt=attempt,
-                final_pass=True,
-            )
         return profile, research_payload, usage
 
     raise ValueError(f"微观利基画像失败：{last_error}") from last_error
@@ -164,86 +98,31 @@ def run_topic_generation_stage(
     entity_key: str,
     competitors: list[dict[str, Any]] | None = None,
 ) -> tuple[list[TopicCluster], dict[str, Any]]:
-    """UI Step 1→2 topics：topic_plan LLM → 解析归一化 → 结构校验（失败重试 1 次）。"""
+    """UI Step 1→2 topics：topic_plan LLM → 解析归一化 → bind → 结构校验。"""
     validate_profile_lexicon(profile)
     subject_names = collect_subject_names(
         profile_company=str(profile.get("company") or ""),
         entity_key=entity_key,
         competitors=competitors,
     )
-    plan = build_keyword_plan(profile)
-
-    usage: dict[str, Any] = {}
-    last_error: Exception | None = None
-    validation_feedback: list[str] = []
     payload = build_topic_plan_payload(
         subject_type=subject_type,
         target=entity_key,
         profile=profile,
         competitors=competitors,
     )
-    for attempt in range(_MAX_STAGE_ATTEMPTS):
-        try:
-            if validation_feedback:
-                payload = build_topic_plan_payload(
-                    subject_type=subject_type,
-                    target=entity_key,
-                    profile=profile,
-                    competitors=competitors,
-                    validation_feedback=validation_feedback,
-                )
-            data, call_usage = generate_topic_plan_via_llm(
-                entity_key=entity_key,
-                user_payload=payload,
-            )
-            usage = merge_llm_usage(usage, call_usage)
-            clusters = parse_topic_plan_response(data)
-            clusters = bind_topic_clusters_to_cores(clusters, profile=profile)
-            validate_topic_clusters(
-                clusters,
-                subject_names=subject_names,
-                profile=profile,
-            )
-        except ValueError as exc:
-            last_error = exc
-            validation_feedback = [str(exc)]
-            logger.warning(
-                "Setup 主题规划校验未通过 entity=%r attempt=%d: %s",
-                entity_key,
-                attempt + 1,
-                exc,
-            )
-            continue
-
-        style_feedback, style_usage = evaluate_query_style_via_llm(
-            stage="topics",
-            groups=style_groups_for_topics(clusters),
-            long_tail_examples=plan["long_tail_examples"],
-            entity_key=entity_key,
-        )
-        usage = merge_llm_usage(usage, style_usage)
-        if style_feedback:
-            if attempt < _MAX_STAGE_ATTEMPTS - 1:
-                validation_feedback = style_feedback
-                last_error = ValueError(style_feedback[0])
-                _log_style_feedback(
-                    stage="主题种子",
-                    entity_key=entity_key,
-                    feedback=style_feedback,
-                    attempt=attempt,
-                    final_pass=False,
-                )
-                continue
-            _log_style_feedback(
-                stage="主题种子",
-                entity_key=entity_key,
-                feedback=style_feedback,
-                attempt=attempt,
-                final_pass=True,
-            )
-        return clusters, usage
-
-    raise ValueError(f"主题规划失败：{last_error}") from last_error
+    data, usage = generate_topic_plan_via_llm(
+        entity_key=entity_key,
+        user_payload=payload,
+    )
+    clusters = parse_topic_plan_response(data)
+    clusters = bind_topic_clusters_to_cores(clusters, profile=profile)
+    validate_topic_clusters(
+        clusters,
+        subject_names=subject_names,
+        profile=profile,
+    )
+    return clusters, usage
 
 
 def run_profile_summary_stage(
