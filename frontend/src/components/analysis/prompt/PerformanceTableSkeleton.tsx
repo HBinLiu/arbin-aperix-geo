@@ -7,6 +7,7 @@ import {
   promptTableColumnCellStyle,
   TOPIC_TABLE_COLUMNS,
 } from "@/components/analysis/prompt/performanceTableLayout";
+import { KNOWLEDGE_SOURCE_TABLE_COLUMNS } from "@/lib/knowledge/tableLayout";
 
 type SkeletonRowsProps = {
   count?: number;
@@ -42,6 +43,36 @@ export function PromptPerformanceSkeletonRows({ count = 8 }: SkeletonRowsProps) 
               style={promptTableColumnCellStyle(column)}
             >
               <Skeleton className={cn("h-4", column.flex ? "w-4/5" : "w-3/5")} />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
+  );
+}
+
+/** 知识库来源表骨架行：列宽由 colgroup（KNOWLEDGE_SOURCE_TABLE_COLUMNS）决定 */
+export function KnowledgeSourceSkeletonRows({ count = 10 }: SkeletonRowsProps) {
+  return (
+    <>
+      {Array.from({ length: count }).map((_, rowIndex) => (
+        <tr key={rowIndex} className={performanceTableClasses.row} aria-hidden>
+          {KNOWLEDGE_SOURCE_TABLE_COLUMNS.map((column) => (
+            <td key={column.id}>
+              {column.id === "name" ? (
+                <div className="flex min-w-0 items-center gap-2">
+                  <Skeleton className="size-4 shrink-0 rounded-sm" />
+                  <Skeleton className="h-5 w-4/5" />
+                </div>
+              ) : column.id === "actions" ? (
+                <div className="flex items-center gap-1">
+                  <Skeleton className="size-8 rounded-md" />
+                </div>
+              ) : column.id === "kind" || column.id === "status" ? (
+                <Skeleton className="h-5 w-14 rounded-full" />
+              ) : (
+                <Skeleton className="h-5 w-3/5" />
+              )}
             </td>
           ))}
         </tr>

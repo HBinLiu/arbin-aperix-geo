@@ -9,7 +9,7 @@ import { useDashboardContext } from "@/hooks/useDashboardContext";
 import { RankContent } from "@/pages/dashboard/RankPage";
 import { ProfileContent } from "@/pages/dashboard/ProfilePage";
 import { BillingContent } from "@/pages/dashboard/BillingPage";
-import { OverviewContent } from "@/pages/dashboard/OverviewPage";
+import { KnowledgeContent } from "@/pages/dashboard/KnowledgePage";
 import { AnalysisPage } from "@/pages/dashboard/AnalysisPage";
 import { CitationPage } from "@/pages/analysis/CitationPage";
 import { CitationDomainPage } from "@/pages/analysis/CitationDomainPage";
@@ -83,6 +83,10 @@ export function OpportunityRoute() {
 
 export function AgentRoute() {
   return <DashboardPlaceholder title="媒体发稿" />;
+}
+
+export function KnowledgeRoute() {
+  return <KnowledgeContent />;
 }
 
 export function DiagnosisRoute() {

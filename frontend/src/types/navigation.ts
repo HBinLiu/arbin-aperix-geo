@@ -5,6 +5,7 @@ export type DashboardNavId =
   | "analysis"
   | "rank"
   | "opportunity"
+  | "knowledge"
   | "agent"
   | "diagnosis"
   | "prompt"

@@ -2,6 +2,7 @@ export type * from "@/types/analysis";
 export type * from "@/types/auth";
 export type * from "@/types/members";
 export type * from "@/types/brand";
+export type * from "@/types/knowledge";
 export type * from "@/types/navigation";
 export type * from "@/types/sampling";
 export type * from "@/types/setup";

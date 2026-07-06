@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  BookOpen,
   Bot,
   LayoutGrid,
   Lightbulb,
@@ -29,6 +30,7 @@ export const DASHBOARD_NAV_SECTIONS: DashboardNavSection[] = [
   {
     title: "运营",
     items: [
+      { id: "knowledge", label: "知识库", icon: BookOpen },
       { id: "agent", label: "媒体发稿", icon: Bot },
     ],
   },
@@ -59,6 +61,7 @@ export const DASHBOARD_NAV_SEGMENT: Record<Exclude<DashboardNavId, "overview">, 
   analysis: "analysis",
   rank: "rank",
   opportunity: "opportunity",
+  knowledge: "knowledge",
   agent: "agent",
   diagnosis: "diagnosis",
   prompt: "prompt",

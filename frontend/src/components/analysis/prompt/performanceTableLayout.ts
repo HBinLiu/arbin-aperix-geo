@@ -160,7 +160,7 @@ export const visibilityRankTableRowClass = `border-border border-t [&>td]:align-
 
 export const performanceTableClasses = {
   head: "text-muted-foreground bg-background/80 text-left text-sm [&_th]:whitespace-nowrap [&_th]:px-4 [&_th]:py-3 [&_th]:font-medium",
-  row: `border-border h-11 border-t [&>td]:align-middle [&>td]:whitespace-nowrap [&>td]:px-4 [&>td]:py-1 ${tableRowHoverClass}`,
+  row: `border-border border-t [&>td]:align-middle [&>td]:whitespace-nowrap [&>td]:px-4 [&>td]:py-2 ${tableRowHoverClass}`,
   topicTable: "w-full table-fixed text-sm",
   promptTable: "w-full table-fixed text-sm",
 } as const;

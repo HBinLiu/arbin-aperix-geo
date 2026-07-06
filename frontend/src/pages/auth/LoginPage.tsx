@@ -4,10 +4,10 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AuthShell } from "@/components/layouts/AuthShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { loginWithOtp, loginWithPassword, sendAuthCode } from "@/api/auth";
 import { setStoredToken } from "@/api/client";
 import { sanitizeReturnPath } from "@/lib/auth";
-import { cn } from "@/lib/utils";
 
 type Channel = "email" | "phone";
 
@@ -112,104 +112,90 @@ export function LoginPage() {
 
   return (
     <AuthShell title="登录 Aperix AI" description={description}>
-      <div className="grid h-10 grid-cols-2 gap-1 rounded-lg bg-background p-1">
-        <button
-          type="button"
-          className={cn(
-            "rounded-md text-sm font-medium transition-all",
-            channel === "phone"
-              ? "bg-muted-background text-foreground shadow-xs"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-          onClick={() => setChannelAndReset("phone")}
-        >
-          手机号
-        </button>
-        <button
-          type="button"
-          className={cn(
-            "rounded-md text-sm font-medium transition-all",
-            channel === "email"
-              ? "bg-muted-background text-foreground shadow-xs"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-          onClick={() => setChannelAndReset("email")}
-        >
-          邮箱登录
-        </button>
-      </div>
+      <Tabs value={channel} onValueChange={(value) => setChannelAndReset(value as Channel)}>
+        <TabsList className="grid h-10 w-full grid-cols-2 gap-1 p-1">
+          <TabsTrigger value="phone" className="w-full">
+            手机号
+          </TabsTrigger>
+          <TabsTrigger value="email" className="w-full">
+            邮箱登录
+          </TabsTrigger>
+        </TabsList>
 
-      {channel === "email" ? (
-        <form className="mt-6 flex flex-col gap-4" onSubmit={submitEmail}>
-          <div className="space-y-2">
-            <Input
-              id="login-email"
-              className="h-11"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="企业邮箱"
-              autoComplete="email"
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Input
-              id="login-password"
-              className="h-11"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="登录密码"
-              autoComplete="current-password"
-              required
-            />
-          </div>
-          <Button type="submit" className="h-11 w-full text-base font-medium" disabled={loading}>
-            登录
-          </Button>
-        </form>
-      ) : (
-        <form className="mt-6 flex flex-col gap-4" onSubmit={submitPhone}>
-          <div className="space-y-2">
-            <Input
-              id="login-phone"
-              className="h-11"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="手机号"
-              autoComplete="tel"
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <div className="flex gap-2">
+        <TabsContent value="email" className="mt-6">
+          <form className="flex flex-col gap-4" onSubmit={submitEmail}>
+            <div className="space-y-2">
               <Input
-                id="login-code"
-                className="h-11 min-w-0 flex-1"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="验证码"
-                inputMode="numeric"
-                autoComplete="one-time-code"
+                id="login-email"
+                className="h-11"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="企业邮箱"
+                autoComplete="email"
                 required
               />
-              <Button
-                type="button"
-                variant="background"
-                className="bg-background h-11 w-28 shrink-0 justify-center px-2 font-medium tabular-nums"
-                disabled={loading || cooldown > 0}
-                onClick={sendPhoneCode}
-              >
-                {cooldown > 0 ? `${cooldown}s` : "发送验证码"}
-              </Button>
             </div>
-          </div>
-          {info ? <p className="text-muted-foreground text-sm">{info}</p> : null}
-          <Button type="submit" className="h-11 w-full text-base font-medium" disabled={loading}>
-            验证并登录
-          </Button>
-        </form>
-      )}
+            <div className="space-y-2">
+              <Input
+                id="login-password"
+                className="h-11"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="登录密码"
+                autoComplete="current-password"
+                required
+              />
+            </div>
+            <Button type="submit" className="h-11 w-full text-base font-medium" disabled={loading}>
+              登录
+            </Button>
+          </form>
+        </TabsContent>
+
+        <TabsContent value="phone" className="mt-6">
+          <form className="flex flex-col gap-4" onSubmit={submitPhone}>
+            <div className="space-y-2">
+              <Input
+                id="login-phone"
+                className="h-11"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="手机号"
+                autoComplete="tel"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Input
+                  id="login-code"
+                  className="h-11 min-w-0 flex-1"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="验证码"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  required
+                />
+                <Button
+                  type="button"
+                  variant="background"
+                  className="bg-background h-11 w-28 shrink-0 justify-center px-2 font-medium tabular-nums"
+                  disabled={loading || cooldown > 0}
+                  onClick={sendPhoneCode}
+                >
+                  {cooldown > 0 ? `${cooldown}s` : "发送验证码"}
+                </Button>
+              </div>
+            </div>
+            {info ? <p className="text-muted-foreground text-sm">{info}</p> : null}
+            <Button type="submit" className="h-11 w-full text-base font-medium" disabled={loading}>
+              验证并登录
+            </Button>
+          </form>
+        </TabsContent>
+      </Tabs>
     </AuthShell>
   );
 }

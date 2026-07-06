@@ -485,6 +485,7 @@ export const queryKeys = {
   subjectPrompts: (subjectId: string) => ["subject-prompts", subjectId] as const,
   promptTaxonomy: ["prompt-taxonomy"] as const,
   subjectTopics: (subjectId: string) => ["subject-topics", subjectId] as const,
+  subjectKnowledge: (subjectId: string) => ["subject-knowledge", subjectId] as const,
   promptDetail: (
     subjectId: string,
     entityId: string,

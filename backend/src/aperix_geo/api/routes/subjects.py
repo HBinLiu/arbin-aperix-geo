@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 from aperix_geo.api.deps import CurrentUser, DbSession, get_subject_for_user
 from aperix_geo.api.routes import subject_setup
+from aperix_geo.api.routes import knowledge as knowledge_routes
 from aperix_geo.db.models import Subject, SubjectType
 from aperix_geo.schemas.catalog import SubjectOut, SubjectUpdate
 from aperix_geo.services.billing.exceptions import QuotaExceededError
@@ -23,6 +24,7 @@ from aperix_geo.utils.net import ensure_brand
 
 router = APIRouter(prefix="/subjects", tags=["subjects"])
 router.include_router(subject_setup.router)
+router.include_router(knowledge_routes.router)
 
 
 def _validate_sampling_platforms(platforms: list[str]) -> list[str]:

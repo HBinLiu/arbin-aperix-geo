@@ -381,3 +381,9 @@ body {
   contain: strict !important;
 }
 
+/* 饼图等扇区点击后会 focus，浏览器默认 outline 会显示蓝色方框 */
+.recharts-sector:focus,
+.recharts-sector:focus-visible {
+  outline: none;
+}
+

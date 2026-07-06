@@ -8,6 +8,7 @@ import { DashboardLayout } from "@/pages/dashboard/DashboardLayout";
 import { DashboardRoot } from "@/pages/dashboard/DashboardRoot";
 import {
   AgentRoute,
+  KnowledgeRoute,
   AnalysisCitationRoute,
   AnalysisCitationDomainRoute,
   AnalysisPlatformRoute,
@@ -76,6 +77,7 @@ export function AppRoutes() {
                 <Route path="backlink/:domain" element={<OpportunityBacklinkDetailRoute />} />
                 <Route path=":tab" element={<OpportunityRoute />} />
               </Route>
+              <Route path="knowledge" element={<KnowledgeRoute />} />
               <Route path="agent" element={<AgentRoute />} />
             </Route>
             <Route path="prompt" element={<PromptRoute />} />
