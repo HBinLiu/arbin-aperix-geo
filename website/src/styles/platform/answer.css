@@ -1318,21 +1318,9 @@
 }
 
 .aei-faq-list {
-  --aei-faq-left-col: 8.75rem;
-  --aei-faq-gutter: 1.5rem;
+  --aei-faq-left-col: clamp(5.25rem, 2rem + 14vw, 21.5rem);
+  --aei-faq-gutter: clamp(0.75rem, 2vw, 1.5rem);
   border-top: 1px solid var(--color-border);
-}
-
-@media (min-width: 640px) {
-  .aei-faq-list {
-    --aei-faq-left-col: 13.75rem;
-  }
-}
-
-@media (min-width: 768px) {
-  .aei-faq-list {
-    --aei-faq-left-col: 21.5rem;
-  }
 }
 
 .aei-faq-item {
@@ -1369,23 +1357,30 @@
 
 .aei-faq-meta-row {
   display: flex;
+  width: 100%;
+  max-width: var(--aei-faq-left-col);
   min-width: 0;
   align-items: center;
-  gap: 1rem;
+  gap: clamp(0.5rem, 2vw, 1rem);
   line-height: 1;
 }
 
 .aei-faq-number {
+  flex-shrink: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 1.25rem;
+  font-size: clamp(0.875rem, 1.6vw + 0.5rem, 1.25rem);
   font-weight: 700;
   letter-spacing: -0.025em;
   color: var(--color-primary);
 }
 
 .aei-faq-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 1.25rem;
+  font-size: clamp(0.75rem, 1.4vw + 0.45rem, 1.25rem);
   font-weight: 400;
   text-transform: uppercase;
   color: #3a3a3a;
@@ -1499,7 +1494,9 @@
   }
 
   .aei-faq-meta-row {
-    grid-column: 1 / -1;
+    grid-column: 1;
+    width: fit-content;
+    max-width: min(100%, clamp(5.25rem, 42vw, 13.75rem));
   }
 
   .aei-faq-question {

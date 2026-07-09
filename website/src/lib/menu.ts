@@ -175,23 +175,13 @@ export const resourcesMenuSections: ResourcesMenuSection[] = [
     title: "免费工具",
     items: [
       {
-        title: "浏览器扩展",
-        description: "Aperix 人工智能搜索分析器",
-        href: "/app",
-      },
-      {
-        title: "免费 SEO 与 GEO 报告",
-        description: "获取您的 AI 品牌审计",
+        title: "单页审计",
+        description: "快速审计页面是否适合被 AI 理解和引用",
         href: "/app",
       },
       {
         title: "LLMs.txt 生成器",
         description: "生成一份面向 AI 的 llms.txt 文件",
-        href: "/app",
-      },
-      {
-        title: "单页审计",
-        description: "快速审计单个页面是否适合被 AI 理解和引用",
         href: "/app",
       },
       {
@@ -202,11 +192,6 @@ export const resourcesMenuSections: ResourcesMenuSection[] = [
       {
         title: "AI 文章生成器",
         description: "使用 AI 生成高质量文章",
-        href: "/app",
-      },
-      {
-        title: "AI 抓取检查器",
-        description: "检查你的网站内容是否做好了 AI 就绪准备",
         href: "/app",
       },
     ],

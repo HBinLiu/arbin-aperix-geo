@@ -25,10 +25,10 @@ const siteDescription = settings.siteDescription?.trim();
         className="size-9 shrink-0 object-contain sm:size-10"
         loading="eager"
       />
-      <div class="hidden flex-col leading-tight sm:flex">
-        <span class="text-base font-semibold tracking-tight">{siteName}</span>
+      <div class="flex min-w-0 flex-col leading-tight">
+        <span class="truncate text-sm font-semibold tracking-tight sm:text-base">{siteName}</span>
         {siteDescription && (
-          <span class="text-muted-foreground text-xs">{siteDescription}</span>
+          <span class="text-muted-foreground truncate text-xs">{siteDescription}</span>
         )}
       </div>
     </a>
