@@ -1,4 +1,4 @@
-import type { MenuPreviewProps } from "./types";
+import type { MenuPreviewProps } from "@/lib/menu";
 
 export default function PromptVolumesPreview({ className = "" }: MenuPreviewProps) {
   return (

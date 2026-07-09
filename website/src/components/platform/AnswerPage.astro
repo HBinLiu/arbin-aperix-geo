@@ -1,0 +1,235 @@
+---
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import AnswerFeatureCard from "@/components/platform/AnswerFeatureCard.astro";
+import CtaSection from "@/components/home/CtaSection.astro";
+import { ArrowRight, Minus, Plus } from "@lucide/astro";
+import { HERO_GRID } from "@/lib/assets";
+import {
+  answerEngineInsightsCta,
+  answerEngineInsightsFaqs,
+  answerEngineInsightsFeatures,
+  answerEngineInsightsFeaturesHeader,
+  answerEngineInsightsHero,
+  INSIGHTS_VIDEO_URL,
+} from "@/lib/platform/answer";
+import type { SiteSettings } from "@/lib/payload";
+
+type Props = {
+  settings: SiteSettings;
+};
+
+const { settings } = Astro.props;
+
+const [firstFeature, ...restFeatures] = answerEngineInsightsFeatures;
+
+const featureLayout = [
+  { items: [firstFeature], variant: "split" as const },
+  { items: restFeatures.slice(0, 2), variant: "column" as const, row: "115" },
+  { items: restFeatures.slice(2, 4), variant: "column" as const, row: "090" },
+];
+---
+
+<SiteHeader settings={settings} />
+
+<main class="flex flex-1 flex-col">
+  <section class="aei-hero">
+    <div class="aei-hero-bg" aria-hidden="true">
+      <div class="aei-hero-perspective">
+        <div class="aei-hero-perspective-top">
+          <img src={HERO_GRID.url} alt="" class="aei-hero-grid-img" width={1920} height={239} />
+        </div>
+        <div class="aei-hero-perspective-bottom">
+          <img src={HERO_GRID.url} alt="" class="aei-hero-grid-img" width={1920} height={239} />
+        </div>
+      </div>
+      <div class="aei-hero-overlay"></div>
+    </div>
+
+    <div class="aei-hero-inner mx-auto w-full max-w-6xl px-4 sm:px-6">
+      <div class="aei-hero-copy">
+        <h1 class="aei-hero-title">
+          {answerEngineInsightsHero.titleBefore}
+          <span class="aei-hero-highlight">{answerEngineInsightsHero.titleHighlight}</span>
+          {answerEngineInsightsHero.titleAfter}
+        </h1>
+        <p class="aei-hero-tagline">{answerEngineInsightsHero.tagline}</p>
+        <p class="aei-hero-desc">{answerEngineInsightsHero.description}</p>
+        <div class="aei-hero-actions">
+          <a href={answerEngineInsightsHero.primaryCtaHref} class="aei-cta aei-cta--primary group">
+            <span>{answerEngineInsightsHero.primaryCtaLabel}</span>
+            <ArrowRight size={16} aria-hidden="true" />
+          </a>
+          <a href={answerEngineInsightsHero.secondaryCtaHref} class="aei-cta aei-cta--secondary">
+            {answerEngineInsightsHero.secondaryCtaLabel}
+          </a>
+        </div>
+      </div>
+
+      <div class="aei-hero-video-frame">
+        <div class="aei-hero-video-inner" data-aei-hero-video>
+          <div class="aei-hero-video-loading" aria-hidden="true">
+            <span class="aei-hero-video-spinner"></span>
+          </div>
+          <video class="aei-hero-video" autoplay loop muted playsinline preload="metadata">
+            <source src={INSIGHTS_VIDEO_URL} type="video/webm" />
+          </video>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="aei-features">
+    <div class="aei-features-inner mx-auto w-full max-w-6xl px-4 sm:px-6">
+      <header class="aei-features-header">
+        <h2 class="aei-features-title">
+          {answerEngineInsightsFeaturesHeader.titleBefore}
+          <span class="aei-features-title-highlight">
+            {answerEngineInsightsFeaturesHeader.titleHighlight}
+          </span>
+        </h2>
+        <p class="aei-features-desc">{answerEngineInsightsFeaturesHeader.description}</p>
+      </header>
+
+      <div class="aei-feature-list">
+        {
+          featureLayout.map(({ items, variant, row }) => {
+            if (items.length === 0) return null;
+            if (items.length === 1 && variant === "split") {
+              return <AnswerFeatureCard feature={items[0]} variant={variant} />;
+            }
+            return (
+              <div class:list={["aei-feature-row", row && `aei-feature-row--${row}`]}>
+                {items.map((feature) => (
+                  <AnswerFeatureCard feature={feature} variant={variant} />
+                ))}
+              </div>
+            );
+          })
+        }
+      </div>
+    </div>
+  </section>
+
+  <section id="faq" class="aei-faq scroll-mt-16">
+    <div class="aei-faq-inner mx-auto w-full max-w-6xl px-4 sm:px-6">
+      <header class="aei-faq-header">
+        <h2 class="aei-faq-title">常见问题</h2>
+        <p class="aei-faq-subtitle">我们已整理了最关键的信息，以助您最大化您的体验价值。</p>
+      </header>
+
+      <div class="aei-faq-list" data-aei-faq-list>
+        {
+          answerEngineInsightsFaqs.map((item, index) => (
+            <div class:list={["aei-faq-item", index === 0 && "is-open"]} data-aei-faq-item>
+              <button
+                type="button"
+                id={`aei-faq-trigger-${index}`}
+                class="aei-faq-trigger"
+                aria-expanded={index === 0 ? "true" : "false"}
+                aria-controls={`aei-faq-answer-${index}`}
+              >
+                <div class="aei-faq-meta-row">
+                  <span class="aei-faq-number">{item.number}</span>
+                  <span class="aei-faq-label">/// {item.label}</span>
+                </div>
+                <h3 class="aei-faq-question">{item.question}</h3>
+                <span class="aei-faq-icon" aria-hidden="true">
+                  <Plus size={16} class="aei-faq-icon-plus" />
+                  <Minus size={16} class="aei-faq-icon-minus" />
+                </span>
+              </button>
+              <div
+                id={`aei-faq-answer-${index}`}
+                class="aei-faq-body"
+                role="region"
+                aria-labelledby={`aei-faq-trigger-${index}`}
+              >
+                <div class="aei-faq-body-inner">
+                  {item.paragraphs.map((paragraph) => (
+                    <p>{paragraph}</p>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <CtaSection {...answerEngineInsightsCta} />
+</main>
+
+<SiteFooter settings={settings} />
+
+<script>
+  function initInsightsFaq(list: HTMLElement) {
+    const items = Array.from(list.querySelectorAll<HTMLElement>("[data-aei-faq-item]"));
+
+    items.forEach((item) => {
+      const trigger = item.querySelector<HTMLButtonElement>(".aei-faq-trigger");
+      if (!trigger) return;
+
+      trigger.addEventListener("click", () => {
+        const isOpen = item.classList.contains("is-open");
+
+        items.forEach((other) => {
+          other.classList.remove("is-open");
+          other.querySelector<HTMLButtonElement>(".aei-faq-trigger")?.setAttribute(
+            "aria-expanded",
+            "false",
+          );
+        });
+
+        if (!isOpen) {
+          item.classList.add("is-open");
+          trigger.setAttribute("aria-expanded", "true");
+        }
+      });
+    });
+  }
+
+  function setupInsightsFaq() {
+    document.querySelectorAll<HTMLElement>("[data-aei-faq-list]").forEach((list) => {
+      if (list.dataset.aeiFaqBound === "true") return;
+      list.dataset.aeiFaqBound = "true";
+      initInsightsFaq(list);
+    });
+  }
+
+  function initHeroVideo(root: HTMLElement) {
+    if (root.dataset.aeiVideoBound === "true") return;
+
+    const video = root.querySelector<HTMLVideoElement>(".aei-hero-video");
+    if (!video) return;
+
+    root.dataset.aeiVideoBound = "true";
+
+    const markReady = () => {
+      root.classList.add("is-ready");
+      root.removeAttribute("aria-busy");
+    };
+
+    root.setAttribute("aria-busy", "true");
+
+    if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+      markReady();
+      return;
+    }
+
+    video.addEventListener("canplay", markReady, { once: true });
+    video.addEventListener("error", markReady, { once: true });
+  }
+
+  function setupHeroVideos() {
+    document.querySelectorAll<HTMLElement>("[data-aei-hero-video]").forEach(initHeroVideo);
+  }
+
+  setupInsightsFaq();
+  setupHeroVideos();
+  document.addEventListener("astro:page-load", () => {
+    setupInsightsFaq();
+    setupHeroVideos();
+  });
+</script>

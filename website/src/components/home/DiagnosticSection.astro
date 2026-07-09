@@ -1,6 +1,6 @@
 ---
 import type { DiagnosticContent } from "@/lib/home";
-import DiagnosticRotatingWord from "@/components/home/DiagnosticRotatingWord";
+import DiagnosticWord from "@/components/home/DiagnosticWord";
 import StaticImage from "@/components/StaticImage.tsx";
 import { DIAGNOSTIC_BACKGROUND_URL, PLATFORM_LOGO_RENDER_PX } from "@/lib/assets";
 import {
@@ -32,7 +32,7 @@ const { diagnostic } = Astro.props;
         <h2 class="diagnostic-title">
           <span class="block">
             {diagnostic.titleLine1}
-            <DiagnosticRotatingWord client:visible words={diagnostic.rotatingHighlights} />
+            <DiagnosticWord client:visible words={diagnostic.rotatingHighlights} />
             {diagnostic.titleLine2Suffix}
           </span>
         </h2>

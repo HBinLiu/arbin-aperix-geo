@@ -1,7 +1,29 @@
-import type { MenuPreviewId } from "@/components/menu/previews";
+import type { ComponentType } from "react";
+
+import AnswerPreview from "@/components/menu/previews/AnswerPreview";
+import ContentCreationPreview from "@/components/menu/previews/ContentCreationPreview";
+import FindTopicsPreview from "@/components/menu/previews/FindTopicsPreview";
+import PromptVolumesPreview from "@/components/menu/previews/PromptVolumesPreview";
 import type { PlatformId } from "@shared/platform";
 import { HERO_PLATFORM_IDS, platformLabel, platformLogoPublicPath } from "@shared/platform";
-import { monitorHref } from "@/lib/monitor";
+import { monitorHref } from "@/lib/platform/monitor";
+
+export type MenuPreviewId =
+  | "answer-engine"
+  | "prompt-volumes"
+  | "find-topics"
+  | "content-creation";
+
+export type MenuPreviewProps = {
+  className?: string;
+};
+
+export const MENU_PREVIEWS: Record<MenuPreviewId, ComponentType<MenuPreviewProps>> = {
+  "answer-engine": AnswerPreview,
+  "prompt-volumes": PromptVolumesPreview,
+  "find-topics": FindTopicsPreview,
+  "content-creation": ContentCreationPreview,
+};
 
 export type PlatformMenuItem = {
   title: string;
@@ -62,7 +84,7 @@ export const platformMenuSections: PlatformMenuSection[] = [
       {
         title: "回答引擎洞察",
         description: "查看 AI 如何介绍您的品牌",
-        href: "#features",
+        href: "/platform/answer-engine-insights",
         preview: "answer-engine",
       },
       {

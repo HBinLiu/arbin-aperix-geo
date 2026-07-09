@@ -2,7 +2,7 @@ import { LayoutGrid } from "lucide-react";
 
 import StaticImage from "@/components/StaticImage";
 import MegaMenuShell from "@/components/menu/MegaMenuShell";
-import { MENU_PREVIEWS, type MenuPreviewId } from "@/components/menu/previews";
+import { MENU_PREVIEWS, type MenuPreviewId } from "@/lib/menu";
 import { PLATFORM_LOGO_RENDER_PX } from "@/lib/assets";
 import {
   platformMenuIntro,

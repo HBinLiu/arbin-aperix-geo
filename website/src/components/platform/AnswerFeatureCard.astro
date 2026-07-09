@@ -1,0 +1,319 @@
+---
+import {
+  BarChart3,
+  Check,
+  GitCompare,
+  Layers,
+  Link2,
+  Smile,
+  TriangleAlert,
+} from "@lucide/astro";
+import StaticImage from "@/components/StaticImage.tsx";
+import type { InsightsFeature, InsightsFeatureIcon } from "@/lib/platform/answer";
+import type { PlatformId } from "@shared/platform";
+import { platformLabel, platformLogoPublicPath } from "@shared/platform";
+
+type Props = {
+  feature: InsightsFeature;
+  variant: "split" | "column";
+};
+
+const { feature, variant } = Astro.props;
+
+const featureIcons: Record<InsightsFeatureIcon, typeof BarChart3> = {
+  visibility: BarChart3,
+  compare: GitCompare,
+  platform: Layers,
+  sentiment: Smile,
+  citation: Link2,
+};
+
+const FeatureIcon = featureIcons[feature.icon];
+
+const PLATFORM_STACK = [
+  { id: "deepseek" as PlatformId, meta: "高可见度", score: "86%", delta: "+12%", tier: "lead" },
+  { id: "doubao" as PlatformId, meta: "引用率领先", score: "72%", tier: "mid" },
+  { id: "qianwen" as PlatformId, meta: "排名提升", score: "64%", tier: "tail" },
+] as const;
+
+const PLATFORM_LOGO_PX = 16;
+---
+
+<article class="aei-feature-card">
+  <div class="aei-feature-card-inner">
+    {
+      variant === "split" ? (
+        <div class="aei-feature-split">
+          <div class="aei-feature-main">
+            <div class="aei-feature-icon" aria-hidden="true">
+              <FeatureIcon size={24} />
+            </div>
+            <div class="aei-feature-content">
+              <h3 class="aei-feature-title">{feature.title}</h3>
+              <ul class="aei-feature-bullets">
+                {feature.bullets.map((bullet) => (
+                  <li class="aei-feature-bullet">{bullet}</li>
+                ))}
+              </ul>
+              <div class="aei-feature-tags">
+                {feature.tags.map((tag) => (
+                  <span class="aei-feature-tag">{tag}</span>
+                ))}
+              </div>
+              {feature.metric && (
+                <div class="aei-feature-metric">
+                  <div class="aei-feature-metric-head">
+                    <span class="aei-feature-metric-label">{feature.metric.label}</span>
+                    <span class="aei-feature-metric-delta">{feature.metric.delta}</span>
+                  </div>
+                  <p class="aei-feature-metric-value">{feature.metric.value}</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <div class="aei-feature-widget-side">
+            <div class="aei-widget-circles" aria-hidden="true">
+              <div class="aei-widget-circle-outer"></div>
+              <div class="aei-widget-circle-mid">
+                <span class="aei-widget-pill aei-widget-pill--topic">主题</span>
+                <span class="aei-widget-pill aei-widget-pill--accent aei-widget-pill--rank">
+                  排名：#1
+                </span>
+              </div>
+              <span class="aei-widget-pill aei-widget-pill--platform">平台</span>
+              <span class="aei-widget-pill aei-widget-pill--industry">行业排名信号</span>
+              <div class="aei-widget-circle-inner">
+                <div class="aei-widget-circle-brand">
+                  您的<br />品牌
+                </div>
+                <span class="aei-widget-pill aei-widget-pill--time">时间</span>
+                <span class="aei-widget-pill aei-widget-pill--primary aei-widget-pill--sov">
+                  声量份额
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div class="aei-feature-main">
+          <div class="aei-feature-icon" aria-hidden="true">
+            <FeatureIcon size={24} />
+          </div>
+          <div class="aei-feature-content">
+            <h3 class="aei-feature-title">{feature.title}</h3>
+            <ul class="aei-feature-bullets">
+              {feature.bullets.map((bullet) => (
+                <li class="aei-feature-bullet">{bullet}</li>
+              ))}
+            </ul>
+            <div class="aei-feature-tags">
+              {feature.tags.map((tag) => (
+                <span class="aei-feature-tag">{tag}</span>
+              ))}
+            </div>
+          </div>
+
+          {feature.icon === "compare" && (
+            <div class="aei-feature-widget-center">
+              <div class="aei-widget-compare" aria-hidden="true">
+                <div class="aei-widget-compare-row aei-widget-compare-row--lead">
+                  <span class="aei-widget-compare-rank aei-widget-compare-rank--lead">1</span>
+                  <span class="aei-widget-compare-avatar aei-widget-compare-avatar--lead">
+                    <Check size={15} />
+                  </span>
+                  <div class="aei-widget-compare-copy">
+                    <p class="aei-widget-compare-name">您的品牌</p>
+                    <div class="aei-widget-compare-bar">
+                      <div class="aei-widget-compare-bar-fill" style="width: 92%"></div>
+                    </div>
+                  </div>
+                </div>
+                <span class="aei-widget-compare-badge">
+                  <span class="aei-widget-compare-badge-dot"></span>
+                  领先 25%
+                </span>
+                <div class="aei-widget-compare-row aei-widget-compare-row--dim">
+                  <span class="aei-widget-compare-rank">2</span>
+                  <span class="aei-widget-compare-avatar"></span>
+                  <div class="aei-widget-compare-copy">
+                    <p class="aei-widget-compare-name aei-widget-compare-name--muted">竞争对手 A</p>
+                    <div class="aei-widget-compare-bar">
+                      <div
+                        class="aei-widget-compare-bar-fill aei-widget-compare-bar-fill--muted"
+                        style="width: 42%"
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="aei-widget-compare-row aei-widget-compare-row--dimmer">
+                  <span class="aei-widget-compare-rank">3</span>
+                  <span class="aei-widget-compare-avatar"></span>
+                  <div class="aei-widget-compare-copy">
+                    <p class="aei-widget-compare-name aei-widget-compare-name--muted">竞争对手 B</p>
+                    <div class="aei-widget-compare-bar">
+                      <div
+                        class="aei-widget-compare-bar-fill aei-widget-compare-bar-fill--muted"
+                        style="width: 26%"
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {feature.icon === "platform" && (
+            <div class="aei-feature-widget-center">
+              <div class="aei-widget-platform-stack" aria-hidden="true">
+                <div class="aei-widget-platform-card aei-widget-platform-card--lead">
+                  <div class="aei-widget-platform-grid">
+                    <span class="aei-widget-platform-icon">
+                      <StaticImage
+                        src={platformLogoPublicPath(PLATFORM_STACK[0].id)}
+                        alt={platformLabel(PLATFORM_STACK[0].id)}
+                        width={PLATFORM_LOGO_PX}
+                        height={PLATFORM_LOGO_PX}
+                        className="aei-widget-platform-logo"
+                        loading="lazy"
+                      />
+                    </span>
+                    <div class="aei-widget-platform-copy">
+                      <p class="aei-widget-platform-name aei-widget-platform-name--lead">
+                        {platformLabel(PLATFORM_STACK[0].id)}
+                      </p>
+                      <p class="aei-widget-platform-meta">{PLATFORM_STACK[0].meta}</p>
+                    </div>
+                    <div class="aei-widget-platform-score">
+                      <p class="aei-widget-platform-score-value">{PLATFORM_STACK[0].score}</p>
+                      <p class="aei-widget-platform-score-delta">{PLATFORM_STACK[0].delta}</p>
+                    </div>
+                  </div>
+                </div>
+                <span class="aei-widget-platform-badge">
+                  <span class="aei-widget-platform-badge-dot"></span>
+                  推荐关注重点
+                </span>
+                <div class="aei-widget-platform-card aei-widget-platform-card--mid">
+                  <div class="aei-widget-platform-grid">
+                    <span class="aei-widget-platform-icon aei-widget-platform-icon--accent">
+                      <StaticImage
+                        src={platformLogoPublicPath(PLATFORM_STACK[1].id)}
+                        alt={platformLabel(PLATFORM_STACK[1].id)}
+                        width={PLATFORM_LOGO_PX}
+                        height={PLATFORM_LOGO_PX}
+                        className="aei-widget-platform-logo"
+                        loading="lazy"
+                      />
+                    </span>
+                    <div class="aei-widget-platform-copy">
+                      <p class="aei-widget-platform-name">{platformLabel(PLATFORM_STACK[1].id)}</p>
+                      <p class="aei-widget-platform-meta">{PLATFORM_STACK[1].meta}</p>
+                    </div>
+                    <p class="aei-widget-platform-score-compact">{PLATFORM_STACK[1].score}</p>
+                  </div>
+                </div>
+                <div class="aei-widget-platform-card aei-widget-platform-card--tail">
+                  <div class="aei-widget-platform-grid">
+                    <span class="aei-widget-platform-icon">
+                      <StaticImage
+                        src={platformLogoPublicPath(PLATFORM_STACK[2].id)}
+                        alt={platformLabel(PLATFORM_STACK[2].id)}
+                        width={PLATFORM_LOGO_PX}
+                        height={PLATFORM_LOGO_PX}
+                        className="aei-widget-platform-logo"
+                        loading="lazy"
+                      />
+                    </span>
+                    <div class="aei-widget-platform-copy">
+                      <p class="aei-widget-platform-name">{platformLabel(PLATFORM_STACK[2].id)}</p>
+                      <p class="aei-widget-platform-meta">{PLATFORM_STACK[2].meta}</p>
+                    </div>
+                    <p class="aei-widget-platform-score-compact">{PLATFORM_STACK[2].score}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {feature.icon === "sentiment" && (
+            <div class="aei-widget-sentiment-timeline" aria-hidden="true">
+              <span class="aei-widget-sentiment-line"></span>
+              <div class="aei-widget-sentiment-step aei-widget-sentiment-step--muted">
+                <span class="aei-widget-sentiment-node">
+                  <span class="aei-widget-sentiment-node-dot"></span>
+                </span>
+                <div class="aei-widget-sentiment-card aei-widget-sentiment-card--muted">
+                  <div class="aei-widget-sentiment-skeleton"></div>
+                  <div class="aei-widget-sentiment-skeleton aei-widget-sentiment-skeleton--short"></div>
+                </div>
+              </div>
+              <div class="aei-widget-sentiment-step">
+                <span class="aei-widget-sentiment-node aei-widget-sentiment-node--alert">
+                  <TriangleAlert size={14} />
+                </span>
+                <div class="aei-widget-sentiment-card aei-widget-sentiment-card--alert">
+                  <p class="aei-widget-sentiment-alert-title">检测到负面语境</p>
+                  <p class="aei-widget-sentiment-alert-body">定价被认为比……更昂贵</p>
+                  <span class="aei-widget-sentiment-alert-badge">需采取行动</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {feature.icon === "citation" && (
+            <div class="aei-widget-citation-panel" aria-hidden="true">
+              <div class="aei-widget-citation-bar">
+                <span class="aei-widget-citation-seg aei-widget-citation-seg--primary"></span>
+                <span class="aei-widget-citation-seg aei-widget-citation-seg--green"></span>
+                <span class="aei-widget-citation-seg aei-widget-citation-seg--purple"></span>
+                <span class="aei-widget-citation-seg aei-widget-citation-seg--gray"></span>
+              </div>
+              <div class="aei-widget-citation-legend">
+                <span class="aei-widget-citation-legend-item">
+                  <span class="aei-widget-citation-dot aei-widget-citation-dot--primary"></span>
+                  商业 (45%)
+                </span>
+                <span class="aei-widget-citation-legend-item">
+                  <span class="aei-widget-citation-dot aei-widget-citation-dot--green"></span>
+                  博客 (30%)
+                </span>
+                <span class="aei-widget-citation-legend-item">
+                  <span class="aei-widget-citation-dot aei-widget-citation-dot--purple"></span>
+                  媒体 (15%)
+                </span>
+              </div>
+              <div class="aei-widget-citation-sources">
+                <div class="aei-widget-citation-source aei-widget-citation-source--lead">
+                  <div class="aei-widget-citation-source-grid">
+                    <span class="aei-widget-citation-source-icon">
+                      <Link2 size={14} />
+                    </span>
+                    <div>
+                      <p class="aei-widget-citation-source-name">techcrunch.com</p>
+                      <p class="aei-widget-citation-source-meta">技术媒体 · 高权威</p>
+                    </div>
+                    <span class="aei-widget-citation-trust">可信赖的</span>
+                    <div class="aei-widget-citation-share-block">
+                      <p class="aei-widget-citation-share">5.48%</p>
+                      <p class="aei-widget-citation-share-label">分享</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="aei-widget-citation-source aei-widget-citation-source--dim">
+                  <div class="aei-widget-citation-source-grid aei-widget-citation-source-grid--simple">
+                    <span class="aei-widget-citation-source-icon aei-widget-citation-source-icon--muted">W</span>
+                    <div>
+                      <p class="aei-widget-citation-source-name">Wikipedia</p>
+                      <p class="aei-widget-citation-source-meta">通用参考</p>
+                    </div>
+                    <p class="aei-widget-citation-source-pct">1.2%</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )
+    }
+  </div>
+</article>

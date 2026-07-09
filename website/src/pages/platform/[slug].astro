@@ -3,9 +3,9 @@ import BaseLayout from "@/layouts/BaseLayout.astro";
 import MonitorPage from "@/components/platform/MonitorPage.astro";
 import { mergeSiteSettings } from "@/lib/home";
 import { getSiteSettings } from "@/lib/payload";
-import { getAllMonitorPages } from "@/lib/monitor";
+import { getAllMonitorPages } from "@/lib/platform/monitor";
 import "@/styles/style.css";
-import "@/styles/monitor.css";
+import "@/styles/platform/monitor.css";
 
 export async function getStaticPaths() {
   return getAllMonitorPages().map((content) => ({

@@ -1,4 +1,4 @@
-import type { MenuPreviewProps } from "./types";
+import type { MenuPreviewProps } from "@/lib/menu";
 
 function FloatCard({
   positionClass,

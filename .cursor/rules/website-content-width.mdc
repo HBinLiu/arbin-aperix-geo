@@ -1,0 +1,54 @@
+---
+description: 官网主内容区水平间距与 Header/Footer 统一
+globs: website/**
+alwaysApply: false
+---
+
+# 官网主内容区水平间距
+
+`website/` 各页面区块的**最大宽度与左右边距**必须与 Header、Footer、CTA 等全局壳层一致，保证 x 轴对齐。
+
+## 标准值
+
+| 属性 | Tailwind | CSS |
+|------|----------|-----|
+| 最大宽度 | `max-w-6xl` | `72rem` |
+| 左右边距（默认） | `px-4` | `1rem` |
+| 左右边距（≥640px） | `sm:px-6` | `1.5rem` |
+| 居中 | `mx-auto` | `margin-inline: auto` |
+
+## 要求
+
+- 页面内各 section（Hero、功能、FAQ、正文等）**共用同一套**内容宽度，不要混用 `80rem`、`max-w-7xl` 等更宽值
+- Astro + Tailwind：外层容器用 `mx-auto max-w-6xl px-4 sm:px-6`
+- 专用 CSS 页：在页面根（如 `.xxx-page`）定义变量，各 section inner 共用：
+
+```css
+.xxx-page {
+  --content-max: 72rem;
+  --content-px: 1rem;
+}
+@media (min-width: 640px) {
+  .xxx-page {
+    --content-px: 1.5rem;
+  }
+}
+
+.xxx-hero-inner,
+.xxx-section-inner {
+  margin-inline: auto;
+  width: 100%;
+  max-width: var(--content-max);
+  padding-inline: var(--content-px);
+}
+```
+
+## 禁止
+
+- 不要在同一页面里 section 用 `80rem`、CTA 用 `72rem` 造成左右不齐
+- 不要全站固定 `padding-inline: 1.5rem` 而忽略移动端 `1rem`
+
+## 参考
+
+- `SiteHeader.astro` / `SiteFooter.astro` / `CtaSection.astro`
+- 回答引擎洞察页：`.aei-page` + `.aei-hero-inner` 等（`website/src/styles/platform/answer.css`）

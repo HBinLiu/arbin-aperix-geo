@@ -1,8 +1,8 @@
-import type { MenuPreviewProps } from "./types";
+import type { MenuPreviewProps } from "@/lib/menu";
 
 const STAR_PATH = "M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z";
 
-export default function AnswerEnginePreview({ className = "" }: MenuPreviewProps) {
+export default function AnswerPreview({ className = "" }: MenuPreviewProps) {
   return (
     <div aria-hidden className={`ae-widgetContainer ${className}`.trim()}>
       <div className="ae-layoutWrapper">

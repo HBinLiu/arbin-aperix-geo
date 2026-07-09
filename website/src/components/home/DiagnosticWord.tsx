@@ -4,7 +4,7 @@ type Props = {
   words: string[];
 };
 
-export default function DiagnosticRotatingWord({ words }: Props) {
+export default function DiagnosticWord({ words }: Props) {
   const [index, setIndex] = React.useState(0);
 
   React.useEffect(() => {
