@@ -3,14 +3,14 @@ import type { ComponentType } from "react";
 import AnswerPreview from "@/components/menu/previews/AnswerPreview";
 import ContentCreationPreview from "@/components/menu/previews/ContentCreationPreview";
 import FindTopicsPreview from "@/components/menu/previews/FindTopicsPreview";
-import PromptVolumesPreview from "@/components/menu/previews/PromptVolumesPreview";
+import PromptPreview from "@/components/menu/previews/PromptPreview";
 import type { PlatformId } from "@shared/platform";
 import { HERO_PLATFORM_IDS, platformLabel, platformLogoPublicPath } from "@shared/platform";
 import { monitorHref } from "@/lib/platform/monitor";
 
 export type MenuPreviewId =
   | "answer-engine"
-  | "prompt-volumes"
+  | "prompt"
   | "find-topics"
   | "content-creation";
 
@@ -20,7 +20,7 @@ export type MenuPreviewProps = {
 
 export const MENU_PREVIEWS: Record<MenuPreviewId, ComponentType<MenuPreviewProps>> = {
   "answer-engine": AnswerPreview,
-  "prompt-volumes": PromptVolumesPreview,
+  prompt: PromptPreview,
   "find-topics": FindTopicsPreview,
   "content-creation": ContentCreationPreview,
 };
@@ -90,13 +90,13 @@ export const platformMenuSections: PlatformMenuSection[] = [
       {
         title: "提示词探索",
         description: "发现高价值查询，查询扇出洞察",
-        href: "/app",
-        preview: "prompt-volumes",
+        href: "/platform/prompt-volumes-explorer",
+        preview: "prompt",
       },
       {
         title: "发现机会与差距",
         description: "GEO 内容与来源覆盖缺口分析",
-        href: "/app",
+        href: "/platform/find-topics-ideas",
         preview: "find-topics",
       },
       {

@@ -1,10 +1,10 @@
 import type { CtaContent } from "@/lib/home";
 import type { PageSeo } from "@/lib/seo";
+import insightsVideo from "@shared/assets/videos/website/answer-insight.webm";
 
 export const ANSWER_ENGINE_INSIGHTS_PATH = "/platform/answer-engine-insights";
 
-export const INSIGHTS_VIDEO_URL =
-  "https://r2.dageno.ai/website/videos/features/Insight.webm";
+export const INSIGHTS_VIDEO_URL = insightsVideo;
 
 export type InsightsFeatureIcon =
   | "visibility"
@@ -33,7 +33,7 @@ export type InsightsFaqItem = {
 };
 
 export const answerEngineInsightsSeo: PageSeo = {
-  title: "AI 可见度与竞争洞察分析",
+  title: "AI 可见度与竞争洞察分析 | Aperix AI",
   description:
     "基于真实 AI 回答与 Prompt，分析品牌在 AI 搜索中的可见度、声量份额与引用结构，识别竞争差距与高价值优化机会。",
 };

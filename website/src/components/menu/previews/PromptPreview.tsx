@@ -1,6 +1,6 @@
 import type { MenuPreviewProps } from "@/lib/menu";
 
-export default function PromptVolumesPreview({ className = "" }: MenuPreviewProps) {
+export default function PromptPreview({ className = "" }: MenuPreviewProps) {
   return (
     <div aria-hidden className={`pve-widgetContainer ${className}`.trim()}>
       <div className="pve-windowFrame">

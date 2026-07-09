@@ -1,0 +1,398 @@
+---
+import { Check, Filter, GitBranch, Layers, MessageSquareText, Search, TrendingUp } from "@lucide/astro";
+import StaticImage from "@/components/StaticImage.tsx";
+import type { PromptFeature, PromptFeatureIcon } from "@/lib/platform/prompt";
+import type { PlatformId } from "@shared/platform";
+import { platformLabel, platformLogoPublicPath } from "@shared/platform";
+
+type Props = {
+  feature: PromptFeature;
+};
+
+const { feature } = Astro.props;
+
+const featureIcons: Record<PromptFeatureIcon, typeof MessageSquareText> = {
+  intent: MessageSquareText,
+  funnel: Filter,
+  fanout: GitBranch,
+  "platform-diff": Layers,
+  trend: TrendingUp,
+};
+
+const FeatureIcon = featureIcons[feature.icon];
+
+type PlatformCellTone = "default" | "medium" | "strong";
+
+const PLATFORM_COLUMNS: PlatformId[] = ["doubao", "deepseek", "qianwen"];
+const PLATFORM_LOGO_PX = 10;
+
+const PLATFORM_ROWS: Array<{
+  badge: string;
+  name: string;
+  featured: boolean;
+  values: Array<{ value: string; tone: PlatformCellTone }>;
+}> = [
+  {
+    badge: "A",
+    name: "Comp A",
+    featured: false,
+    values: [
+      { value: "25%", tone: "default" },
+      { value: "46%", tone: "medium" },
+      { value: "29%", tone: "default" },
+    ],
+  },
+  {
+    badge: "Y",
+    name: "您的品牌",
+    featured: false,
+    values: [
+      { value: "55%", tone: "medium" },
+      { value: "30%", tone: "default" },
+      { value: "15%", tone: "default" },
+    ],
+  },
+  {
+    badge: "B",
+    name: "Comp B",
+    featured: true,
+    values: [
+      { value: "25%", tone: "default" },
+      { value: "17%", tone: "default" },
+      { value: "68%", tone: "strong" },
+    ],
+  },
+  {
+    badge: "C",
+    name: "Comp C",
+    featured: false,
+    values: [
+      { value: "40%", tone: "medium" },
+      { value: "21%", tone: "default" },
+      { value: "39%", tone: "medium" },
+    ],
+  },
+  {
+    badge: "D",
+    name: "Comp D",
+    featured: false,
+    values: [
+      { value: "46%", tone: "medium" },
+      { value: "32%", tone: "default" },
+      { value: "22%", tone: "default" },
+    ],
+  },
+];
+---
+
+<article class="aei-feature-card">
+  <div class="aei-feature-card-inner">
+    <div class="pve-feature-stack">
+      <div class="aei-feature-main">
+        <div class="aei-feature-icon" aria-hidden="true">
+          <FeatureIcon size={22} />
+        </div>
+        <div class="aei-feature-content">
+          <h3 class="aei-feature-title">{feature.title}</h3>
+          <ul class="aei-feature-bullets">
+            {feature.bullets.map((bullet) => (
+              <li class="aei-feature-bullet">{bullet}</li>
+            ))}
+          </ul>
+          <div class="aei-feature-tags">
+            {feature.tags.map((tag) => (
+              <span class="aei-feature-tag">{tag}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {
+        feature.icon === "intent" && (
+          <div class="pve-widget-intent" aria-hidden="true">
+            <div class="pve-widget-intent-toolbar">
+              <div class="pve-widget-intent-query">
+                <Search size={13} />
+                <span>为小型机构最佳的企业级SEO工具</span>
+              </div>
+              <span class="pve-widget-intent-badge">商业的</span>
+            </div>
+            <div class="pve-widget-intent-stats">
+              <div class="pve-widget-intent-stat">
+                <span class="pve-widget-intent-stat-label">AI排名</span>
+                <div class="pve-widget-intent-stat-row">
+                  <span class="pve-widget-intent-stat-value">#1</span>
+                  <span class="pve-widget-intent-top">TOP</span>
+                </div>
+              </div>
+              <div class="pve-widget-intent-stat">
+                <span class="pve-widget-intent-stat-label">可见性</span>
+                <span class="pve-widget-intent-stat-value pve-widget-intent-stat-value--green">
+                  90%
+                </span>
+              </div>
+              <div class="pve-widget-intent-stat">
+                <span class="pve-widget-intent-stat-label">声量份额</span>
+                <span class="pve-widget-intent-stat-value">32%</span>
+              </div>
+              <div class="pve-widget-intent-stat">
+                <span class="pve-widget-intent-stat-label">引用分享</span>
+                <span class="pve-widget-intent-stat-value">15%</span>
+              </div>
+            </div>
+            <div class="pve-widget-intent-footer">
+              <div class="pve-widget-intent-sentiment">
+                <span class="pve-widget-intent-sentiment-label">情感</span>
+                <span class="pve-widget-intent-sentiment-bar">
+                  <span class="pve-widget-intent-sentiment-fill"></span>
+                </span>
+                <span class="pve-widget-intent-sentiment-text">积极（85%）</span>
+              </div>
+              <span class="pve-widget-intent-funnel">
+                漏斗: <strong>TOFU</strong>
+              </span>
+            </div>
+          </div>
+        )
+      }
+
+      {
+        feature.icon === "funnel" && (
+          <div class="pve-widget-funnel-wrap" aria-hidden="true">
+            <svg
+              class="pve-widget-funnel-bg"
+              viewBox="0 0 380 165"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <defs>
+                <linearGradient
+                  id="pve-funnel-grad-left"
+                  x1="190"
+                  y1="0"
+                  x2="190"
+                  y2="165"
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <stop offset="0.00855923" stop-color="white" stop-opacity="0"></stop>
+                  <stop offset="1" stop-color="#FF6B2B"></stop>
+                </linearGradient>
+                <linearGradient
+                  id="pve-funnel-grad-right"
+                  x1="190"
+                  y1="0"
+                  x2="190"
+                  y2="165"
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <stop offset="0.00855923" stop-color="white" stop-opacity="0"></stop>
+                  <stop offset="1" stop-color="#FF6B2B"></stop>
+                </linearGradient>
+              </defs>
+              <path
+                d="M0 0C161.75 0 185.762 110 177.55 165H190V0H0Z"
+                fill="url(#pve-funnel-grad-left)"></path>
+              <path
+                d="M380 0C218.25 0 194.238 110 202.45 165H190V0H380Z"
+                fill="url(#pve-funnel-grad-right)"></path>
+            </svg>
+            <div class="pve-widget-funnel-rows">
+              <div class="pve-widget-funnel-row">
+                <span class="pve-widget-funnel-stage">TOFU</span>
+                <div class="pve-widget-funnel-bar pve-widget-funnel-bar--tofu">
+                  <div class="pve-widget-funnel-bar-main">
+                    <span class="pve-widget-funnel-dot"></span>
+                    <span>认知</span>
+                  </div>
+                  <span class="pve-widget-funnel-chip">什么是...</span>
+                </div>
+              </div>
+              <div class="pve-widget-funnel-row">
+                <span class="pve-widget-funnel-stage">MOFU</span>
+                <div class="pve-widget-funnel-bar pve-widget-funnel-bar--mofu">
+                  <div class="pve-widget-funnel-bar-main">
+                    <span class="pve-widget-funnel-dot"></span>
+                    <span>比较</span>
+                  </div>
+                  <span class="pve-widget-funnel-chip">A vs B</span>
+                </div>
+              </div>
+              <div class="pve-widget-funnel-row">
+                <span class="pve-widget-funnel-stage pve-widget-funnel-stage--bofu">BOFU</span>
+                <div class="pve-widget-funnel-bar pve-widget-funnel-bar--bofu">
+                  <div class="pve-widget-funnel-bar-main">
+                    <span class="pve-widget-funnel-dot pve-widget-funnel-dot--accent"></span>
+                    <span>决策</span>
+                  </div>
+                  <span class="pve-widget-funnel-chip pve-widget-funnel-chip--accent">定价</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {
+        feature.icon === "fanout" && (
+          <div class="pve-widget-fanout" aria-hidden="true">
+            <svg class="pve-widget-fanout-lines" viewBox="0 0 344 190" fill="none">
+              <path
+                d="M168 96 C 162 72 140 58 108 56"
+                stroke="#D4D4D8"
+                stroke-width="1"
+                stroke-dasharray="4 4"></path>
+              <path
+                d="M176 90 C 194 64 214 54 238 52"
+                stroke="#D4D4D8"
+                stroke-width="1"
+                stroke-dasharray="4 4"></path>
+              <path
+                d="M176 100 C 202 112 214 126 222 146"
+                stroke="#D4D4D8"
+                stroke-width="1"
+                stroke-dasharray="4 4"></path>
+            </svg>
+            <div class="pve-widget-fanout-core">
+              <Search size={16} />
+            </div>
+            <div class="pve-widget-fanout-cluster pve-widget-fanout-cluster--left-top">
+              <span class="pve-widget-fanout-topic">
+                <span class="pve-widget-fanout-dot pve-widget-fanout-dot--orange"></span>
+                风险与合规
+              </span>
+              <span class="pve-widget-fanout-tag">SOC2类型II</span>
+              <span class="pve-widget-fanout-tag">GDPR处理</span>
+            </div>
+            <div class="pve-widget-fanout-cluster pve-widget-fanout-cluster--right-top">
+              <span class="pve-widget-fanout-topic">
+                <span class="pve-widget-fanout-dot pve-widget-fanout-dot--blue"></span>
+                技术范围
+              </span>
+              <span class="pve-widget-fanout-tag">API 集成</span>
+              <span class="pve-widget-fanout-tag">技术支持</span>
+            </div>
+            <div class="pve-widget-fanout-cluster pve-widget-fanout-cluster--right-bottom">
+              <span class="pve-widget-fanout-topic">
+                <span class="pve-widget-fanout-dot pve-widget-fanout-dot--green"></span>
+                商业的
+              </span>
+              <span class="pve-widget-fanout-tag">企业定制</span>
+              <span class="pve-widget-fanout-tag">席位授权</span>
+            </div>
+            <div class="pve-widget-fanout-score">
+              <span class="pve-widget-fanout-score-label">扇出计数</span>
+              <div class="pve-widget-fanout-score-row">
+                <span class="pve-widget-fanout-score-value">8.4x</span>
+                <span class="pve-widget-fanout-score-badge">高价值</span>
+              </div>
+              <span class="pve-widget-fanout-score-bar">
+                <span class="pve-widget-fanout-score-bar-fill"></span>
+              </span>
+            </div>
+          </div>
+        )
+      }
+
+      {
+        feature.icon === "platform-diff" && (
+          <div class="pve-widget-platform-table" aria-hidden="true">
+            <div class="pve-widget-platform-table-head">
+              <span class="pve-widget-platform-table-head-spacer"></span>
+              {PLATFORM_COLUMNS.map((id) => (
+                <span class="pve-widget-platform-table-col">
+                  <StaticImage
+                    src={platformLogoPublicPath(id)}
+                    alt={platformLabel(id)}
+                    width={PLATFORM_LOGO_PX}
+                    height={PLATFORM_LOGO_PX}
+                    className="pve-widget-platform-table-logo"
+                    loading="lazy"
+                  />
+                  {platformLabel(id)}
+                </span>
+              ))}
+            </div>
+            <div class="pve-widget-platform-table-body">
+              {PLATFORM_ROWS.map((row) => (
+                <div
+                  class:list={[
+                    "pve-widget-platform-table-row",
+                    row.featured && "pve-widget-platform-table-row--featured",
+                  ]}
+                >
+                  <div class="pve-widget-platform-table-label">
+                    <span
+                      class:list={[
+                        "pve-widget-platform-table-badge",
+                        row.featured && "pve-widget-platform-table-badge--featured",
+                      ]}
+                    >
+                      {row.featured ? <Check size={10} stroke-width={3} /> : row.badge}
+                    </span>
+                    <span
+                      class:list={[
+                        "pve-widget-platform-table-name",
+                        row.featured && "pve-widget-platform-table-name--featured",
+                      ]}
+                    >
+                      {row.name}
+                    </span>
+                  </div>
+                  {row.values.map((cell) => (
+                    <span
+                      class:list={[
+                        "pve-widget-platform-table-cell",
+                        `pve-widget-platform-table-cell--${cell.tone}`,
+                      ]}
+                    >
+                      {cell.value}
+                    </span>
+                  ))}
+                </div>
+              ))}
+            </div>
+            <span class="pve-widget-platform-table-tag">差异</span>
+          </div>
+        )
+      }
+
+      {
+        feature.icon === "trend" && (
+          <div class="pve-widget-trend" aria-hidden="true">
+            <span class="pve-widget-trend-float">
+              <span class="pve-widget-trend-float-icon">↑</span>
+              可见度 +12%
+            </span>
+            <div class="pve-widget-trend-main">
+              <div>
+                <p class="pve-widget-trend-label">AI 查询规模</p>
+                <p class="pve-widget-trend-value">
+                  <span>2,400</span>
+                  <small>/mo</small>
+                </p>
+              </div>
+              <div class="pve-widget-trend-bars">
+                <span class="pve-widget-trend-bar pve-widget-trend-bar--1"></span>
+                <span class="pve-widget-trend-bar pve-widget-trend-bar--2"></span>
+                <span class="pve-widget-trend-bar pve-widget-trend-bar--3"></span>
+                <span class="pve-widget-trend-bar pve-widget-trend-bar--4"></span>
+                <span class="pve-widget-trend-bar pve-widget-trend-bar--muted"></span>
+              </div>
+            </div>
+            <div class="pve-widget-trend-meta">
+              <div class="pve-widget-trend-meta-row">
+                <span>难度</span>
+                <strong class="pve-widget-trend-meta-low">低</strong>
+              </div>
+              <div class="pve-widget-trend-meta-row">
+                <span>操作优先级</span>
+                <strong class="pve-widget-trend-meta-high">★ 高</strong>
+              </div>
+            </div>
+            <span class="pve-widget-trend-cta">提升品牌可见度</span>
+          </div>
+        )
+      }
+    </div>
+  </div>
+</article>

@@ -22,6 +22,8 @@ export const HERO_GRID: StaticImage = {
 
 export const PANEL_BACKGROUND_URL = `${WEBSITE_IMAGES}/panel-bg.webp`;
 
+export const FIND_TOPICS_COMMERCE_IMAGE = `${WEBSITE_IMAGES}/find-topics-commerce.png`;
+
 export const HOME_PANEL_IMAGES: Record<string, StaticImage> = {
   "panel-1": {
     url: `${WEBSITE_IMAGES}/panel-1.webp`,

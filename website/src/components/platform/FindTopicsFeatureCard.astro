@@ -1,0 +1,388 @@
+---
+import {
+  Globe,
+  LayoutGrid,
+  Link2,
+  MessageSquareText,
+  Shield,
+  ShoppingBag,
+  Sparkles,
+  Tag,
+} from "@lucide/astro";
+import StaticImage from "@/components/StaticImage.tsx";
+import { FIND_TOPICS_COMMERCE_IMAGE } from "@/lib/assets";
+import type { FindTopicsFeature, FindTopicsFeatureIcon } from "@/lib/platform/find-topics";
+
+type Props = {
+  feature: FindTopicsFeature;
+};
+
+const { feature } = Astro.props;
+
+const featureIcons: Record<FindTopicsFeatureIcon, typeof LayoutGrid> = {
+  content: LayoutGrid,
+  social: MessageSquareText,
+  citation: Link2,
+  commerce: ShoppingBag,
+};
+
+const FeatureIcon = featureIcons[feature.icon];
+
+const COVERAGE_ROWS = [
+  {
+    topic: "通用功能",
+    icon: Sparkles,
+    comp: 84,
+    you: 78,
+    highlight: false,
+  },
+  {
+    topic: "数据安全",
+    icon: Shield,
+    comp: 20,
+    you: 11,
+    highlight: true,
+    badge: "发现差距",
+  },
+  {
+    topic: "定价模型",
+    icon: Tag,
+    comp: 87,
+    you: 42,
+    highlight: false,
+  },
+] as const;
+
+const SOCIAL_THREADS = [
+  {
+    user: "User123",
+    initial: "JD",
+    question: "是否存在一个处理批量CSV的工具...？",
+    tone: "muted" as const,
+    pos: "fti-widget-social-card--back-left",
+    accent: false,
+  },
+  {
+    user: "Sarah_K",
+    initial: "S",
+    question: "正在努力寻找一个可靠的API用于...",
+    tone: "muted" as const,
+    pos: "fti-widget-social-card--back-right",
+    accent: true,
+  },
+  {
+    user: "MikeDev",
+    initial: "M",
+    question: "用于自动化的Python脚本失败……",
+    tone: "muted" as const,
+    pos: "fti-widget-social-card--back-bottom",
+    accent: false,
+  },
+] as const;
+
+const SOURCE_ROWS = [
+  {
+    initial: "T",
+    domain: "人民网",
+    subtitle: "中央媒体",
+    type: "新闻",
+    score: "AS 92",
+    bar: 90,
+    tone: "default" as const,
+  },
+  {
+    initial: "C",
+    domain: "今日头条",
+    subtitle: "媒体门户",
+    type: "媒体",
+    score: "DA 88",
+    bar: 85,
+    tone: "lead" as const,
+    iconAccent: true,
+  },
+  {
+    initial: "M",
+    domain: "知乎",
+    subtitle: "问答社区",
+    type: "社区",
+    score: "AS 65",
+    bar: 60,
+    tone: "default" as const,
+  },
+] as const;
+---
+
+<article class="aei-feature-card">
+  <div class="aei-feature-card-inner">
+    <div class="fti-feature-stack">
+      <div class="aei-feature-main">
+        <div class="aei-feature-icon" aria-hidden="true">
+          <FeatureIcon size={22} />
+        </div>
+        <div class="aei-feature-content">
+          <h3 class="aei-feature-title">{feature.title}</h3>
+          <ul class="aei-feature-bullets">
+            {feature.bullets.map((bullet) => (
+              <li class="aei-feature-bullet">{bullet}</li>
+            ))}
+          </ul>
+          <div class="aei-feature-tags">
+            {feature.tags.map((tag) => (
+              <span class="aei-feature-tag">{tag}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {
+        feature.icon === "content" && (
+          <div class="fti-widget-coverage" aria-hidden="true">
+            <div class="fti-widget-coverage-head">
+              <span>主题</span>
+              <span>覆盖深度</span>
+            </div>
+            <div class="fti-widget-coverage-list">
+              {
+                COVERAGE_ROWS.map((row) => {
+                  const RowIcon = row.icon;
+                  return (
+                    <div
+                      class:list={[
+                        "fti-widget-coverage-row",
+                        row.highlight && "fti-widget-coverage-row--gap",
+                      ]}
+                    >
+                      <div class="fti-widget-coverage-topic">
+                        <span
+                          class:list={[
+                            "fti-widget-coverage-icon",
+                            row.highlight && "fti-widget-coverage-icon--accent",
+                          ]}
+                        >
+                          <RowIcon size={11} />
+                        </span>
+                        <span class="fti-widget-coverage-name">{row.topic}</span>
+                      </div>
+                      <div class="fti-widget-coverage-bars">
+                        <div class="fti-widget-coverage-bar-row">
+                          <span>竞争对手</span>
+                          <div class="fti-widget-coverage-track">
+                            <div
+                              class="fti-widget-coverage-fill fti-widget-coverage-fill--muted"
+                              style={`width: ${row.comp}%`}
+                            />
+                          </div>
+                        </div>
+                        <div class="fti-widget-coverage-bar-row">
+                          <span class="fti-widget-coverage-you">你</span>
+                          <div class="fti-widget-coverage-track">
+                            <div
+                              class="fti-widget-coverage-fill fti-widget-coverage-fill--primary"
+                              style={`width: ${row.you}%`}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      {row.badge && <span class="fti-widget-coverage-badge">{row.badge}</span>}
+                    </div>
+                  );
+                })
+              }
+            </div>
+          </div>
+        )
+      }
+
+      {
+        feature.icon === "social" && (
+          <div class="fti-widget-social-stage" aria-hidden="true">
+            {
+              SOCIAL_THREADS.map((thread) => (
+                <div class:list={["fti-widget-social-card", thread.pos]}>
+                  <span
+                    class:list={[
+                      "fti-widget-social-avatar",
+                      thread.accent && "fti-widget-social-avatar--accent",
+                    ]}
+                  >
+                    {thread.initial}
+                  </span>
+                  <div class="fti-widget-social-copy">
+                    <p class="fti-widget-social-user">{thread.user}</p>
+                    <p class="fti-widget-social-question">{thread.question}</p>
+                  </div>
+                  <span
+                    class:list={[
+                      "fti-widget-social-dot",
+                      thread.accent && "fti-widget-social-dot--accent",
+                    ]}
+                  />
+                </div>
+              ))
+            }
+
+            <div class="fti-widget-social-card fti-widget-social-card--featured">
+              <span class="fti-widget-social-unclaimed">未被认领的</span>
+              <span class="fti-widget-social-featured-avatar">?</span>
+              <div class="fti-widget-social-copy">
+                <div class="fti-widget-social-featured-head">
+                  <span class="fti-widget-social-user">社区趋势</span>
+                  <span class="fti-widget-social-live-dot" />
+                </div>
+                <p class="fti-widget-social-featured-question">
+                  「如何在不编写代码的情况下自动化数据清洗？」
+                </p>
+                <div class="fti-widget-social-featured-tags">
+                  <span class="fti-widget-social-tag fti-widget-social-tag--hot">高需求</span>
+                  <span class="fti-widget-social-tag">低覆盖率</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {
+        feature.icon === "citation" && (
+          <div class="fti-widget-sources-wrap" aria-hidden="true">
+            <span class="fti-widget-sources-corner">高潜力</span>
+            <div class="fti-widget-sources">
+              <div class="fti-widget-sources-head">
+                <span>引用来源</span>
+                <span>类型</span>
+                <span>来源影响</span>
+              </div>
+              <div class="fti-widget-sources-list">
+                {
+                  SOURCE_ROWS.map((row) => (
+                    <div
+                      class:list={[
+                        "fti-widget-sources-row",
+                        row.tone === "lead" && "fti-widget-sources-row--lead",
+                      ]}
+                    >
+                      <div class="fti-widget-sources-source">
+                        <span
+                          class:list={[
+                            "fti-widget-sources-icon",
+                            row.iconAccent && "fti-widget-sources-icon--accent",
+                          ]}
+                        >
+                          {row.initial}
+                        </span>
+                        <div>
+                          <p class="fti-widget-sources-domain">{row.domain}</p>
+                          <p class="fti-widget-sources-subtitle">{row.subtitle}</p>
+                        </div>
+                      </div>
+                      <span class="fti-widget-sources-type">{row.type}</span>
+                      <div class="fti-widget-sources-impact">
+                        <div class="fti-widget-sources-track">
+                          <div
+                            class:list={[
+                              "fti-widget-sources-bar",
+                              row.tone === "lead" && "fti-widget-sources-bar--lead",
+                            ]}
+                            style={`width: ${row.bar}%`}
+                          />
+                        </div>
+                        <span
+                          class:list={[
+                            "fti-widget-sources-score",
+                            row.tone === "lead" && "fti-widget-sources-score--lead",
+                          ]}
+                        >
+                          {row.score}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                }
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {
+        feature.icon === "commerce" && (
+          <div class="fti-widget-commerce-stage" aria-hidden="true">
+            <div class="fti-widget-commerce-panel">
+              <div class="fti-widget-commerce-grid">
+                <div class="fti-widget-commerce-left">
+                  <div class="fti-widget-commerce-image-wrap">
+                    <StaticImage
+                      src={FIND_TOPICS_COMMERCE_IMAGE}
+                      alt=""
+                      width={242}
+                      height={144}
+                      className="fti-widget-commerce-image"
+                      loading="lazy"
+                    />
+                  </div>
+                  <p class="fti-widget-commerce-name">Air Jordan 1</p>
+                  <div class="fti-widget-commerce-meta">
+                    <span>#88219</span>
+                    <span class="fti-widget-commerce-meta-sep" aria-hidden="true" />
+                    <span>有库存</span>
+                  </div>
+                  <div class="fti-widget-commerce-tags">
+                    <span class="fti-widget-commerce-tag fti-widget-commerce-tag--hot">运行</span>
+                    <span class="fti-widget-commerce-tag">平足</span>
+                  </div>
+                </div>
+
+                <div class="fti-widget-commerce-right">
+                  <div class="fti-widget-commerce-prompt-pill">
+                    <span>Top3提示词：</span>
+                    <span class="fti-widget-commerce-prompt-text">「适合扁平足的最佳跑鞋」</span>
+                  </div>
+                  <div class="fti-widget-commerce-metrics">
+                    <p class="fti-widget-commerce-metric-label">提示速度</p>
+                    <p class="fti-widget-commerce-metric-value">2.4k</p>
+                    <span class="fti-widget-commerce-delta">+128%</span>
+                  </div>
+                </div>
+              </div>
+
+              <svg
+                class="fti-widget-commerce-chart"
+                viewBox="0 0 226 128"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M0 118.928C45.18 118.928 67.77 101.185 112.95 96.7497C158.13 92.314 180.72 74.5711 225.9 65.6997V127.8H0V118.928Z"
+                  fill="#F97316"
+                  fill-opacity="0.1"
+                />
+                <path
+                  d="M0 118.8C45.18 118.8 67.77 101.1 112.95 96.6747C158.13 92.2497 180.72 74.5497 225.9 65.6997"
+                  stroke="#F97316"
+                  stroke-width="1.8"
+                />
+                <circle cx="85.5" cy="100.8" r="3.6" fill="#F97316" stroke="#fff" stroke-width="1.8"
+                />
+              </svg>
+
+              <div class="fti-widget-commerce-region">
+                <Globe size={12} />
+                <span>北美洲</span>
+              </div>
+
+              <div class="fti-widget-commerce-rating">
+                <div>
+                  <p class="fti-widget-commerce-rating-label">
+                    平均评分 <span class="fti-widget-commerce-rating-star">★</span>
+                  </p>
+                  <p class="fti-widget-commerce-rating-value">4.9</p>
+                  <p class="fti-widget-commerce-platforms">跨12个平台</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      }
+    </div>
+  </div>
+</article>

@@ -2,18 +2,18 @@
 import SiteFooter from "@/components/SiteFooter.astro";
 import SiteHeader from "@/components/SiteHeader.astro";
 import StaticImage from "@/components/StaticImage.tsx";
-import AnswerFeatureCard from "@/components/platform/AnswerFeatureCard.astro";
+import FindTopicsFeatureCard from "@/components/platform/FindTopicsFeatureCard.astro";
 import CtaSection from "@/components/home/CtaSection.astro";
 import { ArrowRight, Minus, Plus } from "@lucide/astro";
 import { HERO_GRID } from "@/lib/assets";
 import {
-  answerEngineInsightsCta,
-  answerEngineInsightsFaqs,
-  answerEngineInsightsFeatures,
-  answerEngineInsightsFeaturesHeader,
-  answerEngineInsightsHero,
-  INSIGHTS_VIDEO_URL,
-} from "@/lib/platform/answer";
+  FIND_TOPICS_VIDEO_URL,
+  findTopicsIdeasCta,
+  findTopicsIdeasFaqs,
+  findTopicsIdeasFeatures,
+  findTopicsIdeasFeaturesHeader,
+  findTopicsIdeasHero,
+} from "@/lib/platform/find-topics";
 import type { SiteSettings } from "@/lib/payload";
 
 type Props = {
@@ -22,12 +22,9 @@ type Props = {
 
 const { settings } = Astro.props;
 
-const [firstFeature, ...restFeatures] = answerEngineInsightsFeatures;
-
 const featureLayout = [
-  { items: [firstFeature], variant: "split" as const },
-  { items: restFeatures.slice(0, 2), variant: "column" as const, row: "115" },
-  { items: restFeatures.slice(2, 4), variant: "column" as const, row: "090" },
+  { items: findTopicsIdeasFeatures.slice(0, 2), columns: 2 as const },
+  { items: findTopicsIdeasFeatures.slice(2, 4), columns: 2 as const },
 ];
 ---
 
@@ -60,19 +57,19 @@ const featureLayout = [
     <div class="aei-hero-inner mx-auto w-full max-w-6xl px-4 sm:px-6">
       <div class="aei-hero-copy">
         <h1 class="aei-hero-title">
-          {answerEngineInsightsHero.titleBefore}
-          <span class="aei-hero-highlight">{answerEngineInsightsHero.titleHighlight}</span>
-          {answerEngineInsightsHero.titleAfter}
+          {findTopicsIdeasHero.titleBefore}
+          <span class="aei-hero-highlight">{findTopicsIdeasHero.titleHighlight}</span>
+          {findTopicsIdeasHero.titleAfter}
         </h1>
-        <p class="aei-hero-tagline">{answerEngineInsightsHero.tagline}</p>
-        <p class="aei-hero-desc">{answerEngineInsightsHero.description}</p>
+        <p class="aei-hero-tagline">{findTopicsIdeasHero.tagline}</p>
+        <p class="aei-hero-desc">{findTopicsIdeasHero.description}</p>
         <div class="aei-hero-actions">
-          <a href={answerEngineInsightsHero.primaryCtaHref} class="aei-cta aei-cta--primary group">
-            <span>{answerEngineInsightsHero.primaryCtaLabel}</span>
+          <a href={findTopicsIdeasHero.primaryCtaHref} class="aei-cta aei-cta--primary group">
+            <span>{findTopicsIdeasHero.primaryCtaLabel}</span>
             <ArrowRight size={16} aria-hidden="true" />
           </a>
-          <a href={answerEngineInsightsHero.secondaryCtaHref} class="aei-cta aei-cta--secondary">
-            {answerEngineInsightsHero.secondaryCtaLabel}
+          <a href={findTopicsIdeasHero.secondaryCtaHref} class="aei-cta aei-cta--secondary">
+            {findTopicsIdeasHero.secondaryCtaLabel}
           </a>
         </div>
       </div>
@@ -83,7 +80,7 @@ const featureLayout = [
             <span class="aei-hero-video-spinner"></span>
           </div>
           <video class="aei-hero-video" autoplay loop muted playsinline preload="metadata">
-            <source src={INSIGHTS_VIDEO_URL} type="video/webm" />
+            <source src={FIND_TOPICS_VIDEO_URL} type="video/webm" />
           </video>
         </div>
       </div>
@@ -94,25 +91,22 @@ const featureLayout = [
     <div class="aei-features-inner mx-auto w-full max-w-6xl px-4 sm:px-6">
       <header class="aei-features-header">
         <h2 class="aei-features-title">
-          {answerEngineInsightsFeaturesHeader.titleBefore}
+          {findTopicsIdeasFeaturesHeader.titleBefore}
           <span class="aei-features-title-highlight">
-            {answerEngineInsightsFeaturesHeader.titleHighlight}
+            {findTopicsIdeasFeaturesHeader.titleHighlight}
           </span>
         </h2>
-        <p class="aei-features-desc">{answerEngineInsightsFeaturesHeader.description}</p>
+        <p class="aei-features-desc">{findTopicsIdeasFeaturesHeader.description}</p>
       </header>
 
-      <div class="aei-feature-list">
+      <div class="fti-feature-list">
         {
-          featureLayout.map(({ items, variant, row }) => {
+          featureLayout.map(({ items, columns }) => {
             if (items.length === 0) return null;
-            if (items.length === 1 && variant === "split") {
-              return <AnswerFeatureCard feature={items[0]} variant={variant} />;
-            }
             return (
-              <div class:list={["aei-feature-row", row && `aei-feature-row--${row}`]}>
+              <div class:list={["fti-feature-row", columns === 3 && "fti-feature-row--3"]}>
                 {items.map((feature) => (
-                  <AnswerFeatureCard feature={feature} variant={variant} />
+                  <FindTopicsFeatureCard feature={feature} />
                 ))}
               </div>
             );
@@ -131,14 +125,14 @@ const featureLayout = [
 
       <div class="aei-faq-list" data-aei-faq-list>
         {
-          answerEngineInsightsFaqs.map((item, index) => (
+          findTopicsIdeasFaqs.map((item, index) => (
             <div class:list={["aei-faq-item", index === 0 && "is-open"]} data-aei-faq-item>
               <button
                 type="button"
-                id={`aei-faq-trigger-${index}`}
+                id={`fti-faq-trigger-${index}`}
                 class="aei-faq-trigger"
                 aria-expanded={index === 0 ? "true" : "false"}
-                aria-controls={`aei-faq-answer-${index}`}
+                aria-controls={`fti-faq-answer-${index}`}
               >
                 <div class="aei-faq-meta-row">
                   <span class="aei-faq-number">{item.number}</span>
@@ -151,13 +145,23 @@ const featureLayout = [
                 </span>
               </button>
               <div
-                id={`aei-faq-answer-${index}`}
+                id={`fti-faq-answer-${index}`}
                 class="aei-faq-body"
                 role="region"
-                aria-labelledby={`aei-faq-trigger-${index}`}
+                aria-labelledby={`fti-faq-trigger-${index}`}
               >
                 <div class="aei-faq-body-inner">
                   {item.paragraphs.map((paragraph) => (
+                    <p>{paragraph}</p>
+                  ))}
+                  {item.bullets && item.bullets.length > 0 && (
+                    <ul class="aei-faq-bullets">
+                      {item.bullets.map((bullet) => (
+                        <li>{bullet}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {item.closingParagraphs?.map((paragraph) => (
                     <p>{paragraph}</p>
                   ))}
                 </div>
@@ -169,7 +173,7 @@ const featureLayout = [
     </div>
   </section>
 
-  <CtaSection {...answerEngineInsightsCta} />
+  <CtaSection {...findTopicsIdeasCta} />
 </main>
 
 <SiteFooter settings={settings} />
