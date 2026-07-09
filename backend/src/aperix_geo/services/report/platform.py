@@ -7,7 +7,8 @@ import mimetypes
 from functools import lru_cache
 from pathlib import Path
 
-_ASSETS_DIR = Path(__file__).resolve().parents[5] / "frontend" / "public" / "assets" / "imgs"
+_REPO_ROOT = Path(__file__).resolve().parents[5]
+_ASSETS_DIR = _REPO_ROOT / "shared" / "assets" / "platform"
 
 _PLATFORM_FILES: dict[str, str] = {
     "deepseek": "deepseek.png",

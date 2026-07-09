@@ -1,9 +1,10 @@
 """Billing and subscription routes."""
 
+import secrets
 from uuid import UUID
 
-from fastapi import APIRouter, Header, HTTPException, status
-from fastapi.responses import Response
+from fastapi import APIRouter, Header, HTTPException, Request, status
+from fastapi.responses import JSONResponse, Response
 
 from sqlalchemy import select
 
@@ -20,6 +21,7 @@ from aperix_geo.schemas.billing import (
     PayOrderListItemOut,
     PayOrderListOut,
     PayOrderOut,
+    PayOrderPrepayOut,
     PlanCatalogItemOut,
     PlanCatalogOut,
     PlanLimitItemOut,
@@ -36,6 +38,7 @@ from aperix_geo.schemas.billing import (
     UsagePackCatalogOut,
     UsageOut,
 )
+from aperix_geo.services.auth.otp import is_dev_environment
 from aperix_geo.services.billing.ledger import usage_pack_product_label
 from aperix_geo.services.billing.plan_catalog import get_plan_catalog
 from aperix_geo.services.billing.usage_catalog import get_usage_pack_catalog
@@ -44,6 +47,8 @@ from aperix_geo.services.billing.orders import (
     cancel_tenant_pay_order,
     create_subscription_order,
     create_usage_pack_order,
+    get_pay_order_by_id,
+    get_tenant_pay_order,
     list_tenant_pay_orders_paginated,
 )
 from aperix_geo.services.billing.payments import fulfill_paid_order
@@ -53,6 +58,12 @@ from aperix_geo.services.billing.quota_records import (
     export_tenant_quota_records_csv,
     list_tenant_quota_records_paginated,
     quota_record_filter_options,
+)
+from aperix_geo.services.billing.wechat_pay import (
+    WechatPayError,
+    create_native_prepay,
+    handle_wechat_notification,
+    is_wechat_pay_configured,
 )
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -67,6 +78,98 @@ def _verify_webhook_secret(provided: str | None) -> None:
         )
     if not provided or provided.strip() != expected:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook secret")
+
+
+def _order_plan_code(db, order) -> str | None:
+    if order.plan_id == ZERO_UUID:
+        return None
+    plan = db.get(Plan, order.plan_id)
+    return plan.code if plan is not None else None
+
+
+@router.get("/orders/{order_id}", response_model=PayOrderOut)
+def get_tenant_pay_order_route(
+    order_id: UUID,
+    current: CurrentUser,
+    db: DbSession,
+) -> PayOrderOut:
+    try:
+        order = get_tenant_pay_order(db, tenant_id=current.tenant_id, order_id=order_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return _order_to_out(order, plan_code=_order_plan_code(db, order))
+
+
+@router.post("/orders/{order_id}/pay", response_model=PayOrderPrepayOut)
+def prepay_tenant_pay_order_route(
+    order_id: UUID,
+    current: CurrentUser,
+    db: DbSession,
+) -> PayOrderPrepayOut:
+    settings = get_settings()
+    try:
+        order = get_tenant_pay_order(db, tenant_id=current.tenant_id, order_id=order_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    if order.status == "paid":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Order is already paid")
+    if order.status != "pending":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Order cannot be paid in status: {order.status}",
+        )
+
+    if not is_wechat_pay_configured(settings):
+        if is_dev_environment(settings):
+            return PayOrderPrepayOut(
+                order_id=order.id,
+                amount_cents=order.amount_cents,
+                mode="dev",
+                code_url=None,
+            )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="WeChat Pay is not configured",
+        )
+
+    try:
+        code_url = create_native_prepay(order, settings=settings)
+    except WechatPayError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    return PayOrderPrepayOut(
+        order_id=order.id,
+        amount_cents=order.amount_cents,
+        mode="wechat_native",
+        code_url=code_url,
+    )
+
+
+@router.post("/orders/{order_id}/simulate-pay", response_model=PayOrderOut)
+def simulate_tenant_pay_order_route(
+    order_id: UUID,
+    current: CurrentUser,
+    db: DbSession,
+) -> PayOrderOut:
+    settings = get_settings()
+    if not is_dev_environment(settings):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Simulated payment is only available in development",
+        )
+    try:
+        get_tenant_pay_order(db, tenant_id=current.tenant_id, order_id=order_id)
+        order = fulfill_paid_order(
+            db,
+            order_id,
+            payment_id=f"dev_{secrets.token_hex(8)}",
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return _order_to_out(order, plan_code=_order_plan_code(db, order))
 
 
 @router.get("/plans", response_model=PlanCatalogOut)
@@ -398,3 +501,51 @@ def payment_webhook(
         db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return PaymentWebhookOut(order_id=order.id, order_type=order.order_type, status=order.status)
+
+
+@router.post("/webhook/wechat")
+async def wechat_payment_webhook(request: Request, db: DbSession) -> JSONResponse:
+    if not is_wechat_pay_configured():
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"code": "FAIL", "message": "WeChat Pay is not configured"},
+        )
+
+    body = await request.body()
+    try:
+        result = handle_wechat_notification(
+            body,
+            signature=request.headers.get("Wechatpay-Signature", ""),
+            timestamp=request.headers.get("Wechatpay-Timestamp", ""),
+            nonce=request.headers.get("Wechatpay-Nonce", ""),
+            serial=request.headers.get("Wechatpay-Serial", ""),
+        )
+        order = get_pay_order_by_id(db, result.order_id)
+    except WechatPayError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"code": "FAIL", "message": str(exc)},
+        )
+    except ValueError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"code": "FAIL", "message": str(exc)},
+        )
+
+    if order.amount_cents != result.amount_cents:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"code": "FAIL", "message": "Payment amount mismatch"},
+        )
+
+    try:
+        fulfill_paid_order(db, result.order_id, payment_id=result.transaction_id)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"code": "FAIL", "message": str(exc)},
+        )
+
+    return JSONResponse(content={"code": "SUCCESS", "message": "成功"})

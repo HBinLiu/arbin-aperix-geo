@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Gem, QrCode } from "lucide-react";
 
+import { CUSTOMER_IMAGE } from "@/lib/assets/shell";
 import { fetchMe } from "@/api/auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -92,7 +93,7 @@ export function AppShell({ children, headerStart }: AppShellProps) {
             </DialogHeader>
             <div className="flex flex-col items-center gap-3">
               <img
-                src="/customer.png"
+                src={CUSTOMER_IMAGE}
                 alt="客服微信二维码"
                 width={220}
                 height={220}

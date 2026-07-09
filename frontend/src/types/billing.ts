@@ -101,6 +101,13 @@ export type PayOrder = {
   quantity?: number | null;
 };
 
+export type PayOrderPrepay = {
+  order_id: string;
+  amount_cents: number;
+  mode: "wechat_native" | "dev";
+  code_url?: string | null;
+};
+
 export type PayOrderListItem = PayOrder & {
   created_at: string;
   paid_at?: string | null;

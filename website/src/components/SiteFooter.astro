@@ -1,0 +1,24 @@
+---
+import type { SiteSettings } from "@/lib/payload";
+
+type Props = {
+  settings: SiteSettings;
+};
+
+const { settings } = Astro.props;
+const footerLinks = settings.footerLinks ?? [];
+const year = new Date().getFullYear();
+---
+
+<footer class="border-border text-muted-foreground border-t py-10">
+  <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 text-center text-sm sm:flex-row sm:px-6 sm:text-left">
+    <p>© {year} Aperix AI</p>
+    <div class="flex flex-wrap justify-center gap-6">
+      {footerLinks.map((link) => (
+        <a href={link.href} class="hover:text-foreground underline-offset-4 hover:underline">
+          {link.label}
+        </a>
+      ))}
+    </div>
+  </div>
+</footer>

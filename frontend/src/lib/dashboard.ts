@@ -31,7 +31,7 @@ export const DASHBOARD_NAV_SECTIONS: DashboardNavSection[] = [
     title: "运营",
     items: [
       { id: "knowledge", label: "知识库", icon: BookOpen },
-      { id: "agent", label: "媒体发稿", icon: Bot },
+      //{ id: "agent", label: "媒体发稿", icon: Bot },
     ],
   },
   {

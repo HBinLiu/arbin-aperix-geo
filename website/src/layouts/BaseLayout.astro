@@ -1,0 +1,25 @@
+---
+import "../styles/global.css";
+import { APERIX_FAVICON_ICO } from "@shared/aperix";
+import type { PageSeo } from "@/lib/seo";
+
+type Props = {
+  seo: PageSeo;
+};
+
+const { seo } = Astro.props;
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href={APERIX_FAVICON_ICO} type="image/x-icon" sizes="any" />
+    <title>{seo.title}</title>
+    <meta name="description" content={seo.description} />
+  </head>
+  <body class="bg-background text-foreground flex min-h-svh flex-col">
+    <slot />
+  </body>
+</html>

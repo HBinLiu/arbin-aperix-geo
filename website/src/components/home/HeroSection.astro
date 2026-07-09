@@ -1,0 +1,116 @@
+---
+import type { HeroContent } from "@/lib/home";
+import StaticImage from "@/components/StaticImage.tsx";
+import {
+  HERO_GRID,
+  PLATFORM_LOGO_RENDER_PX,
+} from "@/lib/assets";
+import {
+  HERO_PLATFORM_IDS,
+  platformLabel,
+  platformLogoPublicPath,
+  resolvePlatformIds,
+} from "@shared/platform";
+
+type Props = {
+  hero: HeroContent;
+  platforms?: string[];
+};
+
+const { hero, platforms = [] } = Astro.props;
+
+const headlineBefore = hero.headlineBefore ?? "";
+const headlineHighlight = hero.headlineHighlight ?? "";
+const headlineAfter = hero.headlineAfter ?? "";
+const platformIds = platforms.length > 0 ? resolvePlatformIds(platforms) : HERO_PLATFORM_IDS;
+---
+
+<section class="hero relative py-20 sm:py-32 lg:py-[180px]">
+  <div class="hero-perspective pointer-events-none absolute inset-0" aria-hidden="true">
+    <div class="hero-perspective-top">
+      <div class="hero-perspective-bg hero-perspective-fade"></div>
+      <div
+        class="hero-perspective-grid hero-perspective-fade"
+        style={`background-image: url(${HERO_GRID.url})`}
+        aria-hidden="true"
+      ></div>
+    </div>
+    <div class="hero-perspective-bottom">
+      <div class="hero-perspective-bg hero-perspective-fade"></div>
+      <div
+        class="hero-perspective-grid hero-perspective-fade"
+        style={`background-image: url(${HERO_GRID.url})`}
+        aria-hidden="true"
+      ></div>
+    </div>
+  </div>
+
+  <div class="relative z-10 mx-auto w-full max-w-4xl px-4 sm:px-6">
+    <div class="flex flex-col items-center text-center">
+      {(hero.eyebrow || platformIds.length > 0) && (
+        <div class="hero-badge mb-12 inline-flex max-w-full flex-wrap items-center justify-center gap-2.5 border border-border/80 bg-background px-4 py-2 shadow-sm sm:gap-3 sm:px-5">
+          {hero.eyebrow && (
+            <>
+              <span class="size-1 shrink-0 bg-[#ff6b2b]" aria-hidden="true"></span>
+              <span class="text-foreground text-sm">{hero.eyebrow}</span>
+            </>
+          )}
+          {platformIds.length > 0 && (
+            <ul class="flex flex-wrap items-center justify-center gap-2" aria-label="支持的 AI 引擎">
+              {platformIds.map((id) => (
+                <li>
+                  <StaticImage
+                    src={platformLogoPublicPath(id)}
+                    alt={platformLabel(id)}
+                    width={PLATFORM_LOGO_RENDER_PX}
+                    height={PLATFORM_LOGO_RENDER_PX}
+                    className="size-5 shrink-0 object-contain"
+                    loading="eager"
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      <h1 class="text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl lg:text-[3.25rem]">
+        {headlineBefore}
+        {headlineHighlight && <em class="hero-highlight not-italic">{headlineHighlight}</em>}
+        {headlineAfter}
+      </h1>
+
+      {hero.description && (
+        <p class="text-muted-foreground mt-6 max-w-2xl text-base leading-relaxed sm:text-lg">
+          {hero.description}
+        </p>
+      )}
+
+      <form
+        class="hero-form mt-12 w-full max-w-xl sm:mt-14"
+        action={hero.primaryCtaHref ?? "/auth/register"}
+        method="get"
+      >
+        <div class="hero-input-wrap flex items-center gap-2 border border-border bg-background p-1.5 shadow-sm sm:p-2">
+          <label for="hero-brand-url" class="sr-only">品牌官网</label>
+          <div class="flex min-w-0 flex-1 items-center gap-1 px-2 sm:px-3">
+            <span class="text-primary shrink-0 text-sm font-medium mr-3" aria-hidden="true">~/></span>
+            <input
+              id="hero-brand-url"
+              name="site"
+              type="url"
+              inputmode="url"
+              autocomplete="url"
+              placeholder={hero.inputPlaceholder ?? "输入你的品牌/官网，获取品牌 AI 曝光诊断报告"}
+              class="hero-input min-w-0 flex-1 bg-transparent py-2 text-sm outline-none"
+              aria-label={hero.inputPlaceholder ?? "品牌官网"}
+            />
+          </div>
+          <button type="submit" class="btn btn-primary shrink-0 px-4 py-2.5 text-sm font-semibold sm:px-5">
+            {hero.primaryCtaLabel ?? "开始"}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>

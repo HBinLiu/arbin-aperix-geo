@@ -1,11 +1,10 @@
+import { initDocumentIcons, LOGO_SRC } from "@/lib/assets/brand";
+
 export type ThemeMode = "light" | "dark";
 
 export const THEME_STORAGE_KEY = "aperix-theme";
 
-export const LOGO_SRC = {
-  light: "/logo_light.png",
-  dark: "/logo_dark.png",
-} as const;
+export { LOGO_SRC };
 
 /** 浅色主题用深色 logo，深色主题用浅色 logo（文件名指 logo 本身颜色）。 */
 export function themeLogoSrc(mode: ThemeMode): string {
@@ -45,11 +44,14 @@ export function persistTheme(mode: ThemeMode): void {
     /* 忽略写入失败 */
   }
   applyTheme(mode);
+  initDocumentIcons(themeLogoSrc(mode));
 }
 
 /** 挂载 React 前调用，避免首屏主题闪烁 */
 export function initTheme(): void {
-  applyTheme(readStoredTheme());
+  const mode = readStoredTheme();
+  applyTheme(mode);
+  initDocumentIcons(themeLogoSrc(mode));
 }
 
 export function nextTheme(mode: ThemeMode): ThemeMode {

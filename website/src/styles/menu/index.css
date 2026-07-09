@@ -1,0 +1,88 @@
+/* 平台 Mega Menu */
+
+.nav-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0;
+  background: transparent;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+  color: color-mix(in srgb, var(--color-foreground) 80%, transparent);
+  cursor: pointer;
+  border: none;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.nav-trigger:hover,
+.nav-trigger:focus-visible,
+.nav-trigger[aria-expanded="true"] {
+  color: var(--color-foreground);
+  background: var(--color-hover-background);
+  outline: none;
+}
+
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+  color: color-mix(in srgb, var(--color-foreground) 80%, transparent);
+  transition: color 0.15s ease;
+}
+
+.nav-link:hover {
+  color: var(--color-foreground);
+  background: var(--color-hover-background);
+}
+
+.nav-popover {
+  position: fixed;
+  left: 50%;
+  z-index: 100;
+  width: min(960px, calc(100vw - 2rem));
+  max-height: calc(100vh - var(--site-header-height, 4rem) - 1rem);
+  overflow: hidden auto;
+  border-radius: 0.75rem;
+  background: var(--color-background);
+  border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+  box-shadow:
+    0 20px 40px -12px rgb(15 23 42 / 0.12),
+    0 8px 16px -8px rgb(15 23 42 / 0.08);
+  opacity: 0;
+  transform: translateX(-50%) translateY(-8px) scale(0.985);
+  pointer-events: none;
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nav-popover--visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-popover {
+    transform: translateX(-50%);
+    transition: opacity 0.15s ease;
+  }
+
+  .nav-popover--visible {
+    transform: translateX(-50%);
+  }
+}
+
+.nav-mega-panel {
+  width: 100%;
+}
+
+.nav-platform-icon {
+  border-radius: 0.625rem;
+  box-shadow: 0 1px 2px 0 rgb(15 23 42 / 0.04);
+}

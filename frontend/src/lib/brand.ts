@@ -1,4 +1,6 @@
 import type { SamplingPlatform } from "@/types";
+import { PLATFORM_LOGO_SRC } from "@/lib/assets/platform";
+import { isPlatformId } from "@shared/platform";
 
 export const DEFAULT_SAMPLING_PROVIDER = "doubao";
 
@@ -41,22 +43,8 @@ export function platformAccent(provider: string): string {
   }
 }
 
-/** 平台 logo 路径（对应 public/assets/imgs/）。 */
+/** 平台 logo（Vite 打包 URL） */
 export function platformLogoSrc(provider: string): string | null {
-  switch (provider) {
-    case "deepseek":
-      return "/assets/imgs/deepseek.png";
-    case "doubao":
-      return "/assets/imgs/doubao.png";
-    case "yuanbao":
-      return "/assets/imgs/yuanbao.png";
-    case "kimi":
-      return "/assets/imgs/kimi.png";
-    case "ernie":
-      return "/assets/imgs/ernie.png";
-    case "qianwen":
-      return "/assets/imgs/qianwen.png";
-    default:
-      return null;
-  }
+  if (!isPlatformId(provider)) return null;
+  return PLATFORM_LOGO_SRC[provider];
 }

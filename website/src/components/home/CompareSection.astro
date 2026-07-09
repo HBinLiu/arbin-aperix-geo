@@ -1,0 +1,115 @@
+---
+import type { ComparisonRow } from "@/lib/payload";
+
+type Props = {
+  titleBefore?: string;
+  titleHighlight?: string;
+  titleAfter?: string;
+  rows: ComparisonRow[];
+};
+
+const { titleBefore, titleHighlight, titleAfter, rows } = Astro.props;
+const hasTitle = Boolean(titleBefore || titleHighlight || titleAfter);
+---
+
+<section id="why-aperix" class="scroll-mt-16 py-16 sm:py-20">
+  <div class="mx-auto max-w-6xl px-4 sm:px-6">
+    {hasTitle && (
+      <h2 class="text-center text-3xl font-semibold tracking-tight sm:text-4xl">
+        {titleBefore}
+        {titleHighlight && <em class="hero-highlight not-italic">{titleHighlight}</em>}
+        {titleAfter}
+      </h2>
+    )}
+
+    <div class="comparison-shell mt-12 lg:mt-16">
+      <div class="comparison-cards" aria-label="产品对比">
+        {
+          rows.map((row) => (
+            <article class="comparison-card">
+              <div class="comparison-card-head">
+                <span class="comparison-card-dim-label">维度</span>
+                <h3 class="comparison-card-dim-title">{row.dimension}</h3>
+              </div>
+
+              <div class="comparison-card-aperix">
+                <div class="comparison-card-aperix-accent" aria-hidden="true">
+                  <div class="comparison-aperix-accent-base"></div>
+                  <div class="comparison-aperix-accent-glow"></div>
+                  <div class="comparison-aperix-accent-pattern"></div>
+                </div>
+                <div class="comparison-card-aperix-top">
+                  <span class="comparison-brand">Aperix AI</span>
+                  <span class="comparison-badge">推荐</span>
+                </div>
+                <p class="comparison-card-aperix-body">{row.aperix}</p>
+              </div>
+
+              <div class="comparison-card-others">
+                <div class="comparison-card-other">
+                  <span class="comparison-card-other-label">轻量监测工具</span>
+                  <p class="comparison-card-other-body">{row.lightweight}</p>
+                </div>
+                <div class="comparison-card-other">
+                  <span class="comparison-card-other-label">企业级平台</span>
+                  <p class="comparison-card-other-body">{row.enterprise}</p>
+                </div>
+              </div>
+            </article>
+          ))
+        }
+      </div>
+
+      <div class="comparison-table comparison-table-desktop min-w-[760px]" role="table" aria-label="产品对比">
+        <div class="comparison-row comparison-row-head" role="row">
+          <div class="comparison-cell comparison-cell-dim" role="columnheader">维度</div>
+          <div
+            class="comparison-cell comparison-cell-aperix comparison-cell-col comparison-cell-head"
+            role="columnheader"
+            data-col="aperix"
+          >
+            <span class="comparison-brand">Aperix AI</span>
+            <span class="comparison-badge">推荐</span>
+          </div>
+          <div
+            class="comparison-cell comparison-cell-other comparison-cell-col comparison-cell-head"
+            role="columnheader"
+            data-col="lightweight"
+          >
+            轻量监测工具
+          </div>
+          <div
+            class="comparison-cell comparison-cell-other comparison-cell-col comparison-cell-head"
+            role="columnheader"
+            data-col="enterprise"
+          >
+            企业级平台
+          </div>
+        </div>
+
+        {
+          rows.map((row) => (
+            <div class="comparison-row" role="row">
+              <div class="comparison-cell comparison-cell-dim" role="rowheader">{row.dimension}</div>
+              <div class="comparison-cell comparison-cell-aperix comparison-cell-col" role="cell" data-col="aperix">
+                {row.aperix}
+              </div>
+              <div class="comparison-cell comparison-cell-other comparison-cell-col" role="cell" data-col="lightweight">
+                {row.lightweight}
+              </div>
+              <div class="comparison-cell comparison-cell-other comparison-cell-col" role="cell" data-col="enterprise">
+                {row.enterprise}
+              </div>
+            </div>
+          ))
+        }
+
+        <div class="comparison-aperix-accent" aria-hidden="true">
+          <div class="comparison-aperix-accent-base"></div>
+          <div class="comparison-aperix-accent-glow"></div>
+          <div class="comparison-aperix-accent-pattern"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

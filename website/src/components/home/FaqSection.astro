@@ -1,0 +1,175 @@
+---
+import type { FaqItem } from "@/lib/home";
+
+type Props = {
+  title?: string;
+  items: FaqItem[];
+  variant?: "default" | "monitor";
+};
+
+const { title = "常见问题解答", items, variant = "default" } = Astro.props;
+const isMonitor = variant === "monitor";
+---
+
+<section
+  id="faq"
+  class:list={[
+    "scroll-mt-16",
+    isMonitor ? "monitor-faq" : "py-16 sm:py-20",
+  ]}
+>
+  <div
+    class:list={[
+      isMonitor ? "monitor-faq-inner" : "mx-auto max-w-6xl px-4 text-left sm:px-6",
+    ]}
+  >
+    <h2
+      class:list={[
+        isMonitor
+          ? "monitor-section-title monitor-section-title--faq"
+          : "text-3xl font-semibold tracking-tight sm:text-4xl",
+      ]}
+    >
+      {title}
+    </h2>
+
+    <div
+      class:list={[
+        "faq-list",
+        isMonitor ? "monitor-faq-list" : "mt-6 lg:mt-8",
+      ]}
+      data-faq-list
+    >
+      {
+        items.map((item, index) => (
+          <div class="faq-item" data-faq-item>
+            <button
+              type="button"
+              class="faq-item-summary"
+              aria-expanded="false"
+              aria-controls={`faq-answer-${index}`}
+            >
+              <span class="faq-item-question">{item.question}</span>
+              <svg
+                class="faq-item-chevron"
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path
+                  d="M4 6L8 10L12 6"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                ></path>
+              </svg>
+            </button>
+            <div id={`faq-answer-${index}`} class="faq-item-body">
+              <div class="faq-item-answer">
+                <p>{item.answer}</p>
+              </div>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<script>
+  function initFaqAccordion(list: HTMLElement) {
+    const items = Array.from(list.querySelectorAll<HTMLElement>("[data-faq-item]"));
+
+    function setBodyHeight(body: HTMLElement, height: number | "auto") {
+      body.style.height = height === "auto" ? "auto" : `${height}px`;
+    }
+
+    function closeItem(item: HTMLElement, animate = true) {
+      const body = item.querySelector<HTMLElement>(".faq-item-body");
+      const trigger = item.querySelector<HTMLButtonElement>(".faq-item-summary");
+      if (!body || !trigger || !item.classList.contains("is-open")) return;
+
+      const currentHeight = body.scrollHeight;
+      setBodyHeight(body, currentHeight);
+
+      if (!animate) {
+        item.classList.remove("is-open");
+        trigger.setAttribute("aria-expanded", "false");
+        setBodyHeight(body, 0);
+        return;
+      }
+
+      requestAnimationFrame(() => {
+        item.classList.remove("is-open");
+        trigger.setAttribute("aria-expanded", "false");
+        setBodyHeight(body, 0);
+      });
+    }
+
+    function openItem(item: HTMLElement) {
+      const body = item.querySelector<HTMLElement>(".faq-item-body");
+      const trigger = item.querySelector<HTMLButtonElement>(".faq-item-summary");
+      if (!body || !trigger) return;
+
+      items.forEach((other) => {
+        if (other !== item) closeItem(other);
+      });
+
+      item.classList.add("is-open");
+      trigger.setAttribute("aria-expanded", "true");
+      setBodyHeight(body, 0);
+
+      requestAnimationFrame(() => {
+        setBodyHeight(body, body.scrollHeight);
+
+        const onEnd = (event: TransitionEvent) => {
+          if (event.propertyName !== "height") return;
+          if (item.classList.contains("is-open")) {
+            setBodyHeight(body, "auto");
+          }
+          body.removeEventListener("transitionend", onEnd);
+        };
+
+        body.addEventListener("transitionend", onEnd);
+      });
+    }
+
+    items.forEach((item) => {
+      const trigger = item.querySelector<HTMLButtonElement>(".faq-item-summary");
+      const body = item.querySelector<HTMLElement>(".faq-item-body");
+
+      if (!trigger || !body) return;
+
+      setBodyHeight(body, 0);
+
+      trigger.addEventListener("click", () => {
+        if (item.classList.contains("is-open")) {
+          closeItem(item);
+          return;
+        }
+
+        openItem(item);
+      });
+    });
+
+    window.addEventListener("resize", () => {
+      items.forEach((item) => {
+        if (!item.classList.contains("is-open")) return;
+
+        const body = item.querySelector<HTMLElement>(".faq-item-body");
+        if (!body) return;
+
+        if (body.style.height === "auto") {
+          setBodyHeight(body, body.scrollHeight);
+          requestAnimationFrame(() => setBodyHeight(body, "auto"));
+        }
+      });
+    });
+  }
+
+  document.querySelectorAll<HTMLElement>("[data-faq-list]").forEach(initFaqAccordion);
+</script>

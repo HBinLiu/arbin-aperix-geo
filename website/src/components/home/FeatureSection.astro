@@ -1,0 +1,184 @@
+---
+import type { FeatureItem } from "@/lib/payload";
+import StaticImage from "@/components/StaticImage.tsx";
+import { HOME_PANEL_IMAGES, PANEL_BACKGROUND_URL } from "@/lib/assets";
+
+type Props = {
+  titleLine1?: string;
+  titleLine2Before?: string;
+  titleHighlight?: string;
+  titleLine2After?: string;
+  items: FeatureItem[];
+};
+
+const {
+  titleLine1,
+  titleLine2Before,
+  titleHighlight,
+  titleLine2After,
+  items,
+} = Astro.props;
+
+const hasTitle = Boolean(titleLine1 || titleLine2Before || titleHighlight || titleLine2After);
+
+const images = HOME_PANEL_IMAGES;
+---
+
+<section id="features" class="scroll-mt-16 py-16 sm:py-20">
+  <div class="mx-auto max-w-6xl px-4 sm:px-6">
+    {hasTitle && (
+      <h2 class="max-w-3xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl lg:text-[2.75rem]">
+        {titleLine1 && <span class="block">{titleLine1}</span>}
+        {(titleLine2Before || titleHighlight || titleLine2After) && (
+          <span class="block">
+            {titleLine2Before}
+            {titleHighlight && <em class="hero-highlight">{titleHighlight}</em>}
+            {titleLine2After}
+          </span>
+        )}
+      </h2>
+    )}
+
+    <div class="feature-shell mt-12 lg:mt-16">
+      <aside class="feature-nav" aria-label="功能目录">
+        <p class="feature-nav-heading">目录</p>
+        <nav class="feature-nav-list">
+          <ul class="feature-nav-items">
+            {
+              items.map((item, index) => (
+                <li>
+                  <button
+                    type="button"
+                    class:list={["feature-nav-link", index === 0 && "is-active"]}
+                    data-feature-nav={index}
+                  >
+                    <span class="feature-nav-body">
+                      <span class="feature-nav-phase-line">
+                        <span class="feature-nav-index">{String(index + 1).padStart(2, "0")}</span>
+                        <span class="feature-nav-phase-meta">/</span>
+                        <span class="feature-nav-phase">{item.phase}</span>
+                      </span>
+                      <span class="feature-nav-code">{item.code}</span>
+                    </span>
+                  </button>
+                </li>
+              ))
+            }
+          </ul>
+        </nav>
+      </aside>
+
+      <div class="feature-panels">
+        {
+          items.map((item, index) => {
+            const image = item.image ? images[item.image] : undefined;
+            const hasTitleParts = Boolean(item.titleBefore || item.titleHighlight || item.titleAfter);
+
+            return (
+              <article id={`feature-${index}`} class="feature-panel scroll-mt-28">
+                <p class="feature-panel-phase flex items-center gap-2 text-sm font-medium tracking-wide">
+                  <span class="feature-panel-phase-meta">{String(index + 1).padStart(2, "0")}</span>
+                  <span class="feature-panel-phase-meta">/</span>
+                  <span class="feature-panel-phase-name">{item.phase}</span>
+                </p>
+
+                <h3 class="mt-3 text-2xl font-semibold leading-tight tracking-tight lg:text-[2rem]">
+                  {hasTitleParts ? (
+                    <>
+                      {item.titleBefore}
+                      {item.titleHighlight && <em class="hero-highlight">{item.titleHighlight}</em>}
+                      {item.titleAfter}
+                    </>
+                  ) : (
+                    item.title
+                  )}
+                </h3>
+
+                {item.metrics && item.metrics.length > 0 && (
+                  <div class="feature-metrics mt-6">
+                    <p class="feature-metrics-label">关键指标</p>
+                    <ul class="feature-metrics-tabs" aria-label="关键指标">
+                      {item.metrics.map((metric) => (
+                        <li>
+                          <span class="feature-metric-tab">{metric}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div class="feature-cards mt-6">
+                  <div class="feature-card feature-card-pain">
+                    <p class="feature-card-label feature-card-label-pain">核心痛点</p>
+                    <p class="feature-card-body">{item.pain}</p>
+                  </div>
+                  <div class="feature-card feature-card-solution">
+                    <p class="feature-card-label feature-card-label-solution">解决方案</p>
+                    <p class="feature-card-body">{item.solution}</p>
+                  </div>
+                </div>
+
+                {image && (
+                  <div
+                    class="panel-frame mt-6"
+                    style={`background-image: url(${PANEL_BACKGROUND_URL})`}
+                  >
+                    <StaticImage
+                      image={image}
+                      alt={item.title}
+                      className="panel-image rounded-md"
+                      loading="lazy"
+                    />
+                  </div>
+                )}
+
+              </article>
+            );
+          })
+        }
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  function initFeatureNav() {
+    const section = document.getElementById("features");
+    if (!section) return;
+
+    const links = Array.from(section.querySelectorAll<HTMLButtonElement>("[data-feature-nav]"));
+    const panels = Array.from(section.querySelectorAll<HTMLElement>(".feature-panel"));
+    if (!links.length || !panels.length) return;
+
+    const setActive = (index: number) => {
+      links.forEach((link, i) => link.classList.toggle("is-active", i === index));
+    };
+
+    links.forEach((link) => {
+      link.addEventListener("click", () => {
+        const index = Number(link.dataset.featureNav);
+        if (Number.isNaN(index)) return;
+
+        setActive(index);
+        panels[index]?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        if (!visible.length) return;
+
+        const index = panels.indexOf(visible[0]!.target as HTMLElement);
+        if (index >= 0) setActive(index);
+      },
+      { rootMargin: "-45% 0px -45% 0px", threshold: [0, 0.15, 0.35, 0.55] },
+    );
+
+    panels.forEach((panel) => observer.observe(panel));
+  }
+
+  initFeatureNav();
+</script>

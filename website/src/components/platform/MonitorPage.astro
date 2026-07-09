@@ -1,0 +1,232 @@
+---
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import FaqSection from "@/components/home/FaqSection.astro";
+import CtaSection from "@/components/home/CtaSection.astro";
+import StaticImage from "@/components/StaticImage.tsx";
+import {
+  ArrowRight,
+  ChartLine,
+  Check,
+  Info,
+  Target,
+  TriangleAlert,
+  Zap,
+} from "@lucide/astro";
+import { HERO_PLATFORM_IDS, platformLabel, platformLogoPublicPath } from "@shared/platform";
+import {
+  MONITOR_STEPS,
+  monitorFaqs,
+  monitorHref,
+  type MonitorContent,
+} from "@/lib/monitor";
+import { homeCta } from "@/lib/home";
+import type { SiteSettings } from "@/lib/payload";
+
+type Props = {
+  content: MonitorContent;
+  settings: SiteSettings;
+};
+
+const { content, settings } = Astro.props;
+const integrationPlatforms = HERO_PLATFORM_IDS;
+const faqs = monitorFaqs(content.platformId);
+
+const stepIcons = {
+  zap: Zap,
+  target: Target,
+  chart: ChartLine,
+} as const;
+
+const prefIcons = {
+  primary: Check,
+  secondary: Info,
+  avoid: TriangleAlert,
+} as const;
+
+const preferenceSections = [
+  {
+    key: "primary",
+    title: "优先引用",
+    tone: "primary",
+    items: content.preferences.primary,
+  },
+  {
+    key: "secondary",
+    title: "次要引用",
+    tone: "secondary",
+    items: content.preferences.secondary,
+  },
+  {
+    key: "avoid",
+    title: "避免引用",
+    tone: "avoid",
+    items: content.preferences.avoid,
+  },
+] as const;
+---
+
+<SiteHeader settings={settings} />
+
+<main class="flex flex-1 flex-col">
+  <section class="monitor-hero">
+    <div class="monitor-hero-glow-center" aria-hidden="true"></div>
+    <div class="monitor-hero-glow-wrap" aria-hidden="true">
+      <div class="monitor-hero-glow-flip">
+        <div class="monitor-hero-glow"></div>
+      </div>
+    </div>
+
+    <div class="monitor-hero-inner">
+      <div class="monitor-logo-wrap">
+        <div class="monitor-logo">
+          <StaticImage
+            src={platformLogoPublicPath(content.platformId)}
+            alt={content.displayName}
+            width={40}
+            height={40}
+            className="monitor-logo-img"
+            loading="eager"
+          />
+        </div>
+      </div>
+
+      <div class="monitor-hero-content">
+        <div class="monitor-hero-copy">
+          <h1 class="monitor-hero-title">{content.h1}</h1>
+          <p class="monitor-hero-intro">{content.intro}</p>
+        </div>
+
+        <div class="monitor-hero-actions">
+          <a href="/auth/register" class="monitor-cta monitor-cta--primary group">
+            <span>立即开始</span>
+            <ArrowRight size={16} class="monitor-cta-icon" aria-hidden="true" />
+          </a>
+          <a href="/auth/register" class="monitor-cta monitor-cta--secondary">开始免费试用</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="monitor-section monitor-section--muted">
+    <div class="monitor-section-inner monitor-section-inner--lg">
+      <h2 class="monitor-section-title monitor-section-title--steps">工作原理</h2>
+      <div class="monitor-steps-grid">
+        {
+          MONITOR_STEPS.map((step) => {
+            const StepIcon = stepIcons[step.icon];
+            return (
+              <article class="monitor-step">
+                <div class="monitor-step-icon" aria-hidden="true">
+                  <StepIcon size={28} />
+                </div>
+                <h3 class="monitor-step-title">{step.title}</h3>
+                <p class="monitor-step-desc">{step.description}</p>
+              </article>
+            );
+          })
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="monitor-section">
+    <div class="monitor-section-inner monitor-section-inner--md">
+      <div class="monitor-info-card">
+        <div class="monitor-info-card-head">
+          <h3 class="monitor-info-card-title">
+            <span class="monitor-info-card-icon" aria-hidden="true">
+              <Info size={20} />
+            </span>
+            {content.mechanismTitle}
+          </h3>
+        </div>
+        <div class="monitor-info-card-body">
+          <p>{content.mechanismContent}</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="monitor-section monitor-section--muted">
+    <div class="monitor-section-inner monitor-section-inner--lg">
+      <h2 class="monitor-section-title">引用来源偏好</h2>
+      <div class="monitor-pref-grid">
+        {
+          preferenceSections.map((section) => {
+            const PrefIcon = prefIcons[section.tone];
+            return (
+              <article class={`monitor-pref-card monitor-pref-card--${section.tone}`}>
+                <div class="monitor-pref-card-head">
+                  <h3 class="monitor-pref-title">
+                    <span class={`monitor-pref-badge monitor-pref-badge--${section.tone}`} aria-hidden="true">
+                      <PrefIcon size={16} />
+                    </span>
+                    {section.title}
+                  </h3>
+                </div>
+                <div class="monitor-pref-card-body">
+                  <ul class="monitor-pref-list">
+                    {section.items.map((item) => (
+                      <li class="monitor-pref-item">
+                        <span class={`monitor-pref-item-icon monitor-pref-item-icon--${section.tone}`} aria-hidden="true">
+                          <PrefIcon size={16} />
+                        </span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </article>
+            );
+          })
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="monitor-section">
+    <div class="monitor-section-inner monitor-section-inner--md">
+      <div class="monitor-strategy-card">
+        <div class="monitor-strategy-head">
+          <h3 class="monitor-strategy-title">{content.strategyTitle}</h3>
+        </div>
+        <div class="monitor-strategy-body-wrap">
+          <p class="monitor-strategy-body">{content.strategyContent}</p>
+        </div>
+      </div>
+      <p class="monitor-trust-note">{content.trustNote}</p>
+    </div>
+  </section>
+
+  <section class="monitor-section">
+    <div class="monitor-section-inner monitor-section-inner--md monitor-integrations-inner">
+      <h2 class="monitor-section-title monitor-section-title--integrations">集成</h2>
+      <p class="monitor-integrations-desc">在所有主流 AI 平台上监测您的品牌</p>
+      <div class="monitor-integrations-grid">
+        {
+          integrationPlatforms.map((id) => (
+            <a href={monitorHref(id)} class="monitor-integration-tile" title={platformLabel(id)}>
+              <span class="monitor-integration-logo">
+                <StaticImage
+                  src={platformLogoPublicPath(id)}
+                  alt={platformLabel(id)}
+                  width={40}
+                  height={40}
+                  className="monitor-integration-logo-img"
+                  loading="lazy"
+                />
+              </span>
+              <span class="monitor-integration-label">{platformLabel(id)}</span>
+            </a>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <FaqSection title="常见问题" items={faqs} variant="monitor" />
+  <CtaSection {...homeCta} />
+</main>
+
+<SiteFooter settings={settings} />

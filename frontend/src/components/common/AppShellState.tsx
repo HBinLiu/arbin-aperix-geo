@@ -1,3 +1,4 @@
+import { SETUP_LIGHT_BG } from "@/lib/assets/shell";
 import type { ReactNode } from "react";
 import { isAxiosError } from "axios";
 import { Loader2, LogIn, RefreshCw } from "lucide-react";
@@ -52,7 +53,7 @@ export function AppShellLoading({ message }: { message: string }) {
     <AppShell>
       <ShellStatePanel>
         <div className="p-6 sm:p-8">
-          <GraphFrame backgroundImage="/assets/imgs/setup-light.png">
+          <GraphFrame backgroundImage={SETUP_LIGHT_BG}>
             <LoadingGraph />
           </GraphFrame>
           <div className="space-y-3 text-center">
@@ -156,7 +157,7 @@ export function AppShellError({
                 </Button>
               ) : (
                 <Button type="button" variant="outline" asChild>
-                  <Link to="/">返回官网</Link>
+                  <a href="/">返回官网</a>
                 </Button>
               )}
             </div>

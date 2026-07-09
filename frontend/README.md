@@ -16,7 +16,7 @@
 | 组件 | **Radix UI + shadcn/ui**（new-york） | `components.json` 已配置；当前含 `button`、`card`，更多组件：`npx shadcn@latest add tabs` 等 |
 | 图表 | **Recharts** | 首页含示例折线图 |
 | 服务端状态 | **TanStack Query v5** | 已在 `App` 根挂载 `QueryClientProvider` |
-| 路由 | **React Router 6** | `/` 官网；`/app` 控制台（`RequireAuth`，无 JWT 重定向登录）；`/auth/*` 鉴权 |
+| 路由 | **React Router 6** | `/app` 控制台（`RequireAuth`）；`/auth/*` 鉴权；官网 `/` 由 `../website/`（Astro）提供 |
 | HTTP | **axios**（依赖已装，可按需封装 `src/lib/api.ts`） | 与 `fetch` 二选一统一即可 |
 | API 类型 | **OpenAPI 生成**（可选） | `openapi-typescript` + `openapi-fetch` 未默认安装，需要时 `npm add -D openapi-typescript openapi-fetch` |
 | 质量 | **ESLint 9** + **typescript-eslint** | `npm run lint` |

@@ -5,6 +5,7 @@ import { SetupStepFooter } from "@/components/setup/SetupStepFooter";
 import { SetupStepVertical } from "@/components/setup/SetupStepVertical";
 import { SetupStepContent } from "@/components/setup/SetupStepContent";
 import { useSetupWizardFlow } from "@/hooks/useSetupWizardFlow";
+import { SETUP_LIGHT_BG } from "@/lib/assets/shell";
 import { SETUP_LANGUAGES, SETUP_REGIONS } from "@/lib/setup";
 
 type SetupWizardProps = {
@@ -134,7 +135,8 @@ export function SetupWizard({ onCompleted }: SetupWizardProps) {
             </div>
 
             <aside
-              className="setup-panel-bg relative m-2 hidden min-h-[260px] min-w-0 overflow-hidden rounded-md md:flex md:self-stretch"
+              className="relative m-2 hidden min-h-[260px] min-w-0 overflow-hidden rounded-md bg-background bg-cover bg-center bg-no-repeat md:flex md:self-stretch"
+              style={{ backgroundImage: `url("${SETUP_LIGHT_BG}")` }}
               aria-label="设置流程"
             >
               <div className="relative z-10 flex h-full w-full items-center p-10">

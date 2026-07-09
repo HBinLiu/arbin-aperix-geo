@@ -4,13 +4,14 @@ services:
     environment:
       POSTGRES_USER: aperix
       POSTGRES_PASSWORD: aperix
-      POSTGRES_DB: aperix_geo
+      POSTGRES_DB: arbin_aperix_geo
     ports:
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
+      - ./scripts/init-cms-db.sh:/docker-entrypoint-initdb.d/01-init-cms-db.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aperix -d aperix_geo"]
+      test: ["CMD-SHELL", "pg_isready -U aperix -d arbin_aperix_geo"]
       interval: 3s
       timeout: 5s
       retries: 10

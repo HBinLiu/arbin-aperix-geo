@@ -24,6 +24,7 @@ import { Link } from "react-router-dom";
 
 import { cancelPayOrder, createUsagePackOrder } from "@/api/billing";
 import { formatApiError } from "@/api/client";
+import { PayOrderDialog } from "@/components/billing/PayOrderDialog";
 import { ProgressBar } from "@/components/common/ProgressBar";
 import {
   DEFAULT_TABLE_PAGE_SIZE,
@@ -371,6 +372,7 @@ function UsagePackPurchase({ onOrdered }: { onOrdered: () => void | Promise<void
   const [open, setOpen] = useState(false);
   const [selectedPack, setSelectedPack] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [payOrder, setPayOrder] = useState<{ id: string; amount_cents: number } | null>(null);
 
   useEffect(() => {
     if (open && packs[0]) {
@@ -383,9 +385,8 @@ function UsagePackPurchase({ onOrdered }: { onOrdered: () => void | Promise<void
     setSubmitting(true);
     try {
       const order = await createUsagePackOrder({ product_code: selectedPack as UsagePackCode });
-      const yuan = (order.amount_cents / 100).toLocaleString("zh-CN");
-      toast.success(`订单已创建（¥${yuan}），支付通道即将开放`);
       setOpen(false);
+      setPayOrder({ id: order.id, amount_cents: order.amount_cents });
       await onOrdered();
     } catch (error) {
       toast.error(formatApiError(error, "创建订单失败"));
@@ -444,6 +445,17 @@ function UsagePackPurchase({ onOrdered }: { onOrdered: () => void | Promise<void
           <UsagePackPurchaseFooter submitting={submitting} onSubmit={handleSubmit} className="mt-auto shrink-0" />
         </DialogContent>
       </Dialog>
+
+      <PayOrderDialog
+        orderId={payOrder?.id ?? null}
+        amountCents={payOrder?.amount_cents ?? 0}
+        open={payOrder !== null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setPayOrder(null);
+        }}
+        onPaid={onOrdered}
+        title="购买配额包"
+      />
     </>
   );
 }
@@ -560,11 +572,7 @@ function PendingOrderActions({
   onChanged: () => void;
 }) {
   const [canceling, setCanceling] = useState(false);
-
-  function handleContinuePay() {
-    const yuan = (order.amount_cents / 100).toLocaleString("zh-CN");
-    toast.info(`支付通道即将开放（¥${yuan}）`);
-  }
+  const [payOpen, setPayOpen] = useState(false);
 
   async function handleCancel() {
     setCanceling(true);
@@ -580,14 +588,24 @@ function PendingOrderActions({
   }
 
   return (
-    <div className="flex w-full items-center justify-center gap-2">
-      <Button type="button" variant="default" size="xs" onClick={handleContinuePay}>
-        继续支付
-      </Button>
-      <Button type="button" variant="outline" size="xs" disabled={canceling} onClick={handleCancel}>
-        {canceling ? "取消中…" : "取消"}
-      </Button>
-    </div>
+    <>
+      <div className="flex w-full items-center justify-center gap-2">
+        <Button type="button" variant="default" size="xs" onClick={() => setPayOpen(true)}>
+          继续支付
+        </Button>
+        <Button type="button" variant="outline" size="xs" disabled={canceling} onClick={handleCancel}>
+          {canceling ? "取消中…" : "取消"}
+        </Button>
+      </div>
+
+      <PayOrderDialog
+        orderId={order.id}
+        amountCents={order.amount_cents}
+        open={payOpen}
+        onOpenChange={setPayOpen}
+        onPaid={onChanged}
+      />
+    </>
   );
 }
 

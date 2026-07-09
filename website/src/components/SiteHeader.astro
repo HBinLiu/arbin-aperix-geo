@@ -1,0 +1,49 @@
+---
+import { APERIX_LOGO_SRC } from "@shared/aperix";
+import SiteHeaderNav from "@/components/menu/SiteHeaderNav";
+import StaticImage from "@/components/StaticImage.tsx";
+import { LOGO_RENDER_PX } from "@/lib/assets";
+import type { SiteSettings } from "@/lib/payload";
+
+type Props = {
+  settings: SiteSettings;
+};
+
+const { settings } = Astro.props;
+const siteName = settings.siteName;
+const siteDescription = settings.siteDescription?.trim();
+---
+
+<header class="site-header border-border/40 bg-background/80 sticky top-0 z-50 overflow-visible border-b backdrop-blur-md">
+  <div class="mx-auto grid h-14 max-w-6xl grid-cols-[auto_1fr_auto] items-center gap-3 px-4 sm:h-16 sm:gap-4 sm:px-6">
+    <a href="/" class="flex shrink-0 items-center gap-2.5" title={siteDescription || siteName}>
+      <StaticImage
+        src={APERIX_LOGO_SRC.dark}
+        alt={siteName}
+        width={LOGO_RENDER_PX}
+        height={LOGO_RENDER_PX}
+        className="size-9 shrink-0 object-contain sm:size-10"
+        loading="eager"
+      />
+      <div class="hidden flex-col leading-tight sm:flex">
+        <span class="text-base font-semibold tracking-tight">{siteName}</span>
+        {siteDescription && (
+          <span class="text-muted-foreground text-xs">{siteDescription}</span>
+        )}
+      </div>
+    </a>
+
+    <div class="flex justify-center">
+      <SiteHeaderNav client:load />
+      <nav class="flex items-center md:hidden">
+        <a href="#features" class="text-foreground/80 text-sm font-medium">平台</a>
+        <a href="#faq" class="text-foreground/80 ml-4 text-sm font-medium">资源</a>
+      </nav>
+    </div>
+
+    <div class="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
+      <a href="/auth/login" class="btn btn-ghost hidden sm:inline-flex">登录</a>
+      <a href="/auth/register" class="btn btn-primary text-xs sm:text-sm">开始试用</a>
+    </div>
+  </div>
+</header>

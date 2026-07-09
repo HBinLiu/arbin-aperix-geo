@@ -4,6 +4,7 @@ import type {
   PaginatedPayOrders,
   PaginatedQuotaRecords,
   PayOrder,
+  PayOrderPrepay,
   PayOrderSortField,
   PlanCatalog,
   PlanCode,
@@ -93,6 +94,25 @@ export async function createUsagePackOrder(input: {
 
 export async function cancelPayOrder(orderId: string): Promise<PayOrder> {
   const { data } = await api.post<PayOrder>(`/billing/orders/${orderId}/cancel`, undefined, {
+    skipErrorToast: true,
+  });
+  return data;
+}
+
+export async function fetchPayOrder(orderId: string): Promise<PayOrder> {
+  const { data } = await api.get<PayOrder>(`/billing/orders/${orderId}`);
+  return data;
+}
+
+export async function prepayPayOrder(orderId: string): Promise<PayOrderPrepay> {
+  const { data } = await api.post<PayOrderPrepay>(`/billing/orders/${orderId}/pay`, undefined, {
+    skipErrorToast: true,
+  });
+  return data;
+}
+
+export async function simulatePayOrder(orderId: string): Promise<PayOrder> {
+  const { data } = await api.post<PayOrder>(`/billing/orders/${orderId}/simulate-pay`, undefined, {
     skipErrorToast: true,
   });
   return data;

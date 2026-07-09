@@ -59,7 +59,7 @@ export function SamplingProgressOverview({
       <div className="border-primary/15 bg-primary/5 border-b px-4 py-2.5 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-primary text-xs font-medium">
-            系统初始化：{formatPipelinePhaseHeadline(steps, currentStepIdx)}
+            品牌采样进度：{formatPipelinePhaseHeadline(steps, currentStepIdx)}
           </p>
           {streamError && !isFailed ? (
             <button
@@ -99,7 +99,7 @@ export function SamplingProgressOverview({
                   {retryMutation.isPending ? "重试中…" : "重试任务"}
                 </Button>
                 <Button type="button" size="sm" variant="brandout" asChild>
-                  <Link to="/about">联系管理员</Link>
+                  <a href="/about">联系管理员</a>
                 </Button>
               </div>
             </>

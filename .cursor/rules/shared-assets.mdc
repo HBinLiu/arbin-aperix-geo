@@ -1,0 +1,42 @@
+---
+description: 前端项目图片统一放在 shared/assets 下
+alwaysApply: true
+---
+
+# 共享静态资源
+
+各前端项目（`frontend/`、`website/` 等）的**图片资源统一放在 `shared/assets/`**，不要在各项目内新建 `src/assets/` 存放图片。
+
+## 目录约定
+
+```
+shared/assets/
+├── aperix/                 # Aperix 品牌 logo、favicon（经 /assets/aperix/* 引用）
+├── platform/               # AI 平台 logo
+└── images/
+    ├── frontend/           # 控制台专用图片
+    └── website/            # 官网专用图片
+```
+
+新增前端应用时，在 `shared/assets/images/<app-name>/` 下建对应目录。
+
+## 引用方式
+
+通过 `@shared/assets/...` 导入，并在各项目的 `src/lib/assets/` 中集中 re-export：
+
+```typescript
+// frontend/src/lib/assets/shell.ts
+import setupLightBg from "@shared/assets/images/frontend/setup-light.webp";
+export const SETUP_LIGHT_BG = setupLightBg;
+```
+
+```typescript
+// website/src/lib/assets.ts
+import heroGrid from "@shared/assets/images/website/hero-grid.svg";
+export const HERO_GRID = heroGrid;
+```
+
+## 禁止
+
+- 不要在 `frontend/src/assets/` 或 `website/src/assets/` 新增图片
+- 不要在 CSS 中写死各项目内的相对图片路径；改为 TS/Astro 导入后通过 `url()` 或 inline style 使用

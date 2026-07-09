@@ -1,0 +1,56 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import SiteFooter from "@/components/SiteFooter.astro";
+import HeroSection from "@/components/home/HeroSection.astro";
+import FeatureSection from "@/components/home/FeatureSection.astro";
+import CompareSection from "@/components/home/CompareSection.astro";
+import CtaSection from "@/components/home/CtaSection.astro";
+import DiagnosticSection from "@/components/home/DiagnosticSection.astro";
+import FaqSection from "@/components/home/FaqSection.astro";
+import { getSiteSettings } from "@/lib/payload";
+import {
+  homeCta,
+  homeComparison,
+  homeDiagnostic,
+  homeFaqs,
+  homeFeatures,
+  homeHero,
+  homePlatforms,
+  mergeSiteSettings,
+} from "@/lib/home";
+import "@/styles/style.css";
+
+const settings = mergeSiteSettings(await getSiteSettings());
+---
+
+<BaseLayout seo={settings.seo}>
+  <SiteHeader settings={settings} />
+
+  <main class="flex flex-1 flex-col">
+    <HeroSection hero={homeHero} platforms={homePlatforms} />
+
+    <FeatureSection
+      titleLine1={homeFeatures.titleLine1}
+      titleLine2Before={homeFeatures.titleLine2Before}
+      titleHighlight={homeFeatures.titleHighlight}
+      titleLine2After={homeFeatures.titleLine2After}
+      items={homeFeatures.items}
+    />
+
+    <DiagnosticSection diagnostic={homeDiagnostic} />
+
+    <CompareSection
+      titleBefore={homeComparison.titleBefore}
+      titleHighlight={homeComparison.titleHighlight}
+      titleAfter={homeComparison.titleAfter}
+      rows={homeComparison.rows}
+    />
+
+    <FaqSection items={homeFaqs} />
+
+    <CtaSection {...homeCta} />
+  </main>
+
+  <SiteFooter settings={settings} />
+</BaseLayout>

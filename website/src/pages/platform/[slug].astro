@@ -1,0 +1,23 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import MonitorPage from "@/components/platform/MonitorPage.astro";
+import { mergeSiteSettings } from "@/lib/home";
+import { getSiteSettings } from "@/lib/payload";
+import { getAllMonitorPages } from "@/lib/monitor";
+import "@/styles/style.css";
+import "@/styles/monitor.css";
+
+export async function getStaticPaths() {
+  return getAllMonitorPages().map((content) => ({
+    params: { slug: content.slug },
+    props: { content },
+  }));
+}
+
+const { content } = Astro.props;
+const settings = mergeSiteSettings(await getSiteSettings());
+---
+
+<BaseLayout seo={content.seo}>
+  <MonitorPage content={content} settings={settings} />
+</BaseLayout>

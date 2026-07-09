@@ -29,20 +29,18 @@ import {
   BillingRoute,
 } from "@/routes/dashboard";
 import { SetupRoute } from "@/routes/setup";
-import { AboutPage } from "@/pages/website/AboutPage";
-import { HomePage } from "@/pages/website/HomePage";
 import { DASHBOARD_APP_BASE } from "@/lib/dashboard";
 
 /**
  * 应用路由表
  *
- * 公开：/、/about、/auth/*
+ * 公开：/auth/*（官网 /、/about 由 Astro website/ 提供）
  * 控制台：/app/*（RequireAuth → setup / 控制台子路由）
  */
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<HomePage />} />
+      <Route path="/" element={<Navigate to="/auth/login" replace />} />
       <Route
         path={`${DASHBOARD_APP_BASE}/*`}
         element={
@@ -94,7 +92,6 @@ export function AppRoutes() {
           </Route>
         </Route>
       </Route>
-      <Route path="/about" element={<AboutPage />} />
       <Route path="/auth/login" element={<LoginPage />} />
       <Route path="/auth/register" element={<RegisterPage />} />
     </Routes>

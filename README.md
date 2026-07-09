@@ -7,9 +7,11 @@
 | 目录 | 说明 |
 |------|------|
 | [**backend/**](backend/) | Python：**FastAPI** + **Celery** + **PostgreSQL** / **Redis**，详见 [backend/README.md](backend/README.md) |
-| [**frontend/**](frontend/) | 前端：**Vite + React + TS + Tailwind + shadcn/ui + Recharts**（SaaS 控制台，见 [frontend/README.md](frontend/README.md)） |
+| [**frontend/**](frontend/) | 控制台：**Vite + React + TS + Tailwind + shadcn/ui**（`/app`、`/auth`，见 [frontend/README.md](frontend/README.md)） |
+| [**website/**](website/) | 官网：**Astro** 静态站（`/`、`/pricing` 等，见 [website/README.md](website/README.md)） |
+| [**payload/**](payload/) | 营销 CMS：**Payload 3** + PostgreSQL（`/cms`、`/cms/api`，见 [payload/README.md](payload/README.md)） |
 | [**docs/**](docs/) | 产品文档（入口 [docs/README.md](docs/README.md)） |
-| [docker-compose.yml](docker-compose.yml) | 本地 **Postgres + Redis**（前后端开发共用） |
+| [docker-compose.yml](docker-compose.yml) | 本地 **Postgres + Redis**（前后端与 CMS 开发共用） |
 
 ## 文档索引
 
@@ -57,6 +59,20 @@ npm run dev
 ```
 
 默认 **http://127.0.0.1:5173**；`/api`、`/health` 等已代理到本机 **8000** 端口后端（见 [frontend/README.md](frontend/README.md)）。
+
+## 快速开始（官网 + CMS）
+
+```bash
+docker compose up -d
+
+# Payload CMS（:3000，/cms）
+cd payload && cp .env.example .env && npm install && npm run dev
+
+# Astro 官网（:4321，/）
+cd website && cp .env.example .env && npm install && npm run dev
+```
+
+生产同域路径：`/` 官网 · `/app` 控制台 · `/auth` 鉴权 · `/api/v1` 产品 API · `/cms` 内容后台。
 
 ## 核心产品差异
 

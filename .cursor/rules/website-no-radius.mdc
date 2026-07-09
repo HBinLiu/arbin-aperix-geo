@@ -1,0 +1,33 @@
+---
+description: 官网 UI 默认无圆角（直角风格）
+globs: website/**
+alwaysApply: false
+---
+
+# 官网无圆角规范
+
+`website/` 内按钮、卡片、输入框、徽章、标签等 UI 元素**默认使用直角**（`border-radius: 0`），不使用 `rounded-*` 类或圆角 CSS。
+
+## 要求
+
+- `.btn`、表单控件、区块容器、FAQ、对比表单元格等：无圆角
+- 新增组件默认遵循此规范
+- 仅当用户**明确说明**需要圆角时，才可对特定元素加圆角
+
+## 示例
+
+```css
+/* ✅ */
+.btn { border-radius: 0; }
+
+/* ❌ 除非特殊说明 */
+.btn { border-radius: 0.5rem; }
+```
+
+```html
+<!-- ✅ -->
+<button class="btn btn-primary">提交</button>
+
+<!-- ❌ -->
+<button class="btn btn-primary rounded-lg">提交</button>
+```

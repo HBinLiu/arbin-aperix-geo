@@ -1,6 +1,6 @@
 import * as React from "react";
-import { Link } from "react-router-dom";
 
+import { AUTH_LIGHT_BG } from "@/lib/assets/shell";
 import { AppLogo } from "@/components/common/AppLogo";
 
 export type AuthShellProps = {
@@ -26,13 +26,13 @@ export function AuthShell({ title, description, children }: AuthShellProps) {
 
           <p className="text-muted-foreground mt-6 text-center text-[13px] leading-relaxed">
             继续操作即表示你已阅读、理解并同意平台{" "}
-            <Link to="/terms" className="shrink-0 underline">
+            <a href="/terms" className="shrink-0 underline">
               使用条款
-            </Link>
+            </a>
             {" "}与{" "}
-            <Link to="/privacy" className="shrink-0 underline">
+            <a href="/privacy" className="shrink-0 underline">
               隐私政策
-            </Link>
+            </a>
             。
           </p>
         </div>
@@ -42,7 +42,7 @@ export function AuthShell({ title, description, children }: AuthShellProps) {
         <div className="relative h-full overflow-hidden rounded-lg">
           <div
             className="auth-right-panel-bg bg-background absolute inset-0"
-            style={{ backgroundImage: 'url("/assets/imgs/auth-light-bg.png")' }}
+            style={{ backgroundImage: `url("${AUTH_LIGHT_BG}")` }}
             aria-hidden
           />
           <div className="relative z-10 flex h-full items-center justify-center px-10 py-16">
@@ -64,13 +64,13 @@ export function AuthShell({ title, description, children }: AuthShellProps) {
 
               <div className="border-foreground/10 border-t pt-4">
                 <div className="flex items-center justify-between gap-4">
-                  <Link to="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
+                  <a href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
                     <AppLogo width={24} height={24} className="size-6 object-contain" decoding="async" />
                     <span className="text-foreground text-sm font-semibold">Aperix AI</span>
-                  </Link>
-                  <Link to="/about" className="text-muted-foreground shrink-0 text-sm hover:underline">
+                  </a>
+                  <a href="/about" className="text-muted-foreground shrink-0 text-sm hover:underline">
                     联系我们
-                  </Link>
+                  </a>
                 </div>
               </div>
             </div>

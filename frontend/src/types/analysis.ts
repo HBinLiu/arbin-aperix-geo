@@ -68,6 +68,7 @@ export type DashboardOverviewTopic = {
 export type DashboardOverviewData = {
   entity_id: string;
   visibility: DashboardOverviewMetric;
+  mention: DashboardOverviewMetric;
   citation: DashboardOverviewMetric;
   share_voice: DashboardOverviewMetric;
   sentiment: DashboardOverviewSentimentMetric;

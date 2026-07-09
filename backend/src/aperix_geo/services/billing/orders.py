@@ -156,6 +156,37 @@ def list_tenant_pay_orders_paginated(
     return orders, total, safe_page, safe_page_size
 
 
+def get_pay_order_by_id(db: Session, order_id: uuid.UUID, *, for_update: bool = False) -> TenantPayOrder:
+    stmt = select(TenantPayOrder).where(
+        TenantPayOrder.id == order_id,
+        TenantPayOrder.deleted.is_(False),
+    )
+    if for_update:
+        stmt = stmt.with_for_update()
+    order = db.execute(stmt).scalar_one_or_none()
+    if order is None:
+        raise ValueError("Order not found")
+    return order
+
+
+def get_tenant_pay_order(
+    db: Session,
+    *,
+    tenant_id: uuid.UUID,
+    order_id: uuid.UUID,
+) -> TenantPayOrder:
+    order = db.execute(
+        select(TenantPayOrder).where(
+            TenantPayOrder.id == order_id,
+            TenantPayOrder.tenant_id == tenant_id,
+            TenantPayOrder.deleted.is_(False),
+        )
+    ).scalar_one_or_none()
+    if order is None:
+        raise ValueError("Order not found")
+    return order
+
+
 def cancel_tenant_pay_order(
     db: Session,
     *,

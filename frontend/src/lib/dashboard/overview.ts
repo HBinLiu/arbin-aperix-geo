@@ -86,6 +86,7 @@ export function buildDashboardTopicRows(
 
 export type DashboardOverviewView = {
   visibility: DashboardOverviewMetric;
+  mention: DashboardOverviewMetric;
   citation: DashboardOverviewMetric;
   shareVoice: DashboardOverviewMetric;
   sentiment: DashboardOverviewSentimentMetric;
@@ -96,6 +97,7 @@ export function dashboardOverviewView(
 ): DashboardOverviewView {
   return {
     visibility: data?.visibility ?? { current: null, previous: null, rank: null },
+    mention: data?.mention ?? { current: null, previous: null, rank: null },
     citation: data?.citation ?? { current: null, previous: null, rank: null },
     shareVoice: data?.share_voice ?? { current: null, previous: null, rank: null },
     sentiment: data?.sentiment ?? { current: null, previous: null, rank: null, label: null },

@@ -73,6 +73,19 @@ class Settings(BaseSettings):
     # 支付 webhook（空则拒绝外部回调；开发可设固定 secret）
     billing_pay_webhook_secret: str = ""
 
+    # --- 微信支付 V3（Native 扫码）---
+    wechat_pay_mch_id: str = ""
+    wechat_pay_app_id: str = ""
+    wechat_pay_api_v3_key: str = ""
+    wechat_pay_mch_cert_serial_no: str = ""
+    wechat_pay_private_key: str = ""
+    wechat_pay_private_key_path: str = ""
+    wechat_pay_platform_cert_pem: str = ""
+    wechat_pay_platform_cert_path: str = ""
+    wechat_pay_platform_cert_serial: str = ""
+    wechat_pay_notify_url: str = ""
+    wechat_pay_timeout_s: float = Field(default=15.0, ge=5.0, le=60.0)
+
     # --- 大模型：默认推理 · DeepSeek（见 services/providers/）---
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_api_key: str = ""

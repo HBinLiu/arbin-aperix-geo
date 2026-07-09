@@ -72,14 +72,6 @@
   }
 }
 
-.setup-panel-bg {
-  background-color: var(--background);
-  background-image: url('/assets/imgs/setup-light.png');
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
-}
-
 .setup-step-active {
   background-image: linear-gradient(
     90deg,

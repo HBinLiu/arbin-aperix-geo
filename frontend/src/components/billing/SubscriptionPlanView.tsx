@@ -11,6 +11,7 @@ import { createSubscriptionOrder } from "@/api/billing";
 import { fetchSamplingPlatforms } from "@/api/brand";
 import { formatApiError } from "@/api/client";
 import { ActionTooltip } from "@/components/common/ActionTooltip";
+import { PayOrderDialog } from "@/components/billing/PayOrderDialog";
 import { PlatformLogo } from "@/components/brand/PlatformLogo";
 import { Button } from "@/components/ui/button";
 import { TextBadge } from "@/components/ui/badge";
@@ -310,6 +311,7 @@ function PlanComparisonTable({ plans }: { plans: PlanCatalogItem[] }) {
 export function SubscriptionPlanView() {
   const [cycleOverride, setCycleOverride] = useState<BillingCycle | null>(null);
   const [selectingPlan, setSelectingPlan] = useState<string | null>(null);
+  const [payOrder, setPayOrder] = useState<{ id: string; amount_cents: number } | null>(null);
   const { data: catalog, isPending: catalogPending } = usePlanCatalog();
   const { data: subscription, isPending: subscriptionPending } = useTenantSubscription();
   const { data: platformCatalog = [], isPending: platformCatalogPending } = useQuery({
@@ -332,8 +334,7 @@ export function SubscriptionPlanView() {
         plan_code: plan.code,
         billing_cycle: selectedCycle,
       });
-      const yuan = (order.amount_cents / 100).toLocaleString("zh-CN");
-      toast.success(`订单已创建（¥${yuan}），支付通道即将开放`);
+      setPayOrder({ id: order.id, amount_cents: order.amount_cents });
     } catch (error) {
       toast.error(formatApiError(error, "创建订单失败"));
     } finally {
@@ -439,6 +440,17 @@ export function SubscriptionPlanView() {
 
         {!isPending && plans.length > 0 ? <PlanComparisonTable plans={plans} /> : null}
       </div>
+
+      <PayOrderDialog
+        orderId={payOrder?.id ?? null}
+        amountCents={payOrder?.amount_cents ?? 0}
+        open={payOrder !== null}
+        onOpenChange={(open) => {
+          if (!open) setPayOrder(null);
+        }}
+        title="订阅支付"
+        description="请使用微信扫一扫完成订阅支付，支付成功后计划将立即生效。"
+      />
     </div>
   );
 }

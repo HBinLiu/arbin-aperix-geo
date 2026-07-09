@@ -124,6 +124,13 @@ class PayOrderOut(BaseModel):
     quantity: int | None = None
 
 
+class PayOrderPrepayOut(BaseModel):
+    order_id: UUID
+    amount_cents: int
+    mode: Literal["wechat_native", "dev"] = "wechat_native"
+    code_url: str | None = None
+
+
 class PayOrderListItemOut(BaseModel):
     id: UUID
     order_type: str
