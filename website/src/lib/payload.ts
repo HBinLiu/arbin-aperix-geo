@@ -35,12 +35,27 @@ export type SiteSettings = {
   seo: PageSeo;
 };
 
-const payloadBase = import.meta.env.PUBLIC_PAYLOAD_URL || "http://127.0.0.1:4321/cms/api";
+function payloadApiBase(): string {
+  const configured = (import.meta.env.PAYLOAD_API_URL || "/cms/api").replace(/\/$/, "");
+  if (configured.startsWith("http://") || configured.startsWith("https://")) {
+    return configured;
+  }
+
+  const path = configured.startsWith("/") ? configured : `/${configured}`;
+
+  if (import.meta.env.DEV) {
+    return `http://127.0.0.1:3000${path}`;
+  }
+
+  const site = import.meta.env.SITE?.replace(/\/$/, "");
+  return site ? `${site}${path}` : path;
+}
 
 async function payloadFetch<T>(path: string): Promise<T | null> {
   try {
-    const res = await fetch(`${payloadBase}${path}`, {
+    const res = await fetch(`${payloadApiBase()}${path}`, {
       headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(5_000),
     });
     if (!res.ok) return null;
     return (await res.json()) as T;

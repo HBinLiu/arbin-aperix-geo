@@ -1,0 +1,115 @@
+---
+import { Minus, Plus } from "@lucide/astro";
+import { platformFaqDefaults, type PlatformFaqItem } from "@/lib/platform/faq";
+import "@/styles/platform/faq.css";
+
+type Props = {
+  items: PlatformFaqItem[];
+  title?: string;
+  subtitle?: string;
+  idPrefix?: string;
+};
+
+const {
+  items,
+  title = platformFaqDefaults.title,
+  subtitle = platformFaqDefaults.subtitle,
+  idPrefix = "pf-faq",
+} = Astro.props;
+---
+
+<section id="faq" class="pf-faq scroll-mt-16">
+  <div class="pf-faq-inner mx-auto w-full max-w-6xl px-4 sm:px-6">
+    <header class="pf-faq-header">
+      <h2 class="pf-faq-title">{title}</h2>
+      <p class="pf-faq-subtitle">{subtitle}</p>
+    </header>
+
+    <div class="pf-faq-list" data-pf-faq-list>
+      {
+        items.map((item, index) => (
+          <div class:list={["pf-faq-item", index === 0 && "is-open"]} data-pf-faq-item>
+            <button
+              type="button"
+              id={`${idPrefix}-trigger-${index}`}
+              class="pf-faq-trigger"
+              aria-expanded={index === 0 ? "true" : "false"}
+              aria-controls={`${idPrefix}-answer-${index}`}
+            >
+              <div class="pf-faq-meta-row">
+                <span class="pf-faq-number">{item.number}</span>
+                <span class="pf-faq-label">/// {item.label}</span>
+              </div>
+              <h3 class="pf-faq-question">{item.question}</h3>
+              <span class="pf-faq-icon" aria-hidden="true">
+                <Plus size={16} class="pf-faq-icon-plus" />
+                <Minus size={16} class="pf-faq-icon-minus" />
+              </span>
+            </button>
+            <div
+              id={`${idPrefix}-answer-${index}`}
+              class="pf-faq-body"
+              role="region"
+              aria-labelledby={`${idPrefix}-trigger-${index}`}
+            >
+              <div class="pf-faq-body-inner">
+                {item.paragraphs.map((paragraph) => (
+                  <p>{paragraph}</p>
+                ))}
+                {item.bullets && item.bullets.length > 0 && (
+                  <ul class="pf-faq-bullets">
+                    {item.bullets.map((bullet) => (
+                      <li>{bullet}</li>
+                    ))}
+                  </ul>
+                )}
+                {item.closingParagraphs?.map((paragraph) => (
+                  <p>{paragraph}</p>
+                ))}
+              </div>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<script>
+  function initPlatformFaq(list: HTMLElement) {
+    const items = Array.from(list.querySelectorAll<HTMLElement>("[data-pf-faq-item]"));
+
+    items.forEach((item) => {
+      const trigger = item.querySelector<HTMLButtonElement>(".pf-faq-trigger");
+      if (!trigger) return;
+
+      trigger.addEventListener("click", () => {
+        const isOpen = item.classList.contains("is-open");
+
+        items.forEach((other) => {
+          other.classList.remove("is-open");
+          other.querySelector<HTMLButtonElement>(".pf-faq-trigger")?.setAttribute(
+            "aria-expanded",
+            "false",
+          );
+        });
+
+        if (!isOpen) {
+          item.classList.add("is-open");
+          trigger.setAttribute("aria-expanded", "true");
+        }
+      });
+    });
+  }
+
+  function setupPlatformFaq() {
+    document.querySelectorAll<HTMLElement>("[data-pf-faq-list]").forEach((list) => {
+      if (list.dataset.pfFaqBound === "true") return;
+      list.dataset.pfFaqBound = "true";
+      initPlatformFaq(list);
+    });
+  }
+
+  setupPlatformFaq();
+  document.addEventListener("astro:page-load", setupPlatformFaq);
+</script>

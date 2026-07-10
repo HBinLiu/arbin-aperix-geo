@@ -204,19 +204,19 @@ function PlanCard({
             <Button
               type="button"
               variant="outline"
-              className="h-11 w-full rounded-xl border-2 border-border bg-background disabled:opacity-100"
+              className="h-11 w-full rounded-xl border-2 border-border bg-background disabled:opacity-100 font-bold"
               disabled
             >
               当前订阅
             </Button>
           ) : cta === "contact" ? (
-            <Button type="button" className="h-11 w-full rounded-xl shadow-md shadow-primary/20 transition-shadow">
+            <Button type="button" className="h-11 w-full rounded-xl shadow-md shadow-primary/20 transition-shadow font-bold">
               联系销售
             </Button>
           ) : (
             <Button
               type="button"
-              className="h-11 w-full rounded-xl shadow-md shadow-primary/20 transition-shadow"
+              className="h-11 w-full rounded-xl shadow-md shadow-primary/20 transition-shadow font-bold"
               disabled={selecting}
               onClick={() => onSelect?.(plan, cycle)}
             >

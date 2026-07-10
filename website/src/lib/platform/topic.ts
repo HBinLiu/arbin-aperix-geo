@@ -1,4 +1,5 @@
 import type { CtaContent } from "@/lib/home";
+import type { PlatformFaqItem } from "@/lib/platform/faq";
 import type { PageSeo } from "@/lib/seo";
 import findTopicsIdeaVideo from "@shared/assets/videos/website/find-topics-idea.webm";
 
@@ -15,14 +16,7 @@ export type FindTopicsFeature = {
   tags: string[];
 };
 
-export type FindTopicsFaqItem = {
-  number: string;
-  label: string;
-  question: string;
-  paragraphs: string[];
-  bullets?: string[];
-  closingParagraphs?: string[];
-};
+export type FindTopicsFaqItem = PlatformFaqItem;
 
 export const findTopicsIdeasSeo: PageSeo = {
   title: "AI 增长机会与信源分析 | Aperix AI",

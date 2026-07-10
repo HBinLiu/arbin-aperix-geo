@@ -1,5 +1,6 @@
 ---
 import type { HeroContent } from "@/lib/home";
+import HeroTrueFocus from "@/components/home/HeroTrueFocus";
 import StaticImage from "@/components/StaticImage.tsx";
 import {
   HERO_GRID,
@@ -19,9 +20,6 @@ type Props = {
 
 const { hero, platforms = [] } = Astro.props;
 
-const headlineBefore = hero.headlineBefore ?? "";
-const headlineHighlight = hero.headlineHighlight ?? "";
-const headlineAfter = hero.headlineAfter ?? "";
 const platformIds = platforms.length > 0 ? resolvePlatformIds(platforms) : HERO_PLATFORM_IDS;
 ---
 
@@ -46,7 +44,7 @@ const platformIds = platforms.length > 0 ? resolvePlatformIds(platforms) : HERO_
   </div>
 
   <div class="relative z-10 mx-auto w-full max-w-4xl px-4 sm:px-6">
-    <div class="flex flex-col items-center text-center">
+    <div class="hero-headline-container flex flex-col items-center text-center">
       {(hero.eyebrow || platformIds.length > 0) && (
         <div class="hero-badge mb-12 inline-flex max-w-full flex-wrap items-center justify-center gap-2.5 border border-border/80 bg-background px-4 py-2 shadow-sm sm:gap-3 sm:px-5">
           {hero.eyebrow && (
@@ -74,16 +72,14 @@ const platformIds = platforms.length > 0 ? resolvePlatformIds(platforms) : HERO_
         </div>
       )}
 
-      <h1 class="text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl lg:text-[3.25rem]">
-        {headlineBefore}
-        {headlineHighlight && <em class="hero-highlight not-italic">{headlineHighlight}</em>}
-        {headlineAfter}
+      <h1 class="hero-headline w-full max-w-full font-semibold tracking-tight">
+        {hero.headline && hero.headline.length > 0 ? (
+          <HeroTrueFocus client:load parts={hero.headline} />
+        ) : null}
       </h1>
 
       {hero.description && (
-        <p class="text-muted-foreground mt-6 max-w-2xl text-base leading-relaxed sm:text-lg">
-          {hero.description}
-        </p>
+        <p class="hero-description">{hero.description}</p>
       )}
 
       <form

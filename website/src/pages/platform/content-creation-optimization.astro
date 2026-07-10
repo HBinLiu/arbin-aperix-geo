@@ -1,16 +1,16 @@
 ---
 import BaseLayout from "@/layouts/BaseLayout.astro";
-import TopicPage from "@/components/platform/TopicPage.astro";
-import { findTopicsIdeasSeo } from "@/lib/platform/topic";
+import ContentPage from "@/components/platform/ContentPage.astro";
+import { contentCreationSeo } from "@/lib/platform/content";
 import { mergeSiteSettings } from "@/lib/home";
 import { getSiteSettings } from "@/lib/payload";
 import "@/styles/style.css";
 import "@/styles/platform/answer.css";
-import "@/styles/platform/topic.css";
+import "@/styles/platform/content.css";
 
 const settings = mergeSiteSettings(await getSiteSettings());
 ---
 
-<BaseLayout seo={findTopicsIdeasSeo}>
-  <TopicPage settings={settings} />
+<BaseLayout seo={contentCreationSeo}>
+  <ContentPage settings={settings} />
 </BaseLayout>

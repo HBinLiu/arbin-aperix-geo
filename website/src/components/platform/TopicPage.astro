@@ -2,9 +2,10 @@
 import SiteFooter from "@/components/SiteFooter.astro";
 import SiteHeader from "@/components/SiteHeader.astro";
 import StaticImage from "@/components/StaticImage.tsx";
-import FindTopicsFeatureCard from "@/components/platform/FindTopicsFeatureCard.astro";
+import TopicFeatureCard from "@/components/platform/TopicFeatureCard.astro";
+import PlatformFaqSection from "@/components/platform/PlatformFaqSection.astro";
 import CtaSection from "@/components/home/CtaSection.astro";
-import { ArrowRight, Minus, Plus } from "@lucide/astro";
+import { ArrowRight } from "@lucide/astro";
 import { HERO_GRID } from "@/lib/assets";
 import {
   FIND_TOPICS_VIDEO_URL,
@@ -13,7 +14,7 @@ import {
   findTopicsIdeasFeatures,
   findTopicsIdeasFeaturesHeader,
   findTopicsIdeasHero,
-} from "@/lib/platform/find-topics";
+} from "@/lib/platform/topic";
 import type { SiteSettings } from "@/lib/payload";
 
 type Props = {
@@ -23,8 +24,8 @@ type Props = {
 const { settings } = Astro.props;
 
 const featureLayout = [
-  { items: findTopicsIdeasFeatures.slice(0, 2), columns: 2 as const },
-  { items: findTopicsIdeasFeatures.slice(2, 4), columns: 2 as const },
+  { items: findTopicsIdeasFeatures.slice(0, 2) },
+  { items: findTopicsIdeasFeatures.slice(2, 4) },
 ];
 ---
 
@@ -101,12 +102,12 @@ const featureLayout = [
 
       <div class="fti-feature-list">
         {
-          featureLayout.map(({ items, columns }) => {
+          featureLayout.map(({ items }) => {
             if (items.length === 0) return null;
             return (
-              <div class:list={["fti-feature-row", columns === 3 && "fti-feature-row--3"]}>
+              <div class="fti-feature-row">
                 {items.map((feature) => (
-                  <FindTopicsFeatureCard feature={feature} />
+                  <TopicFeatureCard feature={feature} />
                 ))}
               </div>
             );
@@ -116,62 +117,7 @@ const featureLayout = [
     </div>
   </section>
 
-  <section id="faq" class="aei-faq scroll-mt-16">
-    <div class="aei-faq-inner mx-auto w-full max-w-6xl px-4 sm:px-6">
-      <header class="aei-faq-header">
-        <h2 class="aei-faq-title">常见问题</h2>
-        <p class="aei-faq-subtitle">我们已整理了最关键的信息，以助您最大化您的体验价值。</p>
-      </header>
-
-      <div class="aei-faq-list" data-aei-faq-list>
-        {
-          findTopicsIdeasFaqs.map((item, index) => (
-            <div class:list={["aei-faq-item", index === 0 && "is-open"]} data-aei-faq-item>
-              <button
-                type="button"
-                id={`fti-faq-trigger-${index}`}
-                class="aei-faq-trigger"
-                aria-expanded={index === 0 ? "true" : "false"}
-                aria-controls={`fti-faq-answer-${index}`}
-              >
-                <div class="aei-faq-meta-row">
-                  <span class="aei-faq-number">{item.number}</span>
-                  <span class="aei-faq-label">/// {item.label}</span>
-                </div>
-                <h3 class="aei-faq-question">{item.question}</h3>
-                <span class="aei-faq-icon" aria-hidden="true">
-                  <Plus size={16} class="aei-faq-icon-plus" />
-                  <Minus size={16} class="aei-faq-icon-minus" />
-                </span>
-              </button>
-              <div
-                id={`fti-faq-answer-${index}`}
-                class="aei-faq-body"
-                role="region"
-                aria-labelledby={`fti-faq-trigger-${index}`}
-              >
-                <div class="aei-faq-body-inner">
-                  {item.paragraphs.map((paragraph) => (
-                    <p>{paragraph}</p>
-                  ))}
-                  {item.bullets && item.bullets.length > 0 && (
-                    <ul class="aei-faq-bullets">
-                      {item.bullets.map((bullet) => (
-                        <li>{bullet}</li>
-                      ))}
-                    </ul>
-                  )}
-                  {item.closingParagraphs?.map((paragraph) => (
-                    <p>{paragraph}</p>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ))
-        }
-      </div>
-    </div>
-  </section>
+  <PlatformFaqSection items={findTopicsIdeasFaqs} idPrefix="fti-faq" />
 
   <CtaSection {...findTopicsIdeasCta} />
 </main>
@@ -179,40 +125,6 @@ const featureLayout = [
 <SiteFooter settings={settings} />
 
 <script>
-  function initInsightsFaq(list: HTMLElement) {
-    const items = Array.from(list.querySelectorAll<HTMLElement>("[data-aei-faq-item]"));
-
-    items.forEach((item) => {
-      const trigger = item.querySelector<HTMLButtonElement>(".aei-faq-trigger");
-      if (!trigger) return;
-
-      trigger.addEventListener("click", () => {
-        const isOpen = item.classList.contains("is-open");
-
-        items.forEach((other) => {
-          other.classList.remove("is-open");
-          other.querySelector<HTMLButtonElement>(".aei-faq-trigger")?.setAttribute(
-            "aria-expanded",
-            "false",
-          );
-        });
-
-        if (!isOpen) {
-          item.classList.add("is-open");
-          trigger.setAttribute("aria-expanded", "true");
-        }
-      });
-    });
-  }
-
-  function setupInsightsFaq() {
-    document.querySelectorAll<HTMLElement>("[data-aei-faq-list]").forEach((list) => {
-      if (list.dataset.aeiFaqBound === "true") return;
-      list.dataset.aeiFaqBound = "true";
-      initInsightsFaq(list);
-    });
-  }
-
   function initHeroVideo(root: HTMLElement) {
     if (root.dataset.aeiVideoBound === "true") return;
 
@@ -241,10 +153,6 @@ const featureLayout = [
     document.querySelectorAll<HTMLElement>("[data-aei-hero-video]").forEach(initHeroVideo);
   }
 
-  setupInsightsFaq();
   setupHeroVideos();
-  document.addEventListener("astro:page-load", () => {
-    setupInsightsFaq();
-    setupHeroVideos();
-  });
+  document.addEventListener("astro:page-load", setupHeroVideos);
 </script>

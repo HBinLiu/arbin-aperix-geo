@@ -1,4 +1,5 @@
 import type { CtaContent } from "@/lib/home";
+import type { PlatformFaqItem } from "@/lib/platform/faq";
 import type { PageSeo } from "@/lib/seo";
 import promptExplorerVideo from "@shared/assets/videos/website/prompt-explorer.webm";
 
@@ -20,12 +21,7 @@ export type PromptFeature = {
   };
 };
 
-export type PromptFaqItem = {
-  number: string;
-  label: string;
-  question: string;
-  paragraphs: string[];
-};
+export type PromptFaqItem = PlatformFaqItem;
 
 export const promptExplorerSeo: PageSeo = {
   title: "提示词与查询扇出分析 | Aperix AI",
@@ -49,7 +45,7 @@ export const promptExplorerHero = {
 export const promptExplorerFeaturesHeader = {
   titleBefore: "解构真实问题，",
   titleHighlight: "理解需求如何形成",
-  description: "通过查询词、决策阶段与查询扇出，理解需求的深度与价值。",
+  description: "通过提示词、决策阶段与查询扇出，理解需求的深度与价值。",
 };
 
 export const promptExplorerFeatures: PromptFeature[] = [

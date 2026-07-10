@@ -37,7 +37,7 @@ function FloatCard({
   );
 }
 
-export default function FindTopicsPreview({ className = "" }: MenuPreviewProps) {
+export default function TopicPreview({ className = "" }: MenuPreviewProps) {
   return (
     <div aria-hidden className={`ftai-widgetContainer ${className}`.trim()}>
       <div className="ftai-radarCenter">

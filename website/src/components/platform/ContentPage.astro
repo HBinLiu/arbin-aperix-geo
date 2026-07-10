@@ -1,0 +1,194 @@
+---
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import StaticImage from "@/components/StaticImage.tsx";
+import ContentFeatureCard from "@/components/platform/ContentFeatureCard.astro";
+import PlatformFaqSection from "@/components/platform/PlatformFaqSection.astro";
+import CtaSection from "@/components/home/CtaSection.astro";
+import {
+  ArrowRight,
+  CircleCheck,
+  Globe,
+  Lightbulb,
+  ListChecks,
+  PenTool,
+  Send,
+} from "@lucide/astro";
+import { HERO_GRID } from "@/lib/assets";
+import type { ContentCreationWorkflowIcon } from "@/lib/platform/content";
+import {
+  contentCreationBenefits,
+  contentCreationCta,
+  contentCreationFaqs,
+  contentCreationFeatures,
+  contentCreationFeaturesHeader,
+  contentCreationHero,
+  contentCreationIntegrations,
+  contentCreationLocales,
+  contentCreationRankingFactors,
+  contentCreationRankingNote,
+  contentCreationWorkflow,
+} from "@/lib/platform/content";
+import type { SiteSettings } from "@/lib/payload";
+
+type Props = {
+  settings: SiteSettings;
+};
+
+const { settings } = Astro.props;
+
+const workflowIcons: Record<ContentCreationWorkflowIcon, typeof Lightbulb> = {
+  discover: Lightbulb,
+  outline: ListChecks,
+  draft: PenTool,
+  publish: Send,
+};
+---
+
+<SiteHeader settings={settings} />
+
+<main class="flex flex-1 flex-col">
+  <section class="aei-hero">
+    <div class="aei-hero-bg" aria-hidden="true">
+      <div class="aei-hero-perspective">
+        <div class="aei-hero-perspective-top">
+          <StaticImage image={HERO_GRID} alt="" className="aei-hero-grid-img" loading="eager" />
+        </div>
+        <div class="aei-hero-perspective-bottom">
+          <StaticImage image={HERO_GRID} alt="" className="aei-hero-grid-img" loading="eager" />
+        </div>
+      </div>
+      <div class="aei-hero-overlay"></div>
+    </div>
+
+    <div class="aei-hero-inner mx-auto w-full max-w-6xl px-4 sm:px-6">
+      <div class="aei-hero-copy">
+        <h1 class="aei-hero-title">
+          {contentCreationHero.titleBefore}
+          <span class="aei-hero-highlight">{contentCreationHero.titleHighlight}</span>
+          {contentCreationHero.titleAfter}
+        </h1>
+        <p class="aei-hero-tagline">{contentCreationHero.tagline}</p>
+        <p class="aei-hero-desc">{contentCreationHero.description}</p>
+        <div class="aei-hero-actions">
+          <a href={contentCreationHero.primaryCtaHref} class="aei-cta aei-cta--primary group">
+            <span>{contentCreationHero.primaryCtaLabel}</span>
+            <ArrowRight size={16} aria-hidden="true" />
+          </a>
+          <a href={contentCreationHero.secondaryCtaHref} class="aei-cta aei-cta--secondary">
+            {contentCreationHero.secondaryCtaLabel}
+          </a>
+        </div>
+      </div>
+
+      <div class="cco-ranking-section">
+        <div class="cco-ranking-card">
+          <div class="cco-ranking-chips">
+            {contentCreationRankingFactors.map((factor) => (
+              <span class="cco-ranking-chip">
+                <CircleCheck size={14} class="cco-ranking-chip-icon" aria-hidden="true" />
+                <span>{factor}</span>
+              </span>
+            ))}
+          </div>
+          <p class="cco-ranking-note">{contentCreationRankingNote}</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cco-workflow">
+    <div class="mx-auto w-full max-w-5xl px-4 sm:px-6">
+      <div class="cco-workflow-header">
+        <h2 class="cco-workflow-title">{contentCreationWorkflow.title}</h2>
+      </div>
+      <div class="cco-workflow-grid">
+        {contentCreationWorkflow.steps.map((step) => {
+          const StepIcon = workflowIcons[step.icon];
+          return (
+            <article class="cco-workflow-step">
+              <div class="cco-workflow-step-icon" aria-hidden="true">
+                <StepIcon size={24} />
+              </div>
+              <p class="cco-workflow-step-label">{step.step}</p>
+              <h3 class="cco-workflow-step-title">{step.title}</h3>
+              <p class="cco-workflow-step-desc">{step.description}</p>
+            </article>
+          );
+        })}
+      </div>
+    </div>
+  </section>
+
+  <section class="cco-features">
+    <div class="mx-auto w-full max-w-6xl px-4 sm:px-6">
+      <header class="cco-features-header">
+        <h2 class="cco-features-title">
+          {contentCreationFeaturesHeader.titleBefore}
+          <span class="cco-features-title-highlight">
+            {contentCreationFeaturesHeader.titleHighlight}
+          </span>
+          {contentCreationFeaturesHeader.titleAfter}
+        </h2>
+        <p class="cco-features-desc">{contentCreationFeaturesHeader.description}</p>
+      </header>
+
+      <div class="cco-features-grid">
+        {contentCreationFeatures.map((feature) => (
+          <ContentFeatureCard feature={feature} />
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="cco-benefits">
+    <div class="mx-auto w-full max-w-5xl px-4 sm:px-6">
+      <div class="cco-benefits-grid">
+        <div class="cco-benefits-main">
+          <h2 class="cco-benefits-title">{contentCreationBenefits.title}</h2>
+          <ul class="cco-benefits-list">
+            {contentCreationBenefits.items.map((item) => (
+              <li class="cco-benefit-item">
+                <span class="cco-benefit-number">{item.number}</span>
+                <div class="cco-benefit-copy">
+                  <p class="cco-benefit-title">{item.title}</p>
+                  <p class="cco-benefit-desc">{item.description}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <article class="cco-benefits-locales-card">
+          <div class="cco-benefits-locales-head">
+            <Globe size={20} class="cco-benefits-locales-icon" aria-hidden="true" />
+            <span class="cco-benefits-locales-title">{contentCreationLocales.title}</span>
+          </div>
+          <div class="cco-benefits-locales-tags">
+            {contentCreationLocales.languages.map((language) => (
+              <span class="cco-benefits-locale-tag">{language}</span>
+            ))}
+          </div>
+          <p class="cco-benefits-locales-desc">{contentCreationLocales.description}</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="cco-integrations">
+    <div class="mx-auto w-full max-w-4xl px-4 sm:px-6">
+      <h2 class="cco-integrations-title">{contentCreationIntegrations.title}</h2>
+      <div class="cco-integrations-tags">
+        {contentCreationIntegrations.platforms.map((platform) => (
+          <span class="cco-integrations-tag">{platform}</span>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <PlatformFaqSection items={contentCreationFaqs} idPrefix="cco-faq" />
+
+  <CtaSection {...contentCreationCta} />
+</main>
+
+<SiteFooter settings={settings} />

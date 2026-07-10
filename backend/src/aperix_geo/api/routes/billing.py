@@ -40,7 +40,7 @@ from aperix_geo.schemas.billing import (
 )
 from aperix_geo.services.auth.otp import is_dev_environment
 from aperix_geo.services.billing.ledger import usage_pack_product_label
-from aperix_geo.services.billing.plan_catalog import get_plan_catalog
+from aperix_geo.services.billing.plan_catalog import PlanCatalog, get_plan_catalog
 from aperix_geo.services.billing.usage_catalog import get_usage_pack_catalog
 from aperix_geo.services.billing.exceptions import SubscriptionInactiveError
 from aperix_geo.services.billing.orders import (
@@ -172,10 +172,7 @@ def simulate_tenant_pay_order_route(
     return _order_to_out(order, plan_code=_order_plan_code(db, order))
 
 
-@router.get("/plans", response_model=PlanCatalogOut)
-def list_subscription_plans(current: CurrentUser, db: DbSession) -> PlanCatalogOut:
-    del current
-    catalog = get_plan_catalog(db)
+def _plan_catalog_to_out(catalog: PlanCatalog) -> PlanCatalogOut:
     return PlanCatalogOut(
         plans=[
             PlanCatalogItemOut(
@@ -210,6 +207,11 @@ def list_subscription_plans(current: CurrentUser, db: DbSession) -> PlanCatalogO
             for cycle in catalog.billing_cycles
         ],
     )
+
+
+@router.get("/plans", response_model=PlanCatalogOut)
+def list_subscription_plans(db: DbSession) -> PlanCatalogOut:
+    return _plan_catalog_to_out(get_plan_catalog(db))
 
 
 @router.get("/usage-packs", response_model=UsagePackCatalogOut)

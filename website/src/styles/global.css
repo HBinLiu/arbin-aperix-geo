@@ -20,6 +20,7 @@ html {
 }
 
 @import "./menu/index.css";
+@import "./menu/mobile.css";
 @import "./menu/preview.css";
 
 .site-header {

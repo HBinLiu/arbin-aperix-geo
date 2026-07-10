@@ -1,8 +1,8 @@
 import type { ComponentType } from "react";
 
 import AnswerPreview from "@/components/menu/previews/AnswerPreview";
-import ContentCreationPreview from "@/components/menu/previews/ContentCreationPreview";
-import FindTopicsPreview from "@/components/menu/previews/FindTopicsPreview";
+import ContentPreview from "@/components/menu/previews/ContentPreview";
+import TopicPreview from "@/components/menu/previews/TopicPreview";
 import PromptPreview from "@/components/menu/previews/PromptPreview";
 import type { PlatformId } from "@shared/platform";
 import { HERO_PLATFORM_IDS, platformLabel, platformLogoPublicPath } from "@shared/platform";
@@ -21,8 +21,8 @@ export type MenuPreviewProps = {
 export const MENU_PREVIEWS: Record<MenuPreviewId, ComponentType<MenuPreviewProps>> = {
   "answer-engine": AnswerPreview,
   prompt: PromptPreview,
-  "find-topics": FindTopicsPreview,
-  "content-creation": ContentCreationPreview,
+  "find-topics": TopicPreview,
+  "content-creation": ContentPreview,
 };
 
 export type PlatformMenuItem = {
@@ -88,7 +88,7 @@ export const platformMenuSections: PlatformMenuSection[] = [
         preview: "answer-engine",
       },
       {
-        title: "提示词探索",
+        title: "提示词查询探索",
         description: "发现高价值查询，查询扇出洞察",
         href: "/platform/prompt-volumes-explorer",
         preview: "prompt",
@@ -102,7 +102,7 @@ export const platformMenuSections: PlatformMenuSection[] = [
       {
         title: "内容创作与优化",
         description: "AI 辅助内容创作与优化",
-        href: "/app",
+        href: "/platform/content-creation-optimization",
         preview: "content-creation",
       },
     ],
@@ -110,7 +110,7 @@ export const platformMenuSections: PlatformMenuSection[] = [
 ];
 
 export const defaultHeaderLinks: PlatformNavLink[] = [
-  { label: "定价", href: "#cta" },
+  { label: "定价", href: "/pricing" },
   { label: "关于我们", href: "#faq" },
 ];
 

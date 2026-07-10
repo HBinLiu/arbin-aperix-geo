@@ -1,11 +1,13 @@
 import type { ComparisonRow, FeatureItem, SiteSettings } from "./payload";
 import { HERO_PLATFORM_IDS } from "@shared/platform";
 
+export type HeroHeadlinePart =
+  | { type: "text"; content: string }
+  | { type: "focus"; content: string };
+
 export type HeroContent = {
   eyebrow?: string;
-  headlineBefore?: string;
-  headlineHighlight?: string;
-  headlineAfter?: string;
+  headline?: HeroHeadlinePart[];
   description?: string;
   inputPlaceholder?: string;
   primaryCtaLabel?: string;
@@ -50,9 +52,13 @@ export type DiagnosticContent = {
 /** 首页静态文案与区块数据（不来自 Payload） */
 export const homeHero: HeroContent = {
   eyebrow: "实时监测这些 AI 引擎中的品牌提及",
-  headlineBefore: "你的品牌，正在被 AI ",
-  headlineHighlight: "遗忘",
-  headlineAfter: " 吗？",
+  headline: [
+    { type: "text", content: "你的" },
+    { type: "focus", content: "品牌" },
+    { type: "text", content: "，正在被 AI" },
+    { type: "focus", content: "遗忘" },
+    { type: "text", content: "吗？" },
+  ],
   description: "专为企业 AI 营销打造，不只是监测数据——把 AI 可见性转化为真实商机。",
   inputPlaceholder: "输入你的品牌/官网，获取品牌 AI 曝光诊断报告",
   primaryCtaLabel: "获取诊断报告",

@@ -1,0 +1,35 @@
+---
+import { Award, Bot, Sparkles, Target } from "@lucide/astro";
+import type {
+  ContentCreationFeature,
+  ContentCreationFeatureIcon,
+} from "@/lib/platform/content";
+
+type Props = {
+  feature: ContentCreationFeature;
+};
+
+const { feature } = Astro.props;
+
+const featureIcons: Record<ContentCreationFeatureIcon, typeof Target> = {
+  topic: Target,
+  outline: Sparkles,
+  draft: Bot,
+  quality: Award,
+};
+
+const FeatureIcon = featureIcons[feature.icon];
+---
+
+<article class="cco-feature-card">
+  <div class="cco-feature-card-inner">
+    <div class="cco-feature-icon" aria-hidden="true">
+      <FeatureIcon size={24} />
+    </div>
+    <div class="cco-feature-body">
+      <h3 class="cco-feature-title">{feature.title}</h3>
+      <p class="cco-feature-desc">{feature.description}</p>
+      <span class="cco-feature-tag">{feature.tag}</span>
+    </div>
+  </div>
+</article>

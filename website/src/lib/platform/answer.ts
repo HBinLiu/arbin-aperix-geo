@@ -1,4 +1,5 @@
 import type { CtaContent } from "@/lib/home";
+import type { PlatformFaqItem } from "@/lib/platform/faq";
 import type { PageSeo } from "@/lib/seo";
 import insightsVideo from "@shared/assets/videos/website/answer-insight.webm";
 
@@ -25,12 +26,7 @@ export type InsightsFeature = {
   };
 };
 
-export type InsightsFaqItem = {
-  number: string;
-  label: string;
-  question: string;
-  paragraphs: string[];
-};
+export type InsightsFaqItem = PlatformFaqItem;
 
 export const answerEngineInsightsSeo: PageSeo = {
   title: "AI 可见度与竞争洞察分析 | Aperix AI",

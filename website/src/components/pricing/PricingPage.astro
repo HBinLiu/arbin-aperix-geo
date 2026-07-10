@@ -1,0 +1,319 @@
+---
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import QuestionButton from "@/components/pricing/QuestionButton.tsx";
+import CtaSection from "@/components/home/CtaSection.astro";
+import {
+  Boxes,
+  Building2,
+  CalendarClock,
+  Check,
+  Globe,
+  MessageSquareText,
+  Sparkles,
+  Users,
+} from "@lucide/astro";
+import {
+  planCardLimits,
+  planComparisonRows,
+  planDisplayPrice,
+  pricingComparison,
+  pricingCta,
+  pricingHero,
+  pricingRegisterHref,
+  type BillingCycle,
+  type PlanCatalog,
+  type PlanCatalogItem,
+} from "@/lib/pricing";
+import type { SiteSettings } from "@/lib/payload";
+import { HERO_PLATFORM_IDS, platformLabel, platformLogoPublicPath } from "@shared/platform";
+
+type Props = {
+  settings: SiteSettings;
+  planCatalog: PlanCatalog;
+};
+
+const { settings, planCatalog } = Astro.props;
+
+const defaultCycle: BillingCycle = "monthly";
+const comparisonRows = planComparisonRows(planCatalog.plans);
+const comparisonPlanNames = planCatalog.plans.map((plan) => plan.name);
+
+const LIMIT_ICONS: Record<string, typeof Building2> = {
+  max_subjects: Building2,
+  max_per_platforms: Globe,
+  max_prompts_total: MessageSquareText,
+  max_team_members: Users,
+  max_per_competitors: Users,
+  sampling_frequency: CalendarClock,
+  per_month_usages: Sparkles,
+};
+
+function renderPrice(plan: PlanCatalogItem, cycle: BillingCycle) {
+  return planDisplayPrice(plan, cycle);
+}
+---
+
+<SiteHeader settings={settings} />
+
+<main class="flex flex-1 flex-col">
+  <section class="pricing-page" data-pricing-root>
+    <div class="pricing-bg-grid" aria-hidden="true"></div>
+
+    <div class="pricing-inner mx-auto w-full max-w-6xl px-4 sm:px-6">
+      <div class="pricing-hero-wrap">
+        <div class="pricing-hero-glow" aria-hidden="true"></div>
+        <header class="pricing-hero">
+          <span class="pricing-badge">{pricingHero.badge}</span>
+          <div
+            class="pricing-platforms"
+            role="img"
+            aria-label={`支持 ${HERO_PLATFORM_IDS.length} 个 AI 平台`}
+          >
+            {
+              HERO_PLATFORM_IDS.map((platformId) => (
+                <img
+                  src={platformLogoPublicPath(platformId)}
+                  alt={platformLabel(platformId)}
+                  class="pricing-platform-logo"
+                  width="32"
+                  height="32"
+                  loading="lazy"
+                />
+              ))
+            }
+          </div>
+          <p class="pricing-subtitle">{pricingHero.subtitle}</p>
+        </header>
+      </div>
+
+      <div class="pricing-cycle-toggle" role="tablist" aria-label="付款周期">
+        {
+          planCatalog.billing_cycles.map((cycle) => (
+            <button
+              type="button"
+              class:list={["pricing-cycle-btn", cycle.id === defaultCycle && "is-active"]}
+              role="tab"
+              aria-selected={cycle.id === defaultCycle ? "true" : "false"}
+              data-pricing-cycle={cycle.id}
+            >
+              <span>{cycle.label}</span>
+              {cycle.badge ? <span class="pricing-cycle-badge">{cycle.badge}</span> : null}
+            </button>
+          ))
+        }
+      </div>
+
+      <div class="pricing-cards">
+        {
+          planCatalog.plans.map((plan) => {
+            const price = renderPrice(plan, defaultCycle);
+            const cardLimits = planCardLimits(plan);
+            const ctaLabel = plan.orderable ? "开始试用" : "联系销售";
+
+            return (
+              <article class="pricing-card group" data-pricing-card={plan.code}>
+                <div class="pricing-card-inner">
+                  <header class="pricing-card-header">
+                    <h2 class="pricing-card-name">{plan.name}</h2>
+                    <p class="pricing-card-desc">{plan.description}</p>
+                  </header>
+
+                  <div class="pricing-card-price" aria-label="价格">
+                    {
+                      price === null ? (
+                        <span class="pricing-card-price-custom" data-pricing-price-custom>
+                          自定义
+                        </span>
+                      ) : (
+                        <div class="pricing-card-price-main" data-pricing-price-main>
+                          <span class="pricing-card-price-symbol">¥</span>
+                          <span class="pricing-card-price-value" data-pricing-price-value>
+                            {price}
+                          </span>
+                          <span class="pricing-card-price-unit">/月</span>
+                        </div>
+                      )
+                    }
+                  </div>
+
+                  <div class="pricing-card-cta">
+                    <a href={pricingRegisterHref} class="pricing-card-btn">
+                      {ctaLabel}
+                    </a>
+                  </div>
+
+                  <section class="pricing-card-limits" aria-label="计划限制">
+                    <p class="pricing-card-limits-title">版本限制</p>
+                    <ul class="pricing-card-limits-list">
+                      {
+                        cardLimits.map((limit) => (
+                          <li class="pricing-card-limit">
+                            <span class="pricing-card-limit-label">
+                              <span class="pricing-card-limit-check" aria-hidden="true">
+                                <Check size={14} />
+                              </span>
+                              <span>{limit.label}</span>
+                            </span>
+                            <span class="pricing-card-limit-value">{limit.value}</span>
+                          </li>
+                        ))
+                      }
+                    </ul>
+                  </section>
+                </div>
+              </article>
+            );
+          })
+        }
+      </div>
+
+      <section class="pricing-comparison" aria-labelledby="pricing-comparison-title">
+        <header class="pricing-comparison-header">
+          <h2 id="pricing-comparison-title" class="pricing-comparison-title">
+            {pricingComparison.title}
+          </h2>
+          <p class="pricing-comparison-desc">{pricingComparison.description}</p>
+        </header>
+
+        <div class="pricing-comparison-scroll">
+          <table class="pricing-comparison-table">
+            <thead>
+              <tr>
+                <th scope="col">
+                  <span class="pricing-comparison-feature-head">
+                    <Boxes size={14} aria-hidden />
+                    功能
+                  </span>
+                </th>
+                {
+                  comparisonPlanNames.map((name) => (
+                    <th scope="col">{name}</th>
+                  ))
+                }
+              </tr>
+            </thead>
+            <tbody>
+              {
+                comparisonRows.map((row) => {
+                  const RowIcon = LIMIT_ICONS[row.key] ?? Building2;
+                  return (
+                    <tr>
+                      <th scope="row">
+                        <span class="pricing-comparison-feature">
+                          <span class="pricing-comparison-feature-icon" aria-hidden>
+                            <RowIcon size={14} />
+                          </span>
+                          <span>{row.label}</span>
+                          {
+                            row.description ? (
+                              <QuestionButton
+                                client:load
+                                label={row.label}
+                                description={row.description}
+                              />
+                            ) : null
+                          }
+                        </span>
+                      </th>
+                      {row.values.map((value) => <td>{value}</td>)}
+                    </tr>
+                  );
+                })
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <script type="application/json" id="pricing-catalog" set:html={JSON.stringify(planCatalog)} />
+  </section>
+
+  <CtaSection {...pricingCta} />
+</main>
+
+<SiteFooter settings={settings} />
+
+<script>
+  type BillingCycle = "monthly" | "quarterly" | "yearly";
+
+  type PlanPriceItem = {
+    billing_cycle: BillingCycle;
+    monthly_cents: number | null;
+    period_total_cents: number | null;
+  };
+
+  type PlanCatalogItem = {
+    code: string;
+    orderable: boolean;
+    prices: PlanPriceItem[];
+  };
+
+  type PlanCatalog = {
+    plans: PlanCatalogItem[];
+  };
+
+  function formatMonthly(cents: number | null | undefined): string | null {
+    if (!cents || cents <= 0) return null;
+    return Math.round(cents / 100).toLocaleString("zh-CN");
+  }
+
+  function updatePricingCards(root: HTMLElement, cycle: BillingCycle, catalog: PlanCatalog) {
+    catalog.plans.forEach((plan) => {
+      const card = root.querySelector<HTMLElement>(`[data-pricing-card="${plan.code}"]`);
+      if (!card) return;
+
+      const price = plan.prices.find((item) => item.billing_cycle === cycle);
+      const monthly = formatMonthly(price?.monthly_cents);
+
+      const customEl = card.querySelector<HTMLElement>("[data-pricing-price-custom]");
+      const mainEl = card.querySelector<HTMLElement>("[data-pricing-price-main]");
+      const valueEl = card.querySelector<HTMLElement>("[data-pricing-price-value]");
+
+      if (monthly === null) {
+        if (customEl) customEl.hidden = false;
+        if (mainEl) mainEl.hidden = true;
+      } else {
+        if (customEl) customEl.hidden = true;
+        if (mainEl) mainEl.hidden = false;
+        if (valueEl) valueEl.textContent = monthly;
+      }
+    });
+  }
+
+  function initPricingPage(root: HTMLElement) {
+    const catalogEl = root.querySelector<HTMLScriptElement>("#pricing-catalog");
+    if (!catalogEl?.textContent) return;
+
+    const catalog = JSON.parse(catalogEl.textContent) as PlanCatalog;
+    const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>("[data-pricing-cycle]"));
+    if (buttons.length === 0) return;
+
+    let activeCycle = (buttons.find((btn) => btn.classList.contains("is-active"))?.dataset
+      .pricingCycle ?? "monthly") as BillingCycle;
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => {
+        activeCycle = button.dataset.pricingCycle as BillingCycle;
+        buttons.forEach((item) => {
+          const selected = item === button;
+          item.classList.toggle("is-active", selected);
+          item.setAttribute("aria-selected", selected ? "true" : "false");
+        });
+        updatePricingCards(root, activeCycle, catalog);
+      });
+    });
+  }
+
+  function setupPricingPages() {
+    document.querySelectorAll<HTMLElement>("[data-pricing-root]").forEach((root) => {
+      if (root.dataset.pricingBound === "true") return;
+      root.dataset.pricingBound = "true";
+      initPricingPage(root);
+    });
+  }
+
+  setupPricingPages();
+  document.addEventListener("astro:page-load", setupPricingPages);
+</script>

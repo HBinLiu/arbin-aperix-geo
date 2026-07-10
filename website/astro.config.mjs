@@ -12,22 +12,13 @@ export default defineConfig({
   integrations: [react()],
   vite: {
     plugins: [tailwindcss(), sharedAssetsPlugin()],
+    optimizeDeps: {
+      include: ["@radix-ui/react-tooltip", "lucide-react"],
+    },
     resolve: {
       alias: {
         "@": path.resolve(root, "./src"),
         "@shared": path.resolve(root, "../shared"),
-      },
-    },
-    server: {
-      proxy: {
-        "/api": {
-          target: "http://127.0.0.1:8000",
-          changeOrigin: true,
-        },
-        "/cms/api": {
-          target: "http://127.0.0.1:3000",
-          changeOrigin: true,
-        },
       },
     },
   },

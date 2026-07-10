@@ -1,0 +1,405 @@
+/** 内容创作与优化页 — 功能卡、优势区、发布集成 */
+
+/* Features */
+
+.cco-features {
+  background: #fff;
+  padding-block: 4rem;
+}
+
+@media (min-width: 1024px) {
+  .cco-features {
+    padding-block: 5rem;
+  }
+}
+
+.cco-features-header {
+  margin-bottom: 3rem;
+  text-align: center;
+}
+
+.cco-features-title {
+  margin: 0;
+  font-size: clamp(1.5rem, 2vw + 1rem, 1.875rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--color-foreground);
+}
+
+.cco-features-title-highlight {
+  color: var(--color-primary);
+}
+
+.cco-features-desc {
+  max-width: 36rem;
+  margin: 1rem auto 0;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--color-muted-foreground);
+}
+
+.cco-features-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .cco-features-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.cco-feature-card {
+  height: 100%;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--color-muted) 50%, transparent);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 6%);
+}
+
+.cco-feature-card-inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.5rem;
+}
+
+.cco-feature-icon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  color: var(--color-primary);
+}
+
+.cco-feature-body {
+  min-width: 0;
+}
+
+.cco-feature-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+.cco-feature-desc {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-muted-foreground);
+}
+
+.cco-feature-tag {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.75rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--color-muted) 85%, var(--color-foreground) 4%);
+  padding: 0.125rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+/* Ranking factors */
+
+.cco-ranking-section {
+  width: 100%;
+  max-width: 48rem;
+  margin-inline: auto;
+}
+
+.cco-ranking-card {
+  border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+  border-radius: 1rem;
+  background: var(--color-background);
+  padding: 1.5rem;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 6%);
+}
+
+.cco-ranking-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.cco-ranking-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  background: var(--color-muted);
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--color-foreground);
+}
+
+.cco-ranking-chip-icon {
+  flex-shrink: 0;
+  color: var(--color-primary);
+}
+
+.cco-ranking-note {
+  margin: 1rem 0 0;
+  text-align: center;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-muted-foreground);
+}
+
+/* Workflow */
+
+.cco-workflow {
+  background: color-mix(in srgb, var(--color-muted) 30%, transparent);
+  padding-block: 4rem;
+}
+
+@media (min-width: 1024px) {
+  .cco-workflow {
+    padding-block: 5rem;
+  }
+}
+
+.cco-workflow-header {
+  margin-bottom: 3rem;
+  text-align: center;
+}
+
+.cco-workflow-title {
+  margin: 0;
+  font-size: clamp(1.5rem, 2vw + 1rem, 1.875rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--color-foreground);
+}
+
+.cco-workflow-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .cco-workflow-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.cco-workflow-step {
+  position: relative;
+  text-align: center;
+}
+
+.cco-workflow-step-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  margin: 0 auto 1rem;
+  border-radius: 0.75rem;
+  background: var(--color-foreground);
+  color: var(--color-background);
+}
+
+.cco-workflow-step-label {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--color-muted-foreground);
+}
+
+.cco-workflow-step-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-foreground);
+}
+
+.cco-workflow-step-desc {
+  margin: 0.5rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-muted-foreground);
+}
+
+/* Benefits */
+
+.cco-benefits {
+  background: color-mix(in srgb, var(--color-muted) 30%, transparent);
+  padding-block: 4rem;
+}
+
+@media (min-width: 1024px) {
+  .cco-benefits {
+    padding-block: 5rem;
+  }
+}
+
+.cco-benefits-grid {
+  display: grid;
+  align-items: center;
+  gap: 3rem;
+}
+
+@media (min-width: 1024px) {
+  .cco-benefits-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.cco-benefits-title {
+  margin: 0;
+  font-size: clamp(1.5rem, 2vw + 1rem, 1.875rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--color-foreground);
+}
+
+.cco-benefits-list {
+  display: grid;
+  gap: 1rem;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cco-benefit-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.cco-benefit-number {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  background: var(--color-primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-background);
+}
+
+.cco-benefit-copy {
+  min-width: 0;
+}
+
+.cco-benefit-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--color-foreground);
+}
+
+.cco-benefit-desc {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-muted-foreground);
+}
+
+.cco-benefits-locales-card {
+  border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
+  border-radius: 0.5rem;
+  background: linear-gradient(
+    to bottom right,
+    color-mix(in srgb, var(--color-primary) 5%, transparent),
+    transparent
+  );
+  box-shadow: 0 1px 2px rgb(15 23 42 / 6%);
+  padding: 1.5rem;
+}
+
+.cco-benefits-locales-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.cco-benefits-locales-icon {
+  flex-shrink: 0;
+  color: var(--color-primary);
+}
+
+.cco-benefits-locales-title {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--color-foreground);
+}
+
+.cco-benefits-locales-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cco-benefits-locale-tag {
+  border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+  border-radius: 9999px;
+  background: var(--color-background);
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--color-foreground);
+}
+
+.cco-benefits-locales-desc {
+  margin: 1rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-muted-foreground);
+}
+
+/* Integrations */
+
+.cco-integrations {
+  background: #fff;
+  padding-block: 4rem;
+}
+
+@media (min-width: 1024px) {
+  .cco-integrations {
+    padding-block: 5rem;
+  }
+}
+
+.cco-integrations-title {
+  margin: 0 0 3rem;
+  text-align: center;
+  font-size: clamp(1.5rem, 2vw + 1rem, 1.875rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--color-foreground);
+}
+
+.cco-integrations-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.cco-integrations-tag {
+  border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+  border-radius: 9999px;
+  background: var(--color-background);
+  padding: 0.625rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-foreground);
+}
