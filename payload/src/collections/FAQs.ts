@@ -1,10 +1,17 @@
 import type { CollectionConfig } from "payload";
+import { authenticatedWrite, publicRead } from "../access";
 
 export const FAQs: CollectionConfig = {
   slug: "faqs",
   admin: {
     useAsTitle: "question",
     defaultColumns: ["question", "sortOrder", "updatedAt"],
+  },
+  access: {
+    read: publicRead,
+    create: authenticatedWrite,
+    update: authenticatedWrite,
+    delete: authenticatedWrite,
   },
   fields: [
     {

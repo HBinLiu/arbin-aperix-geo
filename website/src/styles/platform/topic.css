@@ -1,4 +1,6 @@
-/** 发现机会与差距页 — 功能卡布局与 widget（页面壳层复用 answer.css） */
+@import "./shell.css";
+
+/** 发现机会与差距页 — 功能卡布局与 widget */
 
 .fti-feature-list {
   display: flex;

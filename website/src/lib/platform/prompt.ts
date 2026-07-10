@@ -1,9 +1,6 @@
 import type { CtaContent } from "@/lib/home";
 import type { PlatformFaqItem } from "@/lib/platform/faq";
-import type { PageSeo } from "@/lib/seo";
 import promptExplorerVideo from "@shared/assets/videos/website/prompt-explorer.webm";
-
-export const PROMPT_EXPLORER_PATH = "/platform/prompt-volumes-explorer";
 
 export const PROMPT_VIDEO_URL = promptExplorerVideo;
 
@@ -22,12 +19,6 @@ export type PromptFeature = {
 };
 
 export type PromptFaqItem = PlatformFaqItem;
-
-export const promptExplorerSeo: PageSeo = {
-  title: "提示词与查询扇出分析 | Aperix AI",
-  description:
-    "分析真实提示词与查询扇出，洞察 AI 如何拆解用户需求，识别高价值问题与趋势变化，优化内容与 GEO 投入优先级。",
-};
 
 export const promptExplorerHero = {
   titleBefore: "了解",
@@ -103,7 +94,7 @@ export const promptExplorerFaqs: PromptFaqItem[] = [
     question: "什么是查询扇出？",
     paragraphs: [
       "查询扇出指的是 AI 在回答一个问题时，为生成最终答案所展开的研究路径，包括拆解出的子查询数量以及引用的信息来源数量。",
-      "在 Aperix AI 中，查询扇出基于 RAG（检索增强生成）架构和多智能体工作流，模拟 AI 的查询拆解与并行检索过程，记录子查询数量、引用来源及趋势变化，真实还原 AI 的研究路径。",
+      "在 {{name}} 中，查询扇出基于 RAG（检索增强生成）架构和多智能体工作流，模拟 AI 的查询拆解与并行检索过程，记录子查询数量、引用来源及趋势变化，真实还原 AI 的研究路径。",
     ],
   },
   {
@@ -112,7 +103,7 @@ export const promptExplorerFaqs: PromptFaqItem[] = [
     question: "查询扇出越高代表什么？",
     paragraphs: [
       "查询扇出越高，说明 AI 需要拆解更多子问题并参考更多来源，问题背后的研究深度与决策复杂度也更高。",
-      "在 Aperix AI 中，高扇出主题通常意味着更高的决策价值。如果品牌在这些问题中的引用率较低，往往是优先布局的关键机会。",
+      "在 {{name}} 中，高扇出主题通常意味着更高的决策价值。如果品牌在这些问题中的引用率较低，往往是优先布局的关键机会。",
     ],
   },
   {
@@ -121,7 +112,7 @@ export const promptExplorerFaqs: PromptFaqItem[] = [
     question: "提示词与查询扇出和关键词分析有什么不同？",
     paragraphs: [
       "关键词分析关注「用户搜索什么」；查询扇出关注「AI 如何研究问题」。",
-      "Aperix AI 通过模拟 AI 的拆解与检索流程，展示子查询结构、引用来源分布及平台差异，让你看到的不只是搜索量，而是 AI 的决策链路。",
+      "{{name}} 通过模拟 AI 的拆解与检索流程，展示子查询结构、引用来源分布及平台差异，让你看到的不只是搜索量，而是 AI 的决策链路。",
     ],
   },
   {
@@ -130,7 +121,7 @@ export const promptExplorerFaqs: PromptFaqItem[] = [
     question: "如何利用查询扇出找到高价值机会？",
     paragraphs: [
       "高价值机会通常是「高扇出 + 低品牌引用」的提示词。",
-      "Aperix AI 会自动识别这些研究深度高但品牌缺席的场景，帮助你优先布局内容与产品页面，提高在 AI 回答链路中的可见度与引用概率。",
+      "{{name}} 会自动识别这些研究深度高但品牌缺席的场景，帮助你优先布局内容与产品页面，提高在 AI 回答链路中的可见度与引用概率。",
     ],
   },
   {
@@ -148,7 +139,7 @@ export const promptExplorerCta: CtaContent = {
   titleBefore: "准备好查看用户在 AI 中",
   titleHighlight: "问了什么",
   titleAfter: "吗？",
-  description: "加入 Aperix AI，共同追踪 AI 搜索可见度。基于数据洞察，告别盲目优化。",
+  description: "加入 {{name}}，共同追踪 AI 搜索可见度。基于数据洞察，告别盲目优化。",
   codeLines: ["// 停止猜测。", "// 开始掌控。"],
   secondaryCtaLabel: "登录",
   secondaryCtaHref: "/auth/login",

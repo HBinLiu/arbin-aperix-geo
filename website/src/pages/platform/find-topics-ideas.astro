@@ -1,16 +1,11 @@
 ---
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import TopicPage from "@/components/platform/TopicPage.astro";
-import { findTopicsIdeasSeo } from "@/lib/platform/topic";
-import { mergeSiteSettings } from "@/lib/home";
-import { getSiteSettings } from "@/lib/payload";
+import { platformTopicSeo } from "@/lib/seo";
 import "@/styles/style.css";
-import "@/styles/platform/answer.css";
 import "@/styles/platform/topic.css";
-
-const settings = mergeSiteSettings(await getSiteSettings());
 ---
 
-<BaseLayout seo={findTopicsIdeasSeo}>
-  <TopicPage settings={settings} />
+<BaseLayout seo={platformTopicSeo}>
+  <TopicPage />
 </BaseLayout>

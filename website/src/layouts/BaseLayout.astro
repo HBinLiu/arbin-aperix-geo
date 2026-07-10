@@ -2,12 +2,18 @@
 import "../styles/global.css";
 import { APERIX_FAVICON_ICO } from "@shared/aperix";
 import type { PageSeo } from "@/lib/seo";
+import { siteConfig } from "@/lib/site";
 
 type Props = {
-  seo: PageSeo;
+  seo?: PageSeo;
 };
 
-const { seo } = Astro.props;
+const defaultSeo: PageSeo = {
+  title: siteConfig.name,
+  description: siteConfig.description,
+};
+
+const { seo = defaultSeo } = Astro.props;
 ---
 
 <!doctype html>

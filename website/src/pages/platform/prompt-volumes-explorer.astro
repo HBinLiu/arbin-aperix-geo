@@ -1,16 +1,11 @@
 ---
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import PromptPage from "@/components/platform/PromptPage.astro";
-import { promptExplorerSeo } from "@/lib/platform/prompt";
-import { mergeSiteSettings } from "@/lib/home";
-import { getSiteSettings } from "@/lib/payload";
+import { platformPromptSeo } from "@/lib/seo";
 import "@/styles/style.css";
-import "@/styles/platform/answer.css";
 import "@/styles/platform/prompt.css";
-
-const settings = mergeSiteSettings(await getSiteSettings());
 ---
 
-<BaseLayout seo={promptExplorerSeo}>
-  <PromptPage settings={settings} />
+<BaseLayout seo={platformPromptSeo}>
+  <PromptPage />
 </BaseLayout>

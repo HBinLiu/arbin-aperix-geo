@@ -1,6 +1,6 @@
 # Aperix 官网（Astro）
 
-静态营销站。首页文案与区块数据在 `src/lib/home.ts` 中维护；构建时从 Payload 拉取 **站点设置**，从 FastAPI 拉取 **定价计划**。
+静态营销站。站点名在 `src/lib/site.ts`；首页文案与 SEO 在 `src/lib/home.ts`；关于页 story 可选从 Payload 拉取；定价从 FastAPI 拉取。
 
 ## 本地开发
 
@@ -13,7 +13,7 @@ npm run dev
 
 默认 <http://127.0.0.1:4321>。
 
-- **Payload**：`PAYLOAD_API_URL=/cms/api`（与生产同域；本地 dev 解析为 `:3000`）
+- **Payload**：`PAYLOAD_API_URL=/cms/api`（仅 `/about` story 等内容；本地 dev 解析为 `:3000`）
 - **产品 API**：`BACKEND_API_URL` 直连 FastAPI `:8000`
 
 建议同时启动：

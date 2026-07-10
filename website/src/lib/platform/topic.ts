@@ -1,9 +1,6 @@
 import type { CtaContent } from "@/lib/home";
 import type { PlatformFaqItem } from "@/lib/platform/faq";
-import type { PageSeo } from "@/lib/seo";
 import findTopicsIdeaVideo from "@shared/assets/videos/website/find-topics-idea.webm";
-
-export const FIND_TOPICS_IDEAS_PATH = "/platform/find-topics-ideas";
 
 export const FIND_TOPICS_VIDEO_URL = findTopicsIdeaVideo;
 
@@ -17,12 +14,6 @@ export type FindTopicsFeature = {
 };
 
 export type FindTopicsFaqItem = PlatformFaqItem;
-
-export const findTopicsIdeasSeo: PageSeo = {
-  title: "AI 增长机会与信源分析 | Aperix AI",
-  description:
-    "基于真实提示词与引用结构，识别尚未覆盖的高价值场景与信源机会，将 AI 回答逻辑转化为可执行的 GEO 增长策略。",
-};
 
 export const findTopicsIdeasHero = {
   titleBefore: "将 AI 回答转化为可执行的",
@@ -86,9 +77,9 @@ export const findTopicsIdeasFaqs: FindTopicsFaqItem[] = [
   {
     number: "01",
     label: "方法论",
-    question: "Aperix AI 是如何识别 AI 机会？",
+    question: "{{name}} 是如何识别 AI 机会？",
     paragraphs: [
-      "Aperix AI 并不是基于假设或关键词预测，而是基于真实 AI 回答、真实提示词和真实引用结构进行分析。",
+      "{{name}} 并不是基于假设或关键词预测，而是基于真实 AI 回答、真实提示词和真实引用结构进行分析。",
       "我们通过对比品牌与竞争对手在 AI 回答中的覆盖深度、排序位置和引用来源等信息，识别：",
     ],
     bullets: [
@@ -103,7 +94,7 @@ export const findTopicsIdeasFaqs: FindTopicsFaqItem[] = [
     label: "竞争",
     question: "能看到被竞品占据的机会吗？",
     paragraphs: [
-      "可以，而且这是 Aperix AI 的核心能力之一。",
+      "可以，而且这是 {{name}} 的核心能力之一。",
       "平台会清晰展示：",
     ],
     bullets: [
@@ -118,9 +109,9 @@ export const findTopicsIdeasFaqs: FindTopicsFaqItem[] = [
   {
     number: "03",
     label: "覆盖范围",
-    question: "Aperix AI 的机会分析涵盖社交媒体、电子商务和社区场景吗？",
+    question: "{{name}} 的机会分析涵盖社交媒体、电子商务和社区场景吗？",
     paragraphs: [
-      "可以。Aperix AI 不只分析官网和博客，还会系统性拆解 AI 回答中引用的：社交媒体内容、问答社区与论坛、电商平台和产品页面。",
+      "可以。{{name}} 不只分析官网和博客，还会系统性拆解 AI 回答中引用的：社交媒体内容、问答社区与论坛、电商平台和产品页面。",
       "通过这些分析，你可以发现：",
     ],
     bullets: [
@@ -133,9 +124,9 @@ export const findTopicsIdeasFaqs: FindTopicsFaqItem[] = [
   {
     number: "04",
     label: "执行",
-    question: "在发现机会后，Aperix AI 能否帮我真正「执行」？",
+    question: "在发现机会后，{{name}} 能否帮我真正「执行」？",
     paragraphs: [
-      "可以。Aperix AI 的目标不是只告诉你「机会在哪」，而是帮助你把机会转化为可衡量的增长，包括：",
+      "可以。{{name}} 的目标不是只告诉你「机会在哪」，而是帮助你把机会转化为可衡量的增长，包括：",
     ],
     bullets: [
       "基于高价值提示词直接生成内容",
@@ -147,9 +138,9 @@ export const findTopicsIdeasFaqs: FindTopicsFaqItem[] = [
   {
     number: "05",
     label: "可扩展性",
-    question: "Aperix AI 的机会是否适合大规模执行而非一次性优化？",
+    question: "{{name}} 的机会是否适合大规模执行而非一次性优化？",
     paragraphs: [
-      "是的。Aperix AI 将机会设计为可复制、可扩展的增长单元，而不是单点建议。",
+      "是的。{{name}} 将机会设计为可复制、可扩展的增长单元，而不是单点建议。",
       "当某一类提示词、内容结构或信源类型被验证有效后，你可以将同样的逻辑快速扩展到：",
     ],
     bullets: ["更多相似问题", "不同平台或区域", "不同产品线或解决方案"],
@@ -164,7 +155,7 @@ export const findTopicsIdeasCta: CtaContent = {
   titleBefore: "准备好查看用户在 AI 中",
   titleHighlight: "问了什么",
   titleAfter: "吗？",
-  description: "加入 Aperix AI，共同追踪 AI 搜索可见度。基于数据洞察，告别盲目优化。",
+  description: "加入 {{name}}，共同追踪 AI 搜索可见度。基于数据洞察，告别盲目优化。",
   codeLines: ["// 停止猜测。", "// 开始掌控。"],
   secondaryCtaLabel: "登录",
   secondaryCtaHref: "/auth/login",

@@ -111,7 +111,7 @@ export const platformMenuSections: PlatformMenuSection[] = [
 
 export const defaultHeaderLinks: PlatformNavLink[] = [
   { label: "定价", href: "/pricing" },
-  { label: "关于我们", href: "#faq" },
+  { label: "关于我们", href: "/about" },
 ];
 
 export type ResourcesMenuItem = {

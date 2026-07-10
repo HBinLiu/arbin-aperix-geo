@@ -21,14 +21,12 @@ import {
   type MonitorContent,
 } from "@/lib/platform/monitor";
 import { homeCta } from "@/lib/home";
-import type { SiteSettings } from "@/lib/payload";
 
 type Props = {
   content: MonitorContent;
-  settings: SiteSettings;
 };
 
-const { content, settings } = Astro.props;
+const { content } = Astro.props;
 const integrationPlatforms = HERO_PLATFORM_IDS;
 const faqs = monitorFaqs(content.platformId);
 
@@ -66,7 +64,7 @@ const preferenceSections = [
 ] as const;
 ---
 
-<SiteHeader settings={settings} />
+<SiteHeader />
 
 <main class="flex flex-1 flex-col">
   <section class="monitor-hero">
@@ -229,4 +227,4 @@ const preferenceSections = [
   <CtaSection {...homeCta} />
 </main>
 
-<SiteFooter settings={settings} />
+<SiteFooter />

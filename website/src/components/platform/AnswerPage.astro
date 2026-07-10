@@ -15,14 +15,6 @@ import {
   answerEngineInsightsHero,
   INSIGHTS_VIDEO_URL,
 } from "@/lib/platform/answer";
-import type { SiteSettings } from "@/lib/payload";
-
-type Props = {
-  settings: SiteSettings;
-};
-
-const { settings } = Astro.props;
-
 const [firstFeature, ...restFeatures] = answerEngineInsightsFeatures;
 
 const featureLayout = [
@@ -32,7 +24,7 @@ const featureLayout = [
 ];
 ---
 
-<SiteHeader settings={settings} />
+<SiteHeader />
 
 <main class="flex flex-1 flex-col">
   <section class="aei-hero">
@@ -128,7 +120,7 @@ const featureLayout = [
   <CtaSection {...answerEngineInsightsCta} />
 </main>
 
-<SiteFooter settings={settings} />
+<SiteFooter />
 
 <script>
   function initHeroVideo(root: HTMLElement) {

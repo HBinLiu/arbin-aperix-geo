@@ -1,16 +1,14 @@
 ---
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import PricingPage from "@/components/pricing/PricingPage.astro";
-import { getPlanCatalog, pricingSeo } from "@/lib/pricing";
-import { mergeSiteSettings } from "@/lib/home";
-import { getSiteSettings } from "@/lib/payload";
+import { getPlanCatalog } from "@/lib/pricing";
+import { pricingSeo } from "@/lib/seo";
 import "@/styles/style.css";
 import "@/styles/pricing.css";
 
-const settings = mergeSiteSettings(await getSiteSettings());
 const planCatalog = await getPlanCatalog();
 ---
 
 <BaseLayout seo={pricingSeo}>
-  <PricingPage settings={settings} planCatalog={planCatalog} />
+  <PricingPage planCatalog={planCatalog} />
 </BaseLayout>

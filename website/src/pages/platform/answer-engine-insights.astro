@@ -1,15 +1,11 @@
 ---
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import AnswerPage from "@/components/platform/AnswerPage.astro";
-import { answerEngineInsightsSeo } from "@/lib/platform/answer";
-import { mergeSiteSettings } from "@/lib/home";
-import { getSiteSettings } from "@/lib/payload";
+import { platformAnswerSeo } from "@/lib/seo";
 import "@/styles/style.css";
 import "@/styles/platform/answer.css";
-
-const settings = mergeSiteSettings(await getSiteSettings());
 ---
 
-<BaseLayout seo={answerEngineInsightsSeo}>
-  <AnswerPage settings={settings} />
+<BaseLayout seo={platformAnswerSeo}>
+  <AnswerPage />
 </BaseLayout>

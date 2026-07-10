@@ -1,10 +1,5 @@
 import type { PageSeo } from "@/lib/seo";
 
-export type NavLink = {
-  label: string;
-  href: string;
-};
-
 export type FeatureItem = {
   phase: string;
   code: string;
@@ -26,19 +21,36 @@ export type ComparisonRow = {
   enterprise: string;
 };
 
-/** Payload `site-settings` 可配置项（其余首页内容见 home.ts） */
-export type SiteSettings = {
-  siteName: string;
-  siteDescription?: string;
-  navLinks?: NavLink[];
-  footerLinks?: NavLink[];
-  seo: PageSeo;
+/** Payload `pages` 集合类型 */
+
+export type CmsPageStoryParagraph = {
+  text: string;
 };
 
+export type CmsPageStory = {
+  title?: string;
+  paragraphs?: CmsPageStoryParagraph[];
+};
+
+export type CmsPage = {
+  slug: string;
+  status: string;
+  story?: CmsPageStory;
+  seo?: PageSeo;
+};
+
+type PayloadListResponse<T> = {
+  docs: T[];
+};
+
+const CMS_API_PATH = "/cms/api";
+const PAYLOAD_TIMEOUT_MS = import.meta.env.DEV ? 2_000 : 5_000;
+
 function payloadApiBase(): string {
-  const configured = (import.meta.env.PAYLOAD_API_URL || "/cms/api").replace(/\/$/, "");
+  const configured = (import.meta.env.PAYLOAD_API_URL || CMS_API_PATH).replace(/\/$/, "");
+
   if (configured.startsWith("http://") || configured.startsWith("https://")) {
-    return configured;
+    return configured.endsWith(CMS_API_PATH) ? configured : `${configured}${CMS_API_PATH}`;
   }
 
   const path = configured.startsWith("/") ? configured : `/${configured}`;
@@ -55,7 +67,7 @@ async function payloadFetch<T>(path: string): Promise<T | null> {
   try {
     const res = await fetch(`${payloadApiBase()}${path}`, {
       headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(5_000),
+      signal: AbortSignal.timeout(PAYLOAD_TIMEOUT_MS),
     });
     if (!res.ok) return null;
     return (await res.json()) as T;
@@ -64,6 +76,13 @@ async function payloadFetch<T>(path: string): Promise<T | null> {
   }
 }
 
-export async function getSiteSettings(): Promise<SiteSettings | null> {
-  return payloadFetch<SiteSettings>("/globals/site-settings?depth=0");
+export async function getPageBySlug(slug: string): Promise<CmsPage | null> {
+  const query = new URLSearchParams({
+    "where[slug][equals]": slug,
+    "where[status][equals]": "published",
+    limit: "1",
+    depth: "0",
+  });
+  const data = await payloadFetch<PayloadListResponse<CmsPage>>(`/pages?${query}`);
+  return data?.docs[0] ?? null;
 }

@@ -1,10 +1,17 @@
 import type { CollectionConfig } from "payload";
+import { authenticatedOnly, authenticatedWrite, publishedOrAuthenticatedRead, publicRead } from "../access";
 
 export const Pages: CollectionConfig = {
   slug: "pages",
   admin: {
     useAsTitle: "title",
     defaultColumns: ["title", "slug", "status", "updatedAt"],
+  },
+  access: {
+    read: publishedOrAuthenticatedRead,
+    create: authenticatedWrite,
+    update: authenticatedWrite,
+    delete: authenticatedWrite,
   },
   versions: {
     drafts: true,
@@ -100,6 +107,23 @@ export const Pages: CollectionConfig = {
         { name: "description", type: "textarea", label: "说明" },
         { name: "primaryCtaLabel", type: "text", label: "主按钮" },
         { name: "primaryCtaHref", type: "text", label: "主按钮链接" },
+      ],
+    },
+    {
+      name: "story",
+      type: "group",
+      label: "我们的故事",
+      admin: {
+        condition: (data) => data.slug === "about",
+      },
+      fields: [
+        { name: "title", type: "text", label: "标题", defaultValue: "我们的故事" },
+        {
+          name: "paragraphs",
+          type: "array",
+          label: "段落",
+          fields: [{ name: "text", type: "textarea", label: "段落内容", required: true }],
+        },
       ],
     },
   ],

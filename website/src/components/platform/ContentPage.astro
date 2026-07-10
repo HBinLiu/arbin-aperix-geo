@@ -29,14 +29,6 @@ import {
   contentCreationRankingNote,
   contentCreationWorkflow,
 } from "@/lib/platform/content";
-import type { SiteSettings } from "@/lib/payload";
-
-type Props = {
-  settings: SiteSettings;
-};
-
-const { settings } = Astro.props;
-
 const workflowIcons: Record<ContentCreationWorkflowIcon, typeof Lightbulb> = {
   discover: Lightbulb,
   outline: ListChecks,
@@ -45,7 +37,7 @@ const workflowIcons: Record<ContentCreationWorkflowIcon, typeof Lightbulb> = {
 };
 ---
 
-<SiteHeader settings={settings} />
+<SiteHeader />
 
 <main class="flex flex-1 flex-col">
   <section class="aei-hero">
@@ -191,4 +183,4 @@ const workflowIcons: Record<ContentCreationWorkflowIcon, typeof Lightbulb> = {
   <CtaSection {...contentCreationCta} />
 </main>
 
-<SiteFooter settings={settings} />
+<SiteFooter />

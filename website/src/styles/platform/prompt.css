@@ -1,4 +1,6 @@
-/** 提示词探索页 — 功能卡布局与 widget（页面壳层复用 answer.css） */
+@import "./shell.css";
+
+/** 提示词探索页 — 功能卡布局与 widget */
 
 .pve-feature-list {
   display: flex;

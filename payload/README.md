@@ -40,11 +40,20 @@ npm run dev
 
 | 类型 | slug | 说明 |
 |------|------|------|
-| Collection | `pages` | 落地页（slug: `home` / `pricing` / `about`） |
+| Collection | `pages` | 落地页（slug: `about` 等） |
 | Collection | `faqs` | FAQ 条目 |
-| Global | `site-settings` | 导航、页脚、默认 SEO |
 | Collection | `media` | 图片 |
 | Collection | `users` | CMS 管理员 |
+
+## 访问控制（官网 SSR）
+
+| 资源 | 匿名读 | 写 |
+|------|--------|-----|
+| `pages` | 仅 `published` | 需登录 |
+| `faqs` / `media` | ✅ | 需登录 |
+| `users` | ❌ | 需登录 |
+
+官网 Astro SSR **不带用户登录**，直接读公开接口；CMS 未启动或失败时回退 `about.ts` 等静态文案。
 
 ## 常用命令
 

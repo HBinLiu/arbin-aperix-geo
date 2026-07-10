@@ -1,4 +1,4 @@
-import type { ComparisonRow, FeatureItem, SiteSettings } from "./payload";
+import type { ComparisonRow, FeatureItem } from "./payload";
 import { HERO_PLATFORM_IDS } from "@shared/platform";
 
 export type HeroHeadlinePart =
@@ -91,7 +91,7 @@ export const homeFeatures: FeaturesContent = {
       titleAfter: "里的实时地图",
       tagline: "关键指标：提及频次 · 引用率 · 竞品对比 · 时间窗口",
       pain: "你不知道当用户问 AI 时，你的品牌有没有被提及、被推荐。",
-      solution: "Aperix 支持国内 6 大主流 AI 平台，给你一张实时的 AI 曝光热力图。",
+      solution: "{{name}} 支持国内 6 大主流 AI 平台，给你一张实时的 AI 曝光热力图。",
       metrics: ["可见度", "提及频次", "声量份额", "竞品对比"],
       image: "panel-1",
     },
@@ -117,7 +117,7 @@ export const homeFeatures: FeaturesContent = {
       titleAfter: "复盘，而不是凭感觉改内容",
       tagline: "聚合视图支撑内部分享与迭代决策",
       pain: "有了数据，不知道该改哪里、怎么改。",
-      solution: "Aperix 直接告诉你该写什么、怎么写、帮你写——不只是建议，是可以直接用的内容。",
+      solution: "{{name}} 直接告诉你该写什么、怎么写、帮你写——不只是建议，是可以直接用的内容。",
       metrics: ["任务聚合", "主体对比", "提示词版本", "导出复盘"],
       image: "panel-3",
     },
@@ -126,7 +126,7 @@ export const homeFeatures: FeaturesContent = {
 
 export const homeComparison = {
   titleBefore: "为什么选择 ",
-  titleHighlight: "Aperix AI",
+  titleHighlight: "{{name}}",
   titleAfter: "？",
   rows: [
     {
@@ -185,8 +185,7 @@ export const homeCta: CtaContent = {
   titleBefore: "准备好发现你与竞争对手之间的",
   titleHighlight: "可见性差距",
   titleAfter: "了吗？",
-  description:
-    "加入 Aperix AI，追踪 AI 可见性。获得基于实战的深度洞察，告别盲目猜测。",
+  description: "加入 {{name}}，追踪 AI 可见性。获得基于实战的深度洞察，告别盲目猜测。",
   codeLines: ["// 停止猜测。", "// 开始掌控。"],
   secondaryCtaLabel: "登录",
   secondaryCtaHref: "/auth/login",
@@ -201,7 +200,7 @@ export const homeFaqs: FaqItem[] = [
       "SEO 针对搜索引擎排名进行优化。GEO（生成引擎优化）针对 AI 模型的引用和推荐进行优化。两者对于全面的品牌可见性都至关重要。",
   },
   {
-    question: "Aperix AI 与其他 GEO 工具有什么不同？",
+    question: "{{name}} 与其他 GEO 工具有什么不同？",
     answer:
       "我们关注信任，而不仅仅是可见性。我们为您展示排名位置、情感分析和可执行的建议，而不仅仅是提及次数。",
   },
@@ -216,35 +215,3 @@ export const homeFaqs: FaqItem[] = [
       "趋势可见性需要 2-4 周，可落地洞察需要 4-8 周。AI 模型的更新速度与搜索引擎不同。我们同样也提供针对中大型企业的GEO/SEO优化服务，帮助您直接达成流量/AI可见度的目标，直接交付结果。",
   },
 ];
-
-/** 导航、页脚与 SEO 默认值（可被 Payload site-settings 覆盖） */
-export const defaultSiteSettings: SiteSettings = {
-  siteName: "Aperix AI",
-  siteDescription: "GEO 监测平台",
-  navLinks: [
-    { label: "产品能力", href: "#features" },
-    { label: "为什么选择", href: "#why-aperix" },
-    { label: "常见问题", href: "#faq" },
-  ],
-  footerLinks: [
-    { label: "登录", href: "/auth/login" },
-    { label: "注册", href: "/auth/register" },
-    { label: "控制台", href: "/app" },
-  ],
-  seo: {
-    title: "Aperix AI — 数据驱动的 GEO 品牌可见性监测平台",
-    description:
-      "不止于单次提问。Aperix AI 用任务化采样与证据链，帮团队看见 AI 提及、读懂引用结构，并把可见性差距沉淀为可复盘的数据。",
-  },
-};
-
-export function mergeSiteSettings(cms: Partial<SiteSettings> | null | undefined): SiteSettings {
-  return {
-    ...defaultSiteSettings,
-    ...cms,
-    seo: {
-      ...defaultSiteSettings.seo,
-      ...cms?.seo,
-    },
-  };
-}

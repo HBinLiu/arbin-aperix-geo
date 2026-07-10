@@ -15,21 +15,13 @@ import {
   promptExplorerFeaturesHeader,
   promptExplorerHero,
 } from "@/lib/platform/prompt";
-import type { SiteSettings } from "@/lib/payload";
-
-type Props = {
-  settings: SiteSettings;
-};
-
-const { settings } = Astro.props;
-
 const featureLayout = [
   { items: promptExplorerFeatures.slice(0, 2), columns: 2 as const },
   { items: promptExplorerFeatures.slice(2, 5), columns: 3 as const },
 ];
 ---
 
-<SiteHeader settings={settings} />
+<SiteHeader />
 
 <main class="flex flex-1 flex-col">
   <section class="aei-hero">
@@ -122,7 +114,7 @@ const featureLayout = [
   <CtaSection {...promptExplorerCta} />
 </main>
 
-<SiteFooter settings={settings} />
+<SiteFooter />
 
 <script>
   function initHeroVideo(root: HTMLElement) {

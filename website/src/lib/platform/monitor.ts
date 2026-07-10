@@ -1,5 +1,6 @@
-import type { PageSeo } from "@/lib/seo";
 import type { FaqItem } from "@/lib/home";
+import type { PageSeo } from "@/lib/seo";
+import { platformMonitorSeo } from "@/lib/seo";
 import type { PlatformId } from "@shared/platform";
 import { PLATFORMS } from "@shared/platform";
 
@@ -92,11 +93,7 @@ export function monitorFaqs(platformId: PlatformId): FaqItem[] {
 const MONITOR_CONTENT: Record<PlatformId, Omit<MonitorContent, "platformId" | "slug">> = {
   doubao: {
     displayName: "豆包",
-    seo: {
-      title: "豆包优化 - 监控 AI 搜索排名",
-      description:
-        "掌握豆包对中文内容与字节生态的引用偏好，监测并优化品牌在豆包中的 AI 可见性。",
-    },
+    seo: platformMonitorSeo.doubao,
     h1: "豆包 GEO 策略：引用机制与优化",
     intro: "掌握豆包对中文内容与字节系生态的引用偏好，优化品牌在字节 AI 生态中的可见性。",
     mechanismTitle: "引用机制基础",
@@ -114,11 +111,7 @@ const MONITOR_CONTENT: Record<PlatformId, Omit<MonitorContent, "platformId" | "s
   },
   deepseek: {
     displayName: "DeepSeek",
-    seo: {
-      title: "DeepSeek 优化 - 监控 AI 搜索排名",
-      description:
-        "掌握 DeepSeek 对技术与学术内容的引用偏好，监测并优化品牌在 DeepSeek 中的 AI 可见性。",
-    },
+    seo: platformMonitorSeo.deepseek,
     h1: "DeepSeek GEO 策略：引用机制与优化",
     intro: "掌握 DeepSeek 对技术和学术内容的引用偏好，优化品牌在中文 AI 生态中的可见性。",
     mechanismTitle: "引用机制基础",
@@ -136,10 +129,7 @@ const MONITOR_CONTENT: Record<PlatformId, Omit<MonitorContent, "platformId" | "s
   },
   qianwen: {
     displayName: "通义千问",
-    seo: {
-      title: "通义千问优化 - 监控 AI 搜索排名",
-      description: "掌握通义千问对中文内容的引用偏好，优化品牌在阿里 AI 生态中的可见性。",
-    },
+    seo: platformMonitorSeo.qianwen,
     h1: "通义千问 GEO 策略：引用机制与优化",
     intro: "掌握通义千问对中文内容的引用偏好，优化品牌在阿里 AI 生态中的可见性。",
     mechanismTitle: "引用机制基础",
@@ -157,11 +147,7 @@ const MONITOR_CONTENT: Record<PlatformId, Omit<MonitorContent, "platformId" | "s
   },
   yuanbao: {
     displayName: "腾讯元宝",
-    seo: {
-      title: "腾讯元宝优化 - 监控 AI 搜索排名",
-      description:
-        "掌握腾讯元宝对中文内容与微信生态的引用偏好，监测并优化品牌在元宝中的 AI 可见性。",
-    },
+    seo: platformMonitorSeo.yuanbao,
     h1: "腾讯元宝 GEO 策略：引用机制与优化",
     intro: "掌握腾讯元宝对中文内容与社交生态的引用偏好，优化品牌在腾讯 AI 生态中的可见性。",
     mechanismTitle: "引用机制基础",
@@ -179,11 +165,7 @@ const MONITOR_CONTENT: Record<PlatformId, Omit<MonitorContent, "platformId" | "s
   },
   kimi: {
     displayName: "Kimi",
-    seo: {
-      title: "Kimi 优化 - 监控 AI 搜索排名",
-      description:
-        "掌握 Kimi 对长文本与专业内容的引用偏好，监测并优化品牌在 Kimi 中的 AI 可见性。",
-    },
+    seo: platformMonitorSeo.kimi,
     h1: "Kimi GEO 策略：引用机制与优化",
     intro: "掌握 Kimi 对长文本与专业内容的引用偏好，优化品牌在月之暗面 AI 生态中的可见性。",
     mechanismTitle: "引用机制基础",
@@ -201,11 +183,7 @@ const MONITOR_CONTENT: Record<PlatformId, Omit<MonitorContent, "platformId" | "s
   },
   ernie: {
     displayName: "文心一言",
-    seo: {
-      title: "文心一言优化 - 监控 AI 搜索排名",
-      description:
-        "掌握文心一言对中文内容与百度搜索生态的引用偏好，监测并优化品牌在文心一言中的 AI 可见性。",
-    },
+    seo: platformMonitorSeo.ernie,
     h1: "文心一言 GEO 策略：引用机制与优化",
     intro: "掌握文心一言对中文内容与搜索生态的引用偏好，优化品牌在百度 AI 生态中的可见性。",
     mechanismTitle: "引用机制基础",

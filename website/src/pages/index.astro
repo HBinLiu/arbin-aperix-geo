@@ -8,7 +8,6 @@ import CompareSection from "@/components/home/CompareSection.astro";
 import CtaSection from "@/components/home/CtaSection.astro";
 import DiagnosticSection from "@/components/home/DiagnosticSection.astro";
 import FaqSection from "@/components/home/FaqSection.astro";
-import { getSiteSettings } from "@/lib/payload";
 import {
   homeCta,
   homeComparison,
@@ -17,15 +16,13 @@ import {
   homeFeatures,
   homeHero,
   homePlatforms,
-  mergeSiteSettings,
 } from "@/lib/home";
+import { homeSeo } from "@/lib/seo";
 import "@/styles/style.css";
-
-const settings = mergeSiteSettings(await getSiteSettings());
 ---
 
-<BaseLayout seo={settings.seo}>
-  <SiteHeader settings={settings} />
+<BaseLayout seo={homeSeo}>
+  <SiteHeader />
 
   <main class="flex flex-1 flex-col">
     <HeroSection hero={homeHero} platforms={homePlatforms} />
@@ -52,5 +49,5 @@ const settings = mergeSiteSettings(await getSiteSettings());
     <CtaSection {...homeCta} />
   </main>
 
-  <SiteFooter settings={settings} />
+  <SiteFooter />
 </BaseLayout>

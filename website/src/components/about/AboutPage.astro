@@ -1,0 +1,106 @@
+---
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import StaticImage from "@/components/StaticImage.tsx";
+import { ABOUT_HERO_IMAGE, HERO_GRID } from "@/lib/assets";
+import {
+  aboutHero,
+  aboutValues,
+  type AboutStory,
+  type AboutValueIcon,
+} from "@/lib/about";
+import { HeartHandshake, ShieldCheck, Sparkles, Users } from "@lucide/astro";
+
+type Props = {
+  story: AboutStory;
+};
+
+const { story } = Astro.props;
+
+const valueIcons: Record<AboutValueIcon, typeof HeartHandshake> = {
+  customer: HeartHandshake,
+  trust: ShieldCheck,
+  innovation: Sparkles,
+  team: Users,
+};
+---
+
+<SiteHeader />
+
+<main class="about-page flex flex-1 flex-col">
+  <section class="about-hero relative py-20 sm:py-32 lg:py-[180px]">
+    <div class="hero-perspective pointer-events-none absolute inset-0" aria-hidden="true">
+      <div class="hero-perspective-top">
+        <div class="hero-perspective-bg hero-perspective-fade"></div>
+        <div
+          class="hero-perspective-grid hero-perspective-fade"
+          style={`background-image: url(${HERO_GRID.url})`}
+        ></div>
+      </div>
+      <div class="hero-perspective-bottom">
+        <div class="hero-perspective-bg hero-perspective-fade"></div>
+        <div
+          class="hero-perspective-grid hero-perspective-fade"
+          style={`background-image: url(${HERO_GRID.url})`}
+        ></div>
+      </div>
+    </div>
+
+    <div class="about-inner relative z-10">
+      <h1 class="about-hero-title">
+        {aboutHero.titleBefore}
+        <span class="about-hero-highlight">{aboutHero.titleHighlight}</span>
+      </h1>
+      <p class="about-hero-tagline">{aboutHero.tagline}</p>
+      <p class="about-hero-mission">{aboutHero.mission}</p>
+    </div>
+  </section>
+
+  <section class="about-main">
+    <div class="about-inner about-main-grid">
+      <h2 class="about-section-title about-story-title">{story.title}</h2>
+      <div class="about-story-body">
+        {story.paragraphs.map((paragraph) => (
+          <p>{paragraph}</p>
+        ))}
+      </div>
+
+      <div class="about-visual">
+        <div class="about-visual-frame">
+          <StaticImage
+            src={ABOUT_HERO_IMAGE}
+            alt={`${aboutHero.titleHighlight} 团队办公环境`}
+            width={1200}
+            height={675}
+            className="about-visual-img"
+            loading="eager"
+          />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="about-values">
+    <div class="about-inner">
+      <h2 class="about-values-title">{aboutValues.title}</h2>
+      <div class="about-values-grid">
+        {
+          aboutValues.items.map((item) => {
+            const ValueIcon = valueIcons[item.icon];
+            return (
+              <article class="about-value-card">
+                <span class="about-value-icon" aria-hidden="true">
+                  <ValueIcon size={20} />
+                </span>
+                <h3 class="about-value-title">{item.title}</h3>
+                <p class="about-value-desc">{item.description}</p>
+              </article>
+            );
+          })
+        }
+      </div>
+    </div>
+  </section>
+</main>
+
+<SiteFooter />

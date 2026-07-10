@@ -1,8 +1,5 @@
 import type { CtaContent } from "@/lib/home";
-import type { PageSeo } from "@/lib/seo";
-import { backendApiBase } from "@/lib/api";
-
-export const PRICING_PATH = "/pricing";
+import { backendApiBase } from "@/lib/backend";
 
 export type BillingCycle = "monthly" | "quarterly" | "yearly";
 
@@ -39,12 +36,6 @@ export type BillingCycleOption = {
 export type PlanCatalog = {
   plans: PlanCatalogItem[];
   billing_cycles: BillingCycleOption[];
-};
-
-export const pricingSeo: PageSeo = {
-  title: "定价方案 | Aperix AI",
-  description:
-    "覆盖国内主流 AI 平台的订阅方案。个人版、专业版、旗舰版与企业版，按月/季/年灵活订阅。",
 };
 
 export const pricingHero = {

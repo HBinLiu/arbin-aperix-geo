@@ -1,8 +1,6 @@
 ---
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import MonitorPage from "@/components/platform/MonitorPage.astro";
-import { mergeSiteSettings } from "@/lib/home";
-import { getSiteSettings } from "@/lib/payload";
 import { getAllMonitorPages } from "@/lib/platform/monitor";
 import "@/styles/style.css";
 import "@/styles/platform/monitor.css";
@@ -15,9 +13,8 @@ export async function getStaticPaths() {
 }
 
 const { content } = Astro.props;
-const settings = mergeSiteSettings(await getSiteSettings());
 ---
 
 <BaseLayout seo={content.seo}>
-  <MonitorPage content={content} settings={settings} />
+  <MonitorPage content={content} />
 </BaseLayout>

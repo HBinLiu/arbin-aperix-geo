@@ -24,6 +24,8 @@ export const PANEL_BACKGROUND_URL = `${WEBSITE_IMAGES}/panel-bg.webp`;
 
 export const COMMERCE_IMAGE = `${WEBSITE_IMAGES}/commerce.png`;
 
+export const ABOUT_HERO_IMAGE = `${WEBSITE_IMAGES}/about-hero.png`;
+
 export const HOME_PANEL_IMAGES: Record<string, StaticImage> = {
   "panel-1": {
     url: `${WEBSITE_IMAGES}/panel-1.webp`,
