@@ -11,8 +11,8 @@ export type PlatformInfo = {
 export const PLATFORMS: PlatformInfo[] = [
   { id: "doubao", label: "豆包", logoFile: "doubao.png" },
   { id: "deepseek", label: "DeepSeek", logoFile: "deepseek.png" },
-  { id: "qianwen", label: "千问", logoFile: "qianwen.png" },
-  { id: "yuanbao", label: "元宝", logoFile: "yuanbao.png" },
+  { id: "qianwen", label: "通义千问", logoFile: "qianwen.png" },
+  { id: "yuanbao", label: "腾讯元宝", logoFile: "yuanbao.png" },
   { id: "kimi", label: "Kimi", logoFile: "kimi.png" },
   { id: "ernie", label: "文心一言", logoFile: "ernie.png" },
 ];

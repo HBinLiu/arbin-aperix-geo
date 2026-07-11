@@ -1,11 +1,100 @@
 ---
+import StaticImage from "@/components/StaticImage.tsx";
+import { LOGO_RENDER_PX } from "@/lib/assets";
+import {
+  footerColumnRows,
+  footerLegalLinks,
+  footerSocialLinks,
+  footerSocialSvg,
+  footerTagline,
+  socialButtonClass,
+} from "@/lib/footer";
 import { siteConfig } from "@site";
 
 const year = new Date().getFullYear();
+const { name, description, logo } = siteConfig;
 ---
 
-<footer class="border-border text-muted-foreground border-t py-10">
-  <div class="mx-auto max-w-6xl px-4 text-center text-sm sm:px-6">
-    <p>© {year} {siteConfig.name}</p>
+<footer class="border-border bg-background border-t">
+  <div class="mx-auto max-w-6xl px-4 py-12 md:px-6">
+    <div class="flex flex-col gap-12">
+      <div class="flex flex-col gap-3">
+        <a href="/" class="flex items-center gap-2" aria-label={`返回${name}首页`} title={description}>
+          <StaticImage
+            src={logo}
+            alt={name}
+            width={LOGO_RENDER_PX}
+            height={LOGO_RENDER_PX}
+            className="h-7 w-auto shrink-0 object-contain"
+            loading="lazy"
+          />
+        </a>
+        <p class="text-muted-foreground max-w-[48ch] text-sm leading-snug">{footerTagline}</p>
+        <div class="flex items-center gap-3">
+          {
+            footerSocialLinks.map((link) => (
+              <a
+                href={link.href}
+                aria-label={link.label}
+                target={link.external ? "_blank" : undefined}
+                rel={link.external ? "noreferrer noopener" : undefined}
+              >
+                <span class={socialButtonClass}>
+                  <Fragment set:html={footerSocialSvg(link)} />
+                </span>
+              </a>
+            ))
+          }
+        </div>
+      </div>
+
+      <div class="border-border border-t" aria-hidden="true"></div>
+
+      <div class="flex flex-col gap-12">
+        {
+          footerColumnRows.map((row) => (
+            <div class="grid grid-cols-2 gap-x-10 gap-y-10 lg:grid-cols-4 lg:gap-6">
+              {row.map((column) => (
+                <div class="flex min-w-0 flex-col gap-4">
+                  <p class="text-foreground text-sm leading-snug font-medium">{column.title}</p>
+                  <ul class="flex flex-col gap-2">
+                    {column.links.map((link) => (
+                      <li>
+                        <a
+                          href={link.href}
+                          class="text-muted-foreground hover:text-foreground block py-1 text-sm leading-snug transition-colors"
+                          target={link.external ? "_blank" : undefined}
+                          rel={link.external ? "noreferrer noopener" : undefined}
+                        >
+                          {link.label}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          ))
+        }
+      </div>
+
+      <div class="border-border border-t" aria-hidden="true"></div>
+
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <p class="text-muted-foreground text-sm leading-5">© {year} {name}. All rights reserved.</p>
+        <div class="flex flex-wrap items-center gap-3">
+          {
+            footerLegalLinks.map((link) => (
+              <a
+                href={link.href}
+                class="text-muted-foreground hover:text-foreground text-sm leading-none transition-colors"
+              >
+                {link.label}
+              </a>
+            ))
+          }
+        </div>
+      </div>
+    </div>
   </div>
 </footer>
