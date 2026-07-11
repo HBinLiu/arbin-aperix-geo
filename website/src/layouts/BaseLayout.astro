@@ -1,7 +1,8 @@
 ---
 import "../styles/global.css";
 import { APERIX_FAVICON_ICO } from "@shared/aperix";
-import { resolvePageMeta, type PageSeo } from "@/lib/seo";
+import { cmsMetaToPageSeo, mergePageSeo, resolvePageMeta, type PageSeo } from "@/lib/seo";
+import { getPageSeoByPath } from "@/lib/payload";
 import { siteConfig } from "@site";
 
 type Props = {
@@ -16,8 +17,14 @@ const defaultSeo: PageSeo = {
 };
 
 const { seo = defaultSeo, jsonLd = [] } = Astro.props;
+const cmsPageSeo = await getPageSeoByPath(Astro.url.pathname);
+const cmsOverride = cmsMetaToPageSeo(cmsPageSeo?.meta);
+let effectiveSeo = mergePageSeo(seo, cmsOverride);
+if (cmsPageSeo?.noindex) {
+  effectiveSeo = { ...effectiveSeo, noindex: true };
+}
 const site = Astro.site ?? Astro.url;
-const meta = resolvePageMeta(seo, site, Astro.url.pathname);
+const meta = resolvePageMeta(effectiveSeo, site, Astro.url.pathname);
 ---
 
 <!doctype html>

@@ -1,6 +1,9 @@
 import type { CtaContent } from "@/lib/home";
 import { resolveSiteCopyDeep } from "@/lib/site";
-import type { PlatformFaqItem } from "@/lib/platform/faq";
+import type { Faq } from "@/lib/platform/faq";
+import { answerEngineInsightsFaqDefaults } from "@shared/faq/defaults";
+import { mergeFaqs, resolveFaqDefaults } from "@/lib/faqs";
+import type { FaqDoc } from "@shared/faq";
 import insightsVideo from "@shared/assets/videos/website/answer-insight.webm";
 
 export const INSIGHTS_VIDEO_URL = insightsVideo;
@@ -24,7 +27,13 @@ export type InsightsFeature = {
   };
 };
 
-export type InsightsFaqItem = PlatformFaqItem;
+export const answerEngineInsightsFaqs: Faq[] = resolveFaqDefaults(
+  answerEngineInsightsFaqDefaults,
+);
+
+export function mergeAnswerEngineInsightsFaqs(cms: FaqDoc[] | null | undefined): Faq[] {
+  return mergeFaqs(cms, answerEngineInsightsFaqs);
+}
 
 export const answerEngineInsightsHero = {
   titleBefore: "了解 AI 如何回答关于",
@@ -94,60 +103,12 @@ export const answerEngineInsightsFeatures: InsightsFeature[] = [
   },
 ];
 
-export const answerEngineInsightsFaqs: InsightsFaqItem[] = resolveSiteCopyDeep([
-  {
-    number: "01",
-    label: "方法",
-    question: "{{name}} 是如何分析 AI 是如何「回答」我的品牌的？",
-    paragraphs: [
-      "{{name}} 基于真实 AI 平台（如豆包、DeepSeek、通义千问等）的实际输出结果，系统化追踪品牌在 AI 回答中的可见度、提及方式、排序位置与引用来源等。",
-      "这不是模拟或预测，而是对 AI 在真实用户提问场景中如何理解、引用与呈现你的品牌的真实还原，从而帮助你判断当前 AI 对品牌的实际认知状态。",
-    ],
-  },
-  {
-    number: "02",
-    label: "差异",
-    question: "AI 可见度数据和传统 SEO 排名有什么不同？",
-    paragraphs: [
-      "传统 SEO 关注的是网页在搜索结果中的位置，而 AI 可见度关注的是：在 AI 直接给出的答案里，是否提到你、如何提到你、是否引用你。",
-      "{{name}} 分析的是 AI Answer 层的表现，包括 Visibility、Share of Voice、Citation 和情绪倾向等，帮助您理解在 AI 搜索与问答场景中，品牌是否真正「被看见、被信任、被推荐」。",
-    ],
-  },
-  {
-    number: "03",
-    label: "竞争",
-    question: "我可以看到和竞争对手在同一个 AI 问题下的对比吗？",
-    paragraphs: [
-      "可以。{{name}} 基于真实用户 Prompt，在同一个问题场景中，直观展示您与竞争对手的是否被 AI 提及、出现顺位、声量份额与引用来源差异。",
-      "这能帮助您快速识别：哪些高价值问题已经被对手占据，哪些仍是可突破的机会点。",
-    ],
-  },
-  {
-    number: "04",
-    label: "引用",
-    question: "AI 引用我的品牌时，依赖的是哪些网站或内容？",
-    paragraphs: [
-      "{{name}} 会拆解 AI 回答背后的引用来源结构，包括引用的具体域名与页面、内容类型（官网、博客、新闻、社媒、电商 / 购物平台等），以及不同 AI 平台的引用偏好差异。",
-      "通过这些洞察，您可以明确：哪些内容正在影响 AI 的判断逻辑，以及哪些引用入口是可以被补齐、替代或强化的。",
-    ],
-  },
-  {
-    number: "05",
-    label: "行动",
-    question: "{{name}} 的数据能直接指导我接下来该怎么优化吗？",
-    paragraphs: [
-      "可以，而且这是核心价值之一。{{name}} 不仅展示结果，还会帮助您识别 AI 偏好的内容结构与主题方向，判断 GEO 资源该优先投向哪些平台、问题或页面，并提前发现潜在的负面情绪或认知偏差风险。",
-      "让您从「看到差距」，进一步走到「知道下一步该做什么」。",
-    ],
-  },
-]);
-
 export const answerEngineInsightsCta: CtaContent = resolveSiteCopyDeep({
   badge: "准备就绪",
   titleBefore: "准备好查看你品牌的",
   titleHighlight: "信任分",
   titleAfter: "了吗？",
-  description: "加入 {{name}}，共同追踪 AI 搜索可见度。基于数据洞察，告别盲目优化。",
+  description: "加入 {{siteName}}，共同追踪 AI 搜索可见度。基于数据洞察，告别盲目优化。",
   codeLines: ["// 停止猜测。", "// 开始掌控。"],
   secondaryCtaLabel: "登录",
   secondaryCtaHref: "/auth/login",

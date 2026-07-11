@@ -1,9 +1,9 @@
 ---
-import type { FaqItem } from "@/lib/home";
+import type { Faq } from "@/lib/faqs";
 
 type Props = {
   title?: string;
-  items: FaqItem[];
+  items: Faq[];
   variant?: "default" | "monitor";
 };
 
@@ -69,9 +69,7 @@ const isMonitor = variant === "monitor";
               </svg>
             </button>
             <div id={`faq-answer-${index}`} class="faq-item-body">
-              <div class="faq-item-answer">
-                <p>{item.answer}</p>
-              </div>
+              <div class="faq-item-answer faq-rich-text" set:html={item.answerHtml} />
             </div>
           </div>
         ))

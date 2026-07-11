@@ -1,17 +1,14 @@
 ---
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import AboutPage from "@/components/about/AboutPage.astro";
-import { mergeAboutStory } from "@/lib/about";
-import { aboutSeo, mergePageSeo } from "@/lib/seo";
+import { aboutSeo } from "@/lib/seo";
 import { getAboutPage } from "@/lib/payload";
 import "@/styles/style.css";
 import "@/styles/about.css";
 
 const cmsAbout = await getAboutPage();
-const story = mergeAboutStory(cmsAbout);
-const seo = mergePageSeo(aboutSeo, cmsAbout?.seo);
 ---
 
-<BaseLayout seo={seo}>
-  <AboutPage story={story} />
+<BaseLayout seo={aboutSeo}>
+  <AboutPage cmsAbout={cmsAbout ?? {}} />
 </BaseLayout>

@@ -16,19 +16,19 @@ import {
 import { HERO_PLATFORM_IDS, platformLabel, platformLogoPublicPath } from "@shared/platform";
 import {
   MONITOR_STEPS,
-  monitorFaqs,
   monitorHref,
   type MonitorContent,
 } from "@/lib/platform/monitor";
+import type { Faq } from "@/lib/faqs";
 import { homeCta } from "@/lib/home";
 
 type Props = {
   content: MonitorContent;
+  faqs: Faq[];
 };
 
-const { content } = Astro.props;
+const { content, faqs } = Astro.props;
 const integrationPlatforms = HERO_PLATFORM_IDS;
-const faqs = monitorFaqs(content.platformId);
 
 const stepIcons = {
   zap: Zap,

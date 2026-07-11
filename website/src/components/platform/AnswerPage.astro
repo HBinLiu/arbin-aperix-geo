@@ -9,12 +9,18 @@ import { ArrowRight } from "@lucide/astro";
 import { HERO_GRID } from "@/lib/assets";
 import {
   answerEngineInsightsCta,
-  answerEngineInsightsFaqs,
   answerEngineInsightsFeatures,
   answerEngineInsightsFeaturesHeader,
   answerEngineInsightsHero,
   INSIGHTS_VIDEO_URL,
 } from "@/lib/platform/answer";
+import type { Faq } from "@/lib/platform/faq";
+
+type Props = {
+  faqs: Faq[];
+};
+
+const { faqs } = Astro.props;
 const [firstFeature, ...restFeatures] = answerEngineInsightsFeatures;
 
 const featureLayout = [
@@ -115,7 +121,7 @@ const featureLayout = [
     </div>
   </section>
 
-  <PlatformFaqSection items={answerEngineInsightsFaqs} />
+  <PlatformFaqSection items={faqs} />
 
   <CtaSection {...answerEngineInsightsCta} />
 </main>

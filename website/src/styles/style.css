@@ -669,7 +669,7 @@
   transition: height 0.45s var(--faq-ease);
 }
 
-.faq-item-answer p {
+.faq-item-answer > :is(p, ul) {
   margin: 0;
   max-width: 56rem;
   padding-bottom: 1.375rem;
@@ -683,10 +683,19 @@
     transform 0.45s var(--faq-ease);
 }
 
-.faq-item.is-open .faq-item-answer p {
+.faq-item.is-open .faq-item-answer > :is(p, ul) {
   opacity: 1;
   transform: translateY(0);
   transition-delay: 0.1s;
+}
+
+.faq-item-answer ul {
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+
+.faq-item-answer li {
+  margin: 0.25rem 0;
 }
 
 .panel-frame {

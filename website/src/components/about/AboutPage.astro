@@ -6,16 +6,18 @@ import { ABOUT_HERO_IMAGE, HERO_GRID } from "@/lib/assets";
 import {
   aboutHero,
   aboutValues,
-  type AboutStory,
+  mergeAboutStory,
   type AboutValueIcon,
 } from "@/lib/about";
+import type { CmsAboutPage } from "@/lib/payload";
 import { HeartHandshake, ShieldCheck, Sparkles, Users } from "@lucide/astro";
 
 type Props = {
-  story: AboutStory;
+  cmsAbout: CmsAboutPage;
 };
 
-const { story } = Astro.props;
+const { cmsAbout } = Astro.props;
+const aboutStory = mergeAboutStory(cmsAbout);
 
 const valueIcons: Record<AboutValueIcon, typeof HeartHandshake> = {
   customer: HeartHandshake,
@@ -58,12 +60,8 @@ const valueIcons: Record<AboutValueIcon, typeof HeartHandshake> = {
 
   <section class="about-main">
     <div class="about-inner about-main-grid">
-      <h2 class="about-section-title about-story-title">{story.title}</h2>
-      <div class="about-story-body">
-        {story.paragraphs.map((paragraph) => (
-          <p>{paragraph}</p>
-        ))}
-      </div>
+      <h2 class="about-section-title about-story-title">{aboutStory.title}</h2>
+      <div class="about-story-body" set:html={aboutStory.bodyHtml} />
 
       <div class="about-visual">
         <div class="about-visual-frame">

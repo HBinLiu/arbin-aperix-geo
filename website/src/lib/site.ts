@@ -1,13 +1,13 @@
 import { siteConfig } from "@site";
 
-const NAME_PLACEHOLDER = /\{\{name\}\}/g;
+const SITE_NAME_PLACEHOLDER = /\{\{siteName\}\}/g;
 
-/** 将文案中的 `{{name}}` 替换为 site.config.mjs 中的品牌名 */
+/** 将文案中的 `{{siteName}}` 替换为 site.config.mjs 中的品牌名 */
 export function resolveSiteCopy(value: string): string {
-  return value.replace(NAME_PLACEHOLDER, siteConfig.name);
+  return value.replace(SITE_NAME_PLACEHOLDER, siteConfig.name);
 }
 
-/** 递归替换对象 / 数组中所有字符串里的 `{{name}}` */
+/** 递归替换对象 / 数组中所有字符串里的 `{{siteName}}` */
 export function resolveSiteCopyDeep<T>(value: T): T {
   if (typeof value === "string") return resolveSiteCopy(value) as T;
   if (Array.isArray(value)) return value.map((item) => resolveSiteCopyDeep(item)) as T;

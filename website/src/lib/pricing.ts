@@ -1,5 +1,8 @@
 import type { CtaContent } from "@/lib/home";
-import type { PlatformFaqItem } from "@/lib/platform/faq";
+import type { Faq } from "@/lib/platform/faq";
+import { pricingFaqDefaults as pricingFaqItemsDefaults } from "@shared/faq/defaults";
+import { mergeFaqs, resolveFaqDefaults } from "@/lib/faqs";
+import type { FaqDoc } from "@shared/faq";
 import { backendApiBase } from "@/lib/backend";
 
 export type BillingCycle = "monthly" | "quarterly" | "yearly";
@@ -111,44 +114,13 @@ export const pricingCta: CtaContent = {
   primaryCtaHref: pricingRegisterHref,
 };
 
-export const pricingFaqDefaults = {
+export const pricingFaqSection = {
   title: "常见问题",
   subtitle: "购买或升级前的常见问题。",
 } as const;
 
-export const pricingFaqs: PlatformFaqItem[] = [
-  {
-    number: "01",
-    label: "提示词",
-    question: "提示词代表什么？",
-    paragraphs: [
-      "提示词是你希望 AI 回答的业务问题，例如「哪个 GEO 工具适合中小企业」或「某品类推荐哪家品牌」。",
-      "如果您每天在 3 个模型上运行 50 个 Prompt，持续 30 天，那么总共会追踪 4,500 条回答。",
-    ],
-  },
-  {
-    number: "02",
-    label: "品牌",
-    question: "我可以把提示词分配到多个品牌中吗？",
-    paragraphs: [
-      "可以。每个品牌拥有独立的提示词库与监测配置，你可以在订阅额度内创建多个品牌，分别追踪不同产品线的 AI 可见性。",
-      "团队席位支持多人协作，同一品牌下的提示词、竞争对手与采样结果对团队成员共享。",
-    ],
-  },
-  {
-    number: "03",
-    label: "方案",
-    question: "后续可以调整使用量或更换方案吗？",
-    paragraphs: [
-      "可以。随着使用量增长，您可以随时切换方案。企业版也支持增加自定义模型包和专属服务。",
-    ],
-  },
-  {
-    number: "04",
-    label: "计费",
-    question: "是否提供年付或季付折扣？",
-    paragraphs: [
-      "提供。年付或季付可享受额外优惠，非常适合持续开展 GEO 运营的团队。",
-    ],
-  },
-];
+export const pricingFaqs: Faq[] = resolveFaqDefaults(pricingFaqItemsDefaults);
+
+export function mergePricingFaqs(cms: FaqDoc[] | null | undefined): Faq[] {
+  return mergeFaqs(cms, pricingFaqs);
+}

@@ -1,10 +1,10 @@
 ---
 import { Minus, Plus } from "@lucide/astro";
-import { platformFaqDefaults, type PlatformFaqItem } from "@/lib/platform/faq";
+import { platformFaqDefaults, type Faq } from "@/lib/platform/faq";
 import "@/styles/platform/faq.css";
 
 type Props = {
-  items: PlatformFaqItem[];
+  items: Faq[];
   title?: string;
   subtitle?: string;
   idPrefix?: string;
@@ -37,8 +37,8 @@ const {
               aria-controls={`${idPrefix}-answer-${index}`}
             >
               <div class="pf-faq-meta-row">
-                <span class="pf-faq-number">{item.number}</span>
-                <span class="pf-faq-label">/// {item.label}</span>
+                <span class="pf-faq-number">{String(index + 1).padStart(2, "0")}</span>
+                {item.label ? <span class="pf-faq-label">/// {item.label}</span> : null}
               </div>
               <h3 class="pf-faq-question">{item.question}</h3>
               <span class="pf-faq-icon" aria-hidden="true">
@@ -52,21 +52,7 @@ const {
               role="region"
               aria-labelledby={`${idPrefix}-trigger-${index}`}
             >
-              <div class="pf-faq-body-inner">
-                {item.paragraphs.map((paragraph) => (
-                  <p>{paragraph}</p>
-                ))}
-                {item.bullets && item.bullets.length > 0 && (
-                  <ul class="pf-faq-bullets">
-                    {item.bullets.map((bullet) => (
-                      <li>{bullet}</li>
-                    ))}
-                  </ul>
-                )}
-                {item.closingParagraphs?.map((paragraph) => (
-                  <p>{paragraph}</p>
-                ))}
-              </div>
+              <div class="pf-faq-body-inner pf-faq-rich-text" set:html={item.answerHtml} />
             </div>
           </div>
         ))

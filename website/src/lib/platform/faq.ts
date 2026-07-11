@@ -1,11 +1,4 @@
-export type PlatformFaqItem = {
-  number: string;
-  label: string;
-  question: string;
-  paragraphs: string[];
-  bullets?: string[];
-  closingParagraphs?: string[];
-};
+export type { Faq } from "@shared/faq";
 
 export const platformFaqDefaults = {
   title: "常见问题",

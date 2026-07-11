@@ -13,7 +13,7 @@ npm run dev
 
 默认 <http://127.0.0.1:4321>。
 
-- **Payload**：`PAYLOAD_API_URL=/cms/api`（关于页 story、首页 FAQ；本地 dev 解析为 `:3000`）
+- **Payload**：`PAYLOAD_API_URL=/cms/api`（关于页 story、首页 FAQ、SEO）
 - **产品 API**：`BACKEND_API_URL` 直连 FastAPI `:8000`
 
 建议同时启动：
@@ -91,5 +91,5 @@ Sitemap 仅帮助爬虫发现 URL，不保证收录或排名；国内平台还�
 
 | 变量 | 说明 |
 |------|------|
-| `PAYLOAD_API_URL` | Payload REST 路径，默认 `/cms/api`（生产同域；本地 build 拼 `site` 域名） |
+| `PAYLOAD_API_URL` | Payload REST 路径，默认 `/cms/api` |
 | `BACKEND_API_URL` | 产品 API 根路径，如 `http://127.0.0.1:8000/api/v1`（定价页 `/billing/plans`） |

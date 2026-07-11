@@ -1,15 +1,20 @@
 ---
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import AnswerPage from "@/components/platform/AnswerPage.astro";
+import { mergeAnswerEngineInsightsFaqs } from "@/lib/platform/answer";
 import { platformAnswerSeo } from "@/lib/seo";
-import { answerEngineInsightsFaqs } from "@/lib/platform/answer";
 import { buildPlatformFaqJsonLd } from "@/lib/json-ld";
+import { getFaqsByPage } from "@/lib/payload";
+import { FAQ_PAGE } from "@shared/faq/pages";
 import "@/styles/style.css";
 import "@/styles/platform/answer.css";
 
-const jsonLd = [buildPlatformFaqJsonLd(answerEngineInsightsFaqs)];
+const faqs = mergeAnswerEngineInsightsFaqs(
+  await getFaqsByPage(FAQ_PAGE.platformAnswer),
+);
+const jsonLd = [buildPlatformFaqJsonLd(faqs)];
 ---
 
 <BaseLayout seo={platformAnswerSeo} jsonLd={jsonLd}>
-  <AnswerPage />
+  <AnswerPage faqs={faqs} />
 </BaseLayout>

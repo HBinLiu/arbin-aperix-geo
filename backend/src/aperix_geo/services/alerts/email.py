@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import smtplib
 from email.message import EmailMessage
+from email.utils import formataddr
 
 from aperix_geo.config import Settings
 
@@ -20,7 +21,8 @@ def send_alert_email(settings: Settings, *, to_addrs: list[str], subject: str, b
 
     msg = EmailMessage()
     msg["Subject"] = subject
-    msg["From"] = from_addr
+    from_name = settings.smtp_from_name.strip()
+    msg["From"] = formataddr((from_name, from_addr)) if from_name else from_addr
     msg["To"] = ", ".join(to_addrs)
     msg.set_content(body)
 

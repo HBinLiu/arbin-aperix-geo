@@ -17,12 +17,13 @@ import {
   homePlatforms,
   mergeHomeFaqs,
 } from "@/lib/home";
-import { getHomeFaqs } from "@/lib/payload";
+import { getFaqsByPage } from "@/lib/payload";
+import { FAQ_PAGE } from "@shared/faq/pages";
 import { homeSeo } from "@/lib/seo";
 import { buildHomeJsonLd } from "@/lib/json-ld";
 import "@/styles/style.css";
 
-const homeFaqs = mergeHomeFaqs(await getHomeFaqs());
+const homeFaqs = mergeHomeFaqs(await getFaqsByPage(FAQ_PAGE.home));
 const site = Astro.site ?? Astro.url;
 const jsonLd = buildHomeJsonLd(site, homeFaqs);
 ---

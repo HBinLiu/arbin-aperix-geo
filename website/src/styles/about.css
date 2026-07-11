@@ -150,6 +150,47 @@
   color: rgb(0 0 0 / 78%);
 }
 
+.about-story-body a {
+  color: var(--about-accent, #2563eb);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.about-story-body ul,
+.about-story-body ol {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 1rem;
+  line-height: 1.8;
+  color: rgb(0 0 0 / 78%);
+}
+
+.about-story-body .lexical-table-container {
+  overflow-x: auto;
+  margin-block: 0.5rem;
+}
+
+.about-story-body .lexical-table {
+  width: 100%;
+  min-width: 20rem;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+.about-story-body .lexical-table-cell {
+  border: 1px solid var(--color-border);
+  padding: 0.625rem 0.75rem;
+  vertical-align: top;
+  text-align: left;
+}
+
+.about-story-body .lexical-table-cell-header-1,
+.about-story-body .lexical-table-cell-header-2,
+.about-story-body .lexical-table-cell-header-3 {
+  font-weight: 600;
+  background: var(--about-surface);
+}
+
 /* Values */
 
 .about-values {

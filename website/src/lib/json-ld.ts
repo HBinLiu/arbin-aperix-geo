@@ -1,5 +1,5 @@
-import type { FaqItem } from "@/lib/home";
-import type { PlatformFaqItem } from "@/lib/platform/faq";
+import type { Faq } from "@/lib/faqs";
+import { faqAnswerText } from "@/lib/faqs";
 import {
   planCardLimits,
   type BillingCycle,
@@ -29,27 +29,8 @@ export function buildOrganizationJsonLd(site: URL) {
   };
 }
 
-function platformFaqAnswerText(item: PlatformFaqItem): string {
-  const parts = [...item.paragraphs];
-  if (item.bullets?.length) {
-    parts.push(...item.bullets.map((bullet) => `• ${bullet}`));
-  }
-  if (item.closingParagraphs?.length) {
-    parts.push(...item.closingParagraphs);
-  }
-  return parts.join("\n\n");
-}
-
-/** PlatformFaqItem → FAQPage 可用的 question/answer */
-export function platformFaqsToFaqItems(items: PlatformFaqItem[]): FaqItem[] {
-  return items.map((item) => ({
-    question: item.question,
-    answer: platformFaqAnswerText(item),
-  }));
-}
-
 /** schema.org FAQPage */
-export function buildFaqPageJsonLd(faqs: FaqItem[]) {
+export function buildFaqPageJsonLd(faqs: Faq[]) {
   return {
     "@context": "https://schema.org",
     "@type": "FAQPage",
@@ -58,20 +39,20 @@ export function buildFaqPageJsonLd(faqs: FaqItem[]) {
       name: faq.question,
       acceptedAnswer: {
         "@type": "Answer",
-        text: faq.answer,
+        text: faqAnswerText(faq),
       },
     })),
   };
 }
 
 /** 首页：Organization + FAQPage */
-export function buildHomeJsonLd(site: URL, faqs: FaqItem[]) {
+export function buildHomeJsonLd(site: URL, faqs: Faq[]) {
   return [buildOrganizationJsonLd(site), buildFaqPageJsonLd(faqs)];
 }
 
-/** 平台功能页：FAQPage（PlatformFaqItem 含多段落/列表） */
-export function buildPlatformFaqJsonLd(items: PlatformFaqItem[]) {
-  return buildFaqPageJsonLd(platformFaqsToFaqItems(items));
+/** 平台功能页 / 定价页：FAQPage */
+export function buildPlatformFaqJsonLd(items: Faq[]) {
+  return buildFaqPageJsonLd(items);
 }
 
 const BILLING_CYCLE_DURATION: Record<BillingCycle, string> = {

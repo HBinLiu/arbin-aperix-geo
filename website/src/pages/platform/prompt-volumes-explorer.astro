@@ -1,15 +1,20 @@
 ---
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import PromptPage from "@/components/platform/PromptPage.astro";
+import { mergePromptExplorerFaqs } from "@/lib/platform/prompt";
 import { platformPromptSeo } from "@/lib/seo";
-import { promptExplorerFaqs } from "@/lib/platform/prompt";
 import { buildPlatformFaqJsonLd } from "@/lib/json-ld";
+import { getFaqsByPage } from "@/lib/payload";
+import { FAQ_PAGE } from "@shared/faq/pages";
 import "@/styles/style.css";
 import "@/styles/platform/prompt.css";
 
-const jsonLd = [buildPlatformFaqJsonLd(promptExplorerFaqs)];
+const faqs = mergePromptExplorerFaqs(
+  await getFaqsByPage(FAQ_PAGE.platformPrompt),
+);
+const jsonLd = [buildPlatformFaqJsonLd(faqs)];
 ---
 
 <BaseLayout seo={platformPromptSeo} jsonLd={jsonLd}>
-  <PromptPage />
+  <PromptPage faqs={faqs} />
 </BaseLayout>

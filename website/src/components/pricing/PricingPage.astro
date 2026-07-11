@@ -22,19 +22,20 @@ import {
   pricingCta,
   pricingHero,
   pricingRegisterHref,
-  pricingFaqDefaults,
-  pricingFaqs,
+  pricingFaqSection,
   type BillingCycle,
   type PlanCatalog,
   type PlanCatalogItem,
 } from "@/lib/pricing";
+import type { Faq } from "@/lib/platform/faq";
 import { HERO_PLATFORM_IDS, platformLabel, platformLogoPublicPath } from "@shared/platform";
 
 type Props = {
   planCatalog: PlanCatalog;
+  faqs: Faq[];
 };
 
-const { planCatalog } = Astro.props;
+const { planCatalog, faqs } = Astro.props;
 
 const defaultCycle: BillingCycle = "monthly";
 const comparisonRows = planComparisonRows(planCatalog.plans);
@@ -232,9 +233,9 @@ function renderPrice(plan: PlanCatalogItem, cycle: BillingCycle) {
   </section>
 
   <PlatformFaqSection
-    items={pricingFaqs}
-    title={pricingFaqDefaults.title}
-    subtitle={pricingFaqDefaults.subtitle}
+    items={faqs}
+    title={pricingFaqSection.title}
+    subtitle={pricingFaqSection.subtitle}
     idPrefix="pricing-faq"
   />
 

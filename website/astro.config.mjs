@@ -22,6 +22,16 @@ export default defineConfig({
         "@": path.resolve(root, "./src"),
         "@shared": path.resolve(root, "../shared"),
         "@site": path.resolve(root, "./site.config.mjs"),
+        "@payloadcms/richtext-lexical/defaultColors": path.resolve(
+          root,
+          "node_modules/@payloadcms/richtext-lexical/dist/features/textState/defaultColors.js",
+        ),
+      },
+    },
+    server: {
+      headers: {
+        "Content-Security-Policy":
+          "frame-ancestors 'self' http://localhost:3000 http://127.0.0.1:3000 https://aperix.ai",
       },
     },
   },

@@ -1,6 +1,9 @@
 import type { CtaContent } from "@/lib/home";
 import { resolveSiteCopyDeep } from "@/lib/site";
-import type { PlatformFaqItem } from "@/lib/platform/faq";
+import type { Faq } from "@/lib/platform/faq";
+import { contentCreationFaqDefaults } from "@shared/faq/defaults";
+import { mergeFaqs, resolveFaqDefaults } from "@/lib/faqs";
+import type { FaqDoc } from "@shared/faq";
 
 export type ContentCreationFeatureIcon = "topic" | "outline" | "draft" | "quality";
 
@@ -26,7 +29,11 @@ export type ContentCreationBenefit = {
   description: string;
 };
 
-export type ContentCreationFaqItem = PlatformFaqItem;
+export const contentCreationFaqs: Faq[] = resolveFaqDefaults(contentCreationFaqDefaults);
+
+export function mergeContentCreationFaqs(cms: FaqDoc[] | null | undefined): Faq[] {
+  return mergeFaqs(cms, contentCreationFaqs);
+}
 
 export const contentCreationHero = {
   titleBefore: "创作既能",
@@ -117,7 +124,7 @@ export const contentCreationFeatures: ContentCreationFeature[] = [
 ];
 
 export const contentCreationBenefits = resolveSiteCopyDeep({
-  title: "为什么选择 {{name}} 进行创作？",
+  title: "为什么选择 {{siteName}} 进行创作？",
   items: [
     {
       number: "1",
@@ -148,49 +155,6 @@ export const contentCreationIntegrations = {
   platforms: ["WordPress", "Notion", "Halo", "HubSpot", "Ghost", "Webflow", "Markdown"],
   badge: "发布就绪",
 };
-
-export const contentCreationFaqs: ContentCreationFaqItem[] = resolveSiteCopyDeep([
-  {
-    number: "01",
-    label: "定位",
-    question: "{{name}} 内容创作和传统 AI 写作工具有什么不同？",
-    paragraphs: [
-      "传统 AI 写作工具关注「写得快」，而 {{name}} 关注「写得能被找到、被引用」。",
-      "平台从选题阶段就结合 SEO 与 GEO 信号，确保内容同时面向搜索排名与 AI 回答场景进行结构设计。",
-    ],
-  },
-  {
-    number: "02",
-    label: "流程",
-    question: "从选题到发布，{{name}} 如何指导每一步？",
-    paragraphs: ["完整工作流覆盖四个阶段："],
-    bullets: [
-      "发现：基于 SEO + GEO 数据识别高潜力话题",
-      "大纲：生成结构化、易引用的内容框架",
-      "创作：在实时优化建议下完成撰写",
-      "发布：导出至 WordPress、Notion 等 CMS",
-    ],
-    closingParagraphs: ["让团队不再在多个工具之间切换，而是在同一流程中完成策略与执行。"],
-  },
-  {
-    number: "03",
-    label: "优化",
-    question: "内容如何同时兼顾 Google 排名和 AI 引用？",
-    paragraphs: [
-      "{{name}} 会从关键词覆盖、实体识别、话题深度、语义结构、易引用格式与可读性等维度进行优化。",
-      "写作过程中持续给出评分与修复建议，例如补充 FAQ、添加数据点、优化章节层级等，帮助内容在发布前达到 SEO 与 GEO 双重标准。",
-    ],
-  },
-  {
-    number: "04",
-    label: "语言",
-    question: "是否支持多语言内容创作？",
-    paragraphs: [
-      "支持。{{name}} 覆盖 20 多种语言的内容创作与优化，帮助团队在不同市场以母语级质量产出内容。",
-      "同一套 SEO/GEO 优化逻辑可应用于多语言场景，确保全球内容策略保持一致。",
-    ],
-  },
-]);
 
 export const contentCreationCta: CtaContent = {
   badge: "准备就绪",

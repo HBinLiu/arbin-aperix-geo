@@ -1,5 +1,4 @@
 import { postgresAdapter } from "@payloadcms/db-postgres";
-import { lexicalEditor } from "@payloadcms/richtext-lexical";
 import path from "path";
 import { buildConfig } from "payload";
 import { fileURLToPath } from "url";
@@ -7,17 +6,24 @@ import sharp from "sharp";
 
 import { FAQs } from "./collections/FAQs";
 import { Media } from "./collections/Media";
+import { PageSeoEntries } from "./collections/PageSeo";
 import { Users } from "./collections/Users";
 import { AboutPage } from "./globals/AboutPage";
+import { defaultLexicalEditor } from "./lib/lexical";
+import { createEmailAdapter } from "./lib/email";
+import { getPayloadServerUrl, getWebsiteUrl } from "./lib/urls";
+import { seo } from "./plugins/seo";
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
 
 const payloadAppDir = path.resolve(dirname, "./app/cms/(payload)");
+const websiteUrl = getWebsiteUrl();
 
 export default buildConfig({
   admin: {
     user: Users.slug,
+    avatar: "default",
     importMap: {
       baseDir: payloadAppDir,
       importMapFile: path.resolve(payloadAppDir, "./admin/importMap.js"),
@@ -26,9 +32,10 @@ export default buildConfig({
       titleSuffix: " · Aperix CMS",
     },
   },
-  collections: [Users, Media, FAQs],
+  collections: [Users, Media, FAQs, PageSeoEntries],
   globals: [AboutPage],
-  editor: lexicalEditor(),
+  editor: defaultLexicalEditor,
+  email: createEmailAdapter(),
   secret: process.env.PAYLOAD_SECRET || "",
   typescript: {
     outputFile: path.resolve(dirname, "payload-types.ts"),
@@ -44,6 +51,8 @@ export default buildConfig({
     graphQL: "/cms/api/graphql",
     graphQLPlayground: "/cms/api/graphql-playground",
   },
+  cors: [websiteUrl, getPayloadServerUrl()],
+  csrf: [websiteUrl, getPayloadServerUrl()],
   sharp,
-  plugins: [],
+  plugins: [seo],
 });

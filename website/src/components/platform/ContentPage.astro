@@ -19,7 +19,6 @@ import type { ContentCreationWorkflowIcon } from "@/lib/platform/content";
 import {
   contentCreationBenefits,
   contentCreationCta,
-  contentCreationFaqs,
   contentCreationFeatures,
   contentCreationFeaturesHeader,
   contentCreationHero,
@@ -29,6 +28,13 @@ import {
   contentCreationRankingNote,
   contentCreationWorkflow,
 } from "@/lib/platform/content";
+import type { Faq } from "@/lib/platform/faq";
+
+type Props = {
+  faqs: Faq[];
+};
+
+const { faqs } = Astro.props;
 const workflowIcons: Record<ContentCreationWorkflowIcon, typeof Lightbulb> = {
   discover: Lightbulb,
   outline: ListChecks,
@@ -178,7 +184,7 @@ const workflowIcons: Record<ContentCreationWorkflowIcon, typeof Lightbulb> = {
     </div>
   </section>
 
-  <PlatformFaqSection items={contentCreationFaqs} idPrefix="cco-faq" />
+  <PlatformFaqSection items={faqs} idPrefix="cco-faq" />
 
   <CtaSection {...contentCreationCta} />
 </main>

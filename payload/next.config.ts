@@ -3,13 +3,19 @@ import type { NextConfig } from "next";
 import path from "path";
 import { fileURLToPath } from "url";
 
-const dirname = path.dirname(fileURLToPath(import.meta.url));
+const root = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(root, "..");
+const sharedDir = path.resolve(repoRoot, "shared");
 
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [],
   },
   webpack: (webpackConfig) => {
+    webpackConfig.resolve.alias = {
+      ...webpackConfig.resolve.alias,
+      "@shared": sharedDir,
+    };
     webpackConfig.resolve.extensionAlias = {
       ".cjs": [".cts", ".cjs"],
       ".js": [".ts", ".tsx", ".js", ".jsx"],
@@ -18,7 +24,10 @@ const nextConfig: NextConfig = {
     return webpackConfig;
   },
   turbopack: {
-    root: path.resolve(dirname),
+    root: repoRoot,
+    resolveAlias: {
+      "@shared": sharedDir,
+    },
   },
 };
 

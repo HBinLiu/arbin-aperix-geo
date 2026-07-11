@@ -7,7 +7,7 @@
  * @property {string} ogImage
  */
 
-/** 官网站点配置唯一来源（astro.config / src 均从此读取；品牌名占位符见 src/lib/site.ts） */
+/** 官网站点配置唯一来源（astro.config / src 均从此读取；品牌名占位符 `{{siteName}}` 见 src/lib/site.ts） */
 /** @type {SiteConfig} */
 export const siteConfig = {
   url: "https://aperix.ai",

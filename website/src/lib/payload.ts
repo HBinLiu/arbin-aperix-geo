@@ -1,4 +1,4 @@
-import type { PageSeo } from "@/lib/seo";
+import type { CmsSeoMeta, PageSeo } from "@/lib/seo";
 
 export type FeatureItem = {
   phase: string;
@@ -21,28 +21,27 @@ export type ComparisonRow = {
   enterprise: string;
 };
 
-/** Payload `about-page` Global 类型 */
-
-export type CmsPageStoryParagraph = {
-  text: string;
-};
+/** Payload SEO 插件 meta 字段 */
 
 export type CmsPageStory = {
   title?: string;
-  paragraphs?: CmsPageStoryParagraph[];
+  content?: Record<string, unknown> | null;
 };
 
 export type CmsAboutPage = {
   story?: CmsPageStory;
-  seo?: PageSeo;
 };
 
-export type CmsFaq = {
-  question: string;
-  answer: string;
-  sortOrder: number;
-  page?: string;
+export type CmsPageSeoEntry = {
+  path: string;
+  label?: string;
+  noindex?: boolean;
+  meta?: CmsSeoMeta;
 };
+
+import type { FaqDoc, FaqPageDoc } from "@shared/faq";
+
+export type { FaqDoc, FaqPageDoc };
 
 type PayloadListResponse<T> = {
   docs: T[];
@@ -50,7 +49,7 @@ type PayloadListResponse<T> = {
 
 const CMS_API_PATH = "/cms/api";
 const ABOUT_GLOBAL_SLUG = "about-page";
-const PAYLOAD_TIMEOUT_MS = import.meta.env.DEV ? 2_000 : 5_000;
+const PAYLOAD_TIMEOUT_MS = import.meta.env.DEV ? 15_000 : 5_000;
 
 function payloadApiBase(): string {
   const configured = (import.meta.env.PAYLOAD_API_URL || CMS_API_PATH).replace(/\/$/, "");
@@ -62,7 +61,7 @@ function payloadApiBase(): string {
   const path = configured.startsWith("/") ? configured : `/${configured}`;
 
   if (import.meta.env.DEV) {
-    return `http://127.0.0.1:3000${path}`;
+    return `http://localhost:3000${path}`;
   }
 
   const site = import.meta.env.SITE?.replace(/\/$/, "");
@@ -83,17 +82,46 @@ async function payloadFetch<T>(path: string): Promise<T | null> {
 }
 
 export async function getAboutPage(): Promise<CmsAboutPage | null> {
-  return payloadFetch<CmsAboutPage>(`/globals/${ABOUT_GLOBAL_SLUG}`);
+  const query = new URLSearchParams({ depth: "0" });
+  return payloadFetch<CmsAboutPage>(`/globals/${ABOUT_GLOBAL_SLUG}?${query}`);
 }
 
-export async function getHomeFaqs(): Promise<CmsFaq[] | null> {
+function normalizeSitePath(path: string): string {
+  if (!path || path === "/") return "/";
+  return path.endsWith("/") ? path : `${path}/`;
+}
+
+let pageSeoCache: Map<string, CmsPageSeoEntry> | null = null;
+
+async function loadPageSeoMap(): Promise<Map<string, CmsPageSeoEntry>> {
+  if (pageSeoCache) return pageSeoCache;
+
+  const query = new URLSearchParams({ limit: "200", depth: "1" });
+  const data = await payloadFetch<PayloadListResponse<CmsPageSeoEntry>>(`/page-seo?${query}`);
+  pageSeoCache = new Map(
+    (data?.docs ?? []).map((doc) => [normalizeSitePath(doc.path), doc]),
+  );
+  return pageSeoCache;
+}
+
+export async function getPageSeoByPath(path: string): Promise<CmsPageSeoEntry | null> {
+  const map = await loadPageSeoMap();
+  return map.get(normalizeSitePath(path)) ?? null;
+}
+
+export async function getFaqsByPage(page: string): Promise<FaqDoc[] | null> {
   const query = new URLSearchParams({
-    "where[page][equals]": "home",
-    sort: "sortOrder",
-    limit: "100",
+    "where[page][equals]": page,
+    limit: "1",
     depth: "0",
   });
-  const data = await payloadFetch<PayloadListResponse<CmsFaq>>(`/faqs?${query}`);
-  if (!data?.docs.length) return null;
-  return data.docs;
+  const data = await payloadFetch<PayloadListResponse<FaqPageDoc>>(`/faqs?${query}`);
+  const doc = data?.docs[0];
+  if (!doc?.items?.length) return null;
+  return doc.items;
+}
+
+/** @deprecated 使用 getFaqsByPage(FAQ_PAGE.home) */
+export async function getHomeFaqs(): Promise<FaqDoc[] | null> {
+  return getFaqsByPage("home");
 }

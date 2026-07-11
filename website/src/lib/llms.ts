@@ -1,5 +1,5 @@
-import { homeFaqs, type FaqItem } from "@/lib/home";
-import { pricingFaqDefaults, pricingFaqs } from "@/lib/pricing";
+import { homeFaqs, type Faq } from "@/lib/home";
+import { pricingFaqSection, pricingFaqs } from "@/lib/pricing";
 import {
   aboutSeo,
   homeSeo,
@@ -42,22 +42,22 @@ function faqTopicSummary(questions: string[]): string {
 const PLATFORM_PAGES: LlmsEntry[] = [
   {
     path: "/platform/answer-engine-insights",
-    label: "AI 可见度与竞争洞察",
+    label: "回答引擎洞察",
     description: platformAnswerSeo.description,
   },
   {
     path: "/platform/find-topics-ideas",
-    label: "AI 增长机会与信源分析",
+    label: "发现机会与差距",
     description: platformTopicSeo.description,
   },
   {
     path: "/platform/prompt-volumes-explorer",
-    label: "提示词与查询扇出分析",
+    label: "提示词查询探索",
     description: platformPromptSeo.description,
   },
   {
     path: "/platform/content-creation-optimization",
-    label: "AI 智能内容创作",
+    label: "内容创作与优化",
     description: platformContentSeo.description,
   },
 ];
@@ -87,7 +87,7 @@ const PLATFORM_FAQ_PAGES: LlmsEntry[] = [
 ];
 
 /** 面向 AI 爬虫的 llms.txt 正文（遵循 llmstxt.org：H2 区块均为链接列表） */
-export function buildLlmsTxt(site: URL, faqs: FaqItem[] = homeFaqs): string {
+export function buildLlmsTxt(site: URL, faqs: Faq[] = homeFaqs): string {
   const corePages: LlmsEntry[] = [
     { path: "/", label: "首页", description: homeSeo.description },
     { path: "/pricing", label: "定价", description: pricingSeo.description },
@@ -102,8 +102,8 @@ export function buildLlmsTxt(site: URL, faqs: FaqItem[] = homeFaqs): string {
 
   const pricingFaqLink: LlmsEntry = {
     path: "/pricing/#faq",
-    label: pricingFaqDefaults.title,
-    description: `${pricingFaqDefaults.subtitle} 涵盖 ${faqTopicSummary(pricingFaqs.map((faq) => faq.question))}`,
+    label: pricingFaqSection.title,
+    description: `${pricingFaqSection.subtitle} 涵盖 ${faqTopicSummary(pricingFaqs.map((faq) => faq.question))}`,
   };
 
   return [

@@ -1,18 +1,21 @@
 {
   "extends": "./node_modules/astro/tsconfigs/strict.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
+      "@/*": ["./src/*"],
       "@shared/*": ["../shared/*"],
-      "@site": ["./site.config.mjs"]
+      "@site": ["./site.config.mjs"],
+      "@payloadcms/richtext-lexical/defaultColors": [
+        "./node_modules/@payloadcms/richtext-lexical/dist/features/textState/defaultColors"
+      ]
     }
   },
   "include": [
     ".astro/types.d.ts",
     "site.config.mjs",
     "src/**/*",
-    "astro.config.mjs"
+    "astro.config.mjs",
+    "../shared/**/*"
   ],
   "exclude": ["dist", "node_modules"]
 }

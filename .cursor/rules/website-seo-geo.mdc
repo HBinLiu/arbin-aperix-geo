@@ -14,10 +14,10 @@ Astro 静态营销站 `website/` 的搜索引擎与 AI 爬虫优化约定。运�
 |------|------|------|
 | 生产域名 | `site.config.mjs` → `astro.config.mjs` `site` | 页面内用 `Astro.site`，**不要在 TS 重复维护 url** |
 | 品牌名 / 默认 description / logo / 默认 OG 图 | `site.config.mjs` | `@site` → `siteConfig` |
-| 品牌名占位符 `{{name}}` | 运行时替换 | `src/lib/site.ts`：`resolveSiteCopy()`、`resolveSiteCopyDeep()`、`sitePageTitle()` |
+| 品牌名占位符 `{{siteName}}` | 运行时替换 | `src/lib/site.ts`：`resolveSiteCopy()`、`resolveSiteCopyDeep()`、`sitePageTitle()` |
 | 各页 title / description | `src/lib/seo.ts` | `PageSeo` + `resolvePageMeta()`；title 格式 `{主题} \| {品牌名}` |
 
-**禁止**恢复 `vite-plugin-site-config.mjs` 构建时替换 `{{name}}`；文案模块导出前用 `resolveSiteCopyDeep()` 包裹含占位符的对象。
+**禁止**恢复 `vite-plugin-site-config.mjs` 构建时替换 `{{siteName}}`；文案模块导出前用 `resolveSiteCopyDeep()` 包裹含占位符的对象。
 
 ## 基础 SEO（P0）
 
@@ -45,9 +45,9 @@ Astro 静态营销站 `website/` 的搜索引擎与 AI 爬虫优化约定。运�
 
 ## 页面与内容来源
 
-- **About story 段落**：Payload Global `about-page` → `story.paragraphs`；`mergeAboutStory()` 无 CMS 数据时回退 `about.ts` 静态文案
-- **About SEO**：`mergePageSeo(aboutSeo, cmsAbout?.seo)`
-- **首页 FAQ**：Payload `faqs` 集合 `page=home`；`mergeHomeFaqs()` 无 CMS 数据时回退 `home.ts` 静态 FAQ
+- **About story 正文**：Global `about-page` → `story.content`（Lexical 富文本）；前端 SSR `mergeAboutStory()` + `lexicalToHtml()`
+- **全页 SEO**：Collection `page-seo` 按 `path` 匹配；`BaseLayout` 内 `getPageSeoByPath()` + `mergePageSeo()`，静态 `seo.ts` 兜底
+- **首页 FAQ**：Collection `faqs`（`page=home`）；`mergeHomeFaqs()` 兜底
 - **定价页**：需 backend `:8000` 才能 `npm run build`；含 FAQ 手风琴（`pricingFaqs` 在 `pricing.ts`，复用 `PlatformFaqSection`）
 - **Monitor 页**：共用默认 OG 图，不做平台专属 OG
 
@@ -57,7 +57,7 @@ Astro 静态营销站 `website/` 的搜索引擎与 AI 爬虫优化约定。运�
 2. 页面 `<BaseLayout seo={...}>`；有 FAQ 则加 `jsonLd`
 3. 若进 sitemap：Astro 静态页自动收录；动态路由已在 `getStaticPaths` 的会收录
 4. 更新 `llms.ts` 链接列表（若为核心页或带 FAQ 的重要页）
-5. 文案含品牌名时用 `{{name}}` + 导出时 `resolveSiteCopyDeep`
+5. 文案含品牌名时用 `{{siteName}}` + 导出时 `resolveSiteCopyDeep`
 
 ## 有意未做
 

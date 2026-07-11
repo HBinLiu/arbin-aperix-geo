@@ -1,6 +1,9 @@
-import type { FaqItem } from "@/lib/home";
+import type { Faq } from "@/lib/faqs";
+import { mergeFaqs, resolveFaqDefaults } from "@/lib/faqs";
+import type { FaqDoc } from "@shared/faq";
 import type { PageSeo } from "@/lib/seo";
 import { platformMonitorSeo } from "@/lib/seo";
+import { monitorFaqDefaults } from "@shared/faq/defaults";
 import type { PlatformId } from "@shared/platform";
 import { PLATFORMS } from "@shared/platform";
 
@@ -68,26 +71,15 @@ export function monitorSlugs(): string[] {
   return Object.values(MONITOR_SLUGS);
 }
 
-function monitorFaqItems(platformName: string): FaqItem[] {
-  return [
-    {
-      question: "监测是如何进行的？",
-      answer: "我们使用与行业相关的提示词持续向 AI 平台发起查询，并追踪品牌在回答中被提及、引用和推荐的情况。",
-    },
-    {
-      question: "数据更新频率是多久？",
-      answer: "我们的监测每天运行，对于 AI 平台讨论您品牌的重大变化，我们会提供实时提醒。",
-    },
-    {
-      question: "我可以与竞争对手进行对比吗？",
-      answer: "可以，我们的竞争情报功能可以展示您在所有已监测平台中，与竞争对手在 AI 可见性方面的对比情况。",
-    },
-  ];
+export const monitorFaqsDefault: Faq[] = resolveFaqDefaults(monitorFaqDefaults);
+
+export function mergeMonitorFaqs(cms: FaqDoc[] | null | undefined): Faq[] {
+  return mergeFaqs(cms, monitorFaqsDefault);
 }
 
-export function monitorFaqs(platformId: PlatformId): FaqItem[] {
-  const content = MONITOR_CONTENT[platformId];
-  return monitorFaqItems(content.displayName);
+/** @deprecated 使用 mergeMonitorFaqs */
+export function monitorFaqs(_platformId: PlatformId): Faq[] {
+  return monitorFaqsDefault;
 }
 
 const MONITOR_CONTENT: Record<PlatformId, Omit<MonitorContent, "platformId" | "slug">> = {

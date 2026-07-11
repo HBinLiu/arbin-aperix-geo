@@ -249,6 +249,7 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     smtp_from: str = ""
+    smtp_from_name: str = "Aperix Alerts"
     smtp_use_tls: bool = True
 
     # favicon 本地持久化目录（按域名子目录保存全部成功抓取的图标）

@@ -6,8 +6,8 @@ export const authenticatedOnly: Access = ({ req: { user } }) => Boolean(user);
 /** 官网 SSR 可读：营销类公开内容 */
 export const publicRead: Access = () => true;
 
-/** 官网 SSR 可读：仅已发布；登录用户可读全部（含草稿）— Global（_status 字段） */
-export const publishedOrAuthenticatedGlobalRead: Access = ({ req: { user } }) => {
+/** 官网 SSR 可读：仅已发布；登录用户可读全部（含草稿） */
+export const publishedOrAuthenticatedRead: Access = ({ req: { user } }) => {
   if (user) return true;
   return {
     _status: {
@@ -15,6 +15,9 @@ export const publishedOrAuthenticatedGlobalRead: Access = ({ req: { user } }) =>
     },
   };
 };
+
+/** @deprecated 使用 publishedOrAuthenticatedRead */
+export const publishedOrAuthenticatedGlobalRead = publishedOrAuthenticatedRead;
 
 /** 写操作：仅 CMS 管理员 */
 export const authenticatedWrite: Access = authenticatedOnly;

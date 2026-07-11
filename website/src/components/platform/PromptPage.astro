@@ -10,11 +10,17 @@ import { HERO_GRID } from "@/lib/assets";
 import {
   PROMPT_VIDEO_URL,
   promptExplorerCta,
-  promptExplorerFaqs,
   promptExplorerFeatures,
   promptExplorerFeaturesHeader,
   promptExplorerHero,
 } from "@/lib/platform/prompt";
+import type { Faq } from "@/lib/platform/faq";
+
+type Props = {
+  faqs: Faq[];
+};
+
+const { faqs } = Astro.props;
 const featureLayout = [
   { items: promptExplorerFeatures.slice(0, 2), columns: 2 as const },
   { items: promptExplorerFeatures.slice(2, 5), columns: 3 as const },
@@ -109,7 +115,7 @@ const featureLayout = [
     </div>
   </section>
 
-  <PlatformFaqSection items={promptExplorerFaqs} idPrefix="pve-faq" />
+  <PlatformFaqSection items={faqs} idPrefix="pve-faq" />
 
   <CtaSection {...promptExplorerCta} />
 </main>

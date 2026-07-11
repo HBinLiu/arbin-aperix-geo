@@ -1,6 +1,8 @@
 import type { ComparisonRow, FeatureItem } from "./payload";
-import type { CmsFaq } from "@/lib/payload";
-import { resolveSiteCopy, resolveSiteCopyDeep } from "@/lib/site";
+import { homeFaqDefaults } from "@shared/faq/defaults";
+import { resolveSiteCopyDeep } from "@/lib/site";
+import { mergeFaqs, resolveFaqDefaults, type Faq } from "@/lib/faqs";
+import type { FaqDoc } from "@shared/faq";
 import { HERO_PLATFORM_IDS } from "@shared/platform";
 
 export type HeroHeadlinePart =
@@ -24,10 +26,7 @@ export type FeaturesContent = {
   items: FeatureItem[];
 };
 
-export type FaqItem = {
-  question: string;
-  answer: string;
-};
+export type { Faq } from "@/lib/faqs";
 
 export type CtaContent = {
   badge: string;
@@ -93,7 +92,7 @@ export const homeFeatures: FeaturesContent = resolveSiteCopyDeep({
       titleAfter: "里的实时地图",
       tagline: "关键指标：提及频次 · 引用率 · 竞品对比 · 时间窗口",
       pain: "你不知道当用户问 AI 时，你的品牌有没有被提及、被推荐。",
-      solution: "{{name}} 支持国内 6 大主流 AI 平台，给你一张实时的 AI 曝光热力图。",
+      solution: "{{siteName}} 支持国内 6 大主流 AI 平台，给你一张实时的 AI 曝光热力图。",
       metrics: ["可见度", "提及频次", "声量份额", "竞品对比"],
       image: "panel-1",
     },
@@ -119,7 +118,7 @@ export const homeFeatures: FeaturesContent = resolveSiteCopyDeep({
       titleAfter: "复盘，而不是凭感觉改内容",
       tagline: "聚合视图支撑内部分享与迭代决策",
       pain: "有了数据，不知道该改哪里、怎么改。",
-      solution: "{{name}} 直接告诉你该写什么、怎么写、帮你写——不只是建议，是可以直接用的内容。",
+      solution: "{{siteName}} 直接告诉你该写什么、怎么写、帮你写——不只是建议，是可以直接用的内容。",
       metrics: ["任务聚合", "主体对比", "提示词版本", "导出复盘"],
       image: "panel-3",
     },
@@ -128,7 +127,7 @@ export const homeFeatures: FeaturesContent = resolveSiteCopyDeep({
 
 export const homeComparison = resolveSiteCopyDeep({
   titleBefore: "为什么选择 ",
-  titleHighlight: "{{name}}",
+  titleHighlight: "{{siteName}}",
   titleAfter: "？",
   rows: [
     {
@@ -187,7 +186,7 @@ export const homeCta: CtaContent = resolveSiteCopyDeep({
   titleBefore: "准备好发现你与竞争对手之间的",
   titleHighlight: "可见性差距",
   titleAfter: "了吗？",
-  description: "加入 {{name}}，追踪 AI 可见性。获得基于实战的深度洞察，告别盲目猜测。",
+  description: "加入 {{siteName}}，追踪 AI 可见性。获得基于实战的深度洞察，告别盲目猜测。",
   codeLines: ["// 停止猜测。", "// 开始掌控。"],
   secondaryCtaLabel: "登录",
   secondaryCtaHref: "/auth/login",
@@ -195,37 +194,8 @@ export const homeCta: CtaContent = resolveSiteCopyDeep({
   primaryCtaHref: "/auth/register",
 });
 
-export const homeFaqs: FaqItem[] = resolveSiteCopyDeep([
-  {
-    question: "GEO 和 SEO 有什么区别？",
-    answer:
-      "SEO 针对搜索引擎排名进行优化。GEO（生成引擎优化）针对 AI 模型的引用和推荐进行优化。两者对于全面的品牌可见性都至关重要。",
-  },
-  {
-    question: "{{name}} 与其他 GEO 工具有什么不同？",
-    answer:
-      "我们关注信任，而不仅仅是可见性。我们为您展示排名位置、情感分析和可执行的建议，而不仅仅是提及次数。",
-  },
-  {
-    question: "支持哪些 AI 模型？",
-    answer:
-      "国内主流大模型：豆包、DeepSeek、通义千问、腾讯元宝、Kimi、文心一言均已支持 —— 更多模型正在持续添加中。",
-  },
-  {
-    question: "多久能看到效果？",
-    answer:
-      "趋势可见性需要 2-4 周，可落地洞察需要 4-8 周。AI 模型的更新速度与搜索引擎不同。我们同样也提供针对中大型企业的GEO/SEO优化服务，帮助您直接达成流量/AI可见度的目标，直接交付结果。",
-  },
-]);
+export const homeFaqs: Faq[] = resolveFaqDefaults(homeFaqDefaults);
 
-export function mergeHomeFaqs(cms: CmsFaq[] | null | undefined): FaqItem[] {
-  const items =
-    cms
-      ?.map((item) => ({
-        question: resolveSiteCopy(item.question.trim()),
-        answer: resolveSiteCopy(item.answer.trim()),
-      }))
-      .filter((item) => item.question.length > 0 && item.answer.length > 0) ?? [];
-
-  return items.length > 0 ? items : [...homeFaqs];
+export function mergeHomeFaqs(cms: FaqDoc[] | null | undefined): Faq[] {
+  return mergeFaqs(cms, homeFaqs);
 }
