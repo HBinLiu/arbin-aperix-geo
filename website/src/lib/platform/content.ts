@@ -1,4 +1,5 @@
 import type { CtaContent } from "@/lib/home";
+import { resolveSiteCopyDeep } from "@/lib/site";
 import type { PlatformFaqItem } from "@/lib/platform/faq";
 
 export type ContentCreationFeatureIcon = "topic" | "outline" | "draft" | "quality";
@@ -115,7 +116,7 @@ export const contentCreationFeatures: ContentCreationFeature[] = [
   },
 ];
 
-export const contentCreationBenefits = {
+export const contentCreationBenefits = resolveSiteCopyDeep({
   title: "为什么选择 {{name}} 进行创作？",
   items: [
     {
@@ -134,7 +135,7 @@ export const contentCreationBenefits = {
       description: "格式化处理，让 AI 模型能轻松引用您的内容",
     },
   ] satisfies ContentCreationBenefit[],
-};
+});
 
 export const contentCreationLocales = {
   title: "多语言支持",
@@ -148,7 +149,7 @@ export const contentCreationIntegrations = {
   badge: "发布就绪",
 };
 
-export const contentCreationFaqs: ContentCreationFaqItem[] = [
+export const contentCreationFaqs: ContentCreationFaqItem[] = resolveSiteCopyDeep([
   {
     number: "01",
     label: "定位",
@@ -189,7 +190,7 @@ export const contentCreationFaqs: ContentCreationFaqItem[] = [
       "同一套 SEO/GEO 优化逻辑可应用于多语言场景，确保全球内容策略保持一致。",
     ],
   },
-];
+]);
 
 export const contentCreationCta: CtaContent = {
   badge: "准备就绪",

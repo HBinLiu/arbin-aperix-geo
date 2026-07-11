@@ -12,16 +12,22 @@ import {
   homeCta,
   homeComparison,
   homeDiagnostic,
-  homeFaqs,
   homeFeatures,
   homeHero,
   homePlatforms,
+  mergeHomeFaqs,
 } from "@/lib/home";
+import { getHomeFaqs } from "@/lib/payload";
 import { homeSeo } from "@/lib/seo";
+import { buildHomeJsonLd } from "@/lib/json-ld";
 import "@/styles/style.css";
+
+const homeFaqs = mergeHomeFaqs(await getHomeFaqs());
+const site = Astro.site ?? Astro.url;
+const jsonLd = buildHomeJsonLd(site, homeFaqs);
 ---
 
-<BaseLayout seo={homeSeo}>
+<BaseLayout seo={homeSeo} jsonLd={jsonLd}>
   <SiteHeader />
 
   <main class="flex flex-1 flex-col">

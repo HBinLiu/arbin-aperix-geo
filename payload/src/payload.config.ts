@@ -7,8 +7,8 @@ import sharp from "sharp";
 
 import { FAQs } from "./collections/FAQs";
 import { Media } from "./collections/Media";
-import { Pages } from "./collections/Pages";
 import { Users } from "./collections/Users";
+import { AboutPage } from "./globals/AboutPage";
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -22,8 +22,12 @@ export default buildConfig({
       baseDir: payloadAppDir,
       importMapFile: path.resolve(payloadAppDir, "./admin/importMap.js"),
     },
+    meta: {
+      titleSuffix: " · Aperix CMS",
+    },
   },
-  collections: [Users, Media, Pages, FAQs],
+  collections: [Users, Media, FAQs],
+  globals: [AboutPage],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || "",
   typescript: {

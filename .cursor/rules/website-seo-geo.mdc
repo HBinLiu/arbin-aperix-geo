@@ -1,0 +1,66 @@
+---
+description: 官网 website/ SEO 与 GEO（llms.txt、JSON-LD、sitemap）约定与已完成项
+globs: website/**
+alwaysApply: false
+---
+
+# 官网 SEO / GEO
+
+Astro 静态营销站 `website/` 的搜索引擎与 AI 爬虫优化约定。运营提交说明见 `website/README.md`。
+
+## 配置单一来源
+
+| 用途 | 来源 | 引用 |
+|------|------|------|
+| 生产域名 | `site.config.mjs` → `astro.config.mjs` `site` | 页面内用 `Astro.site`，**不要在 TS 重复维护 url** |
+| 品牌名 / 默认 description / logo / 默认 OG 图 | `site.config.mjs` | `@site` → `siteConfig` |
+| 品牌名占位符 `{{name}}` | 运行时替换 | `src/lib/site.ts`：`resolveSiteCopy()`、`resolveSiteCopyDeep()`、`sitePageTitle()` |
+| 各页 title / description | `src/lib/seo.ts` | `PageSeo` + `resolvePageMeta()`；title 格式 `{主题} \| {品牌名}` |
+
+**禁止**恢复 `vite-plugin-site-config.mjs` 构建时替换 `{{name}}`；文案模块导出前用 `resolveSiteCopyDeep()` 包裹含占位符的对象。
+
+## 基础 SEO（P0）
+
+- **Sitemap**：`@astrojs/sitemap` 构建生成 `sitemap-index.xml` + `sitemap-0.xml`
+- **robots.txt**：`src/pages/robots.txt.ts` → 声明 `Sitemap: {origin}/sitemap-index.xml`，注释 `# LLM site summary: {origin}/llms.txt`
+- **Canonical / OG / Twitter**：`BaseLayout.astro` + `resolvePageMeta()`；默认 OG 图 `siteConfig.ogImage`（`shared/assets/images/website/og-default.webp`）
+- **国内 sitemap 提交**：Google/Bing 交 index；百度 / 头条 / 神马交 `sitemap-0.xml`（勿交 index）
+
+## JSON-LD（`src/lib/json-ld.ts` + 各页 `jsonLd` prop）
+
+| 页面 | Schema |
+|------|--------|
+| 首页 | `Organization` + `FAQPage`（`homeFaqs`） |
+| 4 个平台能力页 + 6 个 monitor 页 | `FAQPage`（`buildPlatformFaqJsonLd` / `buildFaqPageJsonLd`） |
+| 定价 | `Product` + 多 `Offer`（每套餐 × 月/季/年，`buildPricingJsonLd`）+ `FAQPage`（`pricingFaqs`） |
+
+定价 JSON-LD 数据来自 build 时 `GET /billing/plans`（与定价页同源）；`description` 含额度与全周期价格摘要。
+
+## GEO：llms.txt（[llmstxt.org](https://llmstxt.org/)）
+
+- 路由：`src/pages/llms.txt.ts` → `buildLlmsTxt()`（`src/lib/llms.ts`）
+- **规范**：`# H1` + `> 摘要` + 各 `##` 区块均为 **链接列表** `- [label](url): 说明`；**不要**在 llms.txt 内嵌 `###` FAQ 正文
+- 区块：核心页面、平台能力、AI 平台监测、常见问题（`/#faq`）、定价常见问题（`/pricing/#faq`）、平台 FAQ（各页 `#faq`）、可选（控制台、sitemap）
+- `pageHref()`：页面路径加尾斜杠；`.xml` 等资源路径、带 `#hash` 的路径不加错斜杠
+
+## 页面与内容来源
+
+- **About story 段落**：Payload Global `about-page` → `story.paragraphs`；`mergeAboutStory()` 无 CMS 数据时回退 `about.ts` 静态文案
+- **About SEO**：`mergePageSeo(aboutSeo, cmsAbout?.seo)`
+- **首页 FAQ**：Payload `faqs` 集合 `page=home`；`mergeHomeFaqs()` 无 CMS 数据时回退 `home.ts` 静态 FAQ
+- **定价页**：需 backend `:8000` 才能 `npm run build`；含 FAQ 手风琴（`pricingFaqs` 在 `pricing.ts`，复用 `PlatformFaqSection`）
+- **Monitor 页**：共用默认 OG 图，不做平台专属 OG
+
+## 新增/修改页面 checklist
+
+1. 在 `seo.ts` 增加 `PageSeo`（`pageTitle()` + description）
+2. 页面 `<BaseLayout seo={...}>`；有 FAQ 则加 `jsonLd`
+3. 若进 sitemap：Astro 静态页自动收录；动态路由已在 `getStaticPaths` 的会收录
+4. 更新 `llms.ts` 链接列表（若为核心页或带 FAQ 的重要页）
+5. 文案含品牌名时用 `{{name}}` + 导出时 `resolveSiteCopyDeep`
+
+## 有意未做
+
+- 各 monitor 页专属 OG 图
+- 页面级 `.md` 镜像（llmstxt.org 扩展）
+- `/sitemap.xml` → index 的重定向（按需 CDN 配置）

@@ -1,4 +1,5 @@
 import type { CtaContent } from "@/lib/home";
+import { resolveSiteCopyDeep } from "@/lib/site";
 import type { PlatformFaqItem } from "@/lib/platform/faq";
 import findTopicsIdeaVideo from "@shared/assets/videos/website/find-topics-idea.webm";
 
@@ -73,7 +74,7 @@ export const findTopicsIdeasFeatures: FindTopicsFeature[] = [
   },
 ];
 
-export const findTopicsIdeasFaqs: FindTopicsFaqItem[] = [
+export const findTopicsIdeasFaqs: FindTopicsFaqItem[] = resolveSiteCopyDeep([
   {
     number: "01",
     label: "方法论",
@@ -148,9 +149,9 @@ export const findTopicsIdeasFaqs: FindTopicsFaqItem[] = [
       "这使得优化不再是零散动作，而是可以持续放大的系统性增长策略。",
     ],
   },
-];
+]);
 
-export const findTopicsIdeasCta: CtaContent = {
+export const findTopicsIdeasCta: CtaContent = resolveSiteCopyDeep({
   badge: "准备就绪",
   titleBefore: "准备好查看用户在 AI 中",
   titleHighlight: "问了什么",
@@ -161,4 +162,4 @@ export const findTopicsIdeasCta: CtaContent = {
   secondaryCtaHref: "/auth/login",
   primaryCtaLabel: "开始试用",
   primaryCtaHref: "/auth/register",
-};
+});

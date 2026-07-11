@@ -1,4 +1,6 @@
 import type { ComparisonRow, FeatureItem } from "./payload";
+import type { CmsFaq } from "@/lib/payload";
+import { resolveSiteCopy, resolveSiteCopyDeep } from "@/lib/site";
 import { HERO_PLATFORM_IDS } from "@shared/platform";
 
 export type HeroHeadlinePart =
@@ -76,7 +78,7 @@ export const homeDiagnostic: DiagnosticContent = {
   ctaHref: "/auth/register",
 };
 
-export const homeFeatures: FeaturesContent = {
+export const homeFeatures: FeaturesContent = resolveSiteCopyDeep({
   titleLine1: "AI 有没有提到你、推荐你？",
   titleLine2Before: "理解",
   titleHighlight: "原因",
@@ -122,9 +124,9 @@ export const homeFeatures: FeaturesContent = {
       image: "panel-3",
     },
   ],
-};
+});
 
-export const homeComparison = {
+export const homeComparison = resolveSiteCopyDeep({
   titleBefore: "为什么选择 ",
   titleHighlight: "{{name}}",
   titleAfter: "？",
@@ -178,9 +180,9 @@ export const homeComparison = {
       enterprise: "仅企业档支持",
     },
   ] satisfies ComparisonRow[],
-};
+});
 
-export const homeCta: CtaContent = {
+export const homeCta: CtaContent = resolveSiteCopyDeep({
   badge: "准备就绪",
   titleBefore: "准备好发现你与竞争对手之间的",
   titleHighlight: "可见性差距",
@@ -191,9 +193,9 @@ export const homeCta: CtaContent = {
   secondaryCtaHref: "/auth/login",
   primaryCtaLabel: "开始试用",
   primaryCtaHref: "/auth/register",
-};
+});
 
-export const homeFaqs: FaqItem[] = [
+export const homeFaqs: FaqItem[] = resolveSiteCopyDeep([
   {
     question: "GEO 和 SEO 有什么区别？",
     answer:
@@ -214,4 +216,16 @@ export const homeFaqs: FaqItem[] = [
     answer:
       "趋势可见性需要 2-4 周，可落地洞察需要 4-8 周。AI 模型的更新速度与搜索引擎不同。我们同样也提供针对中大型企业的GEO/SEO优化服务，帮助您直接达成流量/AI可见度的目标，直接交付结果。",
   },
-];
+]);
+
+export function mergeHomeFaqs(cms: CmsFaq[] | null | undefined): FaqItem[] {
+  const items =
+    cms
+      ?.map((item) => ({
+        question: resolveSiteCopy(item.question.trim()),
+        answer: resolveSiteCopy(item.answer.trim()),
+      }))
+      .filter((item) => item.question.length > 0 && item.answer.length > 0) ?? [];
+
+  return items.length > 0 ? items : [...homeFaqs];
+}

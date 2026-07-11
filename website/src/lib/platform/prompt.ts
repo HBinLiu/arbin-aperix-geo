@@ -1,4 +1,5 @@
 import type { CtaContent } from "@/lib/home";
+import { resolveSiteCopyDeep } from "@/lib/site";
 import type { PlatformFaqItem } from "@/lib/platform/faq";
 import promptExplorerVideo from "@shared/assets/videos/website/prompt-explorer.webm";
 
@@ -87,7 +88,7 @@ export const promptExplorerFeatures: PromptFeature[] = [
   },
 ];
 
-export const promptExplorerFaqs: PromptFaqItem[] = [
+export const promptExplorerFaqs: PromptFaqItem[] = resolveSiteCopyDeep([
   {
     number: "01",
     label: "定义",
@@ -132,9 +133,9 @@ export const promptExplorerFaqs: PromptFaqItem[] = [
       "查询扇出可用于判断问题是否值得投入、制定内容与 GEO 优先级，以及提前预判用户的下一步提问方向，帮助品牌在 AI 回答链路中提前占位。",
     ],
   },
-];
+]);
 
-export const promptExplorerCta: CtaContent = {
+export const promptExplorerCta: CtaContent = resolveSiteCopyDeep({
   badge: "准备就绪",
   titleBefore: "准备好查看用户在 AI 中",
   titleHighlight: "问了什么",
@@ -145,4 +146,4 @@ export const promptExplorerCta: CtaContent = {
   secondaryCtaHref: "/auth/login",
   primaryCtaLabel: "开始试用",
   primaryCtaHref: "/auth/register",
-};
+});

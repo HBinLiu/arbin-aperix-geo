@@ -6,11 +6,11 @@ export const authenticatedOnly: Access = ({ req: { user } }) => Boolean(user);
 /** 官网 SSR 可读：营销类公开内容 */
 export const publicRead: Access = () => true;
 
-/** 官网 SSR 可读：仅已发布；登录用户可读全部（含草稿） */
-export const publishedOrAuthenticatedRead: Access = ({ req: { user } }) => {
+/** 官网 SSR 可读：仅已发布；登录用户可读全部（含草稿）— Global（_status 字段） */
+export const publishedOrAuthenticatedGlobalRead: Access = ({ req: { user } }) => {
   if (user) return true;
   return {
-    status: {
+    _status: {
       equals: "published",
     },
   };

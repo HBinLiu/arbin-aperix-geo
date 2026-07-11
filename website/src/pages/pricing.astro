@@ -1,14 +1,17 @@
 ---
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import PricingPage from "@/components/pricing/PricingPage.astro";
-import { getPlanCatalog } from "@/lib/pricing";
+import { getPlanCatalog, pricingFaqs } from "@/lib/pricing";
+import { buildPlatformFaqJsonLd, buildPricingJsonLd } from "@/lib/json-ld";
 import { pricingSeo } from "@/lib/seo";
 import "@/styles/style.css";
 import "@/styles/pricing.css";
 
 const planCatalog = await getPlanCatalog();
+const site = Astro.site ?? Astro.url;
+const jsonLd = [buildPricingJsonLd(site, planCatalog), buildPlatformFaqJsonLd(pricingFaqs)];
 ---
 
-<BaseLayout seo={pricingSeo}>
+<BaseLayout seo={pricingSeo} jsonLd={jsonLd}>
   <PricingPage planCatalog={planCatalog} />
 </BaseLayout>

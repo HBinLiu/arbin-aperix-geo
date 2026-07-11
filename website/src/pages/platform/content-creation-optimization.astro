@@ -2,10 +2,14 @@
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import ContentPage from "@/components/platform/ContentPage.astro";
 import { platformContentSeo } from "@/lib/seo";
+import { contentCreationFaqs } from "@/lib/platform/content";
+import { buildPlatformFaqJsonLd } from "@/lib/json-ld";
 import "@/styles/style.css";
 import "@/styles/platform/content.css";
+
+const jsonLd = [buildPlatformFaqJsonLd(contentCreationFaqs)];
 ---
 
-<BaseLayout seo={platformContentSeo}>
+<BaseLayout seo={platformContentSeo} jsonLd={jsonLd}>
   <ContentPage />
 </BaseLayout>

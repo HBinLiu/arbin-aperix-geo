@@ -2,10 +2,14 @@
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import AnswerPage from "@/components/platform/AnswerPage.astro";
 import { platformAnswerSeo } from "@/lib/seo";
+import { answerEngineInsightsFaqs } from "@/lib/platform/answer";
+import { buildPlatformFaqJsonLd } from "@/lib/json-ld";
 import "@/styles/style.css";
 import "@/styles/platform/answer.css";
+
+const jsonLd = [buildPlatformFaqJsonLd(answerEngineInsightsFaqs)];
 ---
 
-<BaseLayout seo={platformAnswerSeo}>
+<BaseLayout seo={platformAnswerSeo} jsonLd={jsonLd}>
   <AnswerPage />
 </BaseLayout>

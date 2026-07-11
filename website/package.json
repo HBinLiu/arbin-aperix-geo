@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@astrojs/react": "^4.4.2",
+    "@astrojs/sitemap": "^3.7.3",
     "@fontsource-variable/geist": "^5.2.8",
     "@lucide/astro": "^1.23.0",
     "@radix-ui/react-tooltip": "^1.2.12",

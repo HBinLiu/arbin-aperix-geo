@@ -1,13 +1,14 @@
-import type { CmsPage } from "@/lib/payload";
+import type { CmsAboutPage } from "@/lib/payload";
+import { resolveSiteCopy, resolveSiteCopyDeep } from "@/lib/site";
 
-export const aboutHero = {
+export const aboutHero = resolveSiteCopyDeep({
   titleBefore: "About ",
   titleHighlight: "{{name}}",
   tagline: "我们正在构建 AI 时代品牌可见性的未来。",
   mission: "我们的使命是不仅让品牌被看见，更让品牌获得 AI 系统的信任。",
-};
+});
 
-export const aboutStory = {
+export const aboutStory = resolveSiteCopyDeep({
   title: "我们的故事",
   paragraphs: [
     "{{name}} 的起点是一支专注 GEO 与 AI 营销的数据与工程团队。我们长期为国内主流 AI 平台构建监测、分析与指标体系——从采集、清洗、建模，到可见度监控与竞品对标。也正因为站在「数据底座」的位置，我们很早就看清了一个变化：用户正在从「搜索列表」转向「AI 直接给答案」。",
@@ -16,17 +17,17 @@ export const aboutStory = {
     "我们也相信，在这个时代「执行的自动化」会越来越廉价，真正难的是策略与上下文。{{name}} 不绑定某一个内容工具，而是通过可插拔的能力体系，把成熟的 GEO 与增长经验沉淀在平台上，让团队用最合适的工具去执行，但始终由同一套数据与指标驱动决策。",
     "我们的目标客户是需要规模化获客的团队：B2B SaaS 与 PLG 团队、电商与 DTC 品牌，以及为客户交付增长的 Agency 与专业服务团队。我们希望帮助他们在 AI 时代建立可被理解、可被信任、可被推荐的品牌资产，并用更低试错成本持续优化。",
   ],
-} as const;
+});
 
 export type AboutStory = {
   title: string;
   paragraphs: string[];
 };
 
-export function mergeAboutStory(cms: CmsPage | null | undefined): AboutStory {
+export function mergeAboutStory(cms: CmsAboutPage | null | undefined): AboutStory {
   const paragraphs =
     cms?.story?.paragraphs
-      ?.map((item) => item.text.trim())
+      ?.map((item) => resolveSiteCopy(item.text.trim()))
       .filter((text) => text.length > 0) ?? [];
 
   return {

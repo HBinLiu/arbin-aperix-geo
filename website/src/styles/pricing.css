@@ -109,15 +109,19 @@
   text-align: center;
 }
 
-.pricing-badge {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 9999px;
-  background: var(--color-primary);
-  padding: 0.25rem 1rem;
-  font-size: 0.875rem;
+.pricing-title {
+  margin: 0;
+  font-size: 1.75rem;
   font-weight: 600;
-  color: #fff;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+  color: var(--color-foreground);
+}
+
+@media (min-width: 640px) {
+  .pricing-title {
+    font-size: 2.25rem;
+  }
 }
 
 .pricing-platforms {

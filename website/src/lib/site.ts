@@ -1,13 +1,28 @@
-/** 官网全局站点配置（品牌名唯一来源） */
-export type SiteConfig = {
-  name: string;
-  description: string;
-};
+import { siteConfig } from "@site";
 
-export const siteConfig: SiteConfig = {
-  name: "Aperix AI",
-  description: "GEO 监测平台",
-};
+const NAME_PLACEHOLDER = /\{\{name\}\}/g;
 
-/** 文案占位符：lib/*.ts 中写 {{name}}，由 vite-plugin-site-config 在构建时替换 */
-export const SITE_NAME_PLACEHOLDER = "{{name}}";
+/** 将文案中的 `{{name}}` 替换为 site.config.mjs 中的品牌名 */
+export function resolveSiteCopy(value: string): string {
+  return value.replace(NAME_PLACEHOLDER, siteConfig.name);
+}
+
+/** 递归替换对象 / 数组中所有字符串里的 `{{name}}` */
+export function resolveSiteCopyDeep<T>(value: T): T {
+  if (typeof value === "string") return resolveSiteCopy(value) as T;
+  if (Array.isArray(value)) return value.map((item) => resolveSiteCopyDeep(item)) as T;
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+        key,
+        resolveSiteCopyDeep(entry),
+      ]),
+    ) as T;
+  }
+  return value;
+}
+
+/** 全站 `<title>` 格式：`{页面主题} | {品牌名}` */
+export function sitePageTitle(topic: string): string {
+  return `${topic} | ${siteConfig.name}`;
+}

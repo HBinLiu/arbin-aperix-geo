@@ -21,7 +21,7 @@ export type ComparisonRow = {
   enterprise: string;
 };
 
-/** Payload `pages` 集合类型 */
+/** Payload `about-page` Global 类型 */
 
 export type CmsPageStoryParagraph = {
   text: string;
@@ -32,11 +32,16 @@ export type CmsPageStory = {
   paragraphs?: CmsPageStoryParagraph[];
 };
 
-export type CmsPage = {
-  slug: string;
-  status: string;
+export type CmsAboutPage = {
   story?: CmsPageStory;
   seo?: PageSeo;
+};
+
+export type CmsFaq = {
+  question: string;
+  answer: string;
+  sortOrder: number;
+  page?: string;
 };
 
 type PayloadListResponse<T> = {
@@ -44,6 +49,7 @@ type PayloadListResponse<T> = {
 };
 
 const CMS_API_PATH = "/cms/api";
+const ABOUT_GLOBAL_SLUG = "about-page";
 const PAYLOAD_TIMEOUT_MS = import.meta.env.DEV ? 2_000 : 5_000;
 
 function payloadApiBase(): string {
@@ -76,13 +82,18 @@ async function payloadFetch<T>(path: string): Promise<T | null> {
   }
 }
 
-export async function getPageBySlug(slug: string): Promise<CmsPage | null> {
+export async function getAboutPage(): Promise<CmsAboutPage | null> {
+  return payloadFetch<CmsAboutPage>(`/globals/${ABOUT_GLOBAL_SLUG}`);
+}
+
+export async function getHomeFaqs(): Promise<CmsFaq[] | null> {
   const query = new URLSearchParams({
-    "where[slug][equals]": slug,
-    "where[status][equals]": "published",
-    limit: "1",
+    "where[page][equals]": "home",
+    sort: "sortOrder",
+    limit: "100",
     depth: "0",
   });
-  const data = await payloadFetch<PayloadListResponse<CmsPage>>(`/pages?${query}`);
-  return data?.docs[0] ?? null;
+  const data = await payloadFetch<PayloadListResponse<CmsFaq>>(`/faqs?${query}`);
+  if (!data?.docs.length) return null;
+  return data.docs;
 }

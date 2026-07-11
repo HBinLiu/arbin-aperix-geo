@@ -2,10 +2,14 @@
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import TopicPage from "@/components/platform/TopicPage.astro";
 import { platformTopicSeo } from "@/lib/seo";
+import { findTopicsIdeasFaqs } from "@/lib/platform/topic";
+import { buildPlatformFaqJsonLd } from "@/lib/json-ld";
 import "@/styles/style.css";
 import "@/styles/platform/topic.css";
+
+const jsonLd = [buildPlatformFaqJsonLd(findTopicsIdeasFaqs)];
 ---
 
-<BaseLayout seo={platformTopicSeo}>
+<BaseLayout seo={platformTopicSeo} jsonLd={jsonLd}>
   <TopicPage />
 </BaseLayout>

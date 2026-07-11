@@ -2,10 +2,14 @@
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import PromptPage from "@/components/platform/PromptPage.astro";
 import { platformPromptSeo } from "@/lib/seo";
+import { promptExplorerFaqs } from "@/lib/platform/prompt";
+import { buildPlatformFaqJsonLd } from "@/lib/json-ld";
 import "@/styles/style.css";
 import "@/styles/platform/prompt.css";
+
+const jsonLd = [buildPlatformFaqJsonLd(promptExplorerFaqs)];
 ---
 
-<BaseLayout seo={platformPromptSeo}>
+<BaseLayout seo={platformPromptSeo} jsonLd={jsonLd}>
   <PromptPage />
 </BaseLayout>

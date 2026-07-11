@@ -4,11 +4,13 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@shared/*": ["../shared/*"]
+      "@shared/*": ["../shared/*"],
+      "@site": ["./site.config.mjs"]
     }
   },
   "include": [
     ".astro/types.d.ts",
+    "site.config.mjs",
     "src/**/*",
     "astro.config.mjs"
   ],

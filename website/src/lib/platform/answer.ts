@@ -1,4 +1,5 @@
 import type { CtaContent } from "@/lib/home";
+import { resolveSiteCopyDeep } from "@/lib/site";
 import type { PlatformFaqItem } from "@/lib/platform/faq";
 import insightsVideo from "@shared/assets/videos/website/answer-insight.webm";
 
@@ -93,7 +94,7 @@ export const answerEngineInsightsFeatures: InsightsFeature[] = [
   },
 ];
 
-export const answerEngineInsightsFaqs: InsightsFaqItem[] = [
+export const answerEngineInsightsFaqs: InsightsFaqItem[] = resolveSiteCopyDeep([
   {
     number: "01",
     label: "方法",
@@ -139,9 +140,9 @@ export const answerEngineInsightsFaqs: InsightsFaqItem[] = [
       "让您从「看到差距」，进一步走到「知道下一步该做什么」。",
     ],
   },
-];
+]);
 
-export const answerEngineInsightsCta: CtaContent = {
+export const answerEngineInsightsCta: CtaContent = resolveSiteCopyDeep({
   badge: "准备就绪",
   titleBefore: "准备好查看你品牌的",
   titleHighlight: "信任分",
@@ -152,4 +153,4 @@ export const answerEngineInsightsCta: CtaContent = {
   secondaryCtaHref: "/auth/login",
   primaryCtaLabel: "开始试用",
   primaryCtaHref: "/auth/register",
-};
+});

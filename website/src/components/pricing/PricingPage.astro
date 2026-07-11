@@ -2,6 +2,7 @@
 import SiteFooter from "@/components/SiteFooter.astro";
 import SiteHeader from "@/components/SiteHeader.astro";
 import QuestionButton from "@/components/pricing/QuestionButton.tsx";
+import PlatformFaqSection from "@/components/platform/PlatformFaqSection.astro";
 import CtaSection from "@/components/home/CtaSection.astro";
 import {
   Boxes,
@@ -21,6 +22,8 @@ import {
   pricingCta,
   pricingHero,
   pricingRegisterHref,
+  pricingFaqDefaults,
+  pricingFaqs,
   type BillingCycle,
   type PlanCatalog,
   type PlanCatalogItem,
@@ -62,7 +65,7 @@ function renderPrice(plan: PlanCatalogItem, cycle: BillingCycle) {
       <div class="pricing-hero-wrap">
         <div class="pricing-hero-glow" aria-hidden="true"></div>
         <header class="pricing-hero">
-          <span class="pricing-badge">{pricingHero.badge}</span>
+          <h1 class="pricing-title">{pricingHero.title}</h1>
           <div
             class="pricing-platforms"
             role="img"
@@ -227,6 +230,13 @@ function renderPrice(plan: PlanCatalogItem, cycle: BillingCycle) {
 
     <script type="application/json" id="pricing-catalog" set:html={JSON.stringify(planCatalog)} />
   </section>
+
+  <PlatformFaqSection
+    items={pricingFaqs}
+    title={pricingFaqDefaults.title}
+    subtitle={pricingFaqDefaults.subtitle}
+    idPrefix="pricing-faq"
+  />
 
   <CtaSection {...pricingCta} />
 </main>

@@ -8,6 +8,8 @@
     "dev": "cross-env NODE_OPTIONS=--no-deprecation next dev --port 3000",
     "generate:importmap": "cross-env NODE_OPTIONS=--no-deprecation payload generate:importmap",
     "generate:types": "cross-env NODE_OPTIONS=--no-deprecation payload generate:types",
+    "seed": "cross-env NODE_OPTIONS=--no-deprecation payload run src/seed.ts",
+    "seed:force": "cross-env NODE_OPTIONS=--no-deprecation payload run src/seed.ts -- --force",
     "payload": "cross-env NODE_OPTIONS=--no-deprecation payload",
     "start": "cross-env NODE_OPTIONS=--no-deprecation next start --port 3000"
   },

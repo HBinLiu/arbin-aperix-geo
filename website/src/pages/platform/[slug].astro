@@ -1,7 +1,8 @@
 ---
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import MonitorPage from "@/components/platform/MonitorPage.astro";
-import { getAllMonitorPages } from "@/lib/platform/monitor";
+import { getAllMonitorPages, monitorFaqs } from "@/lib/platform/monitor";
+import { buildFaqPageJsonLd } from "@/lib/json-ld";
 import "@/styles/style.css";
 import "@/styles/platform/monitor.css";
 
@@ -13,8 +14,9 @@ export async function getStaticPaths() {
 }
 
 const { content } = Astro.props;
+const jsonLd = [buildFaqPageJsonLd(monitorFaqs(content.platformId))];
 ---
 
-<BaseLayout seo={content.seo}>
+<BaseLayout seo={content.seo} jsonLd={jsonLd}>
   <MonitorPage content={content} />
 </BaseLayout>
