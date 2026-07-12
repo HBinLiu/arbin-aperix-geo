@@ -1,7 +1,6 @@
 ---
 import SiteFooter from "@/components/SiteFooter.astro";
 import SiteHeader from "@/components/SiteHeader.astro";
-import QuestionButton from "@/components/pricing/QuestionButton.tsx";
 import PlatformFaqSection from "@/components/platform/PlatformFaqSection.astro";
 import CtaSection from "@/components/home/CtaSection.astro";
 import StaticImage from "@/components/StaticImage.tsx";
@@ -11,6 +10,7 @@ import {
   Building2,
   CalendarClock,
   Check,
+  CircleQuestionMark,
   Globe,
   MessageSquareText,
   Sparkles,
@@ -208,14 +208,17 @@ function renderPrice(plan: PlanCatalogItem, cycle: BillingCycle) {
                           <span class="pricing-comparison-feature-icon" aria-hidden>
                             <RowIcon size={14} />
                           </span>
-                          <span>{row.label}</span>
+                          <span class="pricing-comparison-feature-label">{row.label}</span>
                           {
                             row.description ? (
-                              <QuestionButton
-                                client:load
-                                label={row.label}
-                                description={row.description}
-                              />
+                              <button
+                                type="button"
+                                class="pricing-comparison-help"
+                                aria-label={`了解${row.label}`}
+                                data-pricing-tip={row.description}
+                              >
+                                <CircleQuestionMark size={16} aria-hidden />
+                              </button>
                             ) : null
                           }
                         </span>
@@ -228,6 +231,12 @@ function renderPrice(plan: PlanCatalogItem, cycle: BillingCycle) {
             </tbody>
           </table>
         </div>
+        <div
+          id="pricing-comparison-tip"
+          class="pricing-comparison-tip"
+          role="tooltip"
+          hidden
+        />
       </section>
     </div>
 
@@ -293,7 +302,60 @@ function renderPrice(plan: PlanCatalogItem, cycle: BillingCycle) {
     });
   }
 
+  function initPricingComparisonTips(root: HTMLElement) {
+    const tipEl = root.querySelector<HTMLElement>("#pricing-comparison-tip");
+    if (!tipEl) return;
+    const tip = tipEl;
+
+    const triggers = root.querySelectorAll<HTMLButtonElement>("[data-pricing-tip]");
+    if (triggers.length === 0) return;
+
+    let activeTrigger: HTMLButtonElement | null = null;
+
+    function position(trigger: HTMLElement) {
+      const rect = trigger.getBoundingClientRect();
+      const gap = 8;
+      tip.style.left = `${rect.left + rect.width / 2}px`;
+      if (rect.top > 100) {
+        tip.style.top = `${rect.top - gap}px`;
+        tip.style.transform = "translate(-50%, -100%)";
+        tip.dataset.placement = "top";
+      } else {
+        tip.style.top = `${rect.bottom + gap}px`;
+        tip.style.transform = "translate(-50%, 0)";
+        tip.dataset.placement = "bottom";
+      }
+    }
+
+    function show(trigger: HTMLButtonElement) {
+      activeTrigger = trigger;
+      tip.textContent = trigger.dataset.pricingTip ?? "";
+      position(trigger);
+      tip.hidden = false;
+      trigger.setAttribute("aria-describedby", "pricing-comparison-tip");
+    }
+
+    function hide() {
+      tip.hidden = true;
+      activeTrigger?.removeAttribute("aria-describedby");
+      activeTrigger = null;
+    }
+
+    triggers.forEach((trigger) => {
+      trigger.addEventListener("mouseenter", () => show(trigger));
+      trigger.addEventListener("focus", () => show(trigger));
+      trigger.addEventListener("mouseleave", hide);
+      trigger.addEventListener("blur", hide);
+    });
+
+    root.querySelector(".pricing-comparison-scroll")?.addEventListener("scroll", hide, {
+      passive: true,
+    });
+  }
+
   function initPricingPage(root: HTMLElement) {
+    initPricingComparisonTips(root);
+
     const catalogEl = root.querySelector<HTMLScriptElement>("#pricing-catalog");
     if (!catalogEl?.textContent) return;
 

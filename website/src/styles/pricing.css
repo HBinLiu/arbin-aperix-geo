@@ -489,6 +489,8 @@
   font-weight: 500;
   text-align: left;
   color: var(--color-foreground);
+  overflow: visible;
+  min-width: 9.5rem;
 }
 
 .pricing-comparison-table tbody td {
@@ -522,6 +524,10 @@
   gap: 0.5rem;
 }
 
+.pricing-comparison-feature-label {
+  min-width: 0;
+}
+
 .pricing-comparison-feature-icon {
   display: inline-flex;
   flex-shrink: 0;
@@ -534,7 +540,7 @@
   color: var(--color-primary);
 }
 
-.pricing-comparison-help {
+.pricing-comparison-feature .pricing-comparison-help {
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
@@ -549,39 +555,48 @@
   transition: color 0.15s ease;
 }
 
-.pricing-comparison-help:hover {
+.pricing-comparison-feature .pricing-comparison-help:hover {
   color: var(--color-foreground);
 }
 
-.pricing-comparison-help:focus-visible {
+.pricing-comparison-feature .pricing-comparison-help:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 
-.pricing-tooltip-content {
+.pricing-comparison-tip {
+  position: fixed;
   z-index: 1000;
-  width: fit-content;
-  max-width: 16rem;
-  border-radius: 0.375rem;
+  width: max-content;
+  max-width: min(22rem, calc(100vw - 2rem));
   padding: 0.375rem 0.75rem;
+  border-radius: 0.375rem;
   background: var(--color-foreground);
   color: #fff;
   font-size: 0.875rem;
   font-weight: 600;
   line-height: 1.4;
+  white-space: normal;
   word-break: keep-all;
   overflow-wrap: break-word;
   box-shadow: 0 4px 12px rgb(15 23 42 / 16%);
   pointer-events: none;
-  user-select: none;
 }
 
-.pricing-tooltip-content--wide {
-  width: max-content;
-  max-width: 22rem;
-  white-space: nowrap;
+.pricing-comparison-tip::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  translate: -50% 0;
+  border: 5px solid transparent;
 }
 
-.pricing-tooltip-arrow {
-  fill: var(--color-foreground);
+.pricing-comparison-tip[data-placement="top"]::after {
+  top: 100%;
+  border-top-color: var(--color-foreground);
+}
+
+.pricing-comparison-tip[data-placement="bottom"]::after {
+  bottom: 100%;
+  border-bottom-color: var(--color-foreground);
 }
