@@ -73,27 +73,28 @@ export const footerColumnRows: FooterColumn[][] = [
     {
       title: "面向团队",
       links: [
-        { label: "代理商", href: "#" },
-        { label: "大型企业", href: "#" },
-        { label: "公关与品牌团队", href: "#" },
-        { label: "中小企业 GEO 团队", href: "#" },
-        { label: "SEO 专家", href: "#" },
+        { label: "代理商", href: "/solution/agencies" },
+        { label: "大型企业", href: "/solution/enterprise" },
+        { label: "公关与品牌团队", href: "/solution/pr-brand-teams" },
+        { label: "中小企业 GEO 团队", href: "/solution/smb-geo-teams" },
+        { label: "SEO 专家", href: "/solution/seo-specialists" },
       ],
     },
     {
       title: "使用场景",
       links: [
-        { label: "品牌危机管理", href: "#" },
-        { label: "竞争定位", href: "#" },
-        { label: "内容策略", href: "#" },
-        { label: "叙事构建", href: "#" },
-        { label: "产品发布", href: "#" },
+        { label: "品牌危机管理", href: "/scene/brand-crisis-management" },
+        { label: "竞争定位", href: "/scene/competitive-positioning" },
+        { label: "内容策略", href: "/scene/content-strategy" },
+        { label: "叙事构建", href: "/scene/narrative-shaping" },
+        { label: "产品发布", href: "/scene/product-launch" },
       ],
     },
     {
       title: "公司",
       links: [
         { label: "关于我们", href: "/about" },
+        { label: "联系我们", href: "/contact" },
         { label: "定价方案", href: "/pricing" },
         { label: "开始试用", href: "/auth/register" },
         { label: "登录", href: "/auth/login" },
@@ -103,9 +104,9 @@ export const footerColumnRows: FooterColumn[][] = [
 ];
 
 export const footerLegalLinks: FooterLink[] = [
-  { label: "使用条款", href: "#" },
-  { label: "隐私政策", href: "#" },
-  { label: "退款政策", href: "#" },
+  { label: "使用条款", href: "" },
+  { label: "隐私政策", href: "" },
+  { label: "退款政策", href: "" },
 ];
 
 const socialSvgAttrs =
@@ -137,12 +138,17 @@ export function footerSocialSvg(link: FooterSocialLink): string {
 export const socialButtonClass =
   "bg-[#f2f2f2] inline-flex items-center justify-center rounded-full p-[4.8px] transition-colors hover:bg-[#eaeaea] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#ff6b2b]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
-/** 国内社交平台（暂无官方链接时用 `#`） */
+export function isNavigableFooterHref(href: string): boolean {
+  const trimmed = href.trim();
+  return trimmed.length > 0 && trimmed !== "#" && !trimmed.toLowerCase().startsWith("javascript:");
+}
+
+/** 国内社交平台（暂无官方链接时不设 href） */
 export const footerSocialLinks: FooterSocialLink[] = [
-  { label: "微信", href: "#", external: true, icon: "wechat" },
-  { label: "微博", href: "#", external: true, icon: "weibo" },
-  { label: "抖音", href: "#", external: true, icon: "douyin" },
-  { label: "小红书", href: "#", external: true, icon: "xiaohongshu" },
-  { label: "哔哩哔哩", href: "#", external: true, icon: "bilibili" },
-  { label: "知乎", href: "#", external: true, icon: "zhihu" },
+  { label: "微信", href: "", external: true, icon: "wechat" },
+  { label: "微博", href: "", external: true, icon: "weibo" },
+  { label: "抖音", href: "", external: true, icon: "douyin" },
+  { label: "小红书", href: "", external: true, icon: "xiaohongshu" },
+  { label: "哔哩哔哩", href: "", external: true, icon: "bilibili" },
+  { label: "知乎", href: "", external: true, icon: "zhihu" },
 ];

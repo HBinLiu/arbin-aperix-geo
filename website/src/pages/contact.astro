@@ -1,0 +1,12 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import ContactPage from "@/components/contact/ContactPage.astro";
+import { contactSeo } from "@/lib/seo";
+import "@/styles/style.css";
+import "@/styles/platform/shell.css";
+import "@/styles/contact.css";
+---
+
+<BaseLayout seo={contactSeo}>
+  <ContactPage />
+</BaseLayout>

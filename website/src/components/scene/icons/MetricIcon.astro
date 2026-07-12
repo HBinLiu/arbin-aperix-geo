@@ -1,0 +1,62 @@
+---
+import type { SceneMetricIcon } from "@/lib/scene/types";
+import {
+  Activity,
+  ChartColumn,
+  ChartPie,
+  Clock,
+  Layers,
+  Rocket,
+  Search,
+  Shield,
+  Target,
+  TrendingUp,
+  Users,
+} from "@lucide/astro";
+
+type Props = {
+  icon: SceneMetricIcon;
+};
+
+const { icon } = Astro.props;
+
+const lucideIcons = {
+  activity: Activity,
+  "chart-no-axes-column": ChartColumn,
+  "chart-pie": ChartPie,
+  clock: Clock,
+  layers: Layers,
+  rocket: Rocket,
+  search: Search,
+  shield: Shield,
+  target: Target,
+  "trending-up": TrendingUp,
+  users: Users,
+} as const;
+---
+
+{
+  icon === "sentiment" ? (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <g clip-path="url(#scene-sentiment-clip)">
+        <path
+          d="M5.83268 11.6667V12.5001C5.83268 12.9421 6.00828 13.366 6.32084 13.6786C6.6334 13.9912 7.05732 14.1667 7.49935 14.1667H8.33268M11.666 5.83341H12.4993C12.9414 5.83341 13.3653 6.00901 13.6779 6.32157C13.9904 6.63413 14.166 7.05805 14.166 7.50008V8.33341M13.3327 11.6667H16.666C17.5865 11.6667 18.3327 12.4129 18.3327 13.3334V16.6667C18.3327 17.5872 17.5865 18.3334 16.666 18.3334H13.3327C12.4122 18.3334 11.666 17.5872 11.666 16.6667V13.3334C11.666 12.4129 12.4122 11.6667 13.3327 11.6667ZM3.33268 1.66675H6.66602C7.58649 1.66675 8.33268 2.41294 8.33268 3.33341V6.66675C8.33268 7.58722 7.58649 8.33341 6.66602 8.33341H3.33268C2.41221 8.33341 1.66602 7.58722 1.66602 6.66675V3.33341C1.66602 2.41294 2.41221 1.66675 3.33268 1.66675Z"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </g>
+      <defs>
+        <clipPath id="scene-sentiment-clip">
+          <rect width="20" height="20" fill="white" />
+        </clipPath>
+      </defs>
+    </svg>
+  ) : (
+    (() => {
+      const Icon = lucideIcons[icon as keyof typeof lucideIcons];
+      return Icon ? <Icon size={20} aria-hidden="true" /> : null;
+    })()
+  )
+}

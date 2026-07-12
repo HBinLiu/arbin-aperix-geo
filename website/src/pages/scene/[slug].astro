@@ -1,0 +1,31 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import ScenePage from "@/components/scene/ScenePage.astro";
+import { buildPlatformFaqJsonLd } from "@/lib/json-ld";
+import { getFaqsByPage } from "@/lib/payload";
+import {
+  getAllScenePages,
+  mergeSceneFaqs,
+  sceneFaqPageKey,
+} from "@/lib/scene/pages";
+import "@/styles/style.css";
+import "@/styles/scene/scene.css";
+
+export async function getStaticPaths() {
+  return getAllScenePages().map((content) => ({
+    params: { slug: content.slug },
+    props: { content },
+  }));
+}
+
+const { content } = Astro.props;
+const faqs = mergeSceneFaqs(
+  content.slug,
+  await getFaqsByPage(sceneFaqPageKey(content.slug)),
+);
+const jsonLd = [buildPlatformFaqJsonLd(faqs)];
+---
+
+<BaseLayout seo={content.seo} jsonLd={jsonLd}>
+  <ScenePage content={content} faqs={faqs} />
+</BaseLayout>

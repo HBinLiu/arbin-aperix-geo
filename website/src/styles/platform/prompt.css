@@ -226,6 +226,7 @@
   width: 100%;
   max-width: 26.875rem;
   margin-inline: auto;
+  --pve-funnel-track: calc(100% - 3.125rem);
 }
 
 .pve-widget-funnel-bg {
@@ -294,20 +295,17 @@
 }
 
 .pve-widget-funnel-bar--tofu {
-  width: 23.75rem;
-  max-width: calc(100% - 3.125rem);
+  width: min(23.75rem, var(--pve-funnel-track));
 }
 
 .pve-widget-funnel-bar--mofu {
-  width: 17.5rem;
-  max-width: calc(100% - 3.125rem);
+  width: min(17.5rem, calc((100% - 3.125rem) * 0.737));
   border-color: rgb(255 107 43 / 30%);
   background: rgb(255 248 244 / 80%);
 }
 
 .pve-widget-funnel-bar--bofu {
-  width: 13.75rem;
-  max-width: calc(100% - 3.125rem);
+  width: min(13.75rem, calc((100% - 3.125rem) * 0.579));
   border-color: var(--color-primary);
   background: #fff;
   box-shadow: 0 4px 14px rgb(255 90 31 / 15%);
@@ -822,16 +820,26 @@
 }
 
 @media (max-width: 1023px) {
-  .pve-widget-funnel-bar--tofu,
-  .pve-widget-funnel-bar--mofu,
+  .pve-widget-funnel-wrap {
+    --pve-funnel-track: calc(100% - 2.75rem);
+  }
+
+  .pve-widget-funnel-bar--tofu {
+    width: min(23.75rem, var(--pve-funnel-track));
+  }
+
+  .pve-widget-funnel-bar--mofu {
+    width: min(17.5rem, calc((100% - 2.75rem) * 0.7));
+  }
+
   .pve-widget-funnel-bar--bofu {
-    width: auto;
-    max-width: calc(100% - 3.125rem);
+    width: min(13.75rem, calc((100% - 2.75rem) * 0.5));
   }
 
   .pve-widget-funnel-bg {
-    width: 18rem;
-    height: 8.5rem;
+    width: min(23.75rem, 100%);
+    height: auto;
+    transform: translateX(-50%);
   }
 
   .pve-widget-intent-stats {

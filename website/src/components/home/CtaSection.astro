@@ -1,5 +1,6 @@
 ---
 import type { CtaContent } from "@/lib/home";
+import { ArrowRight } from "@lucide/astro";
 
 type Props = CtaContent;
 
@@ -56,21 +57,7 @@ const {
             </a>
             <a href={primaryCtaHref} class="cta-btn cta-btn-primary group">
               <span>{primaryCtaLabel}</span>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="21"
-                height="20"
-                viewBox="0 0 21 20"
-                fill="currentColor"
-                aria-hidden="true"
-                class="cta-btn-icon"
-              >
-                <path
-                  fill-rule="evenodd"
-                  clip-rule="evenodd"
-                  d="M11.5774 4.41073C11.9028 4.0853 12.4305 4.0853 12.7559 4.41073L17.7559 9.41073C18.0814 9.73617 18.0814 10.2638 17.7559 10.5892L12.7559 15.5892C12.4305 15.9147 11.9028 15.9147 11.5774 15.5892C11.252 15.2638 11.252 14.7362 11.5774 14.4107L15.1548 10.8333H3.83333C3.3731 10.8333 3 10.4602 3 9.99999C3 9.53975 3.3731 9.16666 3.83333 9.16666H15.1548L11.5774 5.58925C11.252 5.26381 11.252 4.73617 11.5774 4.41073Z"
-                ></path>
-              </svg>
+              <ArrowRight size={18} aria-hidden="true" class="cta-btn-icon" />
             </a>
           </div>
         </div>

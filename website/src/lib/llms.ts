@@ -2,6 +2,7 @@ import { homeFaqs, type Faq } from "@/lib/home";
 import { pricingFaqSection, pricingFaqs } from "@/lib/pricing";
 import {
   aboutSeo,
+  contactSeo,
   homeSeo,
   platformAnswerSeo,
   platformContentSeo,
@@ -92,6 +93,7 @@ export function buildLlmsTxt(site: URL, faqs: Faq[] = homeFaqs): string {
     { path: "/", label: "首页", description: homeSeo.description },
     { path: "/pricing", label: "定价", description: pricingSeo.description },
     { path: "/about", label: "关于我们", description: aboutSeo.description },
+    { path: "/contact", label: "联系我们", description: contactSeo.description },
   ];
 
   const homeFaqLink: LlmsEntry = {

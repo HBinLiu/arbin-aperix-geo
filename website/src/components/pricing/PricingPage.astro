@@ -4,6 +4,8 @@ import SiteHeader from "@/components/SiteHeader.astro";
 import QuestionButton from "@/components/pricing/QuestionButton.tsx";
 import PlatformFaqSection from "@/components/platform/PlatformFaqSection.astro";
 import CtaSection from "@/components/home/CtaSection.astro";
+import StaticImage from "@/components/StaticImage.tsx";
+import { PRICING_PLATFORM_LOGO_RENDER_PX } from "@/lib/assets";
 import {
   Boxes,
   Building2,
@@ -74,12 +76,12 @@ function renderPrice(plan: PlanCatalogItem, cycle: BillingCycle) {
           >
             {
               HERO_PLATFORM_IDS.map((platformId) => (
-                <img
+                <StaticImage
                   src={platformLogoPublicPath(platformId)}
                   alt={platformLabel(platformId)}
-                  class="pricing-platform-logo"
-                  width="32"
-                  height="32"
+                  className="pricing-platform-logo"
+                  width={PRICING_PLATFORM_LOGO_RENDER_PX}
+                  height={PRICING_PLATFORM_LOGO_RENDER_PX}
                   loading="lazy"
                 />
               ))

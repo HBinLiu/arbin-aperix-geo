@@ -330,3 +330,283 @@ export const monitorFaqDefaults: FaqDefault[] = [
   },
 ];
 
+export const agenciesSolutionFaqDefaults: FaqDefault[] = [
+  {
+    question: "我们可以对整个界面进行白标处理吗？",
+    answerHtml: faqP(
+      "可以。您的品牌将贯穿始终。客户永远不会知道这是由我们的技术驱动的。",
+    ),
+  },
+  {
+    question: "我们需要对团队进行 GEO 培训吗？",
+    answerHtml: faqP(
+      "我们提供培训环节和资源库。您的团队在 3-4 小时内就能学会原本需要数天自学的内容。",
+    ),
+  },
+  {
+    question: "我们该如何向客户定价？",
+    answerHtml: faqP(
+      "我们提供定价模板和案例研究。典型的代理商会对 GEO 监测 + 优化服务按季度/年度定价。",
+    ),
+  },
+  {
+    question: "代理商方案与单用户方案有什么区别？",
+    answerHtml: faqP(
+      "代理商方案：无限客户、白标设置、团队管理、批量报告。单用户方案：仅限一个站点，功能有限。",
+    ),
+  },
+];
+
+export const enterpriseSolutionFaqDefaults: FaqDefault[] = [
+  {
+    question: "我们如何知道这些数据的准确性？",
+    answerHtml: faqP("我们从官方 AI 模型 API 获取数据，验证数据质量，并提供审计追踪。企业客户可访问方法论文档。"),
+  },
+  {
+    question: "能否对接现有 BI 或数据仓库？",
+    answerHtml: faqP("提供 API 与导出能力，便于将 AI 可见性指标纳入现有 BI、CRM 或内部看板。"),
+  },
+  {
+    question: "数据隐私和安全性如何？",
+    answerHtml: faqP("我们遵循行业最佳实践，保护用户隐私。所有数据存储在受信任的云提供商，采用多层加密和严格权限控制。"),
+  },
+  {
+    question: "典型的 ROI 周期是多久？",
+    answerHtml: faqP("早期采用者在 3-4 个月内能看到可衡量的 AI 影响力提升（10-20%）。与业务成果挂钩的完整 ROI 通常在 6-9 个月显现。"),
+  },
+];
+
+export const prBrandSolutionFaqDefaults: FaqDefault[] = [
+  {
+    question: "我们是在操纵 AI ？这种做法是否合法？",
+    answerHtml: faqP("不是。您是在创作能够准确代表您品牌的真实内容。AI 模型奖励诚实和清晰。我们是帮助您更好地沟通，而不是欺骗。"),
+  },
+  {
+    question: "当 AI 对我们产生误解时，我们该如何应对？",
+    answerHtml: faqP(
+      "两种方法：(1) 创作纠正性内容，以便 AI 模型拥有更好的素材来源；(2) 如果内容极其错误，直接向平台举报。",
+    ),
+  },
+  {
+    question: "如何监测 AI 中的品牌叙事与声誉风险？",
+    answerHtml: faqP(
+      "平台追踪 AI 回答中的品牌描述、情感倾向与引用来源，帮助 PR 团队发现负面叙事苗头与信息缺口。",
+    ),
+  },
+  {
+    question: "能否对比竞品在 AI 中的叙事差异？",
+    answerHtml: faqP("可以。您可并排查看本品牌与竞品在高意图问题下的推荐差异、引用结构与叙事关键词。"),
+  },
+];
+
+export const smbGeoSolutionFaqDefaults: FaqDefault[] = [
+  {
+    question: "这能代替 SEO 吗？",
+    answerHtml: faqP(
+      "不能。它是 SEO 的补充。我们帮助您构建内容结构，以便同时获得百度排名和 AI 的引用。",
+    ),
+  },
+  {
+    question: "多久能看到效果？",
+    answerHtml: faqP(
+      "取决于您的细分领域。竞争激烈的领域：6–8 周。垂直/本地领域：2–4 周。长尾关键词：2 周。",
+    ),
+  },
+  {
+    question: "我们需要为此招聘专人吗？",
+    answerHtml: faqP(
+      "不需要。我们的工具专为个人或 2–3 人的小团队设计。除了「了解您的市场」外，无需掌握其他特殊技能。",
+    ),
+  },
+  {
+    question: "如果我们的主要对手已经在 AI 领域占据主导地位了怎么办？",
+    answerHtml: faqP(
+      "我们会为您展示差距：他们做得好的地方以及他们忽略的地方。通常会有 1–2 个尚未被充分覆盖的角度供您占领。",
+    ),
+  },
+];
+
+export const seoSpecialistsSolutionFaqDefaults: FaqDefault[] = [
+  {
+    question: "这能代替 SEO 吗？",
+    answerHtml: faqP(
+      "不能。它是 SEO 的补充。我们帮助您构建内容结构，以便同时获得百度排名和 AI 的引用。",
+    ),
+  },
+  {
+    question: "如何向客户解释 GEO 价值？",
+    answerHtml: faqP(
+      "平台提供可视化对比与引用报告，展示「搜索排名好但 AI 不引用」的缺口，帮助您自然 upsell GEO 服务。",
+    ),
+  },
+  {
+    question: "多久能看到效果？",
+    answerHtml: faqP(
+      "取决于您的细分领域。竞争激烈的领域：6–8 周。垂直/本地领域：2–4 周。长尾关键词：2 周。",
+    ),
+  },
+  {
+    question: "内容优化建议是否可执行？",
+    answerHtml: faqP("建议具体到页面结构、FAQ Schema、实体覆盖与信源布局，可直接纳入现有 SEO 内容流程。"),
+  },
+];
+
+export const productLaunchSolutionFaqDefaults: FaqDefault[] = [
+  {
+    question: "AI 需要多长时间才会提及我的新产品？",
+    answerHtml: faqP(
+      "有了合理的 AI 发布策略，预计 2-3 周内会出现首批提及。如果没有策略，可能需要 3 个月以上，或者永远不会被提及。",
+    ),
+  },
+  {
+    question: "什么因素能让新产品在 AI 推荐中获得好排名？",
+    answerHtml: faqP(
+      "验证产品的多个来源、清晰的使用案例文档、客户证言以及第三方媒体报道，都有助于建立 AI 的信任。",
+    ),
+  },
+  {
+    question: "我可以加速 AI 对新发布产品的收录吗？",
+    answerHtml: faqP(
+      "可以。预发布内容埋点、协同的多渠道同步发声以及快速发布案例研究，都能显著加速 AI 对您产品的认知。",
+    ),
+  },
+  {
+    question: "我该如何在 AI 搜索中监测新产品的表现？",
+    answerHtml: faqP(
+      "我们的平台追踪您的产品何时、如何出现在 AI 推荐中，并展示提及率增长、情感倾向和竞争定位。",
+    ),
+  },
+];
+
+export const narrativeShapingSolutionFaqDefaults: FaqDefault[] = [
+  {
+    question: "我真的能控制 AI 评价我品牌的方式吗？",
+    answerHtml: faqP(
+      "无法直接控制，但可通过策略性内容与第三方验证影响 AI 训练与检索素材。持续、一致的叙事会逐步改变 AI 对品牌的默认表述。",
+    ),
+  },
+  {
+    question: "AI 需要多长时间才能采用我的叙事？",
+    answerHtml: faqP(
+      "初步采用：4-8 周。稳固的定位：3-6 个月。您的叙事越一致、越广泛，AI 采用的速度就越快。",
+    ),
+  },
+  {
+    question: "如果竞争对手试图抄袭我的定位怎么办？",
+    answerHtml: faqP(
+      "先发优势在 AI 领域非常重要。如果您率先占据了某个叙事角度并建立了强大的第三方验证，对手将很难取代您。",
+    ),
+  },
+  {
+    question: "叙事塑造是合道德的吗？",
+    answerHtml: faqP(
+      "是的。您是在创作能够准确代表您品牌的真实内容。您是帮助 AI 更好地理解您，而不是欺骗任何人。",
+    ),
+  },
+];
+
+export const contentStrategySolutionFaqDefaults: FaqDefault[] = [
+  {
+    question: "我该如何为 AI 制定叙事策略？",
+    answerHtml: faqP(
+      "先定义单一核心叙事（问题、方法、受众、证据），再映射到博客、案例、产品页等所有触点，并建立内容聚类与统一术语表。",
+    ),
+  },
+  {
+    question: "为什么叙事一致性对 AI 推荐很重要？",
+    answerHtml: faqP(
+      "AI 从多源内容中提取模式。信号一致时更容易形成清晰品牌画像；碎片化叙事会导致提及不稳定或被竞品替代。",
+    ),
+  },
+  {
+    question: "AI 需要多长时间才能识别我的叙事？",
+    answerHtml: faqP(
+      "语义一致性建立后，2–4 周可见初步识别，6–8 周在核心查询中更稳定。需持续发布与同一叙事对齐的内容。",
+    ),
+  },
+  {
+    question: "如果 AI 已经对我产生了误读，我还能改变叙事吗？",
+    answerHtml: faqP(
+      "可以。发布纠正性权威内容、更新核心页面、增加第三方验证，并监测情感与提及变化，逐步覆盖旧有信号。",
+    ),
+  },
+];
+
+export const competitivePositioningSolutionFaqDefaults: FaqDefault[] = [
+  {
+    question: "我该如何知道在 AI 推荐中输给了哪些对手？",
+    answerHtml: faqP(
+      "我们的竞争分析会精确显示哪些对手出现在了您的目标查询推荐中，并分析他们胜出的原因（更多案例研究、更好的信任信号等）。",
+    ),
+  },
+  {
+    question: "我能看到 AI 是如何评价我的竞争对手的吗？",
+    answerHtml: faqP(
+      "可以。我们的平台追踪 AI 如何描述和推荐您的竞争对手，以便您识别叙事缺口和定位机会。",
+    ),
+  },
+  {
+    question: "提升竞争定位需要多长时间？",
+    answerHtml: faqP(
+      "通常需要 4-8 周能看到明显改善，具体取决于您的内容策略强度以及竞争对手的稳固程度。",
+    ),
+  },
+  {
+    question: "为什么有些品牌在 AI 中的排名超过对手，但在百度中却没有？",
+    answerHtml: faqP(
+      "AI 评估信任信号、叙事清晰度和第三方验证的方式与百度不同。一个外链较少但案例研究更优秀的品牌可能在 AI 中胜出。",
+    ),
+  },
+];
+
+export const brandCrisisSolutionFaqDefaults: FaqDefault[] = [
+  {
+    question: "我能多快检测到 AI 声誉威胁？",
+    answerHtml: faqP(
+      "实时监测主流 AI 平台的品牌提及与情感变化，负面信号通常在出现后的数小时至 24 小时内触发告警。",
+    ),
+  },
+  {
+    question: "我能删除 AI 中的负面提及吗？",
+    answerHtml: faqP(
+      "您无法直接删除提及，但可以通过发布纠正性内容来影响 AI 的感知，为 AI 提供更好、更准确的信息进行参考。",
+    ),
+  },
+  {
+    question: "AI 声誉监测与传统媒体监测有什么区别？",
+    answerHtml: faqP(
+      "传统监测追踪新闻/社交媒体中的提及。AI 监测追踪 AI 如何综合所有可用数据来形成推荐 —— 这是一个更复杂但影响更大的信号。",
+    ),
+  },
+  {
+    question: "AI 品牌危机的典型恢复时间是多少？",
+    answerHtml: faqP(
+      "通过主动响应，大多数危机可以在 1-3 周内得到缓解。如果不进行干预，负面叙事可能会在 AI 训练数据中持续数月。",
+    ),
+  },
+];
+
+export const teamSolutionFaqDefaultsBySlug = {
+  agencies: agenciesSolutionFaqDefaults,
+  enterprise: enterpriseSolutionFaqDefaults,
+  "pr-brand-teams": prBrandSolutionFaqDefaults,
+  "smb-geo-teams": smbGeoSolutionFaqDefaults,
+  "seo-specialists": seoSpecialistsSolutionFaqDefaults,
+} as const;
+
+export const sceneFaqDefaultsBySlug = {
+  "product-launch": productLaunchSolutionFaqDefaults,
+  "narrative-shaping": narrativeShapingSolutionFaqDefaults,
+  "content-strategy": contentStrategySolutionFaqDefaults,
+  "competitive-positioning": competitivePositioningSolutionFaqDefaults,
+  "brand-crisis-management": brandCrisisSolutionFaqDefaults,
+} as const;
+
+/** @deprecated 使用 `sceneFaqDefaultsBySlug` */
+export const useCaseSolutionFaqDefaultsBySlug = sceneFaqDefaultsBySlug;
+
+export const solutionFaqDefaultsBySlug = {
+  ...teamSolutionFaqDefaultsBySlug,
+  ...sceneFaqDefaultsBySlug,
+} as const;
+

@@ -1,5 +1,5 @@
 ---
-import { Check, Filter, GitBranch, Layers, MessageSquareText, Search, TrendingUp } from "@lucide/astro";
+import { Check, Funnel, GitBranch, Layers, MessageSquareText, Search, TrendingUp } from "@lucide/astro";
 import StaticImage from "@/components/StaticImage.tsx";
 import type { PromptFeature, PromptFeatureIcon } from "@/lib/platform/prompt";
 import type { PlatformId } from "@shared/platform";
@@ -13,7 +13,7 @@ const { feature } = Astro.props;
 
 const featureIcons: Record<PromptFeatureIcon, typeof MessageSquareText> = {
   intent: MessageSquareText,
-  funnel: Filter,
+  funnel: Funnel,
   fanout: GitBranch,
   "platform-diff": Layers,
   trend: TrendingUp,

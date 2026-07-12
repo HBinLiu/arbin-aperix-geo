@@ -1,0 +1,307 @@
+---
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import CtaSection from "@/components/home/CtaSection.astro";
+import FaqSection from "@/components/home/FaqSection.astro";
+import MetricIcon from "@/components/scene/icons/MetricIcon.astro";
+import WhyIcon from "@/components/scene/icons/WhyIcon.astro";
+import WorkflowIcon from "@/components/scene/icons/WorkflowIcon.astro";
+import StaticImage from "@/components/StaticImage.tsx";
+import type { Faq } from "@/lib/faqs";
+import { LOGO_RENDER_PX } from "@/lib/assets";
+import { SCENE_PILLAR_IMAGE_RENDER } from "@/lib/scene/feature";
+import { SCENE_DIAGNOSTIC_GAP_ICONS } from "@/lib/scene/types";
+import type { SceneContent } from "@/lib/scene/types";
+import { siteConfig } from "@site";
+import { ArrowRight, ChartPie, Circle, EyeOff, GitBranch, Hourglass } from "@lucide/astro";
+
+const diagnosticGapIcons = {
+  "eye-off": EyeOff,
+  "git-branch": GitBranch,
+  "pie-chart": ChartPie,
+  hourglass: Hourglass,
+} as const;
+
+type Props = {
+  content: SceneContent;
+  faqs: Faq[];
+};
+
+const { content, faqs } = Astro.props;
+---
+
+<SiteHeader />
+
+<main class="flex flex-1 flex-col">
+  <section class="scene-hero">
+    <div class="scene-hero-glow-wrap" aria-hidden="true">
+      <div class="scene-hero-glow-flip">
+        <div class="scene-hero-glow"></div>
+      </div>
+    </div>
+
+    <div class="scene-inner scene-inner--hero">
+      <div
+        class="border-border bg-background flex h-7 items-center justify-center gap-1 overflow-clip rounded-md border px-2.5 shadow-sm"
+      >
+        <span class="text-foreground text-sm leading-5 font-medium">{content.badge}</span>
+      </div>
+
+      <div class="scene-hero-copy">
+        <div class="flex w-full flex-col items-center gap-6">
+          <h1 class="scene-hero-title">{content.hero.title}</h1>
+          <p class="scene-hero-description">{content.hero.description}</p>
+        </div>
+
+        <a href={content.hero.ctaHref} class="scene-hero-cta scene-hero-cta--primary group">
+          <span>{content.hero.ctaLabel}</span>
+          <ArrowRight size={16} aria-hidden="true" class="scene-hero-cta-icon" />
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="scene-section scene-section--plain">
+    <div class="scene-inner scene-inner--narrow">
+      <h2 class="scene-section-heading scene-section-heading--diagnostic">{content.diagnostic.title}</h2>
+
+      <div class="scene-diagnostic">
+        <div class="scene-diagnostic-user">
+          <div class="scene-diagnostic-bubble scene-diagnostic-bubble--user">
+            <p>{content.diagnostic.userQuestion}</p>
+          </div>
+          <div class="scene-diagnostic-label">您</div>
+        </div>
+
+        <div class="scene-diagnostic-ai">
+          <div class="scene-diagnostic-logo" aria-hidden="true">
+            <StaticImage
+              src={siteConfig.logo}
+              alt=""
+              width={LOGO_RENDER_PX}
+              height={LOGO_RENDER_PX}
+              className="scene-diagnostic-logo-img"
+              loading="eager"
+            />
+          </div>
+
+          <div class="scene-diagnostic-response">
+            <p class="scene-diagnostic-summary">{content.diagnostic.summary}</p>
+            <div class="scene-diagnostic-gaps">
+              {
+                content.diagnostic.gaps.map((gap, index) => {
+                  const gapIcon = gap.icon ?? SCENE_DIAGNOSTIC_GAP_ICONS[index % 4];
+                  const GapIcon = diagnosticGapIcons[gapIcon];
+
+                  return (
+                  <article class="scene-diagnostic-gap-card scene-hover-card">
+                    <div class="scene-icon-box scene-icon-box--lg">
+                      {GapIcon ? <GapIcon size={24} color="#DC2626" aria-hidden="true" /> : null}
+                    </div>
+                    <div class="scene-diagnostic-gap-copy">
+                      <p class="scene-diagnostic-gap-label">
+                        {gap.code} · {gap.label}
+                      </p>
+                      <p class="scene-diagnostic-gap-text">{gap.description}</p>
+                    </div>
+                  </article>
+                  );
+                })
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="scene-section scene-section--plain">
+    <div class="scene-inner">
+      <div class="scene-section-stack">
+        <h2 class="scene-section-heading scene-section-heading--center">{content.why.title}</h2>
+        <div class="scene-why-grid">
+          {
+            content.why.cards.map((card) => (
+              <article class="scene-why-card scene-hover-card">
+                <div class="scene-why-card-row">
+                  <div class="scene-icon-box scene-icon-box--lg">
+                    <WhyIcon icon={card.icon} />
+                  </div>
+                  <p class="scene-why-text">{card.text}</p>
+                </div>
+              </article>
+            ))
+          }
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="scene-section scene-section--pillars">
+    <div class="scene-inner">
+      <div class="scene-section-stack scene-section-stack--tight">
+        <h2 class="scene-section-heading scene-section-heading--center scene-section-heading--nowrap">
+          {content.solution.title}
+        </h2>
+        <div class="scene-pillar-grid">
+          {
+            content.solution.pillars.map((pillar) => (
+              <article class="scene-pillar-card scene-hover-card">
+                <div class="scene-pillar-image-wrap">
+                  <StaticImage
+                    src={pillar.image}
+                    alt={pillar.title}
+                    width={SCENE_PILLAR_IMAGE_RENDER.width}
+                    height={SCENE_PILLAR_IMAGE_RENDER.height}
+                    className="scene-pillar-image"
+                    loading="lazy"
+                  />
+                </div>
+                <div class="scene-pillar-copy">
+                  <h3 class="scene-pillar-title">{pillar.title}</h3>
+                  <p class="scene-pillar-text">{pillar.description}</p>
+                </div>
+              </article>
+            ))
+          }
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="scene-section scene-section--workflows">
+    <div class="scene-inner">
+      <div class="scene-section-stack">
+        <h2 class="scene-section-heading scene-section-heading--center scene-section-heading--nowrap">
+          {content.workflows.title}
+        </h2>
+        <div class="scene-workflow-grid">
+          {
+            content.workflows.items.map((workflow) => (
+              <article class="scene-workflow-card scene-hover-card">
+                <div class="scene-workflow-head">
+                  <div class="scene-icon-box scene-icon-box--lg">
+                    <WorkflowIcon icon={workflow.icon} />
+                  </div>
+                  <h3 class="scene-workflow-title">{workflow.title}</h3>
+                </div>
+                <div class="scene-workflow-rows">
+                  <div class="scene-workflow-row">
+                    <Circle
+                      size={14}
+                      stroke-width={1}
+                      class="scene-workflow-marker scene-workflow-marker--challenge"
+                      aria-hidden="true"
+                    />
+                    <div class="scene-workflow-row-copy">
+                      <p class="scene-workflow-row-label scene-workflow-row-label--challenge">Challenge</p>
+                      <p class="scene-workflow-row-text">{workflow.challenge}</p>
+                    </div>
+                  </div>
+                  <div class="scene-workflow-row">
+                    <Circle
+                      size={14}
+                      stroke-width={1}
+                      class="scene-workflow-marker scene-workflow-marker--action"
+                      aria-hidden="true"
+                    />
+                    <div class="scene-workflow-row-copy">
+                      <p class="scene-workflow-row-label scene-workflow-row-label--action">Action</p>
+                      <p class="scene-workflow-row-text">{workflow.action}</p>
+                    </div>
+                  </div>
+                  <div class="scene-workflow-row">
+                    <Circle
+                      size={14}
+                      stroke-width={1}
+                      class="scene-workflow-marker scene-workflow-marker--result"
+                      aria-hidden="true"
+                    />
+                    <div class="scene-workflow-row-copy">
+                      <p class="scene-workflow-row-label scene-workflow-row-label--result">Result</p>
+                      <div class="scene-workflow-result-box">
+                        <p>{workflow.result}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))
+          }
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="scene-section">
+    <div class="scene-inner">
+      <div class="scene-section-stack">
+        <h2 class="scene-section-heading scene-section-heading--center">{content.metrics.title}</h2>
+        <div class="scene-metrics-grid">
+          {
+            content.metrics.cards.map((metric) => (
+              <article class="scene-metric-card">
+                <div class="scene-icon-box scene-icon-box--sm">
+                  <MetricIcon icon={metric.icon} />
+                </div>
+                <div class="scene-metric-copy">
+                  <h3 class="scene-metric-title">{metric.title}</h3>
+                  <p class="scene-metric-text">{metric.description}</p>
+                </div>
+              </article>
+            ))
+          }
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="scene-section scene-section--checklist">
+    <div class="scene-inner">
+      <div class="scene-section-stack">
+        <h2 class="scene-section-heading scene-section-heading--center">{content.checklist.title}</h2>
+        <div class="scene-checklist-grid">
+          {
+            content.checklist.items.map((item) => (
+              <article class="scene-checklist-card scene-hover-card">
+                <div
+                  class:list={[
+                    "scene-checklist-accent",
+                    item.accent === "primary" && "scene-checklist-accent--primary",
+                  ]}
+                  aria-hidden="true"
+                />
+                <span class="scene-checklist-number" aria-hidden="true">
+                  {item.number}
+                </span>
+                <div class="scene-checklist-copy">
+                  <h3 class="scene-checklist-title">{item.title}</h3>
+                  <p class="scene-checklist-text">{item.description}</p>
+                </div>
+              </article>
+            ))
+          }
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="scene-section scene-section--plain">
+    <div class="scene-faq-inner">
+      <header class="scene-faq-header">
+        <h2 class="scene-section-heading scene-section-heading--center scene-section-heading--faq">
+          常见问题解答
+        </h2>
+        <p class="scene-faq-intro">
+          我们汇总了最核心的信息，帮助您获得最佳体验。没找到您想要的答案？
+          <a href="/contact">联系我们</a>。
+        </p>
+      </header>
+      <FaqSection items={faqs} embedded />
+    </div>
+  </section>
+
+  <CtaSection {...content.cta} />
+</main>
+
+<SiteFooter />

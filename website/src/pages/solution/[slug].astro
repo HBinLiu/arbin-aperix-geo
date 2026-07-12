@@ -1,0 +1,31 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import SolutionPage from "@/components/solution/SolutionPage.astro";
+import { buildPlatformFaqJsonLd } from "@/lib/json-ld";
+import { getFaqsByPage } from "@/lib/payload";
+import {
+  getAllTeamSolutionPages,
+  mergeTeamSolutionFaqs,
+  teamSolutionFaqPageKey,
+} from "@/lib/solution/team";
+import "@/styles/style.css";
+import "@/styles/solution/team.css";
+
+export async function getStaticPaths() {
+  return getAllTeamSolutionPages().map((content) => ({
+    params: { slug: content.slug },
+    props: { content },
+  }));
+}
+
+const { content } = Astro.props;
+const faqs = mergeTeamSolutionFaqs(
+  content.slug,
+  await getFaqsByPage(teamSolutionFaqPageKey(content.slug)),
+);
+const jsonLd = [buildPlatformFaqJsonLd(faqs)];
+---
+
+<BaseLayout seo={content.seo} jsonLd={jsonLd}>
+  <SolutionPage content={content} faqs={faqs} />
+</BaseLayout>

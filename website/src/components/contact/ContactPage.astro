@@ -1,0 +1,88 @@
+---
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import ContactForm from "@/components/contact/ContactForm.tsx";
+import StaticImage from "@/components/StaticImage.tsx";
+import { HERO_GRID } from "@/lib/assets";
+import { contactPage, type ContactBenefitIcon } from "@/lib/contact";
+import { Clock, MessageSquare, ScanSearch } from "@lucide/astro";
+
+const benefitIcons: Record<ContactBenefitIcon, typeof Clock> = {
+  clock: Clock,
+  messages: MessageSquare,
+  scan: ScanSearch,
+};
+---
+
+<SiteHeader />
+
+<main class="contact-page flex flex-1 flex-col">
+  <section class="contact-section">
+    <div class="aei-hero-bg" aria-hidden="true">
+      <div class="aei-hero-perspective">
+        <div class="aei-hero-perspective-top">
+          <StaticImage image={HERO_GRID} alt="" className="aei-hero-grid-img" loading="eager" />
+        </div>
+        <div class="aei-hero-perspective-bottom">
+          <StaticImage image={HERO_GRID} alt="" className="aei-hero-grid-img" loading="eager" />
+        </div>
+      </div>
+      <div class="aei-hero-overlay contact-hero-overlay"></div>
+    </div>
+
+    <div class="contact-inner">
+      <div class="contact-glow" aria-hidden="true"></div>
+
+      <div class="contact-layout">
+        <div class="contact-copy">
+          <div class="contact-copy-head">
+            <h1 class="contact-title">
+              {contactPage.titleBefore}<span class="contact-title-highlight">{contactPage.titleHighlight}</span>
+            </h1>
+            <p class="contact-description">{contactPage.description}</p>
+          </div>
+
+          <div class="contact-benefits">
+            {
+              contactPage.benefits.map((benefit) => {
+                const Icon = benefitIcons[benefit.icon];
+                return (
+                  <div class="contact-benefit">
+                    <div class="contact-benefit-icon" aria-hidden="true">
+                      <Icon size={24} />
+                    </div>
+                    <div class="contact-benefit-copy">
+                      <h2 class="contact-benefit-title">{benefit.title}</h2>
+                      <p class="contact-benefit-text">{benefit.description}</p>
+                    </div>
+                  </div>
+                );
+              })
+            }
+          </div>
+
+          <div class="contact-includes">
+            <h2 class="contact-includes-title">{contactPage.includesTitle}</h2>
+            <div class="contact-tags">
+              {
+                contactPage.includesTags.map((tag) => (
+                  <span class="contact-tag">
+                    <span class="contact-tag-dot" aria-hidden="true"></span>
+                    {tag}
+                  </span>
+                ))
+              }
+            </div>
+          </div>
+        </div>
+
+        <div class="contact-form-card">
+          <h2 class="contact-form-title">{contactPage.form.title}</h2>
+          <ContactForm client:load copy={contactPage.form} />
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<SiteFooter />

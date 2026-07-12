@@ -51,7 +51,7 @@ const CMS_API_PATH = "/cms/api";
 const ABOUT_GLOBAL_SLUG = "about-page";
 const PAYLOAD_TIMEOUT_MS = import.meta.env.DEV ? 15_000 : 5_000;
 
-function payloadApiBase(): string {
+export function payloadApiBase(): string {
   const configured = (import.meta.env.PAYLOAD_API_URL || CMS_API_PATH).replace(/\/$/, "");
 
   if (configured.startsWith("http://") || configured.startsWith("https://")) {

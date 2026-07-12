@@ -11,6 +11,7 @@ import { Users } from "./collections/Users";
 import { AboutPage } from "./globals/AboutPage";
 import { defaultLexicalEditor } from "./lib/lexical";
 import { createEmailAdapter } from "./lib/email";
+import { contactEndpoint, contactOptionsEndpoint } from "./endpoints/contact";
 import { getPayloadServerUrl, getWebsiteUrl } from "./lib/urls";
 import { seo } from "./plugins/seo";
 
@@ -36,6 +37,7 @@ export default buildConfig({
   globals: [AboutPage],
   editor: defaultLexicalEditor,
   email: createEmailAdapter(),
+  endpoints: [contactEndpoint, contactOptionsEndpoint],
   secret: process.env.PAYLOAD_SECRET || "",
   typescript: {
     outputFile: path.resolve(dirname, "payload-types.ts"),

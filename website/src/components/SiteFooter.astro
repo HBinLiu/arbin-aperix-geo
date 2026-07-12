@@ -7,6 +7,7 @@ import {
   footerSocialLinks,
   footerSocialSvg,
   footerTagline,
+  isNavigableFooterHref,
   socialButtonClass,
 } from "@/lib/footer";
 import { siteConfig } from "@site";
@@ -32,18 +33,24 @@ const { name, description, logo } = siteConfig;
         <p class="text-muted-foreground max-w-[48ch] text-sm leading-snug">{footerTagline}</p>
         <div class="flex items-center gap-3">
           {
-            footerSocialLinks.map((link) => (
-              <a
-                href={link.href}
-                aria-label={link.label}
-                target={link.external ? "_blank" : undefined}
-                rel={link.external ? "noreferrer noopener" : undefined}
-              >
-                <span class={socialButtonClass}>
+            footerSocialLinks.map((link) =>
+              isNavigableFooterHref(link.href) ? (
+                <a
+                  href={link.href}
+                  aria-label={link.label}
+                  target={link.external ? "_blank" : undefined}
+                  rel={link.external ? "noreferrer noopener" : undefined}
+                >
+                  <span class={socialButtonClass}>
+                    <Fragment set:html={footerSocialSvg(link)} />
+                  </span>
+                </a>
+              ) : (
+                <span class={socialButtonClass} aria-label={link.label} title="即将上线">
                   <Fragment set:html={footerSocialSvg(link)} />
                 </span>
-              </a>
-            ))
+              ),
+            )
           }
         </div>
       </div>
@@ -84,14 +91,18 @@ const { name, description, logo } = siteConfig;
         <p class="text-muted-foreground text-sm leading-5">© {year} {name}. All rights reserved.</p>
         <div class="flex flex-wrap items-center gap-3">
           {
-            footerLegalLinks.map((link) => (
-              <a
-                href={link.href}
-                class="text-muted-foreground hover:text-foreground text-sm leading-none transition-colors"
-              >
-                {link.label}
-              </a>
-            ))
+            footerLegalLinks.map((link) =>
+              isNavigableFooterHref(link.href) ? (
+                <a
+                  href={link.href}
+                  class="text-muted-foreground hover:text-foreground text-sm leading-none transition-colors"
+                >
+                  {link.label}
+                </a>
+              ) : (
+                <span class="text-muted-foreground text-sm leading-none">{link.label}</span>
+              ),
+            )
           }
         </div>
       </div>

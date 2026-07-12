@@ -9,6 +9,31 @@ export const FAQ_PAGE = {
   platformContent: "platform/content-creation-optimization",
 } as const;
 
+export const TEAM_SOLUTION_SLUGS = [
+  "agencies",
+  "enterprise",
+  "pr-brand-teams",
+  "smb-geo-teams",
+  "seo-specialists",
+] as const;
+
+export const SCENE_SLUGS = [
+  "brand-crisis-management",
+  "competitive-positioning",
+  "content-strategy",
+  "narrative-shaping",
+  "product-launch",
+] as const;
+
+/** @deprecated 使用 `SCENE_SLUGS` */
+export const USE_CASE_SOLUTION_SLUGS = SCENE_SLUGS;
+
+export type TeamSolutionSlug = (typeof TEAM_SOLUTION_SLUGS)[number];
+export type SceneSlug = (typeof SCENE_SLUGS)[number];
+/** @deprecated 使用 `SceneSlug` */
+export type UseCaseSolutionSlug = SceneSlug;
+export type SolutionSlug = TeamSolutionSlug | SceneSlug;
+
 export const MONITOR_FAQ_SLUGS = [
   "we-monitor-doubao",
   "we-monitor-deepseek",
@@ -20,10 +45,25 @@ export const MONITOR_FAQ_SLUGS = [
 
 export type MonitorFaqSlug = (typeof MONITOR_FAQ_SLUGS)[number];
 export type MonitorFaqPageKey = `monitor/${MonitorFaqSlug}`;
-export type FaqPageKey = (typeof FAQ_PAGE)[keyof typeof FAQ_PAGE] | MonitorFaqPageKey;
+
+export type TeamSolutionFaqPageKey = `solution/${TeamSolutionSlug}`;
+export type SceneFaqPageKey = `scene/${SceneSlug}`;
+export type FaqPageKey =
+  | (typeof FAQ_PAGE)[keyof typeof FAQ_PAGE]
+  | MonitorFaqPageKey
+  | TeamSolutionFaqPageKey
+  | SceneFaqPageKey;
 
 export function monitorFaqPage(slug: MonitorFaqSlug): MonitorFaqPageKey {
   return `monitor/${slug}`;
+}
+
+export function teamSolutionFaqPage(slug: TeamSolutionSlug): TeamSolutionFaqPageKey {
+  return `solution/${slug}`;
+}
+
+export function sceneFaqPage(slug: SceneSlug): SceneFaqPageKey {
+  return `scene/${slug}`;
 }
 
 export const FAQ_PAGE_OPTIONS = [
@@ -39,6 +79,16 @@ export const FAQ_PAGE_OPTIONS = [
   { label: "腾讯元宝监测", value: monitorFaqPage("we-monitor-yuanbao") },
   { label: "Kimi 监测", value: monitorFaqPage("we-monitor-kimi") },
   { label: "文心一言监测", value: monitorFaqPage("we-monitor-ernie") },
+  { label: "代理商", value: teamSolutionFaqPage("agencies") },
+  { label: "大型企业", value: teamSolutionFaqPage("enterprise") },
+  { label: "公关与品牌团队", value: teamSolutionFaqPage("pr-brand-teams") },
+  { label: "中小企业 GEO 团队", value: teamSolutionFaqPage("smb-geo-teams") },
+  { label: "SEO 专家", value: teamSolutionFaqPage("seo-specialists") },
+  { label: "品牌危机管理", value: sceneFaqPage("brand-crisis-management") },
+  { label: "竞争定位", value: sceneFaqPage("competitive-positioning") },
+  { label: "内容策略", value: sceneFaqPage("content-strategy") },
+  { label: "叙事构建", value: sceneFaqPage("narrative-shaping") },
+  { label: "产品发布", value: sceneFaqPage("product-launch") },
 ];
 
 export const FAQ_PAGE_LABEL_BY_VALUE = Object.fromEntries(
@@ -51,6 +101,12 @@ export function faqSitePath(page: FaqPageKey): string {
   if (page === FAQ_PAGE.pricing) return "/pricing/#faq";
   if (page.startsWith("monitor/")) {
     return `/platform/${page.slice("monitor/".length)}/#faq`;
+  }
+  if (page.startsWith("solution/")) {
+    return `/solution/${page.slice("solution/".length)}/#faq`;
+  }
+  if (page.startsWith("scene/")) {
+    return `/scene/${page.slice("scene/".length)}/#faq`;
   }
   return `/${page}/#faq`;
 }

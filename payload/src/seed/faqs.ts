@@ -7,12 +7,18 @@ import {
   monitorFaqDefaults,
   pricingFaqDefaults,
   promptExplorerFaqDefaults,
+  teamSolutionFaqDefaultsBySlug,
+  sceneFaqDefaultsBySlug,
 } from "@shared/faq/defaults";
 import {
   FAQ_PAGE,
   FAQ_PAGE_LABEL_BY_VALUE,
   MONITOR_FAQ_SLUGS,
+  TEAM_SOLUTION_SLUGS,
+  SCENE_SLUGS,
   monitorFaqPage,
+  teamSolutionFaqPage,
+  sceneFaqPage,
   type FaqPageKey,
 } from "@shared/faq/pages";
 
@@ -56,6 +62,22 @@ export const faqSeedGroups: FaqSeedGroup[] = [
       page,
       label: FAQ_PAGE_LABEL_BY_VALUE[page],
       items: monitorFaqDefaults,
+    };
+  }),
+  ...TEAM_SOLUTION_SLUGS.map((slug) => {
+    const page = teamSolutionFaqPage(slug);
+    return {
+      page,
+      label: FAQ_PAGE_LABEL_BY_VALUE[page],
+      items: [...teamSolutionFaqDefaultsBySlug[slug]],
+    };
+  }),
+  ...SCENE_SLUGS.map((slug) => {
+    const page = sceneFaqPage(slug);
+    return {
+      page,
+      label: FAQ_PAGE_LABEL_BY_VALUE[page],
+      items: [...sceneFaqDefaultsBySlug[slug]],
     };
   }),
 ];

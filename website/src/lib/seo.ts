@@ -50,7 +50,7 @@ function toAbsoluteUrl(pathOrUrl: string, base: URL): string {
   return new URL(pathOrUrl, base).href;
 }
 
-function toPageSeo(defaults: PageSeoDefault): PageSeo {
+export function toPageSeo(defaults: PageSeoDefault): PageSeo {
   return {
     title: sitePageTitle(defaults.titleTopic),
     description: resolveSiteCopy(defaults.description),
@@ -125,6 +125,9 @@ export const homeSeo = toPageSeo(CORE_PAGE_SEO.home);
 
 /** 关于我们 */
 export const aboutSeo = toPageSeo(CORE_PAGE_SEO.about);
+
+/** 联系我们 / 预约演示 */
+export const contactSeo = toPageSeo(CORE_PAGE_SEO.contact);
 
 /** 定价 */
 export const pricingSeo = toPageSeo(CORE_PAGE_SEO.pricing);

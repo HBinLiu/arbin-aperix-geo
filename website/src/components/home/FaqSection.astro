@@ -1,13 +1,15 @@
 ---
 import type { Faq } from "@/lib/faqs";
+import { ChevronDown } from "@lucide/astro";
 
 type Props = {
   title?: string;
   items: Faq[];
   variant?: "default" | "monitor";
+  embedded?: boolean;
 };
 
-const { title = "常见问题解答", items, variant = "default" } = Astro.props;
+const { title = "常见问题解答", items, variant = "default", embedded = false } = Astro.props;
 const isMonitor = variant === "monitor";
 ---
 
@@ -15,28 +17,32 @@ const isMonitor = variant === "monitor";
   id="faq"
   class:list={[
     "scroll-mt-16",
-    isMonitor ? "monitor-faq" : "py-16 sm:py-20",
+    embedded ? null : isMonitor ? "monitor-faq" : "py-16 sm:py-20",
   ]}
 >
   <div
     class:list={[
-      isMonitor ? "monitor-faq-inner" : "mx-auto max-w-6xl px-4 text-left sm:px-6",
+      isMonitor ? "monitor-faq-inner" : embedded ? null : "mx-auto max-w-6xl px-4 text-left sm:px-6",
     ]}
   >
-    <h2
-      class:list={[
-        isMonitor
-          ? "monitor-section-title monitor-section-title--faq"
-          : "text-3xl font-semibold tracking-tight sm:text-4xl",
-      ]}
-    >
-      {title}
-    </h2>
+    {
+      !embedded && (
+        <h2
+          class:list={[
+            isMonitor
+              ? "monitor-section-title monitor-section-title--faq"
+              : "text-3xl font-semibold tracking-tight sm:text-4xl",
+          ]}
+        >
+          {title}
+        </h2>
+      )
+    }
 
     <div
       class:list={[
         "faq-list",
-        isMonitor ? "monitor-faq-list" : "mt-6 lg:mt-8",
+        isMonitor ? "monitor-faq-list" : embedded ? "mt-0" : "mt-6 lg:mt-8",
       ]}
       data-faq-list
     >
@@ -50,23 +56,7 @@ const isMonitor = variant === "monitor";
               aria-controls={`faq-answer-${index}`}
             >
               <span class="faq-item-question">{item.question}</span>
-              <svg
-                class="faq-item-chevron"
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                aria-hidden="true"
-              >
-                <path
-                  d="M4 6L8 10L12 6"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                ></path>
-              </svg>
+              <ChevronDown size={16} class="faq-item-chevron" aria-hidden="true" />
             </button>
             <div id={`faq-answer-${index}`} class="faq-item-body">
               <div class="faq-item-answer faq-rich-text" set:html={item.answerHtml} />

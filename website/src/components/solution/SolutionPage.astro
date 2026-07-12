@@ -1,0 +1,258 @@
+---
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import CtaSection from "@/components/home/CtaSection.astro";
+import FaqSection from "@/components/home/FaqSection.astro";
+import StaticImage from "@/components/StaticImage.tsx";
+import type { Faq } from "@/lib/faqs";
+import { solutionPillarColumns } from "@/lib/solution/columns";
+import { SOLUTION_FEATURE_IMAGE_RENDER } from "@/lib/solution/feature";
+import type { TeamSolutionContent } from "@/lib/solution/types";
+import {
+  ArrowRight,
+  Code2,
+  Coins,
+  Files,
+  GitBranch,
+  LayoutDashboard,
+  Shield,
+  TrendingDown,
+  UserX,
+  Users,
+} from "@lucide/astro";
+
+type Props = {
+  content: TeamSolutionContent;
+  faqs: Faq[];
+};
+
+const { content, faqs } = Astro.props;
+
+const pillarColumnCount = solutionPillarColumns(content.solution.pillars.length);
+
+const challengeIcons = {
+  coins: Coins,
+  "git-branch": GitBranch,
+  "trending-down": TrendingDown,
+  "user-x": UserX,
+} as const;
+
+const pillarIcons = {
+  "layout-dashboard": LayoutDashboard,
+  users: Users,
+  shield: Shield,
+  files: Files,
+  code: Code2,
+} as const;
+---
+
+<SiteHeader />
+
+<main class="flex flex-1 flex-col">
+  <section class="solution-hero">
+    <div class="solution-hero-glow-center" aria-hidden="true"></div>
+    <div class="solution-hero-glow-wrap" aria-hidden="true">
+      <div class="solution-hero-glow-flip">
+        <div class="solution-hero-glow"></div>
+      </div>
+    </div>
+
+    <div class="solution-inner">
+      <div class="mx-auto flex max-w-[1030px] flex-col items-center gap-8">
+        <div
+          class="border-border bg-background flex h-7 items-center justify-center gap-1 overflow-clip rounded-md border px-2.5 shadow-sm"
+        >
+          <span class="text-foreground text-sm leading-5 font-medium">{content.badge}</span>
+        </div>
+
+        <div class="flex w-full flex-col items-center gap-6">
+          <h1
+            class="text-foreground w-full text-center text-4xl leading-tight font-semibold sm:text-5xl sm:leading-[48px]"
+          >
+            {content.hero.title}
+          </h1>
+          <p class="text-muted-foreground w-full max-w-3xl text-center text-base leading-7 sm:text-lg">
+            {content.hero.description}
+          </p>
+        </div>
+
+        <a href={content.hero.ctaHref} class="solution-hero-cta solution-hero-cta--primary group">
+          <span>{content.hero.ctaLabel}</span>
+          <ArrowRight size={16} aria-hidden="true" class="solution-hero-cta-icon" />
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="solution-section solution-section--muted">
+    <div class="solution-inner">
+      <div class="mx-auto mb-12 max-w-4xl text-center">
+        <h2 class="solution-section-heading solution-section-heading--compact">{content.why.title}</h2>
+      </div>
+      <div class="solution-why-grid">
+        {
+          content.why.cards.map((card) => (
+            <article class="solution-why-card solution-hover-card">
+              <div class="solution-why-card-body">
+                <div class="solution-why-number" aria-hidden="true">
+                  {card.number}
+                </div>
+                <h3 class="solution-why-title">{card.title}</h3>
+                <p class="solution-why-text" set:html={card.bodyHtml} />
+              </div>
+            </article>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="solution-section">
+    <div class="solution-inner">
+      <h2 class="solution-section-heading">{content.challenges.title}</h2>
+      <div class="solution-challenge-grid">
+        {
+          content.challenges.cards.map((card) => {
+            const Icon = challengeIcons[card.icon];
+            return (
+              <article class="solution-challenge-card solution-hover-card">
+                <div class="solution-challenge-body">
+                  <div class="solution-challenge-head">
+                    <div class="solution-challenge-icon">
+                      <Icon size={24} aria-hidden="true" />
+                    </div>
+                    <h3 class="solution-challenge-title">{card.title}</h3>
+                  </div>
+                  <p class="solution-challenge-text">{card.description}</p>
+                </div>
+              </article>
+            );
+          })
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="solution-section">
+    <div class="solution-inner">
+      <div class="mx-auto mb-12 max-w-4xl text-center">
+        <h2 class="solution-section-heading solution-section-heading--compact">{content.solution.title}</h2>
+        <p class="solution-section-intro">{content.solution.description}</p>
+      </div>
+      <div class:list={["solution-pillar-grid", `solution-pillar-grid--cols-${pillarColumnCount}`]}>
+        {
+          content.solution.pillars.map((pillar) => {
+            const Icon = pillarIcons[pillar.icon];
+            return (
+              <div class="solution-pillar">
+                <div class="solution-pillar-icon">
+                  <Icon size={20} aria-hidden="true" />
+                </div>
+                <h3 class="solution-pillar-title">{pillar.title}</h3>
+                <p class="solution-pillar-text">{pillar.description}</p>
+              </div>
+            );
+          })
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="solution-section">
+    <div class="solution-inner">
+      <h2 class="solution-section-heading">{content.features.title}</h2>
+      <div class="solution-feature-grid">
+        {
+          content.features.cards.map((card) => (
+            <article class="solution-feature-card solution-hover-card" data-area={card.area}>
+              <div class="solution-feature-card-inner">
+                <StaticImage
+                  src={card.image}
+                  alt={card.title}
+                  width={SOLUTION_FEATURE_IMAGE_RENDER.width}
+                  height={SOLUTION_FEATURE_IMAGE_RENDER.height}
+                  className="solution-feature-image"
+                  loading="lazy"
+                />
+                <div class="solution-feature-copy">
+                  <h3 class="solution-feature-title">{card.title}</h3>
+                  <p class="solution-feature-text">{card.description}</p>
+                </div>
+              </div>
+            </article>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="solution-section solution-section--muted">
+    <div class="solution-inner">
+      <h2 class="solution-section-heading">{content.workflows.title}</h2>
+      <div class="solution-workflow-grid">
+        {
+          content.workflows.items.map((workflow) => (
+            <article class="solution-workflow-card solution-hover-card">
+              <div class="solution-workflow-body">
+                <div class="solution-workflow-head">
+                  <div class="solution-workflow-title-wrap">
+                    <div
+                      class:list={[
+                        "solution-workflow-dot",
+                        workflow.accent === "orange" && "solution-workflow-dot--orange",
+                      ]}
+                      aria-hidden="true"
+                    />
+                    <h3 class="solution-workflow-title">{workflow.title}</h3>
+                  </div>
+                </div>
+                <div class="solution-workflow-steps">
+                  <div class="solution-workflow-line" aria-hidden="true"></div>
+                  {
+                    workflow.steps.map((step, index) => (
+                      <div class="solution-workflow-step">
+                        <div
+                          class:list={[
+                            "solution-workflow-step-index",
+                            step.highlight && "solution-workflow-step-index--active",
+                          ]}
+                        >
+                          {String(index + 1).padStart(2, "0")}
+                        </div>
+                        <div
+                          class:list={[
+                            "solution-workflow-step-copy",
+                            step.highlight && "solution-workflow-step-copy--active",
+                          ]}
+                        >
+                          <p class="solution-workflow-step-text">{step.text}</p>
+                        </div>
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+            </article>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="solution-section bg-background">
+    <div class="solution-faq-inner">
+      <header class="solution-faq-header">
+        <h2 class="solution-section-heading solution-section-heading--compact">常见问题解答</h2>
+        <p class="solution-faq-intro">
+          我们汇总了最核心的信息，帮助您获得最佳体验。没找到您想要的答案？
+          <a href="/contact">联系我们</a>。
+        </p>
+      </header>
+      <FaqSection items={faqs} embedded />
+    </div>
+  </section>
+
+  <CtaSection {...content.cta} />
+</main>
+
+<SiteFooter />
