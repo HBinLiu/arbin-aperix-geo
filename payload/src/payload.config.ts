@@ -30,7 +30,7 @@ export default buildConfig({
       importMapFile: path.resolve(payloadAppDir, "./admin/importMap.js"),
     },
     meta: {
-      titleSuffix: " · Aperix CMS",
+      titleSuffix: " · Aperix Web",
     },
   },
   collections: [Users, Media, FAQs, PageSeoEntries],

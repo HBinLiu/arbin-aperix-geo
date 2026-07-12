@@ -10,7 +10,7 @@ function defaultFromAddress(): string {
 }
 
 function defaultFromName(): string {
-  return process.env.SMTP_FROM_NAME?.trim() || "Aperix CMS";
+  return process.env.SMTP_FROM_NAME?.trim() || "Aperix Web";
 }
 
 /** Payload 邮件：生产走 SMTP；本地未配置时用 Ethereal 测试账号（消除 no adapter WARN） */
