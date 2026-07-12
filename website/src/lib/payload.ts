@@ -40,8 +40,10 @@ export type CmsPageSeoEntry = {
 };
 
 import type { FaqDoc, FaqPageDoc } from "@shared/faq";
+import type { CmsResearchCategoryDoc, CmsResearchDoc } from "@/lib/research/types";
 
 export type { FaqDoc, FaqPageDoc };
+export type { CmsResearchCategoryDoc, CmsResearchDoc };
 
 type PayloadListResponse<T> = {
   docs: T[];
@@ -68,11 +70,12 @@ export function payloadApiBase(): string {
   return site ? `${site}${path}` : path;
 }
 
-async function payloadFetch<T>(path: string): Promise<T | null> {
+async function payloadFetch<T>(path: string, init?: RequestInit): Promise<T | null> {
   try {
     const res = await fetch(`${payloadApiBase()}${path}`, {
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", ...init?.headers },
       signal: AbortSignal.timeout(PAYLOAD_TIMEOUT_MS),
+      ...init,
     });
     if (!res.ok) return null;
     return (await res.json()) as T;
@@ -124,4 +127,69 @@ export async function getFaqsByPage(page: string): Promise<FaqDoc[] | null> {
 /** @deprecated 使用 getFaqsByPage(FAQ_PAGE.home) */
 export async function getHomeFaqs(): Promise<FaqDoc[] | null> {
   return getFaqsByPage("home");
+}
+
+const RESEARCH_COLLECTION = "researches";
+const RESEARCH_CATEGORY_COLLECTION = "research-categories";
+
+export async function getResearchCategories(): Promise<CmsResearchCategoryDoc[] | null> {
+  const query = new URLSearchParams({
+    limit: "100",
+    depth: "0",
+    sort: "-sortOrder",
+  });
+  const data = await payloadFetch<PayloadListResponse<CmsResearchCategoryDoc>>(
+    `/${RESEARCH_CATEGORY_COLLECTION}?${query}`,
+  );
+  if (!data?.docs?.length) return null;
+  return data.docs;
+}
+
+export async function getResearchList(): Promise<CmsResearchDoc[] | null> {
+  const query = new URLSearchParams({
+    limit: "100",
+    depth: "1",
+    sort: "-publishedAt",
+    "where[_status][equals]": "published",
+  });
+  const data = await payloadFetch<PayloadListResponse<CmsResearchDoc>>(
+    `/${RESEARCH_COLLECTION}?${query}`,
+  );
+  if (!data?.docs?.length) return null;
+  return data.docs;
+}
+
+export async function getResearchBySlug(slug: string): Promise<CmsResearchDoc | null> {
+  const query = new URLSearchParams({
+    limit: "1",
+    depth: "1",
+    "where[slug][equals]": slug,
+    "where[_status][equals]": "published",
+  });
+  const data = await payloadFetch<PayloadListResponse<CmsResearchDoc>>(
+    `/${RESEARCH_COLLECTION}?${query}`,
+  );
+  return data?.docs[0] ?? null;
+}
+
+/** 预览：读取最新草稿（需 CMS 用户 JWT） */
+export async function getResearchDraftBySlug(
+  slug: string,
+  token: string,
+): Promise<CmsResearchDoc | null> {
+  const query = new URLSearchParams({
+    limit: "1",
+    depth: "1",
+    draft: "true",
+    "where[slug][equals]": slug,
+  });
+  const data = await payloadFetch<PayloadListResponse<CmsResearchDoc>>(
+    `/${RESEARCH_COLLECTION}?${query}`,
+    {
+      headers: {
+        Authorization: `JWT ${token.trim()}`,
+      },
+    },
+  );
+  return data?.docs[0] ?? null;
 }

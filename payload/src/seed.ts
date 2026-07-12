@@ -2,10 +2,11 @@ import { getPayload } from "payload";
 import config from "@payload-config";
 import { ABOUT_STORY_PARAGRAPHS, ABOUT_STORY_TITLE } from "@shared/about";
 import { faqP } from "@shared/faq/defaults";
-import { defaultPageSeoEntries } from "@shared/seo/defaults";
+import { defaultPageSeoEntries } from "@shared/seo/defaults/entries";
 
 import { htmlToLexical } from "./seed/rich-text";
-import { faqSeedCount, faqSeedGroups, faqSeedPageCount } from "./seed/faqs";
+import { faqSeedGroups } from "./seed/faqs";
+import { researchCategorySeedItems } from "./seed/researches";
 
 const defaultAboutStoryHtml = faqP(...ABOUT_STORY_PARAGRAPHS);
 
@@ -52,32 +53,38 @@ async function seedAboutPage(payload: Awaited<ReturnType<typeof getPayload>>) {
 }
 
 async function seedPageSeo(payload: Awaited<ReturnType<typeof getPayload>>) {
-  const existing = await payload.find({
-    collection: PAGE_SEO_COLLECTION,
-    limit: 1,
-    depth: 0,
-  });
-
-  if (existing.totalDocs > 0 && !force) {
-    log(`⏭  SEO设置已有 ${existing.totalDocs} 条，跳过。使用 --force 覆盖。`);
-    return;
-  }
-
-  if (force && existing.totalDocs > 0) {
-    while (true) {
-      const batch = await payload.find({
-        collection: PAGE_SEO_COLLECTION,
-        limit: 100,
-        depth: 0,
-      });
-      if (batch.docs.length === 0) break;
-      for (const doc of batch.docs) {
-        await payload.delete({ collection: PAGE_SEO_COLLECTION, id: doc.id });
-      }
-    }
-  }
+  let created = 0;
+  let updated = 0;
+  let skipped = 0;
 
   for (const entry of defaultPageSeoEntries) {
+    const existing = await payload.find({
+      collection: PAGE_SEO_COLLECTION,
+      where: { path: { equals: entry.path } },
+      limit: 1,
+      depth: 0,
+    });
+    const doc = existing.docs[0];
+
+    if (doc) {
+      if (force) {
+        await payload.update({
+          collection: PAGE_SEO_COLLECTION,
+          id: doc.id,
+          data: {
+            label: entry.label,
+            path: entry.path,
+            noindex: entry.noindex ?? false,
+            meta: entry.meta,
+          },
+        });
+        updated += 1;
+      } else {
+        skipped += 1;
+      }
+      continue;
+    }
+
     await payload.create({
       collection: PAGE_SEO_COLLECTION,
       data: {
@@ -87,38 +94,25 @@ async function seedPageSeo(payload: Awaited<ReturnType<typeof getPayload>>) {
         meta: entry.meta,
       },
     });
+    created += 1;
   }
 
-  log(`✅ SEO设置已写入 ${defaultPageSeoEntries.length} 条`);
-}
-
-async function seedFaqs(payload: Awaited<ReturnType<typeof getPayload>>) {
-  const existing = await payload.find({
-    collection: FAQ_COLLECTION,
-    limit: 1,
-    depth: 0,
-  });
-
-  if (existing.totalDocs > 0 && !force) {
-    log(`⏭  常见问题已有 ${existing.totalDocs} 条，跳过。使用 --force 覆盖。`);
+  if (created === 0 && updated === 0) {
+    log(`⏭  SEO设置 seed 已存在（${skipped} 条），跳过。使用 --force 仅同步默认 path 条目。`);
     return;
   }
 
-  if (force && existing.totalDocs > 0) {
-    while (true) {
-      const batch = await payload.find({
-        collection: FAQ_COLLECTION,
-        limit: 100,
-        depth: 0,
-      });
-      if (batch.docs.length === 0) break;
-      for (const doc of batch.docs) {
-        await payload.delete({ collection: FAQ_COLLECTION, id: doc.id });
-      }
-    }
-  }
+  const parts = [`新增 ${created} 条`];
+  if (updated > 0) parts.push(`更新 ${updated} 条`);
+  log(`✅ SEO设置已写入（${parts.join("，")}；不删除手动添加的页面）`);
+}
 
-  let written = 0;
+async function seedFaqs(payload: Awaited<ReturnType<typeof getPayload>>) {
+  let created = 0;
+  let updated = 0;
+  let skipped = 0;
+  let writtenItems = 0;
+
   for (const group of faqSeedGroups) {
     const items = await Promise.all(
       group.items.map(async (item) => ({
@@ -127,6 +121,35 @@ async function seedFaqs(payload: Awaited<ReturnType<typeof getPayload>>) {
         answer: await htmlToLexical(item.answerHtml),
       })),
     );
+
+    const existing = await payload.find({
+      collection: FAQ_COLLECTION,
+      where: { page: { equals: group.page } },
+      limit: 1,
+      depth: 0,
+    });
+    const doc = existing.docs[0];
+
+    if (doc) {
+      if (force) {
+        await payload.update({
+          collection: FAQ_COLLECTION,
+          id: doc.id,
+          data: {
+            _status: "published",
+            label: group.label,
+            page: group.page,
+            items,
+          },
+        });
+        updated += 1;
+        writtenItems += items.length;
+      } else {
+        skipped += 1;
+      }
+      continue;
+    }
+
     await payload.create({
       collection: FAQ_COLLECTION,
       data: {
@@ -136,21 +159,84 @@ async function seedFaqs(payload: Awaited<ReturnType<typeof getPayload>>) {
         items,
       },
     });
-    written += items.length;
+    created += 1;
+    writtenItems += items.length;
   }
 
+  if (created === 0 && updated === 0) {
+    log(`⏭  常见问题 seed 已存在（${skipped} 页），跳过。使用 --force 仅同步默认 page 条目。`);
+    return;
+  }
+
+  const parts = [`新增 ${created} 页`];
+  if (updated > 0) parts.push(`更新 ${updated} 页`);
   log(
-    `✅ 常见问题已写入 ${faqSeedPageCount()} 页、${written} 条（默认共 ${faqSeedCount()} 条）`,
+    `✅ 常见问题已写入（${parts.join("，")}，共 ${writtenItems} 条；不删除手动添加的 FAQ 页）`,
   );
+}
+
+const RESEARCH_CATEGORY_COLLECTION = "research-categories";
+
+async function seedResearchCategories(payload: Awaited<ReturnType<typeof getPayload>>) {
+  let created = 0;
+  let updated = 0;
+  let skipped = 0;
+
+  for (const item of researchCategorySeedItems) {
+    const existing = await payload.find({
+      collection: RESEARCH_CATEGORY_COLLECTION,
+      where: { slug: { equals: item.slug } },
+      limit: 1,
+      depth: 0,
+    });
+    const doc = existing.docs[0];
+
+    if (doc) {
+      if (force) {
+        await payload.update({
+          collection: RESEARCH_CATEGORY_COLLECTION,
+          id: doc.id,
+          data: {
+            label: item.label,
+            sortOrder: item.sortOrder ?? 0,
+          },
+        });
+        updated += 1;
+      } else {
+        skipped += 1;
+      }
+      continue;
+    }
+
+    await payload.create({
+      collection: RESEARCH_CATEGORY_COLLECTION,
+      data: {
+        slug: item.slug,
+        label: item.label,
+        sortOrder: item.sortOrder ?? 0,
+      },
+    });
+    created += 1;
+  }
+
+  if (created === 0 && updated === 0) {
+    log(`⏭  研究分类 seed 已存在（${skipped} 条），跳过。使用 --force 仅同步默认 label/sortOrder。`);
+    return;
+  }
+
+  const parts = [`新增 ${created} 条`];
+  if (updated > 0) parts.push(`更新 ${updated} 条`);
+  log(`✅ 研究分类已写入（${parts.join("，")}；不删除手动添加的分类或报告）`);
 }
 
 const payload = await getPayload({ config });
 
-log(force ? "🌱 开始 seed（--force 覆盖已有数据）…" : "🌱 开始 seed（跳过已有数据）…");
+log(force ? "🌱 开始 seed（--force 同步代码默认项，不删除手动添加的数据）…" : "🌱 开始 seed（跳过已有默认项）…");
 
 await seedAboutPage(payload);
 await seedPageSeo(payload);
 await seedFaqs(payload);
+await seedResearchCategories(payload);
 
 log("🎉 Seed 完成");
 

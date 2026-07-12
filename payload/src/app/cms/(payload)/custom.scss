@@ -1,0 +1,8 @@
+@layer payload-default {
+  /* 研究报告 relationship「新增分类」抽屉：字段少，收窄宽度 */
+  .drawer.doc-drawer:has([id^="close-drawer__doc-drawer_research-categories_"]) {
+    .drawer__content {
+      width: min(36rem, calc(100% - var(--gutter-h))) !important;
+    }
+  }
+}

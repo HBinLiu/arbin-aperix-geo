@@ -21,29 +21,37 @@
   pointer-events: none;
   position: absolute;
   inset: 0 0 auto;
-  height: 80%;
+  left: 0;
+  right: 0;
+  height: 90%;
   background-image:
     linear-gradient(to right, color-mix(in srgb, var(--pricing-muted-fg) 16%, transparent) 1px, transparent 1px),
     linear-gradient(to bottom, color-mix(in srgb, var(--pricing-muted-fg) 16%, transparent) 1px, transparent 1px);
   background-size: 48px 48px;
-  -webkit-mask-image: linear-gradient(
-    to right,
-    transparent 0%,
-    rgb(0 0 0 / 35%) 14%,
-    rgb(0 0 0) 28%,
-    rgb(0 0 0) 72%,
-    rgb(0 0 0 / 35%) 86%,
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to right,
-    transparent 0%,
-    rgb(0 0 0 / 35%) 14%,
-    rgb(0 0 0) 28%,
-    rgb(0 0 0) 72%,
-    rgb(0 0 0 / 35%) 86%,
-    transparent 100%
-  );
+  -webkit-mask-image:
+    linear-gradient(to bottom, black 0%, black 68%, rgb(0 0 0 / 72%) 80%, rgb(0 0 0 / 28%) 92%, transparent 100%),
+    linear-gradient(
+      to right,
+      transparent 0%,
+      rgb(0 0 0 / 35%) 14%,
+      rgb(0 0 0) 28%,
+      rgb(0 0 0) 72%,
+      rgb(0 0 0 / 35%) 86%,
+      transparent 100%
+    );
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to bottom, black 0%, black 68%, rgb(0 0 0 / 72%) 80%, rgb(0 0 0 / 28%) 92%, transparent 100%),
+    linear-gradient(
+      to right,
+      transparent 0%,
+      rgb(0 0 0 / 35%) 14%,
+      rgb(0 0 0) 28%,
+      rgb(0 0 0) 72%,
+      rgb(0 0 0 / 35%) 86%,
+      transparent 100%
+    );
+  mask-composite: intersect;
 }
 
 .pricing-inner {
@@ -163,7 +171,7 @@
   gap: 0.25rem;
   border: 1px solid var(--pricing-border);
   border-radius: 9999px;
-  background: var(--pricing-surface);
+  background: rgb(255 255 255 / 85%);
   padding: 0.25rem;
 }
 
@@ -214,13 +222,13 @@
   gap: 1rem;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 640px) {
   .pricing-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (min-width: 1280px) {
+@media (min-width: 1024px) {
   .pricing-cards {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }

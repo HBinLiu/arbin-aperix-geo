@@ -1,0 +1,52 @@
+---
+export const prerender = false;
+
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import ResearchDetailPage from "@/components/research/ResearchDetailPage.astro";
+import { cmsDocToResearchListItem } from "@/lib/research/cms";
+import { buildResearchDetail } from "@/lib/research/detail";
+import { resolveResearchMediaUrl } from "@/lib/research/media";
+import { getResearchDraftBySlug } from "@/lib/payload";
+import { isPreviewRequestAuthorized } from "@/lib/preview";
+import { mergeResearchDetailSeo } from "@/lib/seo";
+import "@/styles/style.css";
+import "@/styles/research/detail.css";
+
+const slug = Astro.params.slug?.trim();
+const payloadSecret = Astro.url.searchParams.get("payloadSecret");
+const token = Astro.url.searchParams.get("token");
+
+if (!slug || !isPreviewRequestAuthorized(payloadSecret, token)) {
+  return new Response("无权预览此页面", { status: 403 });
+}
+
+const cmsDoc = await getResearchDraftBySlug(slug, token!);
+if (!cmsDoc) {
+  return new Response("未找到草稿或预览已失效", { status: 404 });
+}
+
+const report = cmsDocToResearchListItem(cmsDoc);
+const detail = buildResearchDetail(report, cmsDoc);
+const seo = {
+  ...mergeResearchDetailSeo(
+    {
+      title: report.cardTitle,
+      description: report.cardDescription,
+      slug: report.slug,
+    },
+    cmsDoc.meta,
+    resolveResearchMediaUrl(cmsDoc.cover),
+  ),
+  noindex: true,
+};
+---
+
+<BaseLayout seo={seo}>
+  <div
+    class="sticky top-0 z-50 border-b border-amber-200/80 bg-amber-50 px-4 py-2 text-center text-sm text-amber-950"
+    role="status"
+  >
+    预览模式 · 显示草稿内容，尚未发布
+  </div>
+  <ResearchDetailPage detail={detail} />
+</BaseLayout>

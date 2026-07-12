@@ -5,7 +5,7 @@ import type { SerializedEditorState, SerializedTextNode } from "lexical";
 
 import { resolveSiteCopy } from "@/lib/site";
 
-/** 与 payload/src/lib/lexical.ts 中 textStateConfig 保持一致 */
+/** 与 payload/src/lib/lexical/default.ts 中 textStateConfig 保持一致 */
 const textStateConfig = {
   color: {
     ...defaultColors.text,

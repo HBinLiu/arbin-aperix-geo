@@ -1,5 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import node from "@astrojs/node";
 import react from "@astrojs/react";
 import sitemap from "@astrojs/sitemap";
 import { defineConfig } from "astro/config";
@@ -11,6 +12,8 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   site: siteConfig.url,
+  output: "static",
+  adapter: node({ mode: "standalone" }),
   integrations: [react(), sitemap()],
   vite: {
     plugins: [tailwindcss(), sharedAssetsPlugin()],

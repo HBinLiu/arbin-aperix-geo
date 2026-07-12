@@ -1,10 +1,8 @@
 import type { PlatformId } from "@shared/platform";
-import {
-  CORE_PAGE_SEO,
-  MONITOR_PAGE_SEO,
-  PLATFORM_PAGE_SEO,
-  type PageSeoDefault,
-} from "@shared/seo/defaults";
+import { CORE_PAGE_SEO } from "@shared/seo/defaults/core";
+import { MONITOR_PAGE_SEO } from "@shared/seo/defaults/monitor";
+import { PLATFORM_PAGE_SEO } from "@shared/seo/defaults/platform";
+import type { PageSeoDefault } from "@shared/seo/defaults/types";
 import { siteConfig } from "@site";
 import { resolveSiteCopy, sitePageTitle } from "@/lib/site";
 
@@ -131,6 +129,36 @@ export const contactSeo = toPageSeo(CORE_PAGE_SEO.contact);
 
 /** 定价 */
 export const pricingSeo = toPageSeo(CORE_PAGE_SEO.pricing);
+
+/** 研究 */
+export const researchSeo = toPageSeo(CORE_PAGE_SEO.research);
+
+/** 研究报告详情 */
+export function researchDetailSeo(report: { title: string; description: string; slug: string }) {
+  return {
+    ...toPageSeo({
+      label: report.title,
+      path: `/research/${report.slug}/`,
+      titleTopic: report.title,
+      description: report.description,
+    }),
+    canonicalPath: `/research/${report.slug}/`,
+    type: "article" as const,
+  };
+}
+
+/** CMS meta 覆盖卡片默认；OG 图未设时可回退封面 */
+export function mergeResearchDetailSeo(
+  report: { title: string; description: string; slug: string },
+  meta?: CmsSeoMeta | null,
+  fallbackImage?: string,
+): PageSeo {
+  const merged = mergePageSeo(researchDetailSeo(report), cmsMetaToPageSeo(meta));
+  if (!merged.image && fallbackImage) {
+    return { ...merged, image: fallbackImage };
+  }
+  return merged;
+}
 
 /** 平台能力页 */
 export const platformAnswerSeo = toPageSeo(PLATFORM_PAGE_SEO.answer);

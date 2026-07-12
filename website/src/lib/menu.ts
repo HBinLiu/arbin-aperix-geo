@@ -137,7 +137,7 @@ export const resourcesMenuSections: ResourcesMenuSection[] = [
       {
         title: "研究",
         description: "数据报告与行业趋势",
-        href: "#faq",
+        href: "/research/",
       },
       {
         title: "新闻",

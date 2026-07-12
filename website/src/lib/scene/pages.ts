@@ -6,7 +6,7 @@ import {
   sceneFaqPage,
   type SceneSlug,
 } from "@shared/faq/pages";
-import { SCENE_SEO } from "@shared/seo/defaults";
+import { SCENE_PAGE_SEO } from "@shared/seo/defaults/scene";
 import { toPageSeo } from "@/lib/seo";
 import { resolveSiteCopyDeep } from "@/lib/site";
 import { SCENE_PILLAR_IMAGES } from "@/lib/scene/feature";
@@ -17,7 +17,7 @@ const pillarImages = SCENE_PILLAR_IMAGES;
 
 const productLaunchPage = resolveSiteCopyDeep({
   slug: "product-launch" as const,
-  seo: toPageSeo(SCENE_SEO["product-launch"]),
+  seo: toPageSeo(SCENE_PAGE_SEO["product-launch"]),
   badge: "使用场景",
   hero: {
     title: "产品发布成功之道：从第一天起获得 AI 引用",
@@ -176,7 +176,7 @@ const productLaunchPage = resolveSiteCopyDeep({
 
 const narrativeShapingPage = resolveSiteCopyDeep({
   slug: "narrative-shaping" as const,
-  seo: toPageSeo(SCENE_SEO["narrative-shaping"]),
+  seo: toPageSeo(SCENE_PAGE_SEO["narrative-shaping"]),
   badge: "使用场景",
   hero: {
     title: "叙事塑造：掌控 AI 如何推荐您",
@@ -328,7 +328,7 @@ const narrativeShapingPage = resolveSiteCopyDeep({
 
 const contentStrategyPage = resolveSiteCopyDeep({
   slug: "content-strategy" as const,
-  seo: toPageSeo(SCENE_SEO["content-strategy"]),
+  seo: toPageSeo(SCENE_PAGE_SEO["content-strategy"]),
   badge: "使用场景",
   hero: {
     title: "面向 AI 的内容策略：构建 AI 会重复的叙事",
@@ -490,7 +490,7 @@ const contentStrategyPage = resolveSiteCopyDeep({
 
 const competitivePositioningPage = resolveSiteCopyDeep({
   slug: "competitive-positioning" as const,
-  seo: toPageSeo(SCENE_SEO["competitive-positioning"]),
+  seo: toPageSeo(SCENE_PAGE_SEO["competitive-positioning"]),
   badge: "使用场景",
   hero: {
     title: "赢得市场份额：AI 搜索中的竞争定位",
@@ -660,7 +660,7 @@ const competitivePositioningPage = resolveSiteCopyDeep({
 
 const brandCrisisPage = resolveSiteCopyDeep({
   slug: "brand-crisis-management" as const,
-  seo: toPageSeo(SCENE_SEO["brand-crisis-management"]),
+  seo: toPageSeo(SCENE_PAGE_SEO["brand-crisis-management"]),
   badge: "使用场景",
   hero: {
     title: "品牌危机管理：在 AI 搜索中保护您的声誉",

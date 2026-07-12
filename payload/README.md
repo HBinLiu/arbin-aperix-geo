@@ -23,9 +23,11 @@ Admin 侧边栏 **站点设置**（Payload 默认：Collections 先于 Globals�
 
 ```bash
 cd payload && cp .env.example .env && npm install
+npm run seed          # 首次：自动 push schema + 写入默认内容
 npm run dev
-npm run seed          # 首次
 ```
+
+`seed` 启动时会调用 `getPayload()`，Payload 会自动将 schema push 到 PostgreSQL（空库会建表，已有库会增量对齐）。**不需要单独的 schema 初始化脚本。**
 
 ```bash
 cd website && npm run dev
@@ -36,10 +38,16 @@ cd website && npm run dev
 ```bash
 npm run generate:importmap
 npm run generate:types
-npm run repair:schema
-npm run seed
-npm run seed:force
+npm run seed          # 补写缺失的默认 FAQ / SEO / 分类（不删已有数据）
+npm run seed:force    # 同步代码默认项到 CMS（不删手动添加的条目）
 ```
+
+## Schema 冲突怎么办
+
+本项目使用 Payload Drizzle **push**（无 migration 文件）。若本地库残留旧结构导致 push 失败：
+
+1. **推荐**：删掉本地 CMS 库重建（如 `dropdb && createdb …`），再 `npm run seed`
+2. 生产环境：改 schema 前应备份，必要时引入 Payload migrations
 
 ## API 验证
 

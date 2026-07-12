@@ -22,6 +22,9 @@ export const publishedOrAuthenticatedGlobalRead = publishedOrAuthenticatedRead;
 /** 写操作：仅 CMS 管理员 */
 export const authenticatedWrite: Access = authenticatedOnly;
 
+/** 仅 seed / 代码默认维护条目，Admin 不可新建 */
+export const seedManagedCreate: Access = () => false;
+
 /** 首个管理员可注册，之后仅已登录用户可创建 */
 export const firstUserOrAuthenticatedCreate: Access = async ({ req }) => {
   if (req.user) return true;

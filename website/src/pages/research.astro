@@ -1,0 +1,17 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import ResearchPage from "@/components/research/ResearchPage.astro";
+import { mergeResearchCategories, mergeResearchList } from "@/lib/research/cms";
+import { buildResearchCategoryOptions } from "@/lib/research";
+import { getResearchCategories, getResearchList } from "@/lib/payload";
+import { researchSeo } from "@/lib/seo";
+import "@/styles/style.css";
+import "@/styles/research/list.css";
+
+const reports = mergeResearchList(await getResearchList());
+const categories = buildResearchCategoryOptions(mergeResearchCategories(await getResearchCategories()));
+---
+
+<BaseLayout seo={researchSeo}>
+  <ResearchPage reports={reports} categories={categories} />
+</BaseLayout>

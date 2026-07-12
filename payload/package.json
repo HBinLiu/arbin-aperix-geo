@@ -10,7 +10,6 @@
     "generate:types": "cross-env NODE_OPTIONS=--no-deprecation payload generate:types",
     "seed": "cross-env NODE_OPTIONS=--no-deprecation payload run src/seed.ts",
     "seed:force": "cross-env NODE_OPTIONS=--no-deprecation payload run src/seed.ts -- --force",
-    "repair:schema": "node --env-file=.env --import tsx/esm src/scripts/repair-cms-schema.ts",
     "payload": "cross-env NODE_OPTIONS=--no-deprecation payload",
     "start": "cross-env NODE_OPTIONS=--no-deprecation next start --port 3000"
   },

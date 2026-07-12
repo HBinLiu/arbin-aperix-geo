@@ -6,7 +6,7 @@ import {
   teamSolutionFaqPage,
   type TeamSolutionSlug,
 } from "@shared/faq/pages";
-import { SOLUTION_TEAM_SEO } from "@shared/seo/defaults";
+import { SOLUTION_TEAM_SEO } from "@shared/seo/defaults/solution";
 import { toPageSeo } from "@/lib/seo";
 import { resolveSiteCopyDeep } from "@/lib/site";
 import { createSolutionCta } from "@/lib/solution/cta";

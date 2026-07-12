@@ -1,8 +1,8 @@
 import type { CollectionConfig } from "payload";
 import { FAQ_PAGE_OPTIONS } from "@shared/faq/pages";
 
-import { authenticatedWrite, publishedOrAuthenticatedRead } from "../access";
-import { defaultLexicalEditor } from "../lib/lexical";
+import { authenticatedWrite, publishedOrAuthenticatedRead, seedManagedCreate } from "../access";
+import { defaultLexicalEditor } from "../lib/lexical/default";
 import { SITE_ADMIN_GROUP } from "../lib/admin";
 
 export const FAQs: CollectionConfig = {
@@ -15,12 +15,12 @@ export const FAQs: CollectionConfig = {
     useAsTitle: "label",
     defaultColumns: ["label", "page", "createdAt"],
     group: SITE_ADMIN_GROUP,
-    description: "各页面 FAQ（每页一条记录，条目在 items 中维护）。留空时官网回退代码默认内容。",
+    description: "各页面 FAQ（每页一条，条目在 items 中维护）。页面清单由代码默认 + seed 维护，不可在 Admin 新建。",
     listSearchableFields: ["label", "page"],
   },
   access: {
     read: publishedOrAuthenticatedRead,
-    create: authenticatedWrite,
+    create: seedManagedCreate,
     update: authenticatedWrite,
     delete: authenticatedWrite,
   },

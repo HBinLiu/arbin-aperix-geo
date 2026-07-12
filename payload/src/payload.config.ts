@@ -7,11 +7,14 @@ import sharp from "sharp";
 import { FAQs } from "./collections/FAQs";
 import { Media } from "./collections/Media";
 import { PageSeoEntries } from "./collections/PageSeo";
+import { ResearchCategories } from "./collections/ResearchCategories";
+import { Researches } from "./collections/Researches";
 import { Users } from "./collections/Users";
 import { AboutPage } from "./globals/AboutPage";
-import { defaultLexicalEditor } from "./lib/lexical";
+import { defaultLexicalEditor } from "./lib/lexical/default";
 import { createEmailAdapter } from "./lib/email";
 import { contactEndpoint, contactOptionsEndpoint } from "./endpoints/contact";
+import { previewUrlEndpoint } from "./endpoints/preview-url";
 import { getPayloadServerUrl, getWebsiteUrl } from "./lib/urls";
 import { seo } from "./plugins/seo";
 
@@ -33,11 +36,11 @@ export default buildConfig({
       titleSuffix: " · Aperix Web",
     },
   },
-  collections: [Users, Media, FAQs, PageSeoEntries],
+  collections: [Users, Media, ResearchCategories, Researches, FAQs, PageSeoEntries],
   globals: [AboutPage],
   editor: defaultLexicalEditor,
   email: createEmailAdapter(),
-  endpoints: [contactEndpoint, contactOptionsEndpoint],
+  endpoints: [contactEndpoint, contactOptionsEndpoint, previewUrlEndpoint],
   secret: process.env.PAYLOAD_SECRET || "",
   typescript: {
     outputFile: path.resolve(dirname, "payload-types.ts"),

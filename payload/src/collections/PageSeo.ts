@@ -1,5 +1,5 @@
 import type { CollectionConfig } from "payload";
-import { authenticatedWrite, publicRead } from "../access";
+import { authenticatedWrite, publicRead, seedManagedCreate } from "../access";
 import { SITE_ADMIN_GROUP } from "../lib/admin";
 
 export const PageSeoEntries: CollectionConfig = {
@@ -12,12 +12,12 @@ export const PageSeoEntries: CollectionConfig = {
     useAsTitle: "label",
     defaultColumns: ["label", "path", "updatedAt"],
     group: SITE_ADMIN_GROUP,
-    description: "各页面 title / description / OG 图。path 须与官网路径一致。",
+    description: "各页面 title / description / OG 图。path 清单由代码默认 + seed 维护，不可在 Admin 新建。",
     listSearchableFields: ["label", "path"],
   },
   access: {
     read: publicRead,
-    create: authenticatedWrite,
+    create: seedManagedCreate,
     update: authenticatedWrite,
     delete: authenticatedWrite,
   },

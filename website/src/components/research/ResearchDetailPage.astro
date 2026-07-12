@@ -1,0 +1,167 @@
+---
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import type { ResearchDetailViewModel } from "@/lib/research/detail";
+
+type Props = {
+  detail: ResearchDetailViewModel;
+};
+
+const { detail } = Astro.props;
+const { hero, sidebar, toc, bodyHtml, hasBody } = detail;
+---
+
+<SiteHeader />
+
+<main class="research-detail-root flex flex-1 flex-col">
+  <section class="research-detail-hero" aria-labelledby="research-detail-title">
+    <div class="research-detail-hero-inner">
+      <div class="research-detail-badge">{hero.badge}</div>
+
+      <h1 id="research-detail-title" class="research-detail-hero-title">
+        {hero.titleBefore}
+        {
+          hero.titleAccent ? (
+            <>
+              <br />
+              <span class="research-detail-hero-accent">{hero.titleAccent}</span>
+            </>
+          ) : null
+        }
+        {hero.titleAfter}
+      </h1>
+
+      <p class="research-detail-hero-subtitle">{hero.subtitle}</p>
+
+      {
+        hero.metaLinks.length > 0 || hero.metaStats.length > 0 ? (
+          <div class="research-detail-hero-meta">
+            {hero.metaLinks.map((link) => (
+              <a
+                href={link.href}
+                target={link.external ? "_blank" : undefined}
+                rel={link.external ? "noreferrer noopener" : undefined}
+              >
+                {link.label}
+              </a>
+            ))}
+            {hero.metaStats.map((stat) => (
+              <span>{stat}</span>
+            ))}
+          </div>
+        ) : null
+      }
+
+      {
+        hero.actions.length > 0 ? (
+          <div class="research-detail-hero-actions">
+            {hero.actions.map((action, index) => (
+              <a
+                class:list={[
+                  index === 0 ? "research-detail-btn-orange" : "research-detail-btn-outline",
+                ]}
+                href={action.href}
+                target={action.external ? "_blank" : undefined}
+                rel={action.external ? "noreferrer noopener" : undefined}
+              >
+                {action.label}
+              </a>
+            ))}
+          </div>
+        ) : null
+      }
+
+      {
+        hero.proof.length > 0 ? (
+          <div class="research-detail-hero-proof">
+            {hero.proof.map((item) => (
+              <span>{item}</span>
+            ))}
+          </div>
+        ) : null
+      }
+    </div>
+  </section>
+
+  <div class="research-detail-page-wrap">
+    <div class="research-detail-content-grid">
+      {
+        toc.length > 0 ? (
+          <nav aria-label="报告目录" class="research-detail-toc">
+            <div class="research-detail-toc-title">报告目录</div>
+            {toc.map((item) => (
+              <a href={`#${item.id}`} data-toc-link={item.id}>
+                <span>{item.number}</span>
+                {item.label}
+              </a>
+            ))}
+          </nav>
+        ) : null
+      }
+
+      <article class="research-html-root" aria-label="报告正文">
+        {
+          hasBody ? (
+            <div set:html={bodyHtml} />
+          ) : (
+            <p class="research-detail-empty">正文内容即将发布，请联系团队获取完整报告。</p>
+          )
+        }
+      </article>
+
+      <aside aria-label="产品诊断" class="research-detail-side-cta">
+        <div class="research-detail-side-kicker">{sidebar.kicker}</div>
+        <h3>{sidebar.title}</h3>
+        <p>{sidebar.description}</p>
+        <div class="research-detail-side-list">
+          {sidebar.bullets.map((bullet) => (
+            <span>{bullet}</span>
+          ))}
+        </div>
+        <div class="research-detail-side-actions">
+          <a class="research-detail-btn-orange" href={sidebar.primaryHref}>
+            {sidebar.primaryLabel}
+          </a>
+          <a class="research-detail-btn-outline" href={sidebar.secondaryHref}>
+            {sidebar.secondaryLabel}
+          </a>
+        </div>
+        <div class="research-detail-side-footnote">{sidebar.footnote}</div>
+      </aside>
+    </div>
+  </div>
+</main>
+
+<SiteFooter />
+
+<script>
+  const tocLinks = document.querySelectorAll<HTMLAnchorElement>("[data-toc-link]");
+  if (tocLinks.length > 0) {
+    const sectionIds = [...tocLinks].map((link) => link.dataset.tocLink ?? "").filter(Boolean);
+    const sections = sectionIds
+      .map((id) => document.getElementById(id))
+      .filter((node): node is HTMLElement => node instanceof HTMLElement);
+
+    const setActive = (id: string) => {
+      tocLinks.forEach((link) => {
+        link.classList.toggle("is-active", link.dataset.tocLink === id);
+      });
+    };
+
+    if ("IntersectionObserver" in window && sections.length > 0) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const visible = entries
+            .filter((entry) => entry.isIntersecting)
+            .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+          if (visible?.target.id) setActive(visible.target.id);
+        },
+        { rootMargin: "-20% 0px -55% 0px", threshold: [0, 0.25, 0.5, 1] },
+      );
+
+      sections.forEach((section) => observer.observe(section));
+    } else if (sections[0]?.id) {
+      setActive(sections[0].id);
+    }
+  }
+</script>
