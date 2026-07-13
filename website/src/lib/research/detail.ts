@@ -20,8 +20,22 @@ export type ResearchDetailViewModel = {
   hasBody: boolean;
 };
 
-function resolveResearchHero(_slug: string, listItem: ResearchListItem): ResearchHeroDetail {
-  return buildResearchHeroFallback(listItem.slug, listItem.cardTitle, listItem.cardDescription);
+function normalizeCardLabels(labels: string[] | null | undefined): string[] {
+  if (!labels?.length) return [];
+  return labels.map((label) => label.trim()).filter(Boolean);
+}
+
+function resolveResearchHero(
+  _slug: string,
+  listItem: ResearchListItem,
+  cmsDoc: CmsResearchDoc | null | undefined,
+): ResearchHeroDetail {
+  return buildResearchHeroFallback(
+    listItem.slug,
+    listItem.cardTitle,
+    listItem.cardDescription,
+    normalizeCardLabels(cmsDoc?.cardLabels),
+  );
 }
 
 function resolveResearchSidebar(_slug: string): ResearchSidebarCta {
@@ -38,7 +52,7 @@ export function buildResearchDetail(
 
   return resolveSiteCopyDeep({
     listItem,
-    hero: resolveResearchHero(listItem.slug, listItem),
+    hero: resolveResearchHero(listItem.slug, listItem, cmsDoc),
     sidebar: resolveResearchSidebar(listItem.slug),
     toc: extractResearchToc(body),
     bodyHtml,

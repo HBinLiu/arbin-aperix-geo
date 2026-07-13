@@ -29,6 +29,16 @@ function walkNodes(nodes: LexicalNode[] | undefined, visit: (node: LexicalNode) 
   }
 }
 
+/** 目录展示用：取 H2 在常用分隔符前的部分（正文仍显示完整标题） */
+export function formatTocLabel(fullLabel: string): string {
+  const trimmed = fullLabel.trim();
+  if (!trimmed) return trimmed;
+
+  const separator = /\s*(?:[：:|｜/／·•>→]|\s+[-–—]+\s+|[—–])\s*/u;
+  const [head] = trimmed.split(separator);
+  return (head ?? trimmed).trim() || trimmed;
+}
+
 /** 从 Lexical JSON 提取 H2 目录（与正文 heading converter 的 id 规则一致） */
 export function extractResearchToc(content: unknown): ResearchTocItem[] {
   if (!content || typeof content !== "object" || !("root" in content)) return [];
@@ -40,10 +50,10 @@ export function extractResearchToc(content: unknown): ResearchTocItem[] {
   walkNodes(root?.children, (node) => {
     if (node.type !== "heading" || node.tag !== "h2") return;
 
-    const label = nodePlainText(node).trim();
-    if (!label) return;
+    const fullLabel = nodePlainText(node).trim();
+    if (!fullLabel) return;
 
-    let id = slugifyHeading(label);
+    let id = slugifyHeading(fullLabel);
     if (!id) id = `section-${items.length + 1}`;
     let uniqueId = id;
     let suffix = 2;
@@ -56,7 +66,7 @@ export function extractResearchToc(content: unknown): ResearchTocItem[] {
     items.push({
       id: uniqueId,
       number: String(items.length + 1).padStart(2, "0"),
-      label,
+      label: formatTocLabel(fullLabel),
     });
   });
 

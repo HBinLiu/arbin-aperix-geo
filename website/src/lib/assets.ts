@@ -51,3 +51,11 @@ export const PLATFORM_LOGO_DISPLAY_PX = 20;
 export const PLATFORM_LOGO_RENDER_PX = PLATFORM_LOGO_DISPLAY_PX * 2;
 export const PRICING_PLATFORM_LOGO_DISPLAY_PX = 32;
 export const PRICING_PLATFORM_LOGO_RENDER_PX = PRICING_PLATFORM_LOGO_DISPLAY_PX * 2;
+
+/** 研究列表卡片右上角图标（88×78 源图，展示 32px） */
+export const RESEARCH_CARD_ICON: StaticImage = {
+  url: `${WEBSITE_IMAGES}/research/research-icon.png`,
+  width: 88,
+  height: 78,
+};
+export const RESEARCH_CARD_ICON_DISPLAY_PX = 32;

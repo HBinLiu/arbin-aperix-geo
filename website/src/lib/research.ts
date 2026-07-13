@@ -12,7 +12,7 @@ export const researchHero = {
 
 export const researchReportsSection = {
   title: "行业研究报告",
-  subtitle: "为 SEO 和 AI 社区提供深度分析和数据驱动的洞察",
+  subtitle: "为 SEO 和 GEO 提供深度分析和数据驱动的洞察",
 };
 
 export function buildResearchCategoryOptions(

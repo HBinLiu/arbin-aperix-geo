@@ -73,6 +73,16 @@ export const Researches: CollectionConfig = {
               admin: { description: "支持 {{siteName}} 占位符" },
             },
             {
+              name: "cardLabels",
+              type: "text",
+              hasMany: true,
+              label: "详情标签",
+              admin: {
+                description:
+                  "详情页标题下方展示的标签（纯文案，非链接）。回车添加，类似品牌别名。",
+              },
+            },
+            {
               name: "category",
               type: "relationship",
               relationTo: "research-categories",
@@ -111,7 +121,7 @@ export const Researches: CollectionConfig = {
               editor: researchLexicalEditor,
               admin: {
                 description:
-                  "H2 自动生成左侧目录。可用 Block：图表、高亮框、章节导语、行内 CTA；表格用编辑器内置表格。",
+                  "H2 自动生成左侧目录。可用 Block：图片、高亮框、章节导语、行内 CTA；表格用编辑器内置表格。",
               },
             },
           ],

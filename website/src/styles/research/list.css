@@ -10,22 +10,13 @@
   background: var(--research-page-bg);
 }
 
-.research-page-backdrop {
-  pointer-events: none;
-  position: absolute;
-  top: 0;
-  left: 50%;
-  z-index: 0;
-  width: 100vw;
-  height: 90%;
-  transform: translateX(-50%);
-  overflow: hidden;
-}
-
 .research-bg-grid {
   pointer-events: none;
   position: absolute;
-  inset: 0;
+  inset: 0 0 auto;
+  left: 0;
+  right: 0;
+  height: 90%;
   background-image:
     linear-gradient(to right, color-mix(in srgb, var(--research-muted-fg) 16%, transparent) 1px, transparent 1px),
     linear-gradient(to bottom, color-mix(in srgb, var(--research-muted-fg) 16%, transparent) 1px, transparent 1px);
@@ -62,64 +53,52 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0;
-  padding-block: 4rem 5rem;
-}
-
-.research-inner > :not(.research-page-backdrop) {
-  position: relative;
-  z-index: 1;
-  width: 100%;
+  gap: 2rem;
+  padding-block: 2.5rem 3rem;
 }
 
 @media (min-width: 1024px) {
   .research-inner {
-    padding-block: 5rem 6rem;
+    padding-block: 3rem;
   }
 }
 
 .research-hero-wrap {
   position: relative;
   width: 100%;
-  padding-block: 1rem 2rem;
-}
-
-@media (min-width: 640px) {
-  .research-hero-wrap {
-    padding-block: 1rem 2.5rem;
-  }
+  padding-block: 1rem;
 }
 
 .research-hero-glow {
   pointer-events: none;
   position: absolute;
-  inset: -8rem -3rem 20%;
+  inset: -8rem -3rem;
   background: radial-gradient(
-    ellipse 88% 64% at 50% 38%,
+    ellipse 88% 64% at 50% 50%,
     color-mix(in srgb, var(--color-primary) 20%, transparent) 0%,
     color-mix(in srgb, var(--color-primary) 11%, transparent) 28%,
     color-mix(in srgb, var(--color-primary) 4%, transparent) 50%,
     transparent 72%
   );
-  -webkit-mask-image: linear-gradient(
-    to bottom,
+  -webkit-mask-image: radial-gradient(
+    ellipse 100% 100% at 50% 50%,
     black 0%,
-    black 55%,
-    rgb(0 0 0 / 45%) 75%,
-    transparent 100%
+    black 36%,
+    rgb(0 0 0 / 35%) 52%,
+    transparent 74%
   );
-  mask-image: linear-gradient(
-    to bottom,
+  mask-image: radial-gradient(
+    ellipse 100% 100% at 50% 50%,
     black 0%,
-    black 55%,
-    rgb(0 0 0 / 45%) 75%,
-    transparent 100%
+    black 36%,
+    rgb(0 0 0 / 35%) 52%,
+    transparent 74%
   );
 }
 
 @media (min-width: 640px) {
   .research-hero-glow {
-    inset: -10rem -5rem 18%;
+    inset: -10rem -5rem;
   }
 }
 

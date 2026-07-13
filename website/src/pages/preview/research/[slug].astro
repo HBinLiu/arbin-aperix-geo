@@ -42,11 +42,13 @@ const seo = {
 ---
 
 <BaseLayout seo={seo}>
-  <div
-    class="sticky top-0 z-50 border-b border-amber-200/80 bg-amber-50 px-4 py-2 text-center text-sm text-amber-950"
-    role="status"
-  >
-    预览模式 · 显示草稿内容，尚未发布
+  <div class="research-detail-preview">
+    <div
+      class="research-detail-preview-banner border-b border-amber-200/80 bg-amber-50 px-4 py-2 text-center text-sm text-amber-950"
+      role="status"
+    >
+      预览模式 · 显示草稿内容，尚未发布
+    </div>
+    <ResearchDetailPage detail={detail} />
   </div>
-  <ResearchDetailPage detail={detail} />
 </BaseLayout>

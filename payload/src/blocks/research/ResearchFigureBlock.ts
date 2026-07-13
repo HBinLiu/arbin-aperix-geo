@@ -1,9 +1,9 @@
 import type { Block } from "payload";
 
-/** 图表：Media 图片 + 说明 */
+/** 图片：Media 上传 + 说明 */
 export const ResearchFigureBlock: Block = {
   slug: "researchFigure",
-  labels: { singular: "图表", plural: "图表" },
+  labels: { singular: "图片", plural: "图片" },
   fields: [
     {
       name: "image",

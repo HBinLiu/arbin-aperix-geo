@@ -28,17 +28,15 @@ export type ResearchHeroLink = {
 
 export type ResearchHeroDetail = {
   badge: string;
-  titleBefore: string;
-  titleAccent: string;
-  titleAfter: string;
+  title: string;
   subtitle: string;
-  metaLinks: ResearchHeroLink[];
-  metaStats: string[];
+  /** 详情页标题下方标签（纯展示，来自 CMS cardLabels） */
+  labels: string[];
   actions: ResearchHeroLink[];
   proof: string[];
 };
 
-/** 从正文 H2 自动提取 */
+/** 从正文 H2 自动提取；label 为分隔符前的短标题 */
 export type ResearchTocItem = {
   id: string;
   number: string;

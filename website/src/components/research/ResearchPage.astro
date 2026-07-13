@@ -2,6 +2,7 @@
 import SiteFooter from "@/components/SiteFooter.astro";
 import SiteHeader from "@/components/SiteHeader.astro";
 import StaticImage from "@/components/StaticImage.tsx";
+import { RESEARCH_CARD_ICON, RESEARCH_CARD_ICON_DISPLAY_PX } from "@/lib/assets";
 import {
   researchHero,
   researchHref,
@@ -9,7 +10,7 @@ import {
   type ResearchListItem,
 } from "@/lib/research";
 import ResearchPagination from "@/components/research/ResearchPagination.astro";
-import { ArrowRight, FileText } from "@lucide/astro";
+import { ArrowRight } from "@lucide/astro";
 
 type ResearchCategoryOption = {
   id: string;
@@ -28,13 +29,11 @@ const { reports, categories } = Astro.props;
 
 <main class="flex flex-1 flex-col">
   <section class="research-page">
-    <div class="research-inner mx-auto w-full max-w-6xl px-4 sm:px-6">
-      <div class="research-page-backdrop" aria-hidden="true">
-        <div class="research-bg-grid"></div>
-        <div class="research-hero-glow"></div>
-      </div>
+    <div class="research-bg-grid" aria-hidden="true"></div>
 
+    <div class="research-inner mx-auto w-full max-w-6xl px-4 sm:px-6">
       <div class="research-hero-wrap">
+        <div class="research-hero-glow" aria-hidden="true"></div>
         <header class="research-hero">
           <h1 class="research-title">{researchHero.title}</h1>
           <p class="research-subtitle">{researchHero.description}</p>
@@ -79,7 +78,13 @@ const { reports, categories } = Astro.props;
               data-research-card-category={report.categorySlug}
             >
               <div class="research-card-icon" aria-hidden="true">
-                <FileText size={32} strokeWidth={1.75} />
+                <StaticImage
+                  image={RESEARCH_CARD_ICON}
+                  alt=""
+                  width={RESEARCH_CARD_ICON_DISPLAY_PX}
+                  height={RESEARCH_CARD_ICON_DISPLAY_PX}
+                  loading="lazy"
+                />
               </div>
               <h3 class="research-card-title">{report.cardTitle}</h3>
               <p class="research-card-desc">{report.cardDescription}</p>

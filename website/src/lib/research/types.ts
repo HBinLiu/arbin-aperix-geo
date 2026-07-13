@@ -20,6 +20,7 @@ export type CmsResearchDoc = {
   category?: CmsResearchCategoryDoc | string | null;
   cardTitle: string;
   cardDescription: string;
+  cardLabels?: string[] | null;
   cover?: CmsMediaRef | string | null;
   sortOrder?: number | null;
   publishedAt?: string | null;

@@ -1,6 +1,6 @@
 import type { CollectionConfig } from "payload";
 
-import { authenticatedWrite, publishedOrAuthenticatedRead } from "../access";
+import { authenticatedWrite, publicRead } from "../access";
 import { RESOURCE_EXPLORATION_ADMIN_GROUP } from "../lib/admin";
 
 export const ResearchCategories: CollectionConfig = {
@@ -17,7 +17,7 @@ export const ResearchCategories: CollectionConfig = {
     listSearchableFields: ["label", "slug"],
   },
   access: {
-    read: publishedOrAuthenticatedRead,
+    read: publicRead,
     create: authenticatedWrite,
     update: authenticatedWrite,
     delete: authenticatedWrite,

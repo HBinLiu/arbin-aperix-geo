@@ -19,34 +19,16 @@ const { hero, sidebar, toc, bodyHtml, hasBody } = detail;
       <div class="research-detail-badge">{hero.badge}</div>
 
       <h1 id="research-detail-title" class="research-detail-hero-title">
-        {hero.titleBefore}
-        {
-          hero.titleAccent ? (
-            <>
-              <br />
-              <span class="research-detail-hero-accent">{hero.titleAccent}</span>
-            </>
-          ) : null
-        }
-        {hero.titleAfter}
+        {hero.title}
       </h1>
 
       <p class="research-detail-hero-subtitle">{hero.subtitle}</p>
 
       {
-        hero.metaLinks.length > 0 || hero.metaStats.length > 0 ? (
+        hero.labels.length > 0 ? (
           <div class="research-detail-hero-meta">
-            {hero.metaLinks.map((link) => (
-              <a
-                href={link.href}
-                target={link.external ? "_blank" : undefined}
-                rel={link.external ? "noreferrer noopener" : undefined}
-              >
-                {link.label}
-              </a>
-            ))}
-            {hero.metaStats.map((stat) => (
-              <span>{stat}</span>
+            {hero.labels.map((label) => (
+              <span>{label}</span>
             ))}
           </div>
         ) : null
@@ -84,7 +66,12 @@ const { hero, sidebar, toc, bodyHtml, hasBody } = detail;
   </section>
 
   <div class="research-detail-page-wrap">
-    <div class="research-detail-content-grid">
+    <div
+      class:list={[
+        "research-detail-content-grid",
+        toc.length === 0 && "research-detail-content-grid--no-toc",
+      ]}
+    >
       {
         toc.length > 0 ? (
           <nav aria-label="报告目录" class="research-detail-toc">
@@ -110,22 +97,22 @@ const { hero, sidebar, toc, bodyHtml, hasBody } = detail;
       </article>
 
       <aside aria-label="产品诊断" class="research-detail-side-cta">
-        <div class="research-detail-side-kicker">{sidebar.kicker}</div>
-        <h3>{sidebar.title}</h3>
-        <p>{sidebar.description}</p>
-        <div class="research-detail-side-list">
-          {sidebar.bullets.map((bullet) => (
-            <span>{bullet}</span>
-          ))}
-        </div>
-        <div class="research-detail-side-actions">
-          <a class="research-detail-btn-orange" href={sidebar.primaryHref}>
-            {sidebar.primaryLabel}
-          </a>
-          <a class="research-detail-btn-outline" href={sidebar.secondaryHref}>
-            {sidebar.secondaryLabel}
-          </a>
-        </div>
+          <div class="research-detail-side-kicker">{sidebar.kicker}</div>
+          <h3>{sidebar.title}</h3>
+          <p>{sidebar.description}</p>
+          <div class="research-detail-side-list">
+            {sidebar.bullets.map((bullet) => (
+              <span>{bullet}</span>
+            ))}
+          </div>
+          <div class="research-detail-side-actions">
+            <a class="research-detail-btn-orange" href={sidebar.primaryHref}>
+              {sidebar.primaryLabel}
+            </a>
+            <a class="research-detail-btn-outline" href={sidebar.secondaryHref}>
+              {sidebar.secondaryLabel}
+            </a>
+          </div>
         <div class="research-detail-side-footnote">{sidebar.footnote}</div>
       </aside>
     </div>
@@ -147,6 +134,17 @@ const { hero, sidebar, toc, bodyHtml, hasBody } = detail;
         link.classList.toggle("is-active", link.dataset.tocLink === id);
       });
     };
+
+    tocLinks.forEach((link) => {
+      link.addEventListener("click", (event) => {
+        const id = link.dataset.tocLink;
+        const target = id ? document.getElementById(id) : null;
+        if (!target) return;
+        event.preventDefault();
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        history.replaceState(null, "", `#${id}`);
+      });
+    });
 
     if ("IntersectionObserver" in window && sections.length > 0) {
       const observer = new IntersectionObserver(
