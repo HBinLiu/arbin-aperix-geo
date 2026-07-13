@@ -36,4 +36,11 @@ export const CORE_PAGE_SEO = {
     description:
       "获取关于 AI 搜索趋势的原创研究报告与市场数据。洞察 GEO 策略、AI 用户行为以及新兴的营销机会。",
   },
+  news: {
+    label: "新闻",
+    path: "/news/",
+    titleTopic: "新闻 - 每周 AI 与产品动态",
+    description:
+      "汇总每周 AI 新闻、产品发布、模型更新与生态变化，帮助运营和营销团队快速掌握行业重点。",
+  },
 } as const satisfies Record<string, PageSeoDefault>;

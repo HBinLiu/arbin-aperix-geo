@@ -11,6 +11,7 @@ export const defaultPageSeoEntries: CmsPageSeoSeedEntry[] = [
   toCmsPageSeoSeed(CORE_PAGE_SEO.contact),
   toCmsPageSeoSeed(CORE_PAGE_SEO.pricing),
   toCmsPageSeoSeed(CORE_PAGE_SEO.research),
+  toCmsPageSeoSeed(CORE_PAGE_SEO.news),
   ...Object.values(PLATFORM_PAGE_SEO).map(toCmsPageSeoSeed),
   ...Object.values(SOLUTION_TEAM_SEO).map(toCmsPageSeoSeed),
   ...Object.values(MONITOR_PAGE_SEO).map(toCmsPageSeoSeed),

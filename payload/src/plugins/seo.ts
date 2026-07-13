@@ -22,13 +22,17 @@ const generateDescription: GenerateDescription = ({ doc }) => {
   return "";
 };
 
-const generateURL: GenerateURL = ({ doc }) => {
+const generateURL: GenerateURL = ({ doc, collectionConfig }) => {
   const site = getWebsiteUrl();
   const slug = typeof doc?.slug === "string" ? doc.slug.trim() : "";
   const path = typeof doc?.path === "string" ? doc.path : "";
+  const collectionSlug = collectionConfig?.slug;
 
   if (slug && !path) {
     const normalized = slug.replace(/^\/+|\/+$/g, "");
+    if (collectionSlug === "news") {
+      return `${site}/news/${normalized}/`;
+    }
     return `${site}/research/${normalized}/`;
   }
 
@@ -39,7 +43,7 @@ const generateURL: GenerateURL = ({ doc }) => {
 
 export const seo = seoPlugin({
   uploadsCollection: "media",
-  collections: ["page-seo", "researches"],
+  collections: ["page-seo", "researches", "news"],
   globals: [],
   tabbedUI: true,
   generateTitle,

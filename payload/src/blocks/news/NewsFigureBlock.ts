@@ -1,8 +1,8 @@
 import type { Block } from "payload";
 
-/** 图片：Media 上传 + 说明 */
-export const ResearchFigureBlock: Block = {
-  slug: "researchFigure",
+/** 插入图片：Media 上传 + 说明 */
+export const NewsFigureBlock: Block = {
+  slug: "newsFigure",
   labels: { singular: "插入图片", plural: "插入图片" },
   fields: [
     {

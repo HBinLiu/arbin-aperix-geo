@@ -59,6 +59,37 @@ const researchHtmlConverters: HTMLConvertersFunction = ({ defaultConverters }) =
       tag === "h2" && plain ? ` id="${escapeHtml(slugifyHeading(plain) || "section")}"` : "";
     return `<${tag}${idAttr}${providedStyleTag}>${children}</${tag}>`;
   },
+  paragraph: (args) => {
+    const { node, nodesToHTML, parent, providedStyleTag } = args;
+    const children = nodesToHTML({ nodes: node.children });
+
+    if (parent?.type === "tablecell") {
+      return children.join("") || "";
+    }
+
+    if (typeof defaultConverters.paragraph === "function") {
+      return defaultConverters.paragraph(args);
+    }
+
+    const inner = children.join("");
+    if (!inner) {
+      return `<p${providedStyleTag}> </p>`;
+    }
+    return `<p${providedStyleTag}>${inner}</p>`;
+  },
+  table: ({ node, nodesToHTML }) => {
+    const children = nodesToHTML({ nodes: node.children }).join("");
+    return `<div class="research-table-wrap"><table class="research-table">${children}</table></div>`;
+  },
+  tablerow: ({ node, nodesToHTML }) => {
+    const children = nodesToHTML({ nodes: node.children }).join("");
+    return `<tr>${children}</tr>`;
+  },
+  tablecell: ({ node, nodesToHTML }) => {
+    const children = nodesToHTML({ nodes: node.children }).join("");
+    const tag = node.headerState > 0 ? "th" : "td";
+    return `<${tag}>${children}</${tag}>`;
+  },
   blocks: {
     [RESEARCH_BLOCK_SLUGS.figure]: ({ node }: { node: { fields: unknown } }) => {
       const fields = node.fields as {

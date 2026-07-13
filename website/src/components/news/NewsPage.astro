@@ -1,0 +1,177 @@
+---
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import {
+  newsHero,
+  newsHref,
+  type NewsMonthGroup,
+  NEWS_LIST_INITIAL_VISIBLE,
+} from "@/lib/news";
+import { ArrowRight, ChevronDown, ChevronRight, Calendar } from "@lucide/astro";
+
+type Props = {
+  monthGroups: NewsMonthGroup[];
+};
+
+const { monthGroups } = Astro.props;
+---
+
+<SiteHeader />
+
+<main class="flex flex-1 flex-col">
+  <section class="news-page">
+    <div class="news-bg-grid" aria-hidden="true"></div>
+
+    <div class="news-inner mx-auto w-full max-w-6xl px-4 sm:px-6">
+      <div class="news-hero-wrap" aria-labelledby="news-hero-title">
+        <div class="news-hero-glow" aria-hidden="true"></div>
+
+        <div class="news-hero-row">
+          <div class="news-hero-copy">
+          <div class="news-hero-text">
+            <h1 id="news-hero-title" class="news-hero-title">{newsHero.title}</h1>
+            <p class="news-hero-subtitle">{newsHero.description}</p>
+          </div>
+          <a class="news-hero-cta group" href={newsHero.ctaHref}>
+            <span>{newsHero.ctaLabel}</span>
+            <ArrowRight size={16} aria-hidden="true" class="news-hero-cta-icon" />
+          </a>
+        </div>
+
+        <div class="news-hero-illustration" aria-hidden="true">
+          <div class="news-hero-illustration-wrap">
+            <div class="news-hero-illustration-inner">
+              <div class="news-hero-card news-hero-card--page">
+                <div class="news-hero-card-scan"></div>
+                <div class="news-hero-card-bar">
+                  <div class="news-hero-card-dots">
+                    <span></span>
+                    <span></span>
+                  </div>
+                  <div class="news-hero-card-url"><span></span></div>
+                </div>
+                <div class="news-hero-card-body">
+                  <div class="news-hero-card-line"></div>
+                  <div class="news-hero-card-line news-hero-card-line--sm"></div>
+                  <div class="news-hero-card-line news-hero-card-line--sm news-hero-card-line--md"></div>
+                  <span class="news-hero-extract-tag news-hero-extract-tag--title">&lt;title&gt;</span>
+                  <span class="news-hero-extract-tag news-hero-extract-tag--meta">&lt;meta&gt;</span>
+                </div>
+              </div>
+
+              <div class="news-hero-beam">
+                <span></span>
+              </div>
+
+              <div class="news-hero-card news-hero-card--source">
+                <span class="news-hero-success-dot"></span>
+                <div class="news-hero-code-lines">
+                  <div class="news-hero-code-line news-hero-code-line--anim news-hero-code-line--d1">
+                    <span class="news-hero-code-key">"title":</span>
+                    <span class="news-hero-code-val news-hero-code-val--blue">"Top 10..."</span>
+                  </div>
+                  <div class="news-hero-code-line news-hero-code-line--anim news-hero-code-line--d2">
+                    <span class="news-hero-code-key">"desc":</span>
+                    <span class="news-hero-code-val news-hero-code-val--blue">"Guide to..."</span>
+                  </div>
+                  <div class="news-hero-code-line news-hero-code-line--anim news-hero-code-line--d3">
+                    <span class="news-hero-code-key">"lang":</span>
+                    <span class="news-hero-code-val">"en-US"</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          </div>
+        </div>
+      </div>
+
+      <section class="news-list-section" aria-label="新闻列表">
+        <div class="news-month-grid">
+          {
+          monthGroups.length === 0 ? (
+            <p class="news-empty">暂无新闻，请在 CMS 中发布内容。</p>
+          ) : (
+            monthGroups.map((group) => {
+              const hasMore = group.items.length > NEWS_LIST_INITIAL_VISIBLE;
+              return (
+                <article
+                  class:list={["news-month-card", hasMore && "has-more"]}
+                  data-news-month-card
+                >
+                  <div class="news-month-card-inner">
+                    <div class="flex flex-col gap-5">
+                      <header class="news-month-head">
+                        <div class="news-month-icon">
+                          <Calendar size={22} aria-hidden="true" color="var(--color-primary)" />
+                        </div>
+                        <h2 class="news-month-title">{group.label}</h2>
+                      </header>
+
+                      <div class="news-month-items">
+                        {group.items.map((item, index) => (
+                          <a
+                            href={newsHref(item.slug)}
+                            class:list={[
+                              "news-month-item",
+                              index >= NEWS_LIST_INITIAL_VISIBLE && "news-month-item--hidden",
+                            ]}
+                          >
+                            <span class="news-month-item-row">
+                              <span class="news-month-item-title">{item.cardTitle}</span>
+                              <ChevronRight
+                                size={16}
+                                aria-hidden="true"
+                                class="news-month-item-chevron"
+                              />
+                            </span>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+
+                    {
+                      hasMore ? (
+                        <footer class="news-month-footer">
+                          <button
+                            type="button"
+                            class="news-month-toggle"
+                            data-news-month-toggle
+                            aria-expanded="false"
+                          >
+                            <span data-news-toggle-label>更多</span>
+                            <ChevronDown size={16} aria-hidden="true" />
+                          </button>
+                        </footer>
+                      ) : null
+                    }
+                  </div>
+                </article>
+              );
+            })
+          )
+        }
+        </div>
+      </section>
+    </div>
+  </section>
+</main>
+
+<SiteFooter />
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>("[data-news-month-toggle]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const card = button.closest<HTMLElement>("[data-news-month-card]");
+      if (!card) return;
+
+      const expanded = card.classList.toggle("is-expanded");
+      button.setAttribute("aria-expanded", expanded ? "true" : "false");
+
+      const label = button.querySelector<HTMLElement>("[data-news-toggle-label]");
+      if (label) {
+        label.textContent = expanded ? "收起" : "更多";
+      }
+    });
+  });
+</script>

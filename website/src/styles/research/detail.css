@@ -372,6 +372,65 @@
   max-width: 100%;
 }
 
+.research-html-root .research-table-wrap {
+  overflow-x: auto;
+  margin: 1.4375rem 0 2rem;
+  border: 1px solid var(--research-line);
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(6 10 18 / 4%);
+}
+
+.research-html-root .research-table {
+  width: 100%;
+  min-width: 41.25rem;
+  border-collapse: collapse;
+  background: #fff;
+}
+
+.research-html-root .research-table th,
+.research-html-root .research-table td {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--research-line);
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  text-align: left;
+  vertical-align: top;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: #424d5f;
+}
+
+.research-html-root .research-table th {
+  color: var(--research-ink);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  background: #f7f8fa;
+}
+
+.research-html-root .research-table th:first-child,
+.research-html-root .research-table td:first-child {
+  width: 7.5rem;
+  min-width: 7.5rem;
+}
+
+.research-html-root .research-table td {
+  font-weight: 400;
+  background: #fff;
+}
+
+.research-html-root .research-table tr:last-child th,
+.research-html-root .research-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.research-html-root .research-table td strong {
+  color: var(--research-ink);
+  font-weight: 700;
+}
+
 .research-html-root table {
   max-width: 100%;
 }
@@ -576,40 +635,6 @@
   .research-html-root .inline-cta {
     padding-left: 2.125rem;
   }
-}
-
-.research-html-root .table-responsive {
-  width: 100%;
-  overflow-x: auto;
-  margin: 1.875rem 0 2.5rem;
-  border: 1px solid var(--research-line);
-  border-radius: 4px;
-}
-
-.research-html-root table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-  background: #fff;
-}
-
-.research-html-root th,
-.research-html-root td {
-  padding: 0.875rem 1rem;
-  border-bottom: 1px solid var(--research-line);
-  font-size: 0.9375rem;
-  color: #424d5f;
-}
-
-.research-html-root th {
-  background: var(--research-surface-soft);
-  color: var(--research-ink);
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
-.research-html-root tr:last-child td {
-  border-bottom: none;
 }
 
 .research-html-root td strong {

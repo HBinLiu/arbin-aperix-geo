@@ -1,0 +1,17 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import NewsPage from "@/components/news/NewsPage.astro";
+import { mergeNewsList } from "@/lib/news/cms";
+import { groupNewsByMonth } from "@/lib/news/group";
+import { getNewsList } from "@/lib/payload";
+import { newsSeo } from "@/lib/seo";
+import "@/styles/style.css";
+import "@/styles/news/list.css";
+
+const items = mergeNewsList(await getNewsList());
+const monthGroups = groupNewsByMonth(items);
+---
+
+<BaseLayout seo={newsSeo}>
+  <NewsPage monthGroups={monthGroups} />
+</BaseLayout>

@@ -41,9 +41,11 @@ export type CmsPageSeoEntry = {
 
 import type { FaqDoc, FaqPageDoc } from "@shared/faq";
 import type { CmsResearchCategoryDoc, CmsResearchDoc } from "@/lib/research/types";
+import type { CmsNewsDoc } from "@/lib/news/types";
 
 export type { FaqDoc, FaqPageDoc };
 export type { CmsResearchCategoryDoc, CmsResearchDoc };
+export type { CmsNewsDoc };
 
 type PayloadListResponse<T> = {
   docs: T[];
@@ -191,5 +193,46 @@ export async function getResearchDraftBySlug(
       },
     },
   );
+  return data?.docs[0] ?? null;
+}
+
+const NEWS_COLLECTION = "news";
+
+export async function getNewsList(): Promise<CmsNewsDoc[] | null> {
+  const query = new URLSearchParams({
+    limit: "200",
+    depth: "0",
+    sort: "-publishedAt",
+    "where[_status][equals]": "published",
+  });
+  const data = await payloadFetch<PayloadListResponse<CmsNewsDoc>>(`/${NEWS_COLLECTION}?${query}`);
+  if (!data?.docs?.length) return null;
+  return data.docs;
+}
+
+export async function getNewsBySlug(slug: string): Promise<CmsNewsDoc | null> {
+  const query = new URLSearchParams({
+    limit: "1",
+    depth: "0",
+    "where[slug][equals]": slug,
+    "where[_status][equals]": "published",
+  });
+  const data = await payloadFetch<PayloadListResponse<CmsNewsDoc>>(`/${NEWS_COLLECTION}?${query}`);
+  return data?.docs[0] ?? null;
+}
+
+/** 预览：读取最新草稿（需 CMS 用户 JWT） */
+export async function getNewsDraftBySlug(slug: string, token: string): Promise<CmsNewsDoc | null> {
+  const query = new URLSearchParams({
+    limit: "1",
+    depth: "0",
+    draft: "true",
+    "where[slug][equals]": slug,
+  });
+  const data = await payloadFetch<PayloadListResponse<CmsNewsDoc>>(`/${NEWS_COLLECTION}?${query}`, {
+    headers: {
+      Authorization: `JWT ${token.trim()}`,
+    },
+  });
   return data?.docs[0] ?? null;
 }

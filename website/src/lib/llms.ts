@@ -4,6 +4,7 @@ import {
   aboutSeo,
   contactSeo,
   researchSeo,
+  newsSeo,
   homeSeo,
   platformAnswerSeo,
   platformContentSeo,
@@ -96,6 +97,7 @@ export function buildLlmsTxt(site: URL, faqs: Faq[] = homeFaqs): string {
     { path: "/about", label: "关于我们", description: aboutSeo.description },
     { path: "/contact", label: "联系我们", description: contactSeo.description },
     { path: "/research", label: "研究", description: researchSeo.description },
+    { path: "/news", label: "新闻", description: newsSeo.description },
   ];
 
   const homeFaqLink: LlmsEntry = {

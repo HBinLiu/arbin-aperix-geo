@@ -133,6 +133,9 @@ export const pricingSeo = toPageSeo(CORE_PAGE_SEO.pricing);
 /** 研究 */
 export const researchSeo = toPageSeo(CORE_PAGE_SEO.research);
 
+/** 新闻 */
+export const newsSeo = toPageSeo(CORE_PAGE_SEO.news);
+
 /** 研究报告详情 */
 export function researchDetailSeo(report: { title: string; description: string; slug: string }) {
   return {
@@ -158,6 +161,28 @@ export function mergeResearchDetailSeo(
     return { ...merged, image: fallbackImage };
   }
   return merged;
+}
+
+/** 新闻详情 */
+export function newsDetailSeo(article: { title: string; description: string; slug: string }) {
+  return {
+    ...toPageSeo({
+      label: article.title,
+      path: `/news/${article.slug}/`,
+      titleTopic: article.title,
+      description: article.description,
+    }),
+    canonicalPath: `/news/${article.slug}/`,
+    type: "article" as const,
+  };
+}
+
+/** CMS meta 覆盖卡片默认 */
+export function mergeNewsDetailSeo(
+  article: { title: string; description: string; slug: string },
+  meta?: CmsSeoMeta | null,
+): PageSeo {
+  return mergePageSeo(newsDetailSeo(article), cmsMetaToPageSeo(meta));
 }
 
 /** 平台能力页 */

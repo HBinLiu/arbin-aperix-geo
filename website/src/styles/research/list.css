@@ -325,10 +325,6 @@
   object-fit: contain;
 }
 
-.research-card-icon svg {
-  color: #334155;
-}
-
 .research-card-title {
   margin: 0;
   display: -webkit-box;

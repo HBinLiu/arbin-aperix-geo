@@ -1,0 +1,174 @@
+---
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import type { NewsDetailViewModel } from "@/lib/news/detail";
+
+type Props = {
+  detail: NewsDetailViewModel;
+};
+
+const { detail } = Astro.props;
+const { hero, sidebar, toc, bodyHtml, hasBody } = detail;
+
+const metaItems: Array<{ type: "text" | "link"; label: string; href?: string }> = [];
+
+if (hero.sourceAuthor) {
+  metaItems.push({ type: "text", label: `原文作者: ${hero.sourceAuthor}` });
+}
+
+if (hero.sourceUrl && hero.sourceLabel) {
+  metaItems.push({
+    type: "link",
+    label: `原文链接: ${hero.sourceLabel}`,
+    href: hero.sourceUrl,
+  });
+}
+
+if (hero.publishedLabel) {
+  metaItems.push({ type: "text", label: `发布时间: ${hero.publishedLabel}` });
+}
+
+if (hero.readTimeLabel) {
+  metaItems.push({ type: "text", label: `阅读时间: ${hero.readTimeLabel}` });
+}
+---
+
+<SiteHeader />
+
+<main class="news-detail-root flex flex-1 flex-col">
+  <div class="news-detail-shell">
+    <header class="news-detail-hero" aria-labelledby="news-detail-title">
+      <div class="news-detail-tag">
+        <span class="news-detail-tag-dot" aria-hidden="true"></span>
+        {hero.tag}
+      </div>
+
+      <h1 id="news-detail-title" class="news-detail-title">{hero.title}</h1>
+
+      <p class="news-detail-lead">{hero.lead}</p>
+
+      <div class="news-detail-hero-actions">
+        <a class="news-detail-btn-primary" href={hero.primaryHref}>{hero.primaryLabel}</a>
+
+        {
+          metaItems.length > 0 ? (
+            <>
+              <span class="bar" aria-hidden="true"></span>
+              {metaItems.map((item, index) => (
+                <>
+                  {item.type === "link" && item.href ? (
+                    <span>
+                      原文链接:{" "}
+                      <a
+                        class="news-detail-meta-link"
+                        href={item.href}
+                        target="_blank"
+                        rel="nofollow noopener noreferrer"
+                      >
+                        {hero.sourceLabel}
+                      </a>
+                    </span>
+                  ) : (
+                    <span>{item.label}</span>
+                  )}
+                  {index < metaItems.length - 1 ? (
+                    <span class="bar" aria-hidden="true"></span>
+                  ) : null}
+                </>
+              ))}
+            </>
+          ) : null
+        }
+      </div>
+
+      {
+        hero.editorNote ? (
+          <p class="news-detail-editor-note">
+            <strong>编辑说明:</strong> {hero.editorNote}
+          </p>
+        ) : null
+      }
+    </header>
+
+    <div class="news-detail-layout">
+      <article class="news-detail-copy" aria-label="新闻正文">
+        {
+          hasBody ? (
+            <div class="news-html-root" set:html={bodyHtml} />
+          ) : (
+            <p class="news-detail-empty">正文内容即将发布，请稍后再来查看。</p>
+          )
+        }
+      </article>
+
+      <aside aria-label="侧边栏" class="news-detail-sidebar">
+        <div class="news-detail-side-cta">
+          <div class="news-detail-side-eyebrow">{sidebar.eyebrow}</div>
+          <h3>{sidebar.title}</h3>
+          <p>{sidebar.description}</p>
+          <a class="news-detail-btn-primary" href={sidebar.primaryHref}>
+            {sidebar.primaryLabel}
+          </a>
+        </div>
+
+        {
+          toc.length > 0 ? (
+            <nav aria-label="文章目录" class="news-detail-toc">
+              <div class="news-detail-toc-title">目录</div>
+              {toc.map((item) => (
+                <a href={`#${item.id}`} data-toc-link={item.id}>
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+          ) : null
+        }
+      </aside>
+    </div>
+  </div>
+</main>
+
+<SiteFooter />
+
+<script>
+  const tocLinks = document.querySelectorAll<HTMLAnchorElement>("[data-toc-link]");
+  if (tocLinks.length > 0) {
+    const sectionIds = [...tocLinks].map((link) => link.dataset.tocLink ?? "").filter(Boolean);
+    const sections = sectionIds
+      .map((id) => document.getElementById(id))
+      .filter((node): node is HTMLElement => node instanceof HTMLElement);
+
+    const setActive = (id: string) => {
+      tocLinks.forEach((link) => {
+        link.classList.toggle("is-active", link.dataset.tocLink === id);
+      });
+    };
+
+    tocLinks.forEach((link) => {
+      link.addEventListener("click", (event) => {
+        const id = link.dataset.tocLink;
+        const target = id ? document.getElementById(id) : null;
+        if (!target) return;
+        event.preventDefault();
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        history.replaceState(null, "", `#${id}`);
+      });
+    });
+
+    if ("IntersectionObserver" in window && sections.length > 0) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const visible = entries
+            .filter((entry) => entry.isIntersecting)
+            .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+          if (visible?.target.id) setActive(visible.target.id);
+        },
+        { rootMargin: "-20% 0px -55% 0px", threshold: [0, 0.25, 0.5, 1] },
+      );
+
+      sections.forEach((section) => observer.observe(section));
+    } else if (sections[0]?.id) {
+      setActive(sections[0].id);
+    }
+  }
+</script>

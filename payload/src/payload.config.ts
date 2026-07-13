@@ -7,6 +7,7 @@ import sharp from "sharp";
 import { FAQs } from "./collections/FAQs";
 import { Media } from "./collections/Media";
 import { PageSeoEntries } from "./collections/PageSeo";
+import { News } from "./collections/News";
 import { ResearchCategories } from "./collections/ResearchCategories";
 import { Researches } from "./collections/Researches";
 import { Users } from "./collections/Users";
@@ -36,7 +37,7 @@ export default buildConfig({
       titleSuffix: " · Aperix Web",
     },
   },
-  collections: [Users, Media, ResearchCategories, Researches, FAQs, PageSeoEntries],
+  collections: [Users, Media, ResearchCategories, Researches, News, FAQs, PageSeoEntries],
   globals: [AboutPage],
   editor: defaultLexicalEditor,
   email: createEmailAdapter(),

@@ -142,7 +142,7 @@ export const resourcesMenuSections: ResourcesMenuSection[] = [
       {
         title: "新闻",
         description: "每周 AI 与产品新闻资讯",
-        href: "#faq",
+        href: "/news/",
       },
       {
         title: "更新日志",

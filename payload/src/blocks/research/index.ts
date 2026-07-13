@@ -9,8 +9,8 @@ import { ResearchInlineCtaBlock } from "./ResearchInlineCtaBlock";
 import { ResearchLeadBlock } from "./ResearchLeadBlock";
 
 export const researchLexicalBlocks = [
-  ResearchFigureBlock,
   ResearchCalloutBlock,
   ResearchLeadBlock,
+  ResearchFigureBlock,
   ResearchInlineCtaBlock,
 ];
