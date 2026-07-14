@@ -12,9 +12,9 @@
   },
   "include": [
     ".astro/types.d.ts",
+    "astro.config.mjs",
     "site.config.mjs",
     "src/**/*",
-    "astro.config.mjs",
     "../shared/**/*"
   ],
   "exclude": ["dist", "node_modules"]

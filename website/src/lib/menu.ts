@@ -162,7 +162,7 @@ export const resourcesMenuSections: ResourcesMenuSection[] = [
       {
         title: "博客",
         description: "由经验驱动的 AI 可见性实践",
-        href: "#faq",
+        href: "/blog/",
       },
       {
         title: "文档指南",

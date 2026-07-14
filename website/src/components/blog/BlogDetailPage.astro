@@ -1,0 +1,296 @@
+---
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import StaticImage from "@/components/StaticImage.tsx";
+import type { BlogDetailViewModel } from "@/lib/blog/detail";
+import { formatBlogCardDate } from "@/lib/blog/detail";
+import { authorHref, blogHref } from "@/lib/blog";
+import { blogDetailHeroNotes } from "@shared/blog";
+import { SOCIAL_PLATFORM_LABELS } from "@shared/social";
+import { socialBrandSvg } from "@/lib/footer";
+import { ArrowRight, Check, ChevronRight, CircleCheck } from "@lucide/astro";
+
+type Props = {
+  detail: BlogDetailViewModel;
+};
+
+const { detail } = Astro.props;
+const { hero, author, relatedPosts, sidebar, toc, bodyHtml, hasBody } = detail;
+const heroNotes = blogDetailHeroNotes;
+const socialLinks = author?.socialLinks ?? [];
+---
+
+<SiteHeader />
+
+<main class="blog-detail-root flex flex-1 flex-col">
+  <section class="blog-detail-top">
+    <div class="blog-detail-container">
+      <nav class="blog-detail-breadcrumb" aria-label="面包屑">
+        <a href="/">首页</a>
+        <ChevronRight size={14} aria-hidden="true" />
+        <a href="/blog/">博客</a>
+        <ChevronRight size={14} aria-hidden="true" />
+        <span class="blog-detail-breadcrumb-current" aria-current="page">{hero.title}</span>
+      </nav>
+
+      <div class="blog-detail-hero-row">
+        <div class="blog-detail-hero-copy">
+          <h1 id="blog-detail-title" class="blog-detail-title">{hero.title}</h1>
+          {hero.lead ? <p class="blog-detail-lead">{hero.lead}</p> : null}
+          <a class="blog-detail-hero-cta group" href={hero.primaryHref}>
+            <span>{hero.primaryLabel}</span>
+            <ArrowRight size={14} aria-hidden="true" class="blog-detail-hero-cta-icon" />
+          </a>
+          <p class="blog-detail-hero-notes">
+            <CircleCheck size={16} aria-hidden="true" class="blog-detail-hero-check" />
+            <span>{heroNotes.note}</span>
+          </p>
+        </div>
+
+        {
+          hero.coverUrl ? (
+            <figure class="blog-detail-cover">
+              <StaticImage
+                src={hero.coverUrl}
+                alt={hero.title}
+                width={990}
+                height={556}
+                loading="eager"
+                className="blog-detail-cover-img"
+              />
+            </figure>
+          ) : (
+            <div class="blog-detail-cover blog-detail-cover--placeholder" aria-hidden="true" />
+          )
+        }
+      </div>
+    </div>
+  </section>
+
+  {
+    hero.author || hero.readTimeLabel || hero.updatedLabel ? (
+      <section class="blog-detail-author-bar">
+        <div class="blog-detail-container blog-detail-author-bar-inner">
+          {
+            hero.author ? (
+              <div class="blog-detail-author-block">
+                <a class="blog-detail-author" href={authorHref(hero.author.slug)}>
+                  {
+                    hero.author.avatarUrl ? (
+                      <StaticImage
+                        src={hero.author.avatarUrl}
+                        alt={hero.author.name}
+                        width={48}
+                        height={48}
+                        className="blog-detail-author-avatar"
+                      />
+                    ) : (
+                      <span class="blog-detail-author-fallback" aria-hidden="true" />
+                    )
+                  }
+                </a>
+                <div class="blog-detail-author-text">
+                  <span class="blog-detail-author-label">发表人</span>
+                  <div class="blog-detail-author-name-row">
+                    <a class="blog-detail-author-name" href={authorHref(hero.author.slug)}>
+                      {hero.author.name}
+                    </a>
+                    {
+                      socialLinks.length > 0 ? (
+                        <div class="blog-detail-socials">
+                          {socialLinks.map((link) => (
+                            <a
+                              class="blog-detail-social"
+                              href={link.url}
+                              target="_blank"
+                              rel="noreferrer noopener"
+                              aria-label={SOCIAL_PLATFORM_LABELS[link.platform]}
+                            >
+                              <Fragment
+                                set:html={socialBrandSvg(link.platform, {
+                                  size: 10,
+                                  className: "inline-block",
+                                  label: SOCIAL_PLATFORM_LABELS[link.platform],
+                                })}
+                              />
+                            </a>
+                          ))}
+                        </div>
+                      ) : null
+                    }
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div />
+            )
+          }
+
+          <div class="blog-detail-author-meta">
+            {hero.readTimeLabel ? <span>{hero.readTimeLabel}</span> : null}
+            {
+              hero.readTimeLabel && hero.updatedLabel ? (
+                <span aria-hidden="true">•</span>
+              ) : null
+            }
+            {
+              hero.updatedLabel ? (
+                <span class="blog-detail-updated">更新于 {hero.updatedLabel}</span>
+              ) : null
+            }
+          </div>
+        </div>
+      </section>
+    ) : null
+  }
+
+  <section class="blog-detail-body-section">
+    <div class="blog-detail-container">
+      <div class="blog-detail-grid">
+        <article class="blog-detail-copy" aria-label="博客正文">
+          {
+            hasBody ? (
+              <div class="blog-html-root" set:html={bodyHtml} />
+            ) : (
+              <p class="blog-detail-empty">正文内容即将发布，请稍后再来查看。</p>
+            )
+          }
+        </article>
+
+        <aside class="blog-detail-aside" aria-label="文章目录与体验">
+          <div class="blog-detail-aside-stack">
+            <nav class="blog-detail-toc" aria-label="文章目录">
+              <p class="blog-detail-toc-title">目录</p>
+              {
+                toc.length > 0 ? (
+                  <div class="blog-detail-toc-links">
+                    {toc.map((item) => (
+                      <a href={`#${item.id}`} data-toc-link={item.id} title={item.label}>
+                        {item.label}
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p class="blog-detail-toc-empty">暂无章节</p>
+                )
+              }
+            </nav>
+
+            <div class="blog-detail-side-cta">
+              <p class="blog-detail-side-title">{sidebar.title}</p>
+              {
+                sidebar.items.length > 0 ? (
+                  <ul class="blog-detail-side-list">
+                    {sidebar.items.map((item) => (
+                      <li>
+                        <span class="blog-detail-side-icon" aria-hidden="true">
+                          <Check size={14} color="var(--blog-accent)" />
+                        </span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null
+              }
+              {
+                sidebar.description ? (
+                  <p class="blog-detail-side-desc">{sidebar.description}</p>
+                ) : null
+              }
+              <a class="blog-detail-btn-primary blog-detail-side-btn" href={sidebar.primaryHref}>
+                {sidebar.primaryLabel}
+              </a>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  {
+    relatedPosts.length > 0 ? (
+      <section class="blog-detail-related" aria-labelledby="blog-related-title">
+        <div class="blog-detail-container">
+          <h2 id="blog-related-title" class="blog-detail-section-title">相关文章</h2>
+          <div class="blog-detail-related-grid">
+            {
+              relatedPosts.map((post) => (
+                <a class="blog-detail-related-card" href={blogHref(post.slug)}>
+                  <p class="blog-detail-related-title">{post.cardTitle}</p>
+                  <div class="blog-detail-related-meta">
+                    {
+                      post.author?.avatarUrl ? (
+                        <StaticImage
+                          src={post.author.avatarUrl}
+                          alt=""
+                          width={40}
+                          height={40}
+                          className="blog-detail-related-avatar"
+                        />
+                      ) : (
+                        <span class="blog-detail-related-avatar blog-detail-related-avatar--fallback" />
+                      )
+                    }
+                    <span>
+                      {post.author?.name ?? "编辑"}
+                      {
+                        formatBlogCardDate(post.updatedAt || post.publishedAt)
+                          ? ` • ${formatBlogCardDate(post.updatedAt || post.publishedAt)}`
+                          : ""
+                      }
+                    </span>
+                  </div>
+                </a>
+              ))
+            }
+          </div>
+        </div>
+      </section>
+    ) : null
+  }
+</main>
+
+<SiteFooter />
+
+<script>
+  const tocLinks = document.querySelectorAll<HTMLAnchorElement>("[data-toc-link]");
+  if (tocLinks.length > 0) {
+    const sectionIds = [...tocLinks].map((link) => link.dataset.tocLink ?? "").filter(Boolean);
+    const sections = sectionIds
+      .map((id) => document.getElementById(id))
+      .filter((node): node is HTMLElement => node instanceof HTMLElement);
+
+    const setActive = (id: string) => {
+      tocLinks.forEach((link) => {
+        link.classList.toggle("is-active", link.dataset.tocLink === id);
+      });
+    };
+
+    tocLinks.forEach((link) => {
+      link.addEventListener("click", (event) => {
+        const id = link.dataset.tocLink;
+        const target = id ? document.getElementById(id) : null;
+        if (!target) return;
+        event.preventDefault();
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        history.replaceState(null, "", `#${id}`);
+      });
+    });
+
+    if ("IntersectionObserver" in window && sections.length > 0) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const visible = entries
+            .filter((entry) => entry.isIntersecting)
+            .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+          if (visible?.target.id) setActive(visible.target.id);
+        },
+        { rootMargin: "-20% 0px -55% 0px", threshold: [0, 0.25, 0.5, 1] },
+      );
+
+      sections.forEach((section) => observer.observe(section));
+    } else if (sections[0]?.id) {
+      setActive(sections[0].id);
+    }
+  }
+</script>

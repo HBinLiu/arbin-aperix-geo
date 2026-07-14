@@ -1,0 +1,233 @@
+/** 作者详情页 */
+
+.author-page {
+  --author-muted: #747474;
+  --author-line: #e8e8e8;
+  --author-soft: #fafafa;
+  --content-max: 72rem;
+  --content-px: 1rem;
+
+  display: flex;
+  flex-direction: column;
+  background: hsl(0 0% 98%);
+  color: var(--color-foreground);
+}
+
+@media (min-width: 640px) {
+  .author-page {
+    --content-px: 1.5rem;
+  }
+}
+
+/* Hero */
+
+.author-hero {
+  background: linear-gradient(180deg, #fff7ed 0%, #ecf7fe 100%);
+  padding-block: 6rem;
+}
+
+.author-hero-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .author-hero-card {
+    flex-direction: row;
+    align-items: flex-start;
+    text-align: left;
+    gap: 2rem;
+  }
+}
+
+.author-avatar-wrap,
+.author-avatar-wrap--fallback {
+  flex-shrink: 0;
+  width: 8rem;
+  height: 8rem;
+  overflow: hidden;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  background: var(--author-soft);
+  box-shadow: 0 8px 24px rgb(22 20 18 / 8%);
+}
+
+.author-avatar-wrap img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.author-hero-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.875rem;
+  min-width: 0;
+}
+
+.author-name {
+  margin: 0;
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+}
+
+.author-social {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+@media (min-width: 768px) {
+  .author-social {
+    justify-content: flex-start;
+  }
+}
+
+.author-bio {
+  margin: 0;
+  max-width: 52rem;
+  color: var(--author-muted);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+
+/* Articles */
+
+.author-articles-inner {
+  padding-block: 3rem 4.5rem;
+}
+
+.author-articles {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.author-articles-title {
+  margin: 0;
+  text-align: center;
+  font-size: 1.875rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.author-empty,
+.author-grid-empty {
+  margin: 0;
+  text-align: center;
+  color: var(--author-muted);
+  font-size: 0.9375rem;
+}
+
+.author-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .author-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .author-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.author-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--author-line);
+  border-radius: 0.5rem;
+  background: #fff;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.author-card:hover {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, #fff);
+  box-shadow: 0 9px 7px rgb(255 107 43 / 8%);
+}
+
+.author-card.is-hidden {
+  display: none;
+}
+
+.author-card-cover,
+.author-card-cover-fallback {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: var(--author-soft);
+}
+
+.author-card-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.author-card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 1rem 1.125rem 1.125rem;
+}
+
+.author-card-category {
+  color: var(--author-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.author-card-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.author-card-desc {
+  margin: 0;
+  flex: 1;
+  color: var(--author-muted);
+  font-size: 0.875rem;
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.author-card-updated {
+  margin: 0.5rem 0 0;
+  color: var(--author-muted);
+  font-size: 0.75rem;
+}
+
+.author-articles .blog-pagination {
+  margin-top: 1rem;
+}

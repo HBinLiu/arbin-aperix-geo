@@ -4,6 +4,9 @@ import { buildConfig } from "payload";
 import { fileURLToPath } from "url";
 import sharp from "sharp";
 
+import { Authors } from "./collections/Authors";
+import { BlogCategories } from "./collections/BlogCategories";
+import { Blogs } from "./collections/Blogs";
 import { FAQs } from "./collections/FAQs";
 import { Media } from "./collections/Media";
 import { PageSeoEntries } from "./collections/PageSeo";
@@ -37,7 +40,18 @@ export default buildConfig({
       titleSuffix: " · Aperix Web",
     },
   },
-  collections: [Users, Media, ResearchCategories, Researches, News, FAQs, PageSeoEntries],
+  collections: [
+    Users,
+    Media,
+    ResearchCategories,
+    Researches,
+    News,
+    Authors,
+    BlogCategories,
+    Blogs,
+    FAQs,
+    PageSeoEntries,
+  ],
   globals: [AboutPage],
   editor: defaultLexicalEditor,
   email: createEmailAdapter(),

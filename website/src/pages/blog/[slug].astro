@@ -1,0 +1,53 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import BlogDetailPage from "@/components/blog/BlogDetailPage.astro";
+import { cmsDocToAuthor, mergeAuthors } from "@/lib/authors/cms";
+import { mergeBlogList } from "@/lib/blog/cms";
+import { buildBlogDetail, pickRelatedBlogPosts } from "@/lib/blog/detail";
+import { getAuthorBySlug, getAuthors, getBlogBySlug, getBlogList } from "@/lib/payload";
+import { mergeBlogDetailSeo } from "@/lib/seo";
+import "@/styles/style.css";
+import "@/styles/blog/detail.css";
+
+export async function getStaticPaths() {
+  const items = mergeBlogList(await getBlogList());
+
+  return items.map((item) => ({
+    params: { slug: item.slug },
+    props: { item },
+  }));
+}
+
+const { item } = Astro.props;
+const [cmsDoc, allPosts, authors] = await Promise.all([
+  getBlogBySlug(item.slug),
+  getBlogList().then(mergeBlogList),
+  getAuthors().then(mergeAuthors),
+]);
+
+const authorSlug = item.author?.slug;
+const authorCms = authorSlug ? await getAuthorBySlug(authorSlug) : null;
+const author =
+  (authorCms ? cmsDocToAuthor(authorCms) : null) ??
+  authors.find((entry) => entry.slug === authorSlug) ??
+  null;
+
+const detail = buildBlogDetail(item, cmsDoc, {
+  author,
+  relatedPosts: pickRelatedBlogPosts(item, allPosts),
+});
+
+const seo = mergeBlogDetailSeo(
+  {
+    title: item.cardTitle,
+    description: item.cardDescription,
+    slug: item.slug,
+  },
+  cmsDoc?.meta,
+  item.coverUrl,
+);
+---
+
+<BaseLayout seo={seo}>
+  <BlogDetailPage detail={detail} />
+</BaseLayout>

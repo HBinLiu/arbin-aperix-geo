@@ -18,6 +18,11 @@ const previewPathByCollection: Record<string, PreviewPathBuilder> = {
     if (!slug) return null;
     return `/preview/news/${encodeURIComponent(slug)}/`;
   },
+  blogs: (doc) => {
+    const slug = typeof doc?.slug === "string" ? doc.slug.trim() : "";
+    if (!slug) return null;
+    return `/preview/blog/${encodeURIComponent(slug)}/`;
+  },
 };
 
 export function buildCollectionPreviewPath(

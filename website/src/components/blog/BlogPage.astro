@@ -1,0 +1,273 @@
+---
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import StaticImage from "@/components/StaticImage.tsx";
+import BlogPagination from "@/components/blog/BlogPagination.astro";
+import {
+  blogHref,
+  type BlogCategory,
+  type BlogListItem,
+} from "@/lib/blog";
+import { buildBlogListUrl } from "@/lib/blog/pagination";
+import { Search } from "@lucide/astro";
+
+type Props = {
+  posts: BlogListItem[];
+  categories: BlogCategory[];
+};
+
+const { posts, categories } = Astro.props;
+
+const featuredPost = posts.find((post) => post.isFeatured) ?? null;
+const editorsPickPosts = posts
+  .filter((post) => post.isEditorsPick)
+  .sort((a, b) => (b.editorsPickOrder ?? 0) - (a.editorsPickOrder ?? 0));
+
+/** 探索分类列表展示全部文章；精选/编辑精选仅用于上方推荐位 */
+const gridPosts = posts;
+
+const categoryOptions = [
+  { id: "all", label: "所有分类" },
+  ...categories.map((category) => ({
+    id: category.slug,
+    label: category.label,
+  })),
+];
+
+function readTimeLabel(minutes: number | undefined): string {
+  const safe = minutes && minutes > 0 ? minutes : 5;
+  return `${safe} 分钟阅读`;
+}
+---
+
+<SiteHeader />
+
+<main class="flex flex-1 flex-col">
+  <section class="blog-page">
+    <div class="blog-inner mx-auto w-full max-w-6xl px-4 sm:px-6">
+      {
+        featuredPost || editorsPickPosts.length > 0 ? (
+          <section class="blog-featured" aria-label="精选内容">
+            <div class="blog-featured-layout">
+              {
+                featuredPost ? (
+                  <a href={blogHref(featuredPost.slug)} class="blog-featured-main">
+                    <div class="blog-featured-cover">
+                      {
+                        featuredPost.coverUrl ? (
+                          <StaticImage
+                            src={featuredPost.coverUrl}
+                            alt={featuredPost.cardTitle}
+                            width={660}
+                            height={371}
+                            loading="eager"
+                          />
+                        ) : (
+                          <div class="blog-featured-cover-fallback" aria-hidden="true"></div>
+                        )
+                      }
+                    </div>
+                    <div class="blog-featured-main-body">
+                      <h2 class="blog-featured-title">{featuredPost.cardTitle}</h2>
+                      <p class="blog-featured-desc">{featuredPost.cardDescription}</p>
+                      <div class="blog-featured-meta">
+                        {
+                          featuredPost.author ? (
+                            <span class="blog-featured-author">
+                              {
+                                featuredPost.author.avatarUrl ? (
+                                  <StaticImage
+                                    src={featuredPost.author.avatarUrl}
+                                    alt=""
+                                    width={24}
+                                    height={24}
+                                    className="blog-featured-author-avatar"
+                                  />
+                                ) : (
+                                  <span class="blog-featured-author-fallback" aria-hidden="true"></span>
+                                )
+                              }
+                              <span>{featuredPost.author.name}</span>
+                            </span>
+                          ) : (
+                            <span />
+                          )
+                        }
+                        <span class="blog-featured-readtime">{readTimeLabel(featuredPost.readMinutes)}</span>
+                      </div>
+                    </div>
+                  </a>
+                ) : (
+                  <div class="blog-featured-main blog-featured-main--empty">
+                    <p>暂无精选文章。</p>
+                  </div>
+                )
+              }
+
+              <aside class="blog-editors-pick" aria-labelledby="blog-editors-pick-title">
+                <h2 id="blog-editors-pick-title" class="blog-editors-pick-title">编辑精选</h2>
+                {
+                  editorsPickPosts.length === 0 ? (
+                    <p class="blog-editors-pick-empty">暂无编辑精选。</p>
+                  ) : (
+                    <div class="blog-editors-pick-list">
+                      {
+                        editorsPickPosts.map((post) => (
+                          <a href={blogHref(post.slug)} class="blog-editors-pick-item">
+                            {
+                              post.coverUrl ? (
+                                <div class="blog-editors-pick-thumb">
+                                  <StaticImage
+                                    src={post.coverUrl}
+                                    alt=""
+                                    width={178}
+                                    height={100}
+                                    loading="lazy"
+                                  />
+                                </div>
+                              ) : (
+                                <div class="blog-editors-pick-thumb blog-editors-pick-thumb--fallback" aria-hidden="true"></div>
+                              )
+                            }
+                            <div class="blog-editors-pick-copy">
+                              <p class="blog-editors-pick-item-title">{post.cardTitle}</p>
+                              <p class="blog-editors-pick-item-meta">
+                                {post.author?.name ? `${post.author.name} · ` : ""}
+                                {readTimeLabel(post.readMinutes)}
+                              </p>
+                            </div>
+                          </a>
+                        ))
+                      }
+                    </div>
+                  )
+                }
+              </aside>
+            </div>
+          </section>
+        ) : null
+      }
+
+      <section class="blog-explore" aria-labelledby="blog-explore-title">
+        <header class="blog-explore-head">
+          <h2 id="blog-explore-title" class="blog-explore-title">探索分类</h2>
+          <form
+            class="blog-search"
+            action="/blog/"
+            method="get"
+            role="search"
+            data-blog-search-form
+          >
+            <label class="sr-only" for="blog-search-input">搜索文章</label>
+            <Search size={16} aria-hidden="true" class="blog-search-icon" />
+            <input
+              id="blog-search-input"
+              class="blog-search-input"
+              type="search"
+              name="s"
+              placeholder="搜索文章"
+              autocomplete="off"
+              data-blog-search-input
+            />
+          </form>
+        </header>
+
+        <div class="blog-categories" role="navigation" aria-label="博客分类">
+          {
+            categoryOptions.map((category) => (
+              <a
+                href={buildBlogListUrl(1, category.id)}
+                class:list={["blog-category-pill", category.id === "all" && "is-active"]}
+                data-blog-category-filter={category.id}
+                aria-current={category.id === "all" ? "page" : undefined}
+              >
+                <span>{category.label}</span>
+              </a>
+            ))
+          }
+        </div>
+
+        {
+          gridPosts.length === 0 ? (
+            <p class="blog-empty">暂无博客内容，请在 CMS 中发布文章。</p>
+          ) : (
+            <>
+              <div class="blog-grid">
+                {
+                  gridPosts.map((post) => (
+                    <a
+                      href={blogHref(post.slug)}
+                      class="blog-card"
+                      data-blog-card
+                      data-blog-card-category={post.categorySlug ?? ""}
+                      data-blog-card-title={post.cardTitle}
+                      data-blog-card-description={post.cardDescription}
+                    >
+                      <div class="blog-card-cover">
+                        {
+                          post.coverUrl ? (
+                            <StaticImage
+                              src={post.coverUrl}
+                              alt={post.cardTitle}
+                              width={400}
+                              height={225}
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div class="blog-card-cover-fallback" aria-hidden="true"></div>
+                          )
+                        }
+                      </div>
+                      <div class="blog-card-body">
+                        {
+                          post.categoryLabel ? (
+                            <span class="blog-card-category">{post.categoryLabel}</span>
+                          ) : null
+                        }
+                        <h3 class="blog-card-title">{post.cardTitle}</h3>
+                        <p class="blog-card-desc">{post.cardDescription}</p>
+                        <div class="blog-card-footer">
+                          {
+                            post.author ? (
+                              <span class="blog-card-author">
+                                {
+                                  post.author.avatarUrl ? (
+                                    <StaticImage
+                                      src={post.author.avatarUrl}
+                                      alt=""
+                                      width={20}
+                                      height={20}
+                                      className="blog-card-author-avatar"
+                                    />
+                                  ) : (
+                                    <span class="blog-card-author-fallback" aria-hidden="true"></span>
+                                  )
+                                }
+                                <span>{post.author.name}</span>
+                              </span>
+                            ) : (
+                              <span />
+                            )
+                          }
+                          <span class="blog-card-readtime">{readTimeLabel(post.readMinutes)}</span>
+                        </div>
+                      </div>
+                    </a>
+                  ))
+                }
+              </div>
+
+              <p class="blog-grid-empty" data-blog-grid-empty hidden>
+                未找到匹配的文章，请尝试其他分类或搜索关键词。
+              </p>
+
+              <BlogPagination />
+            </>
+          )
+        }
+      </section>
+    </div>
+  </section>
+</main>
+
+<SiteFooter />

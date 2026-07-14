@@ -136,6 +136,9 @@ export const researchSeo = toPageSeo(CORE_PAGE_SEO.research);
 /** 新闻 */
 export const newsSeo = toPageSeo(CORE_PAGE_SEO.news);
 
+/** 博客 */
+export const blogSeo = toPageSeo(CORE_PAGE_SEO.blog);
+
 /** 研究报告详情 */
 export function researchDetailSeo(report: { title: string; description: string; slug: string }) {
   return {
@@ -183,6 +186,52 @@ export function mergeNewsDetailSeo(
   meta?: CmsSeoMeta | null,
 ): PageSeo {
   return mergePageSeo(newsDetailSeo(article), cmsMetaToPageSeo(meta));
+}
+
+/** 博客详情 */
+export function blogDetailSeo(article: { title: string; description: string; slug: string }) {
+  return {
+    ...toPageSeo({
+      label: article.title,
+      path: `/blog/${article.slug}/`,
+      titleTopic: article.title,
+      description: article.description,
+    }),
+    canonicalPath: `/blog/${article.slug}/`,
+    type: "article" as const,
+  };
+}
+
+export function mergeBlogDetailSeo(
+  article: { title: string; description: string; slug: string },
+  meta?: CmsSeoMeta | null,
+  fallbackImage?: string,
+): PageSeo {
+  const merged = mergePageSeo(blogDetailSeo(article), cmsMetaToPageSeo(meta));
+  if (!merged.image && fallbackImage) {
+    return { ...merged, image: fallbackImage };
+  }
+  return merged;
+}
+
+/** 作者详情 */
+export function authorDetailSeo(author: { name: string; bio: string; slug: string }) {
+  return {
+    ...toPageSeo({
+      label: author.name,
+      path: `/authors/${author.slug}/`,
+      titleTopic: author.name,
+      description: author.bio,
+    }),
+    canonicalPath: `/authors/${author.slug}/`,
+  };
+}
+
+export function mergeAuthorDetailSeo(
+  author: { name: string; bio: string; slug: string },
+  meta?: CmsSeoMeta | null,
+): PageSeo {
+  return mergePageSeo(authorDetailSeo(author), cmsMetaToPageSeo(meta));
 }
 
 /** 平台能力页 */

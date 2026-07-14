@@ -8,6 +8,8 @@ const generateTitle: GenerateTitle = ({ doc }) => {
   if (title) return title;
   const cardTitle = typeof doc?.cardTitle === "string" ? doc.cardTitle.trim() : "";
   if (cardTitle) return `${cardTitle} | {{siteName}}`;
+  const name = typeof doc?.name === "string" ? doc.name.trim() : "";
+  if (name) return `${name} | {{siteName}}`;
   const label = typeof doc?.label === "string" ? doc.label.trim() : "";
   if (label) return `${label} | {{siteName}}`;
   return "{{siteName}}";
@@ -19,6 +21,8 @@ const generateDescription: GenerateDescription = ({ doc }) => {
   const cardDescription =
     typeof doc?.cardDescription === "string" ? doc.cardDescription.trim() : "";
   if (cardDescription) return cardDescription;
+  const bio = typeof doc?.bio === "string" ? doc.bio.trim() : "";
+  if (bio) return bio.slice(0, 160);
   return "";
 };
 
@@ -33,6 +37,12 @@ const generateURL: GenerateURL = ({ doc, collectionConfig }) => {
     if (collectionSlug === "news") {
       return `${site}/news/${normalized}/`;
     }
+    if (collectionSlug === "blogs") {
+      return `${site}/blog/${normalized}/`;
+    }
+    if (collectionSlug === "authors") {
+      return `${site}/authors/${normalized}/`;
+    }
     return `${site}/research/${normalized}/`;
   }
 
@@ -43,7 +53,7 @@ const generateURL: GenerateURL = ({ doc, collectionConfig }) => {
 
 export const seo = seoPlugin({
   uploadsCollection: "media",
-  collections: ["page-seo", "researches", "news"],
+  collections: ["page-seo", "researches", "news", "blogs", "authors"],
   globals: [],
   tabbedUI: true,
   generateTitle,

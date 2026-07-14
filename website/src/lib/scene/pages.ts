@@ -400,7 +400,7 @@ const contentStrategyPage = resolveSiteCopyDeep({
       {
         title: "跨形式分发",
         description:
-          "同样的叙事，不同的表达：博客文章、LinkedIn 内容、案例研究、产品页、视频 —— 全都在讲述同一个核心故事。",
+          "同样的叙事，不同的表达：博客文章、知乎笔记、案例研究、产品页、视频 —— 全都在讲述同一个核心故事。",
         image: pillarImages.competitiveIdentify,
       },
       {

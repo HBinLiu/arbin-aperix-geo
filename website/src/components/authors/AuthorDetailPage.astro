@@ -1,0 +1,153 @@
+---
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import StaticImage from "@/components/StaticImage.tsx";
+import BlogPagination from "@/components/blog/BlogPagination.astro";
+import { blogHref } from "@/lib/blog";
+import type { AuthorProfile } from "@/lib/authors";
+import type { BlogListItem } from "@/lib/blog";
+import { SOCIAL_PLATFORM_LABELS } from "@shared/social";
+import { socialBrandSvg, socialButtonClass } from "@/lib/footer";
+
+type Props = {
+  author: AuthorProfile;
+  posts: BlogListItem[];
+};
+
+const { author, posts } = Astro.props;
+
+function formatUpdatedLabel(value: string | undefined): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+---
+
+<SiteHeader />
+
+<main class="flex flex-1 flex-col">
+  <section class="author-page">
+    <div class="author-hero">
+      <div class="author-hero-inner mx-auto w-full max-w-6xl px-4 sm:px-6">
+        <div class="author-hero-card">
+          {
+            author.avatarUrl ? (
+              <div class="author-avatar-wrap">
+                <StaticImage
+                  src={author.avatarUrl}
+                  alt={author.name}
+                  width={128}
+                  height={128}
+                  loading="eager"
+                />
+              </div>
+            ) : (
+              <div class="author-avatar-wrap author-avatar-wrap--fallback" aria-hidden="true"></div>
+            )
+          }
+
+          <div class="author-hero-copy">
+            <h1 class="author-name">{author.name}</h1>
+
+            {
+              author.socialLinks.length > 0 ? (
+                <div class="author-social">
+                  {
+                    author.socialLinks.map((link) => (
+                      <a
+                        href={link.url}
+                        aria-label={`${author.name} ${SOCIAL_PLATFORM_LABELS[link.platform]}`}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                      >
+                        <span class={socialButtonClass}>
+                          <Fragment set:html={socialBrandSvg(link.platform)} />
+                        </span>
+                      </a>
+                    ))
+                  }
+                </div>
+              ) : null
+            }
+
+            <p class="author-bio">{author.bio}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="author-articles-inner mx-auto w-full max-w-6xl px-4 sm:px-6">
+      <section class="author-articles" aria-labelledby="author-articles-title">
+        <h2 id="author-articles-title" class="author-articles-title">全部文章</h2>
+
+        {
+          posts.length === 0 ? (
+            <p class="author-empty">该作者暂无已发布文章。</p>
+          ) : (
+            <>
+              <div class="author-grid">
+                {
+                  posts.map((post) => (
+                    <a
+                      href={blogHref(post.slug)}
+                      class="author-card"
+                      data-blog-card
+                      data-blog-card-category=""
+                      data-blog-card-title={post.cardTitle}
+                      data-blog-card-description={post.cardDescription}
+                    >
+                      <div class="author-card-cover">
+                        {
+                          post.coverUrl ? (
+                            <StaticImage
+                              src={post.coverUrl}
+                              alt={post.cardTitle}
+                              width={400}
+                              height={225}
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div class="author-card-cover-fallback" aria-hidden="true"></div>
+                          )
+                        }
+                      </div>
+                      <div class="author-card-body">
+                        {
+                          post.categoryLabel ? (
+                            <span class="author-card-category">{post.categoryLabel}</span>
+                          ) : null
+                        }
+                        <h3 class="author-card-title">{post.cardTitle}</h3>
+                        <p class="author-card-desc">{post.cardDescription}</p>
+                        {
+                          formatUpdatedLabel(post.updatedAt ?? post.publishedAt) ? (
+                            <p class="author-card-updated">
+                              最后更新: {formatUpdatedLabel(post.updatedAt ?? post.publishedAt)}
+                            </p>
+                          ) : null
+                        }
+                      </div>
+                    </a>
+                  ))
+                }
+              </div>
+
+              <p class="author-grid-empty" data-blog-grid-empty hidden>
+                暂无更多文章。
+              </p>
+
+              <BlogPagination variant="author" authorSlug={author.slug} />
+            </>
+          )
+        }
+      </section>
+    </div>
+  </section>
+</main>
+
+<SiteFooter />

@@ -43,4 +43,11 @@ export const CORE_PAGE_SEO = {
     description:
       "汇总每周 AI 新闻、产品发布、模型更新与生态变化，帮助运营和营销团队快速掌握行业重点。",
   },
+  blog: {
+    label: "博客",
+    path: "/blog/",
+    titleTopic: "博客 - AI 可见性实践与 GEO 洞察",
+    description:
+      "由实战经验驱动的 AI 可见性、GEO 与 SEO 实践文章，帮助营销与内容团队落地可执行策略。",
+  },
 } as const satisfies Record<string, PageSeoDefault>;

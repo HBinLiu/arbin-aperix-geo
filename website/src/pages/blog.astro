@@ -1,0 +1,16 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import BlogPage from "@/components/blog/BlogPage.astro";
+import { mergeBlogCategories, mergeBlogList } from "@/lib/blog/cms";
+import { getBlogCategories, getBlogList } from "@/lib/payload";
+import { blogSeo } from "@/lib/seo";
+import "@/styles/style.css";
+import "@/styles/blog/list.css";
+
+const posts = mergeBlogList(await getBlogList());
+const categories = mergeBlogCategories(await getBlogCategories());
+---
+
+<BaseLayout seo={blogSeo}>
+  <BlogPage posts={posts} categories={categories} />
+</BaseLayout>
