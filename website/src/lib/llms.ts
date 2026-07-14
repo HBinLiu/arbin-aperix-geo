@@ -16,6 +16,7 @@ import {
 import { MONITOR_SLUGS } from "@/lib/platform/monitor";
 import type { PlatformId } from "@shared/platform";
 import { siteConfig } from "@site";
+import { appLinks } from "@/lib/app-links";
 
 type LlmsEntry = {
   path: string;
@@ -24,6 +25,7 @@ type LlmsEntry = {
 };
 
 function pageHref(site: URL, path: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
   if (path === "/") return new URL("/", site).href;
   const [pathname, hash = ""] = path.split("#");
   if (/\.[a-z0-9]+$/i.test(pathname)) {
@@ -143,7 +145,7 @@ export function buildLlmsTxt(site: URL, faqs: Faq[] = homeFaqs): string {
     "",
     "## 可选",
     "",
-    `- [控制台](${pageHref(site, "/auth/register")}): 注册并开始 GEO 监测`,
+    `- [控制台](${pageHref(site, appLinks.register)}): 注册并开始 GEO 监测`,
     `- [Sitemap](${pageHref(site, "/sitemap-index.xml")}): 全站 URL 索引`,
   ].join("\n");
 }

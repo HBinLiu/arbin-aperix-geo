@@ -1,4 +1,5 @@
 ---
+import { appLinks } from "@/lib/app-links";
 import SiteFooter from "@/components/SiteFooter.astro";
 import SiteHeader from "@/components/SiteHeader.astro";
 import FaqSection from "@/components/home/FaqSection.astro";
@@ -96,11 +97,11 @@ const preferenceSections = [
         </div>
 
         <div class="monitor-hero-actions">
-          <a href="/auth/register" class="monitor-cta monitor-cta--primary group">
+          <a href={appLinks.register} class="monitor-cta monitor-cta--primary group">
             <span>立即开始</span>
             <ArrowRight size={16} class="monitor-cta-icon" aria-hidden="true" />
           </a>
-          <a href="/auth/register" class="monitor-cta monitor-cta--secondary">开始免费试用</a>
+          <a href={appLinks.register} class="monitor-cta monitor-cta--secondary">开始免费试用</a>
         </div>
       </div>
     </div>

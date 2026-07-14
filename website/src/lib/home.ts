@@ -4,6 +4,7 @@ import { resolveSiteCopyDeep } from "@/lib/site";
 import { mergeFaqs, resolveFaqDefaults, type Faq } from "@/lib/faqs";
 import type { FaqDoc } from "@shared/faq";
 import { HERO_PLATFORM_IDS } from "@shared/platform";
+import { appLinks } from "@/lib/app-links";
 
 export type HeroHeadlinePart =
   | { type: "text"; content: string }
@@ -63,7 +64,7 @@ export const homeHero: HeroContent = {
   description: "专为企业 AI 营销打造，不只是监测数据——把 AI 可见性转化为真实商机。",
   inputPlaceholder: "输入你的品牌/官网，获取品牌 AI 曝光诊断报告",
   primaryCtaLabel: "获取诊断报告",
-  primaryCtaHref: "/auth/register",
+  primaryCtaHref: appLinks.register,
 };
 
 export const homePlatforms = [...HERO_PLATFORM_IDS];
@@ -74,7 +75,7 @@ export const homeDiagnostic: DiagnosticContent = {
   titleLine2Suffix: "中的表现吗？",
   rotatingHighlights: ["豆包", "DeepSeek", "千问", "元宝", "Kimi", "文心一言"],
   ctaLabel: "生成诊断报告",
-  ctaHref: "/auth/register",
+  ctaHref: appLinks.register,
 };
 
 export const homeFeatures: FeaturesContent = resolveSiteCopyDeep({
@@ -189,9 +190,9 @@ export const homeCta: CtaContent = resolveSiteCopyDeep({
   description: "加入 {{siteName}}，追踪 AI 可见性。获得基于实战的深度洞察，告别盲目猜测。",
   codeLines: ["// 停止猜测。", "// 开始掌控。"],
   secondaryCtaLabel: "登录",
-  secondaryCtaHref: "/auth/login",
+  secondaryCtaHref: appLinks.login,
   primaryCtaLabel: "开始试用",
-  primaryCtaHref: "/auth/register",
+  primaryCtaHref: appLinks.register,
 });
 
 export const homeFaqs: Faq[] = resolveFaqDefaults(homeFaqDefaults);

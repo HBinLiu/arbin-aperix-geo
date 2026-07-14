@@ -1,6 +1,7 @@
 import { monitorHref } from "@/lib/platform/monitor";
 import { platformMenuSections, resourcesMenuSections } from "@/lib/menu";
 import { PLATFORMS } from "@shared/platform";
+import { appLinks } from "@/lib/app-links";
 
 export type FooterLink = {
   label: string;
@@ -96,8 +97,8 @@ export const footerColumnRows: FooterColumn[][] = [
         { label: "关于我们", href: "/about" },
         { label: "联系我们", href: "/contact" },
         { label: "定价方案", href: "/pricing" },
-        { label: "开始试用", href: "/auth/register" },
-        { label: "登录", href: "/auth/login" },
+        { label: "开始试用", href: appLinks.register },
+        { label: "登录", href: appLinks.login },
       ],
     },
   ],

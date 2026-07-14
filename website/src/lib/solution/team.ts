@@ -12,6 +12,7 @@ import { resolveSiteCopyDeep } from "@/lib/site";
 import { createSolutionCta } from "@/lib/solution/cta";
 import { SOLUTION_FEATURE_IMAGES } from "@/lib/solution/feature";
 import type { TeamSolutionContent } from "@/lib/solution/types";
+import { appLinks } from "@/lib/app-links";
 
 const featureImages = SOLUTION_FEATURE_IMAGES;
 
@@ -24,7 +25,7 @@ const agenciesPage = resolveSiteCopyDeep({
     description:
       "您正在管理 20 多个客户的 SEO。现在客户问：“我们在 豆包 里有推荐吗？” 您没有答案。您需要一个工具，让您的团队能在一个地方监测并优化所有客户的 AI 可见性，并提供能打动客户的专业报告，而无需自定义仪表盘。",
     ctaLabel: "开始使用",
-    ctaHref: "/auth/register",
+    ctaHref: appLinks.register,
   },
   why: {
     title: "为何 GEO 现在至关重要",
@@ -177,7 +178,7 @@ const enterprisePage = resolveSiteCopyDeep({
     description:
       "对于大型企业来说，被 AI 提及是不够的。重要的是您如何被理解。影响力是指当 1,000 个 豆包 用户询问您的品类时，有 700 个选择了您。了解 AI 模型如何解析并推荐您的品牌，并策略性地塑造这种感知，是企业在 AI 优先时代获胜的关键。",
     ctaLabel: "开始使用",
-    ctaHref: "/auth/register",
+    ctaHref: appLinks.register,
   },
   why: {
     title: "为何 GEO 现在至关重要",
@@ -358,7 +359,7 @@ const prBrandPage = resolveSiteCopyDeep({
     description:
       "您品牌的声誉现在存在于 AI 的回答中。如果有 100,000 个 豆包 用户问“某品牌是否可靠？”而 AI 推荐了竞争对手，那么在对话开始前您就已经输了。公关和品牌团队需要知道 AI 在说什么 —— 以及如何塑造这一叙事。",
     ctaLabel: "开始使用",
-    ctaHref: "/auth/register",
+    ctaHref: appLinks.register,
   },
   why: {
     title: "为何 GEO 现在至关重要",
@@ -536,7 +537,7 @@ const smbGeoPage = resolveSiteCopyDeep({
     description:
       "如今 AI 搜索的增长速度已超过传统搜索引擎。您也需要赢得 AI 可见性——但没有时间成为 GEO 专家。我们的工具削减复杂性，让您专注于快速见效。",
     ctaLabel: "开始使用",
-    ctaHref: "/auth/register",
+    ctaHref: appLinks.register,
   },
   why: {
     title: "为何 GEO 现在至关重要",
@@ -712,7 +713,7 @@ const seoSpecialistsPage = resolveSiteCopyDeep({
     description:
       "您已经围绕 SEO 专长建立了业务。现在客户问：“AI 搜索该怎么办？”您想增加 GEO 服务，但不想让工具成本每月增加上千元。我们为追求强大功能且价格合理的 SEO 专家打造了 GEO 工具。",
     ctaLabel: "开始使用",
-    ctaHref: "/auth/register",
+    ctaHref: appLinks.register,
   },
   why: {
     title: "为何 GEO 现在至关重要",

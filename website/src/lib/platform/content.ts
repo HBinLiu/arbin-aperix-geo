@@ -4,6 +4,7 @@ import type { Faq } from "@/lib/platform/faq";
 import { contentCreationFaqDefaults } from "@shared/faq/defaults";
 import { mergeFaqs, resolveFaqDefaults } from "@/lib/faqs";
 import type { FaqDoc } from "@shared/faq";
+import { appLinks } from "@/lib/app-links";
 
 export type ContentCreationFeatureIcon = "topic" | "outline" | "draft" | "quality";
 
@@ -43,9 +44,9 @@ export const contentCreationHero = {
   description:
     "创作针对搜索引擎和 AI 平台创作的高质量文章。内置 SEO/GEO 优化的内容简报、大纲和完整文章。",
   primaryCtaLabel: "开始创作",
-  primaryCtaHref: "/auth/register",
+  primaryCtaHref: appLinks.register,
   secondaryCtaLabel: "获取演示",
-  secondaryCtaHref: "/auth/register",
+  secondaryCtaHref: appLinks.register,
 };
 
 export const contentCreationRankingFactors = [
@@ -164,7 +165,7 @@ export const contentCreationCta: CtaContent = {
   description: "从免费的话题分析开始，看看您能占据哪些排名。",
   codeLines: ["// 停止猜测。", "// 开始掌控。"],
   secondaryCtaLabel: "获取演示",
-  secondaryCtaHref: "/auth/register",
+  secondaryCtaHref: appLinks.register,
   primaryCtaLabel: "开始免费试用",
-  primaryCtaHref: "/auth/register",
+  primaryCtaHref: appLinks.register,
 };

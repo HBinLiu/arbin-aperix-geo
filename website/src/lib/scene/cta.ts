@@ -1,14 +1,15 @@
 import type { CtaContent } from "@/lib/home";
 import { resolveSiteCopyDeep } from "@/lib/site";
 import type { SceneSlug } from "@shared/faq/pages";
+import { appLinks } from "@/lib/app-links";
 
 const sceneCtaDefaults = {
   badge: "准备就绪",
   codeLines: ["// 停止猜测。", "// 开始掌控。"],
   secondaryCtaLabel: "获取演示",
-  secondaryCtaHref: "/auth/register",
+  secondaryCtaHref: appLinks.register,
   primaryCtaLabel: "开始免费试用",
-  primaryCtaHref: "/auth/register",
+  primaryCtaHref: appLinks.register,
 } satisfies Partial<CtaContent>;
 
 type SceneCtaFields = Pick<

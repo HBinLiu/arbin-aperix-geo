@@ -1,4 +1,5 @@
 import type { Block } from "payload";
+import { APP_LINK_KEYS, APP_LINK_OPTIONS } from "@shared/app-links";
 
 /** 行内 CTA */
 export const NewsInlineCtaBlock: Block = {
@@ -32,10 +33,14 @@ export const NewsInlineCtaBlock: Block = {
     },
     {
       name: "buttonHref",
-      type: "text",
+      type: "select",
       required: true,
       label: "按钮链接",
-      defaultValue: "/auth/register",
+      defaultValue: APP_LINK_KEYS.register,
+      options: APP_LINK_OPTIONS,
+      admin: {
+        description: "实际 URL 由官网环境变量 PUBLIC_REGISTER_URL / PUBLIC_LOGIN_URL 配置",
+      },
     },
   ],
 };

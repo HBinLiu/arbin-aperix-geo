@@ -12,6 +12,7 @@ import { resolveSiteCopyDeep } from "@/lib/site";
 import { SCENE_PILLAR_IMAGES } from "@/lib/scene/feature";
 import { sceneCtaBySlug } from "@/lib/scene/cta";
 import type { SceneContent } from "@/lib/scene/types";
+import { appLinks } from "@/lib/app-links";
 
 const pillarImages = SCENE_PILLAR_IMAGES;
 
@@ -24,7 +25,7 @@ const productLaunchPage = resolveSiteCopyDeep({
     description:
       "当 AI 不知道新产品存在时，它们就会在沉默中消亡。传统的发布方式需要数周时间等待百度抓取并排名。但如果 AI 缺乏关于您产品的数据，您在 AI 推荐中就是「不可见」的——这将错失 40% 的潜在曝光机会。确保您的发布能获得即时的 AI 引用、品类提及和客户发现。",
     ctaLabel: "开始使用",
-    ctaHref: "/auth/register",
+    ctaHref: appLinks.register,
   },
   diagnostic: {
     title: "产品发布盲区",
@@ -183,7 +184,7 @@ const narrativeShapingPage = resolveSiteCopyDeep({
     description:
       "您无法直接控制 AI 对您的评价，但您可以施加影响。通过策略性地创作和分发内容，您可以塑造 AI 训练所用的数据，确保品牌按照您期望的方式被推荐。",
     ctaLabel: "开始使用",
-    ctaHref: "/auth/register",
+    ctaHref: appLinks.register,
   },
   diagnostic: {
     title: "叙事掌控的机会",
@@ -335,7 +336,7 @@ const contentStrategyPage = resolveSiteCopyDeep({
     description:
       "您的内容不仅是给读者看的——它也是 AI 的训练数据。碎片化的内容策略会导致 AI 对您品牌的理解产生混乱。集成叙事策略能确保 AI 在数百万场对话中一致地讲述您的品牌故事。",
     ctaLabel: "开始使用",
-    ctaHref: "/auth/register",
+    ctaHref: appLinks.register,
   },
   diagnostic: {
     title: "叙事问题",
@@ -497,7 +498,7 @@ const competitivePositioningPage = resolveSiteCopyDeep({
     description:
       "在 AI 对话中，您的竞争对手往往被优先推荐。这并不是因为他们更好 —— 而是因为 AI 对他们的理解不同。您在百度上排名第 3，但在 AI 中的提及率却是 0%。您的竞争对手在百度上排名第 5，但却出现在 40% 的 AI 对话中。洞察这些差距，夺回市场份额。",
     ctaLabel: "开始使用",
-    ctaHref: "/auth/register",
+    ctaHref: appLinks.register,
   },
   diagnostic: {
     title: "竞争问题",
@@ -667,7 +668,7 @@ const brandCrisisPage = resolveSiteCopyDeep({
     description:
       "AI 中的负面提及比传统媒体传播更快，瞬时影响品牌感知。当 豆包 或 DeepSeek 推荐竞争对手而非您时，数百万潜在客户将永远无法看到您的品牌。您的品牌需要 24/7 的 AI 声誉监测，以便在危机升级前发现并作出反应。",
     ctaLabel: "开始使用",
-    ctaHref: "/auth/register",
+    ctaHref: appLinks.register,
   },
   diagnostic: {
     title: "危机问题",

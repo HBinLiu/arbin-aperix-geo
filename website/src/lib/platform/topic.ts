@@ -5,6 +5,7 @@ import { findTopicsIdeasFaqDefaults } from "@shared/faq/defaults";
 import { mergeFaqs, resolveFaqDefaults } from "@/lib/faqs";
 import type { FaqDoc } from "@shared/faq";
 import findTopicsIdeaVideo from "@shared/assets/videos/website/find-topics-idea.webm";
+import { appLinks } from "@/lib/app-links";
 
 export const FIND_TOPICS_VIDEO_URL = findTopicsIdeaVideo;
 
@@ -31,9 +32,9 @@ export const findTopicsIdeasHero = {
   description:
     "通过分析竞品、真实提示词与引用结构，帮助您识别尚未被充分覆盖的高价值场景、被竞争对手忽视的问题，以及能够快速建立优势的关键位置。将 AI 的判断逻辑，直接转化为可执行的增长机会。",
   primaryCtaLabel: "获取演示",
-  primaryCtaHref: "/auth/register",
+  primaryCtaHref: appLinks.register,
   secondaryCtaLabel: "立即开始",
-  secondaryCtaHref: "/auth/register",
+  secondaryCtaHref: appLinks.register,
 };
 
 export const findTopicsIdeasFeaturesHeader = {
@@ -89,7 +90,7 @@ export const findTopicsIdeasCta: CtaContent = resolveSiteCopyDeep({
   description: "加入 {{siteName}}，共同追踪 AI 搜索可见度。基于数据洞察，告别盲目优化。",
   codeLines: ["// 停止猜测。", "// 开始掌控。"],
   secondaryCtaLabel: "登录",
-  secondaryCtaHref: "/auth/login",
+  secondaryCtaHref: appLinks.login,
   primaryCtaLabel: "开始试用",
-  primaryCtaHref: "/auth/register",
+  primaryCtaHref: appLinks.register,
 });

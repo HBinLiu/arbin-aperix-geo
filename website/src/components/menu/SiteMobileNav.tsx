@@ -1,6 +1,7 @@
 import { ChevronDown } from "lucide-react";
 import React from "react";
 import { createPortal } from "react-dom";
+import { appLinks } from "@/lib/app-links";
 
 import {
   defaultHeaderLinks,
@@ -208,10 +209,10 @@ export default function SiteMobileNav() {
                 <MobileNavLinks onNavigate={closeMenu} />
               </div>
               <div className="mobile-nav-actions">
-                <a href="/auth/login" className="btn btn-ghost mobile-nav-action" onClick={closeMenu}>
+                <a href={appLinks.login} className="btn btn-ghost mobile-nav-action" onClick={closeMenu}>
                   登录
                 </a>
-                <a href="/auth/register" className="btn btn-primary mobile-nav-action" onClick={closeMenu}>
+                <a href={appLinks.register} className="btn btn-primary mobile-nav-action" onClick={closeMenu}>
                   开始试用
                 </a>
               </div>

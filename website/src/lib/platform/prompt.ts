@@ -5,6 +5,7 @@ import { promptExplorerFaqDefaults } from "@shared/faq/defaults";
 import { mergeFaqs, resolveFaqDefaults } from "@/lib/faqs";
 import type { FaqDoc } from "@shared/faq";
 import promptExplorerVideo from "@shared/assets/videos/website/prompt-explorer.webm";
+import { appLinks } from "@/lib/app-links";
 
 export const PROMPT_VIDEO_URL = promptExplorerVideo;
 
@@ -36,9 +37,9 @@ export const promptExplorerHero = {
   description:
     "通过分析真实提示词与查询扇出，帮助您看清用户需求是如何被理解、被拆分并被逐层放大的，从而判断哪些问题值得投入，哪些只是表层噪音。",
   primaryCtaLabel: "获取演示",
-  primaryCtaHref: "/auth/register",
+  primaryCtaHref: appLinks.register,
   secondaryCtaLabel: "立即开始",
-  secondaryCtaHref: "/auth/register",
+  secondaryCtaHref: appLinks.register,
 };
 
 export const promptExplorerFeaturesHeader = {
@@ -103,7 +104,7 @@ export const promptExplorerCta: CtaContent = resolveSiteCopyDeep({
   description: "加入 {{siteName}}，共同追踪 AI 搜索可见度。基于数据洞察，告别盲目优化。",
   codeLines: ["// 停止猜测。", "// 开始掌控。"],
   secondaryCtaLabel: "登录",
-  secondaryCtaHref: "/auth/login",
+  secondaryCtaHref: appLinks.login,
   primaryCtaLabel: "开始试用",
-  primaryCtaHref: "/auth/register",
+  primaryCtaHref: appLinks.register,
 });

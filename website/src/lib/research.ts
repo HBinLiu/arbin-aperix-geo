@@ -1,4 +1,5 @@
 import type { ResearchCategory, ResearchListItem } from "@shared/research";
+import { appLinks } from "@/lib/app-links";
 
 export type { ResearchCategory, ResearchCategorySlug, ResearchListItem, ResearchTocItem } from "@shared/research";
 export { RESEARCH_BLOCK_SLUGS } from "@shared/research/blocks";
@@ -7,7 +8,7 @@ export const researchHero = {
   title: "基于真实数据的 AI 搜索与 SEO 研究",
   description: "研究报告、基准测试和咨询洞察，帮助品牌在 AI 驱动和传统搜索中赢得可见性。",
   ctaLabel: "开始试用",
-  ctaHref: "/auth/register",
+  ctaHref: appLinks.register,
 };
 
 export const researchReportsSection = {

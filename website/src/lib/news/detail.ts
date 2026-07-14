@@ -1,4 +1,5 @@
 import { newsSidebarDefault, type NewsHeroDetail, type NewsListItem, type NewsSidebarCta, type NewsTocItem } from "@shared/news";
+import { appLinks, resolveAppLink } from "@/lib/app-links";
 import type { CmsNewsDoc } from "@/lib/news/types";
 import { newsRichTextToHtml } from "@/lib/news/body";
 import { extractNewsToc } from "@/lib/news/toc";
@@ -51,7 +52,7 @@ function buildNewsHero(listItem: NewsListItem, cmsDoc: CmsNewsDoc | null | undef
     readMinutes,
     readTimeLabel: `${readMinutes} 分钟`,
     editorNote: cmsDoc?.editorNote?.trim() || "",
-    primaryHref: "/auth/register",
+    primaryHref: appLinks.register,
     primaryLabel: "开始免费试用",
   });
 }
@@ -63,11 +64,15 @@ export function buildNewsDetail(
   const body = cmsDoc?.body ?? null;
   const bodyHtml = newsRichTextToHtml(body);
   const hasBody = bodyHtml.trim().length > 0;
+  const sidebar: NewsSidebarCta = {
+    ...newsSidebarDefault,
+    primaryHref: resolveAppLink(newsSidebarDefault.primaryHref),
+  };
 
   return resolveSiteCopyDeep({
     listItem,
     hero: buildNewsHero(listItem, cmsDoc),
-    sidebar: newsSidebarDefault,
+    sidebar,
     toc: extractNewsToc(body),
     bodyHtml,
     hasBody,

@@ -59,5 +59,6 @@ export type NewsInlineCtaBlockFields = {
   title: string;
   description: string;
   buttonLabel: string;
+  /** AppLinkKey：register | login */
   buttonHref: string;
 };

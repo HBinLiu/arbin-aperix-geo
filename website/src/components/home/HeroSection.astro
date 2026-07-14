@@ -1,4 +1,5 @@
 ---
+import { appLinks } from "@/lib/app-links";
 import type { HeroContent } from "@/lib/home";
 import HeroTrueFocus from "@/components/home/HeroTrueFocus";
 import StaticImage from "@/components/StaticImage.tsx";
@@ -84,7 +85,7 @@ const platformIds = platforms.length > 0 ? resolvePlatformIds(platforms) : HERO_
 
       <form
         class="hero-form mt-12 w-full max-w-xl sm:mt-14"
-        action={hero.primaryCtaHref ?? "/auth/register"}
+        action={hero.primaryCtaHref ?? appLinks.register}
         method="get"
       >
         <div class="hero-input-wrap flex items-center gap-2 border border-border bg-background p-1.5 shadow-sm sm:p-2">

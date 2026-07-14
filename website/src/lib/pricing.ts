@@ -4,6 +4,7 @@ import { pricingFaqDefaults as pricingFaqItemsDefaults } from "@shared/faq/defau
 import { mergeFaqs, resolveFaqDefaults } from "@/lib/faqs";
 import type { FaqDoc } from "@shared/faq";
 import { backendApiBase } from "@/lib/backend";
+import { appLinks } from "@/lib/app-links";
 
 export type BillingCycle = "monthly" | "quarterly" | "yearly";
 
@@ -99,7 +100,7 @@ export function planDisplayPrice(plan: PlanCatalogItem, cycle: BillingCycle): st
   return Math.round(price.monthly_cents / 100).toLocaleString("zh-CN");
 }
 
-export const pricingRegisterHref = "/auth/register";
+export const pricingRegisterHref = appLinks.register;
 
 export const pricingCta: CtaContent = {
   badge: "准备就绪",

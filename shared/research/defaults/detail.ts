@@ -1,3 +1,4 @@
+import { APP_LINK_KEYS } from "../../app-links";
 import type { ResearchHeroDetail, ResearchSidebarCta } from "../types";
 
 export const researchSidebarDefault: ResearchSidebarCta = {
@@ -11,7 +12,7 @@ export const researchSidebarDefault: ResearchSidebarCta = {
     "从监测推进到 GEO 执行、第三方证据和推荐提升",
   ],
   primaryLabel: "生成诊断报告",
-  primaryHref: "/auth/register",
+  primaryHref: APP_LINK_KEYS.register,
   secondaryLabel: "安排演示",
   secondaryHref: "/contact/",
   footnote: "为营销、SEO、GEO 和品牌市场团队打造。无需安装。",
@@ -29,7 +30,7 @@ export function buildResearchHeroFallback(
     subtitle: cardDescription,
     labels: cardLabels,
     actions: [
-      { label: "获取完整报告", href: "/auth/register/" },
+      { label: "获取完整报告", href: APP_LINK_KEYS.register },
       { label: "预约展示", href: "/contact/" },
       { label: "了解{{siteName}}", href: "/" },
     ],

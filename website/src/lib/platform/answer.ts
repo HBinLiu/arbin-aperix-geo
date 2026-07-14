@@ -5,6 +5,7 @@ import { answerEngineInsightsFaqDefaults } from "@shared/faq/defaults";
 import { mergeFaqs, resolveFaqDefaults } from "@/lib/faqs";
 import type { FaqDoc } from "@shared/faq";
 import insightsVideo from "@shared/assets/videos/website/answer-insight.webm";
+import { appLinks } from "@/lib/app-links";
 
 export const INSIGHTS_VIDEO_URL = insightsVideo;
 
@@ -43,9 +44,9 @@ export const answerEngineInsightsHero = {
   description:
     "监测您的品牌可见度、提及量和声量份额在人工智能生成的答案中的变化。让您了解自身所处的位置、与竞争对手的差距以及下一步的优化方向。",
   primaryCtaLabel: "获取演示",
-  primaryCtaHref: "/auth/register",
+  primaryCtaHref: appLinks.register,
   secondaryCtaLabel: "立即开始",
-  secondaryCtaHref: "/auth/register",
+  secondaryCtaHref: appLinks.register,
 };
 
 export const answerEngineInsightsFeaturesHeader = {
@@ -111,7 +112,7 @@ export const answerEngineInsightsCta: CtaContent = resolveSiteCopyDeep({
   description: "加入 {{siteName}}，共同追踪 AI 搜索可见度。基于数据洞察，告别盲目优化。",
   codeLines: ["// 停止猜测。", "// 开始掌控。"],
   secondaryCtaLabel: "登录",
-  secondaryCtaHref: "/auth/login",
+  secondaryCtaHref: appLinks.login,
   primaryCtaLabel: "开始试用",
-  primaryCtaHref: "/auth/register",
+  primaryCtaHref: appLinks.register,
 });

@@ -13,6 +13,7 @@ import { convertLexicalToHTML } from "@payloadcms/richtext-lexical/html";
 import { defaultColors } from "@payloadcms/richtext-lexical/defaultColors";
 import type { SerializedEditorState, SerializedTextNode } from "lexical";
 
+import { resolveAppLink } from "@/lib/app-links";
 import { resolveNewsMediaAlt, resolveNewsMediaUrl } from "@/lib/news/media";
 import { slugifyHeading } from "@/lib/news/toc";
 import { resolveSiteCopy } from "@/lib/site";
@@ -215,7 +216,7 @@ export const newsHtmlConverters: HTMLConvertersFunction = ({ defaultConverters }
       const title = fields.title?.trim();
       const description = fields.description?.trim();
       const buttonLabel = fields.buttonLabel?.trim() || "开始免费试用";
-      const buttonHref = fields.buttonHref?.trim() || "/auth/register";
+      const buttonHref = resolveAppLink(fields.buttonHref);
       if (!title || !description) return "";
 
       const kicker = fields.kicker?.trim();

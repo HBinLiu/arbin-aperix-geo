@@ -6,6 +6,7 @@ import {
   type ResearchSidebarCta,
   type ResearchTocItem,
 } from "@shared/research";
+import { resolveAppLink } from "@/lib/app-links";
 import type { CmsResearchDoc } from "@/lib/research/types";
 import { researchRichTextToHtml } from "@/lib/research/body";
 import { extractResearchToc } from "@/lib/research/toc";
@@ -30,16 +31,27 @@ function resolveResearchHero(
   listItem: ResearchListItem,
   cmsDoc: CmsResearchDoc | null | undefined,
 ): ResearchHeroDetail {
-  return buildResearchHeroFallback(
+  const hero = buildResearchHeroFallback(
     listItem.slug,
     listItem.cardTitle,
     listItem.cardDescription,
     normalizeCardLabels(cmsDoc?.cardLabels),
   );
+  return {
+    ...hero,
+    actions: hero.actions.map((action) => ({
+      ...action,
+      href: resolveAppLink(action.href),
+    })),
+  };
 }
 
 function resolveResearchSidebar(_slug: string): ResearchSidebarCta {
-  return researchSidebarDefault;
+  return {
+    ...researchSidebarDefault,
+    primaryHref: resolveAppLink(researchSidebarDefault.primaryHref),
+    secondaryHref: resolveAppLink(researchSidebarDefault.secondaryHref),
+  };
 }
 
 export function buildResearchDetail(
