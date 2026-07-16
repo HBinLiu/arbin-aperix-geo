@@ -43,12 +43,14 @@ import type { FaqDoc, FaqPageDoc } from "@shared/faq";
 import type { CmsResearchCategoryDoc, CmsResearchDoc } from "@/lib/research/types";
 import type { CmsNewsDoc } from "@/lib/news/types";
 import type { CmsBlogCategoryDoc, CmsBlogDoc } from "@/lib/blog/types";
+import type { CmsAcademyCategoryDoc, CmsAcademyDoc } from "@/lib/academy/types";
 import type { CmsAuthorDoc } from "@/lib/authors/types";
 
 export type { FaqDoc, FaqPageDoc };
 export type { CmsResearchCategoryDoc, CmsResearchDoc };
 export type { CmsNewsDoc };
 export type { CmsBlogCategoryDoc, CmsBlogDoc };
+export type { CmsAcademyCategoryDoc, CmsAcademyDoc };
 export type { CmsAuthorDoc };
 
 type PayloadListResponse<T> = {
@@ -294,6 +296,70 @@ export async function getBlogDraftBySlug(slug: string, token: string): Promise<C
       Authorization: `JWT ${token.trim()}`,
     },
   });
+  return data?.docs[0] ?? null;
+}
+
+const ACADEMY_COLLECTION = "academies";
+const ACADEMY_CATEGORY_COLLECTION = "academy-categories";
+
+export async function getAcademyCategories(): Promise<CmsAcademyCategoryDoc[] | null> {
+  const query = new URLSearchParams({
+    limit: "100",
+    depth: "0",
+    sort: "-sortOrder",
+  });
+  const data = await payloadFetch<PayloadListResponse<CmsAcademyCategoryDoc>>(
+    `/${ACADEMY_CATEGORY_COLLECTION}?${query}`,
+  );
+  if (!data?.docs?.length) return null;
+  return data.docs;
+}
+
+export async function getAcademyList(): Promise<CmsAcademyDoc[] | null> {
+  const query = new URLSearchParams({
+    limit: "200",
+    depth: "1",
+    sort: "-publishedAt",
+    "where[_status][equals]": "published",
+  });
+  const data = await payloadFetch<PayloadListResponse<CmsAcademyDoc>>(
+    `/${ACADEMY_COLLECTION}?${query}`,
+  );
+  if (!data?.docs?.length) return null;
+  return data.docs;
+}
+
+export async function getAcademyBySlug(slug: string): Promise<CmsAcademyDoc | null> {
+  const query = new URLSearchParams({
+    limit: "1",
+    depth: "1",
+    "where[slug][equals]": slug,
+    "where[_status][equals]": "published",
+  });
+  const data = await payloadFetch<PayloadListResponse<CmsAcademyDoc>>(
+    `/${ACADEMY_COLLECTION}?${query}`,
+  );
+  return data?.docs[0] ?? null;
+}
+
+export async function getAcademyDraftBySlug(
+  slug: string,
+  token: string,
+): Promise<CmsAcademyDoc | null> {
+  const query = new URLSearchParams({
+    limit: "1",
+    depth: "1",
+    draft: "true",
+    "where[slug][equals]": slug,
+  });
+  const data = await payloadFetch<PayloadListResponse<CmsAcademyDoc>>(
+    `/${ACADEMY_COLLECTION}?${query}`,
+    {
+      headers: {
+        Authorization: `JWT ${token.trim()}`,
+      },
+    },
+  );
   return data?.docs[0] ?? null;
 }
 

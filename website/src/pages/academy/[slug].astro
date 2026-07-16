@@ -1,0 +1,43 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import AcademyDetailPage from "@/components/academy/AcademyDetailPage.astro";
+import { mergeAcademyList } from "@/lib/academy/cms";
+import { buildAcademyDetail, pickRelatedAcademyPosts } from "@/lib/academy/detail";
+import { getAcademyBySlug, getAcademyList } from "@/lib/payload";
+import { mergeAcademyDetailSeo } from "@/lib/seo";
+import "@/styles/style.css";
+import "@/styles/academy/detail.css";
+
+export async function getStaticPaths() {
+  const items = mergeAcademyList(await getAcademyList());
+
+  return items.map((item) => ({
+    params: { slug: item.slug },
+    props: { item },
+  }));
+}
+
+const { item } = Astro.props;
+const [cmsDoc, allPosts] = await Promise.all([
+  getAcademyBySlug(item.slug),
+  getAcademyList().then(mergeAcademyList),
+]);
+
+const detail = buildAcademyDetail(item, cmsDoc, {
+  relatedPosts: pickRelatedAcademyPosts(item, allPosts),
+});
+
+const seo = mergeAcademyDetailSeo(
+  {
+    title: item.cardTitle,
+    description: item.cardDescription,
+    slug: item.slug,
+  },
+  cmsDoc?.meta,
+  item.coverUrl,
+);
+---
+
+<BaseLayout seo={seo}>
+  <AcademyDetailPage detail={detail} />
+</BaseLayout>

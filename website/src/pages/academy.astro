@@ -1,0 +1,16 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import AcademyPage from "@/components/academy/AcademyPage.astro";
+import { mergeAcademyCategories, mergeAcademyList } from "@/lib/academy/cms";
+import { getAcademyCategories, getAcademyList } from "@/lib/payload";
+import { academySeo } from "@/lib/seo";
+import "@/styles/style.css";
+import "@/styles/academy/list.css";
+
+const posts = mergeAcademyList(await getAcademyList());
+const categories = mergeAcademyCategories(await getAcademyCategories());
+---
+
+<BaseLayout seo={academySeo}>
+  <AcademyPage posts={posts} categories={categories} />
+</BaseLayout>

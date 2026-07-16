@@ -28,23 +28,24 @@ const { reports, categories } = Astro.props;
 <SiteHeader />
 
 <main class="flex flex-1 flex-col">
-  <section class="research-page">
+  <section class="research-hero py-24" aria-labelledby="research-hero-title">
     <div class="research-bg-grid" aria-hidden="true"></div>
+    <div class="research-hero-glow" aria-hidden="true"></div>
 
-    <div class="research-inner mx-auto w-full max-w-6xl px-4 sm:px-6">
-      <div class="research-hero-wrap">
-        <div class="research-hero-glow" aria-hidden="true"></div>
-        <header class="research-hero">
-          <h1 class="research-title">{researchHero.title}</h1>
-          <p class="research-subtitle">{researchHero.description}</p>
-          <a class="research-hero-cta group" href={researchHero.ctaHref}>
-            <span>{researchHero.ctaLabel}</span>
-            <ArrowRight size={16} aria-hidden="true" class="research-hero-cta-icon" />
-          </a>
-        </header>
+    <div class="mx-auto w-full max-w-6xl px-4 sm:px-6">
+      <div class="research-hero-copy">
+        <h1 id="research-hero-title" class="research-title">{researchHero.title}</h1>
+        <p class="research-subtitle">{researchHero.description}</p>
+        <a class="research-hero-cta group" href={researchHero.ctaHref}>
+          <span>{researchHero.ctaLabel}</span>
+          <ArrowRight size={16} aria-hidden="true" class="research-hero-cta-icon" />
+        </a>
       </div>
+    </div>
+  </section>
 
-      <section class="research-reports" aria-labelledby="research-reports-title">
+  <section class="research-list pt-12 pb-24" aria-labelledby="research-reports-title">
+    <div class="mx-auto w-full max-w-6xl px-4 sm:px-6">
       <header class="research-reports-head">
         <h2 id="research-reports-title" class="research-reports-title">
           {researchReportsSection.title}
@@ -103,7 +104,6 @@ const { reports, categories } = Astro.props;
       </div>
 
       <ResearchPagination />
-      </section>
     </div>
   </section>
 </main>

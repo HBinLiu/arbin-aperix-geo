@@ -23,6 +23,11 @@ const previewPathByCollection: Record<string, PreviewPathBuilder> = {
     if (!slug) return null;
     return `/preview/blog/${encodeURIComponent(slug)}/`;
   },
+  academies: (doc) => {
+    const slug = typeof doc?.slug === "string" ? doc.slug.trim() : "";
+    if (!slug) return null;
+    return `/preview/academy/${encodeURIComponent(slug)}/`;
+  },
 };
 
 export function buildCollectionPreviewPath(

@@ -1,0 +1,55 @@
+---
+export const prerender = false;
+
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import AcademyDetailPage from "@/components/academy/AcademyDetailPage.astro";
+import { cmsDocToAcademyListItem, mergeAcademyList } from "@/lib/academy/cms";
+import { buildAcademyDetail, pickRelatedAcademyPosts } from "@/lib/academy/detail";
+import { getAcademyDraftBySlug, getAcademyList } from "@/lib/payload";
+import { isPreviewRequestAuthorized } from "@/lib/preview";
+import { mergeAcademyDetailSeo } from "@/lib/seo";
+import "@/styles/style.css";
+import "@/styles/academy/detail.css";
+
+const slug = Astro.params.slug?.trim();
+const payloadSecret = Astro.url.searchParams.get("payloadSecret");
+const token = Astro.url.searchParams.get("token");
+
+if (!slug || !isPreviewRequestAuthorized(payloadSecret, token)) {
+  return new Response("无权预览此页面", { status: 403 });
+}
+
+const cmsDoc = await getAcademyDraftBySlug(slug, token!);
+if (!cmsDoc) {
+  return new Response("未找到草稿或预览已失效", { status: 404 });
+}
+
+const item = cmsDocToAcademyListItem(cmsDoc);
+const relatedPosts = pickRelatedAcademyPosts(item, mergeAcademyList(await getAcademyList()));
+
+const detail = buildAcademyDetail(item, cmsDoc, { relatedPosts });
+const seo = {
+  ...mergeAcademyDetailSeo(
+    {
+      title: item.cardTitle,
+      description: item.cardDescription,
+      slug: item.slug,
+    },
+    cmsDoc.meta,
+    item.coverUrl,
+  ),
+  noindex: true,
+};
+---
+
+<BaseLayout seo={seo}>
+  <div class="academy-detail-preview">
+    <div
+      class="border-b border-amber-200/80 bg-amber-50 px-4 py-2 text-center text-sm text-amber-950"
+      role="status"
+    >
+      预览模式 · 显示草稿内容，尚未发布
+    </div>
+    <AcademyDetailPage detail={detail} />
+  </div>
+</BaseLayout>

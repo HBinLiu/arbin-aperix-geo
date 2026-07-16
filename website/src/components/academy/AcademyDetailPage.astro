@@ -1,0 +1,143 @@
+---
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import type { AcademyDetailViewModel } from "@/lib/academy/detail";
+import { ChevronRight } from "@lucide/astro";
+
+type Props = {
+  detail: AcademyDetailViewModel;
+};
+
+const { detail } = Astro.props;
+const { hero, sidebar, toc, bodyHtml, hasBody } = detail;
+---
+
+<SiteHeader />
+
+<main class="academy-detail-root flex flex-1 flex-col">
+  <div class="academy-detail-shell">
+    <nav class="academy-detail-breadcrumb" aria-label="面包屑">
+      <a href="/">首页</a>
+      <ChevronRight size={14} aria-hidden="true" />
+      <a href="/academy/">学院</a>
+      <ChevronRight size={14} aria-hidden="true" />
+      <span class="academy-detail-breadcrumb-current" aria-current="page">{hero.title}</span>
+    </nav>
+
+    <header class="academy-detail-hero" aria-labelledby="academy-detail-title">
+      <div class="academy-detail-tag">
+        <span class="academy-detail-tag-dot" aria-hidden="true"></span>
+        {hero.tag}
+      </div>
+
+      <h1 id="academy-detail-title" class="academy-detail-title">{hero.title}</h1>
+
+      <p class="academy-detail-lead">{hero.lead}</p>
+
+      {
+        hero.updatedLabel || hero.readTimeLabel ? (
+          <div class="academy-detail-meta">
+            {
+              hero.updatedLabel ? (
+                <span>更新于 {hero.updatedLabel}</span>
+              ) : null
+            }
+            {
+              hero.updatedLabel && hero.readTimeLabel ? (
+                <span aria-hidden="true">•</span>
+              ) : null
+            }
+            {hero.readTimeLabel ? <span>{hero.readTimeLabel}</span> : null}
+          </div>
+        ) : null
+      }
+
+      <div class="academy-detail-hero-actions">
+        <a class="academy-detail-btn-primary" href={hero.primaryHref}>{hero.primaryLabel}</a>
+      </div>
+    </header>
+
+    <div class="academy-detail-layout">
+      <article class="academy-detail-copy" aria-label="学院正文">
+        {
+          hasBody ? (
+            <div class="academy-html-root" set:html={bodyHtml} />
+          ) : (
+            <p class="academy-detail-empty">正文内容即将发布，请稍后再来查看。</p>
+          )
+        }
+      </article>
+
+      <aside aria-label="侧边栏" class="academy-detail-sidebar">
+        <div class="academy-detail-side-cta">
+          <div class="academy-detail-side-eyebrow">{sidebar.eyebrow}</div>
+          <h3>{sidebar.title}</h3>
+          <p>{sidebar.description}</p>
+          <a class="academy-detail-btn-primary" href={sidebar.primaryHref}>
+            {sidebar.primaryLabel}
+          </a>
+        </div>
+
+        <nav aria-label="文章目录" class="academy-detail-toc">
+          <div class="academy-detail-toc-title">目录</div>
+          {
+            toc.length > 0 ? (
+              toc.map((item) => (
+                <a href={`#${item.id}`} data-toc-link={item.id}>
+                  {item.label}
+                </a>
+              ))
+            ) : (
+              <p class="academy-detail-toc-empty">暂无章节</p>
+            )
+          }
+        </nav>
+      </aside>
+    </div>
+  </div>
+</main>
+
+<SiteFooter />
+
+<script>
+  const tocLinks = document.querySelectorAll<HTMLAnchorElement>("[data-toc-link]");
+  if (tocLinks.length > 0) {
+    const sectionIds = [...tocLinks].map((link) => link.dataset.tocLink ?? "").filter(Boolean);
+    const sections = sectionIds
+      .map((id) => document.getElementById(id))
+      .filter((node): node is HTMLElement => node instanceof HTMLElement);
+
+    const setActive = (id: string) => {
+      tocLinks.forEach((link) => {
+        link.classList.toggle("is-active", link.dataset.tocLink === id);
+      });
+    };
+
+    tocLinks.forEach((link) => {
+      link.addEventListener("click", (event) => {
+        const id = link.dataset.tocLink;
+        const target = id ? document.getElementById(id) : null;
+        if (!target) return;
+        event.preventDefault();
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        history.replaceState(null, "", `#${id}`);
+      });
+    });
+
+    if ("IntersectionObserver" in window && sections.length > 0) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const visible = entries
+            .filter((entry) => entry.isIntersecting)
+            .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+          if (visible?.target.id) setActive(visible.target.id);
+        },
+        { rootMargin: "-20% 0px -55% 0px", threshold: [0, 0.25, 0.5, 1] },
+      );
+
+      sections.forEach((section) => observer.observe(section));
+    } else if (sections[0]?.id) {
+      setActive(sections[0].id);
+    }
+  }
+</script>

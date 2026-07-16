@@ -4,6 +4,8 @@ import { buildConfig } from "payload";
 import { fileURLToPath } from "url";
 import sharp from "sharp";
 
+import { Academies } from "./collections/Academies";
+import { AcademyCategories } from "./collections/AcademyCategories";
 import { Authors } from "./collections/Authors";
 import { BlogCategories } from "./collections/BlogCategories";
 import { Blogs } from "./collections/Blogs";
@@ -49,6 +51,8 @@ export default buildConfig({
     Authors,
     BlogCategories,
     Blogs,
+    AcademyCategories,
+    Academies,
     FAQs,
     PageSeoEntries,
   ],

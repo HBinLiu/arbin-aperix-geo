@@ -139,6 +139,9 @@ export const newsSeo = toPageSeo(CORE_PAGE_SEO.news);
 /** 博客 */
 export const blogSeo = toPageSeo(CORE_PAGE_SEO.blog);
 
+/** 学院 */
+export const academySeo = toPageSeo(CORE_PAGE_SEO.academy);
+
 /** 研究报告详情 */
 export function researchDetailSeo(report: { title: string; description: string; slug: string }) {
   return {
@@ -208,6 +211,32 @@ export function mergeBlogDetailSeo(
   fallbackImage?: string,
 ): PageSeo {
   const merged = mergePageSeo(blogDetailSeo(article), cmsMetaToPageSeo(meta));
+  if (!merged.image && fallbackImage) {
+    return { ...merged, image: fallbackImage };
+  }
+  return merged;
+}
+
+/** 学院详情 */
+export function academyDetailSeo(article: { title: string; description: string; slug: string }) {
+  return {
+    ...toPageSeo({
+      label: article.title,
+      path: `/academy/${article.slug}/`,
+      titleTopic: article.title,
+      description: article.description,
+    }),
+    canonicalPath: `/academy/${article.slug}/`,
+    type: "article" as const,
+  };
+}
+
+export function mergeAcademyDetailSeo(
+  article: { title: string; description: string; slug: string },
+  meta?: CmsSeoMeta | null,
+  fallbackImage?: string,
+): PageSeo {
+  const merged = mergePageSeo(academyDetailSeo(article), cmsMetaToPageSeo(meta));
   if (!merged.image && fallbackImage) {
     return { ...merged, image: fallbackImage };
   }

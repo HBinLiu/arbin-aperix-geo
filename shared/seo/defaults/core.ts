@@ -50,4 +50,11 @@ export const CORE_PAGE_SEO = {
     description:
       "由实战经验驱动的 AI 可见性、GEO 与 SEO 实践文章，帮助营销与内容团队落地可执行策略。",
   },
+  academy: {
+    label: "学院",
+    path: "/academy/",
+    titleTopic: "学院 - GEO 与 SEO 运营指南",
+    description:
+      "系统化的 GEO 与 SEO 指南，帮助团队掌握 AI 搜索可见性策略、内容实践与落地方法。",
+  },
 } as const satisfies Record<string, PageSeoDefault>;

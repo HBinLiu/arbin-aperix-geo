@@ -1,0 +1,232 @@
+---
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import StaticImage from "@/components/StaticImage.tsx";
+import AcademyPagination from "@/components/academy/AcademyPagination.astro";
+import {
+  academyHref,
+  type AcademyCategory,
+  type AcademyListItem,
+} from "@/lib/academy";
+import { buildAcademyListUrl } from "@/lib/academy/pagination";
+import { Search } from "@lucide/astro";
+
+type Props = {
+  posts: AcademyListItem[];
+  categories: AcademyCategory[];
+};
+
+const { posts, categories } = Astro.props;
+
+const featuredPost = posts.find((post) => post.isFeatured) ?? null;
+const editorsPickPosts = posts
+  .filter((post) => post.isEditorsPick)
+  .sort((a, b) => (b.editorsPickOrder ?? 0) - (a.editorsPickOrder ?? 0));
+
+/** 探索分类列表展示全部文章；精选/编辑精选仅用于上方推荐位 */
+const gridPosts = posts;
+
+const categoryOptions = [
+  { id: "all", label: "所有分类" },
+  ...categories.map((category) => ({
+    id: category.slug,
+    label: category.label,
+  })),
+];
+
+function readTimeLabel(minutes: number | undefined): string {
+  const safe = minutes && minutes > 0 ? minutes : 5;
+  return `${safe} 分钟阅读`;
+}
+
+function categoryLabel(post: AcademyListItem): string {
+  return post.categoryLabel || post.tag || "学院";
+}
+---
+
+<SiteHeader />
+
+<main class="flex flex-1 flex-col">
+  <section class="academy-page">
+    <div class="academy-inner mx-auto w-full max-w-6xl px-4 sm:px-6">
+      {
+        featuredPost || editorsPickPosts.length > 0 ? (
+          <section class="academy-featured" aria-label="精选内容">
+            {
+              featuredPost ? (
+                <div class="academy-featured-hero">
+                  <div class="academy-featured-copy">
+                    <p class="academy-featured-category">{categoryLabel(featuredPost)}</p>
+                    <a href={academyHref(featuredPost.slug)} class="academy-featured-title-link">
+                      <h1 class="academy-featured-title">{featuredPost.cardTitle}</h1>
+                    </a>
+                    <p class="academy-featured-desc">{featuredPost.cardDescription}</p>
+                    <div class="academy-featured-meta">
+                      <span>{readTimeLabel(featuredPost.readMinutes)}</span>
+                    </div>
+                  </div>
+
+                  <a
+                    href={academyHref(featuredPost.slug)}
+                    class="academy-featured-cover"
+                    aria-label={featuredPost.cardTitle}
+                  >
+                    {
+                      featuredPost.coverUrl ? (
+                        <StaticImage
+                          src={featuredPost.coverUrl}
+                          alt={featuredPost.cardTitle}
+                          width={660}
+                          height={371}
+                          loading="eager"
+                        />
+                      ) : (
+                        <div class="academy-featured-cover-fallback" aria-hidden="true" />
+                      )
+                    }
+                  </a>
+                </div>
+              ) : null
+            }
+
+            {
+              editorsPickPosts.length > 0 ? (
+                <div class="academy-editors-pick" aria-labelledby="academy-editors-pick-title">
+                  <h2 id="academy-editors-pick-title" class="academy-editors-pick-title">
+                    编辑精选
+                  </h2>
+                  <div class="academy-editors-pick-grid">
+                    {
+                      editorsPickPosts.map((post) => (
+                        <a href={academyHref(post.slug)} class="academy-editors-pick-card">
+                          <div class="academy-editors-pick-thumb">
+                            {
+                              post.coverUrl ? (
+                                <StaticImage
+                                  src={post.coverUrl}
+                                  alt=""
+                                  width={266}
+                                  height={150}
+                                  loading="lazy"
+                                />
+                              ) : (
+                                <div
+                                  class="academy-editors-pick-thumb-fallback"
+                                  aria-hidden="true"
+                                />
+                              )
+                            }
+                          </div>
+                          <div class="academy-editors-pick-copy">
+                            <p class="academy-editors-pick-category">{categoryLabel(post)}</p>
+                            <h3 class="academy-editors-pick-item-title">{post.cardTitle}</h3>
+                            <p class="academy-editors-pick-item-meta">
+                              <span>{readTimeLabel(post.readMinutes)}</span>
+                            </p>
+                          </div>
+                        </a>
+                      ))
+                    }
+                  </div>
+                </div>
+              ) : null
+            }
+          </section>
+        ) : null
+      }
+
+      <section class="academy-explore" aria-labelledby="academy-explore-title">
+        <div class="academy-explore-head">
+          <h2 id="academy-explore-title" class="academy-explore-title">探索分类</h2>
+          <form
+            class="academy-search"
+            action="/academy/"
+            method="get"
+            role="search"
+            data-academy-search-form
+          >
+            <label class="sr-only" for="academy-search-input">搜索文章</label>
+            <Search size={16} aria-hidden="true" class="academy-search-icon" />
+            <input
+              id="academy-search-input"
+              class="academy-search-input"
+              type="search"
+              name="s"
+              placeholder="搜索文章"
+              autocomplete="off"
+              data-academy-search-input
+            />
+          </form>
+        </div>
+
+        <div class="academy-categories" role="navigation" aria-label="学院分类">
+          {
+            categoryOptions.map((category) => (
+              <a
+                href={buildAcademyListUrl(1, category.id)}
+                class:list={["academy-category-pill", category.id === "all" && "is-active"]}
+                data-academy-category-filter={category.id}
+                aria-current={category.id === "all" ? "page" : undefined}
+              >
+                <span>{category.label}</span>
+              </a>
+            ))
+          }
+        </div>
+
+        {
+          gridPosts.length === 0 ? (
+            <p class="academy-empty">暂无学院内容，请在 CMS 中发布文章。</p>
+          ) : (
+            <>
+              <div class="academy-grid">
+                {
+                  gridPosts.map((post) => (
+                    <a
+                      href={academyHref(post.slug)}
+                      class="academy-card"
+                      data-academy-card
+                      data-academy-card-category={post.categorySlug ?? ""}
+                      data-academy-card-title={post.cardTitle}
+                      data-academy-card-description={post.cardDescription}
+                    >
+                      <div class="academy-card-cover">
+                        {
+                          post.coverUrl ? (
+                            <StaticImage
+                              src={post.coverUrl}
+                              alt={post.cardTitle}
+                              width={400}
+                              height={225}
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div class="academy-card-cover-fallback" aria-hidden="true" />
+                          )
+                        }
+                      </div>
+                      <div class="academy-card-body">
+                        <p class="academy-card-category">{categoryLabel(post)}</p>
+                        <h3 class="academy-card-title">{post.cardTitle}</h3>
+                        <p class="academy-card-desc">{post.cardDescription}</p>
+                        <span class="academy-card-readtime">{readTimeLabel(post.readMinutes)}</span>
+                      </div>
+                    </a>
+                  ))
+                }
+              </div>
+
+              <p class="academy-grid-empty" data-academy-grid-empty hidden>
+                未找到匹配的文章，请尝试其他分类或搜索关键词。
+              </p>
+
+              <AcademyPagination />
+            </>
+          )
+        }
+      </section>
+    </div>
+  </section>
+</main>
+
+<SiteFooter />

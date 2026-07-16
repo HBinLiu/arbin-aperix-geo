@@ -27,14 +27,14 @@ export const Authors: CollectionConfig = {
   hooks: {
     beforeDelete: [
       async ({ id, req }) => {
-        const linked = await req.payload.find({
+        const linkedBlog = await req.payload.find({
           collection: "blogs",
           where: { author: { equals: id } },
           limit: 1,
           depth: 0,
         });
 
-        if (linked.totalDocs > 0) {
+        if (linkedBlog.totalDocs > 0) {
           throw new Error("该编辑作者仍有关联博客文章，请先修改或删除相关文章后再删除。");
         }
       },

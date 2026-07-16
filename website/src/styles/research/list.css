@@ -1,22 +1,9 @@
 /** 研究列表页 */
 
-.research-page {
-  --research-page-bg: hsl(0 0% 98%);
-  --research-muted-fg: #747474;
-
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  background: var(--research-page-bg);
-}
-
 .research-bg-grid {
   pointer-events: none;
   position: absolute;
-  inset: 0 0 auto;
-  left: 0;
-  right: 0;
-  height: 90%;
+  inset: 0;
   background-image:
     linear-gradient(to right, color-mix(in srgb, var(--research-muted-fg) 16%, transparent) 1px, transparent 1px),
     linear-gradient(to bottom, color-mix(in srgb, var(--research-muted-fg) 16%, transparent) 1px, transparent 1px);
@@ -47,26 +34,13 @@
   mask-composite: intersect;
 }
 
-.research-inner {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2rem;
-  padding-block: 2.5rem 3rem;
-}
+/* Hero */
 
-@media (min-width: 1024px) {
-  .research-inner {
-    padding-block: 3rem;
-  }
-}
+.research-hero {
+  --research-muted-fg: #747474;
 
-.research-hero-wrap {
   position: relative;
   width: 100%;
-  padding-block: 1rem;
 }
 
 .research-hero-glow {
@@ -102,7 +76,7 @@
   }
 }
 
-.research-hero {
+.research-hero-copy {
   position: relative;
   z-index: 1;
   max-width: 42rem;
@@ -180,14 +154,9 @@
   outline-offset: 2px;
 }
 
-/* Reports section */
+/* List */
 
-.research-reports {
-  width: 100%;
-  padding-block: 0 1rem;
-}
-
-.research-reports-inner {
+.research-list {
   width: 100%;
 }
 
@@ -332,6 +301,7 @@
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   font-size: 1.5rem;
   line-height: 1.5rem;
   font-weight: 600;
@@ -350,6 +320,7 @@
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   font-size: 0.875rem;
   line-height: 1.25rem;
   color: #64748b;

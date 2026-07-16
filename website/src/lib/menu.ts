@@ -157,7 +157,7 @@ export const resourcesMenuSections: ResourcesMenuSection[] = [
       {
         title: "学院",
         description: "GEO 与 SEO 指南",
-        href: "#faq",
+        href: "/academy/",
       },
       {
         title: "博客",
