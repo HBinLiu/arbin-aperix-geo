@@ -1,0 +1,48 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import ChangelogDetailPage from "@/components/changelog/ChangelogDetailPage.astro";
+import { cmsDocToAuthor, mergeAuthors } from "@/lib/authors/cms";
+import { mergeChangelogList } from "@/lib/changelog/cms";
+import { buildChangelogDetail } from "@/lib/changelog/detail";
+import { getAuthorBySlug, getAuthors, getChangelogBySlug, getChangelogList } from "@/lib/payload";
+import { mergeChangelogDetailSeo } from "@/lib/seo";
+import "@/styles/style.css";
+import "@/styles/changelog/detail.css";
+
+export async function getStaticPaths() {
+  const items = mergeChangelogList(await getChangelogList());
+
+  return items.map((item) => ({
+    params: { slug: item.slug },
+    props: { item },
+  }));
+}
+
+const { item } = Astro.props;
+const [cmsDoc, authors] = await Promise.all([
+  getChangelogBySlug(item.slug),
+  getAuthors().then(mergeAuthors),
+]);
+
+const authorSlug = item.author?.slug;
+const authorCms = authorSlug ? await getAuthorBySlug(authorSlug) : null;
+const author =
+  (authorCms ? cmsDocToAuthor(authorCms) : null) ??
+  authors.find((entry) => entry.slug === authorSlug) ??
+  null;
+
+const detail = buildChangelogDetail(item, cmsDoc, { author });
+
+const seo = mergeChangelogDetailSeo(
+  {
+    title: item.cardTitle,
+    description: item.cardDescription,
+    slug: item.slug,
+  },
+  cmsDoc?.meta,
+);
+---
+
+<BaseLayout seo={seo}>
+  <ChangelogDetailPage detail={detail} />
+</BaseLayout>

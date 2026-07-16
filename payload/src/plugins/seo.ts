@@ -43,6 +43,9 @@ const generateURL: GenerateURL = ({ doc, collectionConfig }) => {
     if (collectionSlug === "academies") {
       return `${site}/academy/${normalized}/`;
     }
+    if (collectionSlug === "changelogs") {
+      return `${site}/changelogs/${normalized}/`;
+    }
     if (collectionSlug === "authors") {
       return `${site}/authors/${normalized}/`;
     }
@@ -56,7 +59,7 @@ const generateURL: GenerateURL = ({ doc, collectionConfig }) => {
 
 export const seo = seoPlugin({
   uploadsCollection: "media",
-  collections: ["page-seo", "researches", "news", "blogs", "academies", "authors"],
+  collections: ["page-seo", "researches", "news", "blogs", "academies", "changelogs", "authors"],
   globals: [],
   tabbedUI: true,
   generateTitle,

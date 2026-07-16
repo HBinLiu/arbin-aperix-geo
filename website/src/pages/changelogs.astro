@@ -1,0 +1,15 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import ChangelogPage from "@/components/changelog/ChangelogPage.astro";
+import { mergeChangelogList } from "@/lib/changelog/cms";
+import { getChangelogList } from "@/lib/payload";
+import { changelogsSeo } from "@/lib/seo";
+import "@/styles/style.css";
+import "@/styles/changelog/list.css";
+
+const items = mergeChangelogList(await getChangelogList());
+---
+
+<BaseLayout seo={changelogsSeo}>
+  <ChangelogPage items={items} />
+</BaseLayout>

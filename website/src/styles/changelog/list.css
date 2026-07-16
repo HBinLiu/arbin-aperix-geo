@@ -1,0 +1,233 @@
+/** 更新日志列表页（对齐 docs/assets/changelogs.html） */
+
+.changelog-page {
+  --changelog-muted: #64748b;
+  --changelog-line: var(--color-border);
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+.changelog-inner {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.changelog-list-section {
+  padding-block: 4rem;
+}
+
+@media (min-width: 768px) {
+  .changelog-list-section {
+    padding-block: 6rem;
+  }
+}
+
+.changelog-list-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+}
+
+/* Hero */
+
+.changelog-hero {
+  max-width: 51.25rem; /* 820px */
+}
+
+.changelog-hero-eyebrow {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.changelog-hero-title {
+  margin: 1rem 0 0;
+  font-size: 2.25rem;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+@media (min-width: 768px) {
+  .changelog-hero-title {
+    font-size: 3rem;
+  }
+}
+
+.changelog-hero-desc {
+  margin: 1.25rem 0 0;
+  max-width: 47.5rem; /* 760px */
+  color: var(--changelog-muted);
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+@media (min-width: 768px) {
+  .changelog-hero-desc {
+    font-size: 1.125rem;
+  }
+}
+
+/* Grid + cards */
+
+.changelog-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .changelog-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.changelog-card {
+  display: block;
+  height: 100%;
+  border: 1px solid var(--changelog-line);
+  border-radius: 1.5rem; /* rounded-3xl */
+  background: #fff;
+  padding: 1.5rem;
+  color: inherit;
+  text-decoration: none;
+  box-shadow: 0 10px 30px rgb(15 23 42 / 4%);
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.changelog-card:hover {
+  border-color: color-mix(in srgb, var(--color-primary) 30%, var(--changelog-line));
+  transform: translateY(-0.25rem);
+  box-shadow: 0 18px 50px color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+.changelog-card-inner {
+  display: flex;
+  min-height: 10rem;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+}
+
+.changelog-card-body {
+  flex: 1;
+}
+
+.changelog-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.changelog-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.changelog-badge--version {
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  color: var(--color-primary);
+}
+
+.changelog-badge--type {
+  border: 1px solid rgb(0 0 0 / 8%);
+  color: var(--changelog-muted);
+  font-weight: 500;
+}
+
+.changelog-card-title {
+  margin: 1.25rem 0 0;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 2rem;
+  transition: color 0.2s ease;
+}
+
+.changelog-card:hover .changelog-card-title {
+  color: var(--color-primary);
+}
+
+.changelog-card-desc {
+  margin: 1rem 0;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  color: var(--changelog-muted);
+  font-size: 0.875rem;
+  line-height: 1.75;
+}
+
+.changelog-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: auto;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--changelog-line);
+}
+
+.changelog-card-author {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.changelog-card-avatar {
+  width: 2.75rem;
+  height: 2.75rem;
+  flex-shrink: 0;
+  border: 1px solid rgb(0 0 0 / 5%);
+  border-radius: 999px;
+  object-fit: cover;
+  background: var(--color-muted);
+}
+
+.changelog-card-avatar--fallback {
+  display: block;
+}
+
+.changelog-card-author-text {
+  min-width: 0;
+}
+
+.changelog-card-author-name {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.changelog-card-date {
+  flex-shrink: 0;
+  color: var(--changelog-muted);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.changelog-empty {
+  margin: 0;
+  width: 100%;
+  color: var(--changelog-muted);
+  font-size: 1rem;
+  text-align: center;
+}

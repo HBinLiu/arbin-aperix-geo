@@ -142,6 +142,9 @@ export const blogSeo = toPageSeo(CORE_PAGE_SEO.blog);
 /** 学院 */
 export const academySeo = toPageSeo(CORE_PAGE_SEO.academy);
 
+/** 更新日志 */
+export const changelogsSeo = toPageSeo(CORE_PAGE_SEO.changelogs);
+
 /** 研究报告详情 */
 export function researchDetailSeo(report: { title: string; description: string; slug: string }) {
   return {
@@ -241,6 +244,27 @@ export function mergeAcademyDetailSeo(
     return { ...merged, image: fallbackImage };
   }
   return merged;
+}
+
+/** 更新日志详情 */
+export function changelogDetailSeo(article: { title: string; description: string; slug: string }) {
+  return {
+    ...toPageSeo({
+      label: article.title,
+      path: `/changelogs/${article.slug}/`,
+      titleTopic: article.title,
+      description: article.description,
+    }),
+    canonicalPath: `/changelogs/${article.slug}/`,
+    type: "article" as const,
+  };
+}
+
+export function mergeChangelogDetailSeo(
+  article: { title: string; description: string; slug: string },
+  meta?: CmsSeoMeta | null,
+): PageSeo {
+  return mergePageSeo(changelogDetailSeo(article), cmsMetaToPageSeo(meta));
 }
 
 /** 作者详情 */

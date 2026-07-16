@@ -7,6 +7,7 @@ import {
   newsSeo,
   blogSeo,
   academySeo,
+  changelogsSeo,
   homeSeo,
   platformAnswerSeo,
   platformContentSeo,
@@ -104,6 +105,7 @@ export function buildLlmsTxt(site: URL, faqs: Faq[] = homeFaqs): string {
     { path: "/news", label: "新闻", description: newsSeo.description },
     { path: "/blog", label: "博客", description: blogSeo.description },
     { path: "/academy", label: "学院", description: academySeo.description },
+    { path: "/changelogs", label: "更新日志", description: changelogsSeo.description },
   ];
 
   const homeFaqLink: LlmsEntry = {

@@ -147,7 +147,7 @@ export const resourcesMenuSections: ResourcesMenuSection[] = [
       {
         title: "更新日志",
         description: "产品功能更新与改进日志",
-        href: "#faq",
+        href: "/changelogs/",
       },
     ],
   },

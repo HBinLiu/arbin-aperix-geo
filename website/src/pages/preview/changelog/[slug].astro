@@ -1,0 +1,57 @@
+---
+export const prerender = false;
+
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import ChangelogDetailPage from "@/components/changelog/ChangelogDetailPage.astro";
+import { cmsDocToAuthor } from "@/lib/authors/cms";
+import { cmsDocToChangelogListItem } from "@/lib/changelog/cms";
+import { buildChangelogDetail } from "@/lib/changelog/detail";
+import { getAuthorBySlug, getChangelogDraftBySlug } from "@/lib/payload";
+import { isPreviewRequestAuthorized } from "@/lib/preview";
+import { mergeChangelogDetailSeo } from "@/lib/seo";
+import "@/styles/style.css";
+import "@/styles/changelog/detail.css";
+
+const slug = Astro.params.slug?.trim();
+const payloadSecret = Astro.url.searchParams.get("payloadSecret");
+const token = Astro.url.searchParams.get("token");
+
+if (!slug || !isPreviewRequestAuthorized(payloadSecret, token)) {
+  return new Response("无权预览此页面", { status: 403 });
+}
+
+const cmsDoc = await getChangelogDraftBySlug(slug, token!);
+if (!cmsDoc) {
+  return new Response("未找到草稿或预览已失效", { status: 404 });
+}
+
+const item = cmsDocToChangelogListItem(cmsDoc);
+const authorSlug = item.author?.slug;
+const authorCms = authorSlug ? await getAuthorBySlug(authorSlug) : null;
+const author = authorCms ? cmsDocToAuthor(authorCms) : null;
+
+const detail = buildChangelogDetail(item, cmsDoc, { author });
+const seo = {
+  ...mergeChangelogDetailSeo(
+    {
+      title: item.cardTitle,
+      description: item.cardDescription,
+      slug: item.slug,
+    },
+    cmsDoc.meta,
+  ),
+  noindex: true,
+};
+---
+
+<BaseLayout seo={seo}>
+  <div class="changelog-detail-preview">
+    <div
+      class="border-b border-amber-200/80 bg-amber-50 px-4 py-2 text-center text-sm text-amber-950"
+      role="status"
+    >
+      预览模式 · 显示草稿内容，尚未发布
+    </div>
+    <ChangelogDetailPage detail={detail} />
+  </div>
+</BaseLayout>

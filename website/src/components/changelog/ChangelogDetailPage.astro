@@ -1,0 +1,245 @@
+---
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import StaticImage from "@/components/StaticImage.tsx";
+import type { ChangelogDetailViewModel } from "@/lib/changelog/detail";
+import { authorHref } from "@/lib/changelog";
+import { SOCIAL_PLATFORM_LABELS } from "@shared/social";
+import { socialBrandSvg } from "@/lib/footer";
+import { Check, ChevronRight } from "@lucide/astro";
+
+type Props = {
+  detail: ChangelogDetailViewModel;
+};
+
+const { detail } = Astro.props;
+const { hero, author, sidebar, toc, bodyHtml, hasBody } = detail;
+const socialLinks = author?.socialLinks ?? [];
+---
+
+<SiteHeader />
+
+<main class="changelog-detail-root flex flex-1 flex-col">
+  <section class="changelog-detail-top">
+    <div class="changelog-detail-container">
+      <nav class="changelog-detail-breadcrumb" aria-label="面包屑">
+        <a href="/">首页</a>
+        <ChevronRight size={14} aria-hidden="true" />
+        <a href="/changelogs/">更新日志</a>
+        <ChevronRight size={14} aria-hidden="true" />
+        <span class="changelog-detail-breadcrumb-current" aria-current="page">{hero.title}</span>
+      </nav>
+
+      <div class="changelog-detail-hero">
+        {
+          hero.version || hero.releaseTypeLabel ? (
+            <div class="changelog-detail-tags">
+              {
+                hero.version ? (
+                  <div class="changelog-detail-tag">
+                    <span class="changelog-detail-tag-dot" aria-hidden="true"></span>
+                    {hero.version}
+                  </div>
+                ) : null
+              }
+              {
+                hero.releaseTypeLabel ? (
+                  <div class="changelog-detail-tag">
+                    <span class="changelog-detail-tag-dot" aria-hidden="true"></span>
+                    {hero.releaseTypeLabel}
+                  </div>
+                ) : null
+              }
+            </div>
+          ) : null
+        }
+        <h1 id="changelog-detail-title" class="changelog-detail-title">{hero.title}</h1>
+      </div>
+    </div>
+  </section>
+
+  {
+    hero.author || hero.readTimeLabel || hero.updatedLabel ? (
+      <section class="changelog-detail-author-bar">
+        <div class="changelog-detail-container changelog-detail-author-bar-inner">
+          {
+            hero.author ? (
+              <div class="changelog-detail-author-block">
+                <a class="changelog-detail-author" href={authorHref(hero.author.slug)}>
+                  {
+                    hero.author.avatarUrl ? (
+                      <StaticImage
+                        src={hero.author.avatarUrl}
+                        alt={hero.author.name}
+                        width={48}
+                        height={48}
+                        className="changelog-detail-author-avatar"
+                      />
+                    ) : (
+                      <span class="changelog-detail-author-fallback" aria-hidden="true" />
+                    )
+                  }
+                </a>
+                <div class="changelog-detail-author-text">
+                  <span class="changelog-detail-author-label">更新人</span>
+                  <div class="changelog-detail-author-name-row">
+                    <a class="changelog-detail-author-name" href={authorHref(hero.author.slug)}>
+                      {hero.author.name}
+                    </a>
+                    {
+                      socialLinks.length > 0 ? (
+                        <div class="changelog-detail-socials">
+                          {socialLinks.map((link) => (
+                            <a
+                              class="changelog-detail-social"
+                              href={link.url}
+                              target="_blank"
+                              rel="noreferrer noopener"
+                              aria-label={SOCIAL_PLATFORM_LABELS[link.platform]}
+                            >
+                              <Fragment
+                                set:html={socialBrandSvg(link.platform, {
+                                  size: 10,
+                                  className: "inline-block",
+                                  label: SOCIAL_PLATFORM_LABELS[link.platform],
+                                })}
+                              />
+                            </a>
+                          ))}
+                        </div>
+                      ) : null
+                    }
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div />
+            )
+          }
+
+          <div class="changelog-detail-author-meta">
+            {hero.readTimeLabel ? <span>{hero.readTimeLabel}</span> : null}
+            {
+              hero.readTimeLabel && hero.updatedLabel ? (
+                <span aria-hidden="true">•</span>
+              ) : null
+            }
+            {
+              hero.updatedLabel ? (
+                <span class="changelog-detail-updated">更新于 {hero.updatedLabel}</span>
+              ) : null
+            }
+          </div>
+        </div>
+      </section>
+    ) : null
+  }
+
+  <section class="changelog-detail-body-section">
+    <div class="changelog-detail-container">
+      <div class="changelog-detail-grid">
+        <article class="changelog-detail-copy" aria-label="更新日志正文">
+          {
+            hasBody ? (
+              <div class="changelog-html-root" set:html={bodyHtml} />
+            ) : (
+              <p class="changelog-detail-empty">正文内容即将发布，请稍后再来查看。</p>
+            )
+          }
+        </article>
+
+        <aside class="changelog-detail-aside" aria-label="文章目录与体验">
+          <div class="changelog-detail-aside-stack">
+            <nav class="changelog-detail-toc" aria-label="文章目录">
+              <p class="changelog-detail-toc-title">目录</p>
+              {
+                toc.length > 0 ? (
+                  <div class="changelog-detail-toc-links">
+                    {toc.map((item) => (
+                      <a href={`#${item.id}`} data-toc-link={item.id} title={item.label}>
+                        {item.label}
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p class="changelog-detail-toc-empty">暂无章节</p>
+                )
+              }
+            </nav>
+
+            <div class="changelog-detail-side-cta">
+              <p class="changelog-detail-side-title">{sidebar.title}</p>
+              {
+                sidebar.items.length > 0 ? (
+                  <ul class="changelog-detail-side-list">
+                    {sidebar.items.map((item) => (
+                      <li>
+                        <span class="changelog-detail-side-icon" aria-hidden="true">
+                          <Check size={14} color="var(--changelog-accent)" />
+                        </span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null
+              }
+              {
+                sidebar.description ? (
+                  <p class="changelog-detail-side-desc">{sidebar.description}</p>
+                ) : null
+              }
+              <a class="changelog-detail-btn-primary changelog-detail-side-btn" href={sidebar.primaryHref}>
+                {sidebar.primaryLabel}
+              </a>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+</main>
+
+<SiteFooter />
+
+<script>
+  const tocLinks = document.querySelectorAll<HTMLAnchorElement>("[data-toc-link]");
+  if (tocLinks.length > 0) {
+    const sectionIds = [...tocLinks].map((link) => link.dataset.tocLink ?? "").filter(Boolean);
+    const sections = sectionIds
+      .map((id) => document.getElementById(id))
+      .filter((node): node is HTMLElement => node instanceof HTMLElement);
+
+    const setActive = (id: string) => {
+      tocLinks.forEach((link) => {
+        link.classList.toggle("is-active", link.dataset.tocLink === id);
+      });
+    };
+
+    tocLinks.forEach((link) => {
+      link.addEventListener("click", (event) => {
+        const id = link.dataset.tocLink;
+        const target = id ? document.getElementById(id) : null;
+        if (!target) return;
+        event.preventDefault();
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        history.replaceState(null, "", `#${id}`);
+      });
+    });
+
+    if ("IntersectionObserver" in window && sections.length > 0) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const visible = entries
+            .filter((entry) => entry.isIntersecting)
+            .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+          if (visible?.target.id) setActive(visible.target.id);
+        },
+        { rootMargin: "-20% 0px -55% 0px", threshold: [0, 0.25, 0.5, 1] },
+      );
+
+      sections.forEach((section) => observer.observe(section));
+    } else if (sections[0]?.id) {
+      setActive(sections[0].id);
+    }
+  }
+</script>

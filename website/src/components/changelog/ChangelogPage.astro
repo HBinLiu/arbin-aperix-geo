@@ -1,0 +1,111 @@
+---
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import StaticImage from "@/components/StaticImage.tsx";
+import {
+  changelogHref,
+  changelogListHero,
+  type ChangelogListItem,
+} from "@/lib/changelog";
+import { releaseTypeLabel } from "@/lib/changelog/cms";
+import { formatChangelogListDate } from "@/lib/changelog/detail";
+import { resolveSiteCopyDeep } from "@/lib/site";
+
+type Props = {
+  items: ChangelogListItem[];
+};
+
+const { items } = Astro.props;
+const hero = resolveSiteCopyDeep(changelogListHero);
+---
+
+<SiteHeader />
+
+<main class="changelog-page flex flex-1 flex-col">
+  <section class="changelog-list-section" aria-labelledby="changelog-hero-title">
+    <div class="changelog-inner mx-auto w-full max-w-6xl px-4 sm:px-6">
+      <div class="changelog-list-stack">
+        <header class="changelog-hero">
+          <p class="changelog-hero-eyebrow">{hero.eyebrow}</p>
+          <h1 id="changelog-hero-title" class="changelog-hero-title">{hero.title}</h1>
+          <p class="changelog-hero-desc">{hero.description}</p>
+        </header>
+
+        {
+          items.length > 0 ? (
+            <div class="changelog-grid">
+              {
+                items.map((item) => (
+                  <a class="changelog-card group" href={changelogHref(item.slug)}>
+                    <div class="changelog-card-inner">
+                      <section class="changelog-card-body">
+                        <div class="changelog-card-badges">
+                          {
+                            item.version ? (
+                              <span class="changelog-badge changelog-badge--version">
+                                {item.version}
+                              </span>
+                            ) : null
+                          }
+                          <span class="changelog-badge changelog-badge--type">
+                            {releaseTypeLabel(item.releaseType)}
+                          </span>
+                        </div>
+                        <h2 class="changelog-card-title">{item.cardTitle}</h2>
+                        <p class="changelog-card-desc">{item.cardDescription}</p>
+                      </section>
+
+                      <div class="changelog-card-footer">
+                        {
+                          item.author ? (
+                            <div class="changelog-card-author">
+                              {
+                                item.author.avatarUrl ? (
+                                  <StaticImage
+                                    src={item.author.avatarUrl}
+                                    alt={item.author.name}
+                                    width={44}
+                                    height={44}
+                                    className="changelog-card-avatar"
+                                  />
+                                ) : (
+                                  <span
+                                    class="changelog-card-avatar changelog-card-avatar--fallback"
+                                    aria-hidden="true"
+                                  />
+                                )
+                              }
+                              <div class="changelog-card-author-text">
+                                <p class="changelog-card-author-name">{item.author.name}</p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div />
+                          )
+                        }
+                        {
+                          formatChangelogListDate(item.publishedAt) ? (
+                            <time
+                              class="changelog-card-date"
+                              datetime={item.publishedAt}
+                            >
+                              {formatChangelogListDate(item.publishedAt)}
+                            </time>
+                          ) : null
+                        }
+                      </div>
+                    </div>
+                  </a>
+                ))
+              }
+            </div>
+          ) : (
+            <p class="changelog-empty">暂无更新日志，敬请期待。</p>
+          )
+        }
+      </div>
+    </div>
+  </section>
+</main>
+
+<SiteFooter />

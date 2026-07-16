@@ -9,6 +9,7 @@ import { AcademyCategories } from "./collections/AcademyCategories";
 import { Authors } from "./collections/Authors";
 import { BlogCategories } from "./collections/BlogCategories";
 import { Blogs } from "./collections/Blogs";
+import { Changelogs } from "./collections/Changelogs";
 import { FAQs } from "./collections/FAQs";
 import { Media } from "./collections/Media";
 import { PageSeoEntries } from "./collections/PageSeo";
@@ -51,6 +52,7 @@ export default buildConfig({
     Authors,
     BlogCategories,
     Blogs,
+    Changelogs,
     AcademyCategories,
     Academies,
     FAQs,

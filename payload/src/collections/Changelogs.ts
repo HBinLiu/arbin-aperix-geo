@@ -1,0 +1,146 @@
+import type { CollectionConfig } from "payload";
+import {
+  CHANGELOG_RELEASE_TYPE_LABELS,
+  type ChangelogReleaseType,
+} from "@shared/changelog/types";
+
+import { authenticatedWrite, publishedOrAuthenticatedRead } from "../access";
+import { RESOURCE_EXPLORATION_ADMIN_GROUP } from "../lib/admin";
+import { buildCollectionPreviewPath, buildPreviewUrl } from "../lib/preview";
+import { contentLexicalEditor } from "../lib/lexical/content";
+
+const releaseTypeOptions: Array<{ label: string; value: ChangelogReleaseType }> = [
+  { label: CHANGELOG_RELEASE_TYPE_LABELS.feature, value: "feature" },
+  { label: CHANGELOG_RELEASE_TYPE_LABELS.fix, value: "fix" },
+  { label: CHANGELOG_RELEASE_TYPE_LABELS.improvement, value: "improvement" },
+];
+
+export const Changelogs: CollectionConfig = {
+  slug: "changelogs",
+  labels: {
+    singular: "更新日志",
+    plural: "更新日志",
+  },
+  admin: {
+    useAsTitle: "cardTitle",
+    defaultColumns: ["cardTitle", "version", "releaseType", "publishedAt", "updatedAt"],
+    group: RESOURCE_EXPLORATION_ADMIN_GROUP,
+    description: "更新日志列表 + 详情正文 + SEO。侧栏 CTA / 目录由官网模板固定。",
+    listSearchableFields: ["cardTitle", "slug", "cardDescription", "version"],
+    preview: (doc, { token }) => {
+      const path = buildCollectionPreviewPath("changelogs", doc);
+      return path ? buildPreviewUrl(path, token) : null;
+    },
+    components: {
+      edit: {
+        PreviewButton: "@/components/PreviewButton#PreviewButton",
+      },
+    },
+  },
+  access: {
+    read: publishedOrAuthenticatedRead,
+    create: authenticatedWrite,
+    update: authenticatedWrite,
+    delete: authenticatedWrite,
+  },
+  versions: {
+    drafts: {
+      autosave: {
+        interval: 375,
+      },
+    },
+  },
+  defaultSort: "-publishedAt",
+  fields: [
+    {
+      type: "tabs",
+      tabs: [
+        {
+          label: "列表",
+          fields: [
+            {
+              name: "slug",
+              type: "text",
+              required: true,
+              unique: true,
+              index: true,
+              label: "URL 标识",
+              admin: { description: "路径：/changelogs/{slug}/" },
+            },
+            {
+              name: "cardTitle",
+              type: "text",
+              required: true,
+              label: "标题",
+            },
+            {
+              name: "cardDescription",
+              type: "textarea",
+              required: true,
+              label: "摘要",
+              admin: { description: "列表卡摘要；支持 {{siteName}}" },
+            },
+            {
+              name: "version",
+              type: "text",
+              label: "版本号",
+              admin: { description: "如 V1.16.320，留空则不显示版本角标" },
+            },
+            {
+              name: "releaseType",
+              type: "select",
+              required: true,
+              defaultValue: "feature",
+              label: "发布类型",
+              options: releaseTypeOptions,
+            },
+            {
+              name: "author",
+              type: "relationship",
+              relationTo: "authors",
+              label: "更新人",
+            },
+            {
+              name: "readMinutes",
+              type: "number",
+              min: 1,
+              defaultValue: 5,
+              label: "阅读时间（分钟）",
+            },
+            {
+              name: "publishedAt",
+              type: "date",
+              required: true,
+              label: "发布日期",
+              admin: {
+                date: { pickerAppearance: "dayOnly" },
+              },
+            },
+            {
+              name: "sortOrder",
+              type: "number",
+              defaultValue: 0,
+              label: "排序权重",
+              admin: { description: "越大越靠前；同权重按发布时间倒序" },
+            },
+          ],
+        },
+        {
+          label: "正文",
+          fields: [
+            {
+              name: "body",
+              type: "richText",
+              label: "正文",
+              editor: contentLexicalEditor,
+              admin: {
+                description:
+                  "H2 与「简要列表」「双栏信息卡」自动生成目录。Block：简要列表、引用框、插入图片、高亮框、章节导语、双栏信息卡、行内 CTA；表格用内置表格。",
+              },
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};

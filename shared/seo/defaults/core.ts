@@ -57,4 +57,11 @@ export const CORE_PAGE_SEO = {
     description:
       "系统化的 GEO 与 SEO 指南，帮助团队掌握 AI 搜索可见性策略、内容实践与落地方法。",
   },
+  changelogs: {
+    label: "更新日志",
+    path: "/changelogs/",
+    titleTopic: "更新日志 - 产品发布与功能改进",
+    description:
+      "集中查看 {{siteName}} 的产品发布、界面优化与问题修复。",
+  },
 } as const satisfies Record<string, PageSeoDefault>;

@@ -44,6 +44,7 @@ import type { CmsResearchCategoryDoc, CmsResearchDoc } from "@/lib/research/type
 import type { CmsNewsDoc } from "@/lib/news/types";
 import type { CmsBlogCategoryDoc, CmsBlogDoc } from "@/lib/blog/types";
 import type { CmsAcademyCategoryDoc, CmsAcademyDoc } from "@/lib/academy/types";
+import type { CmsChangelogDoc } from "@/lib/changelog/types";
 import type { CmsAuthorDoc } from "@/lib/authors/types";
 
 export type { FaqDoc, FaqPageDoc };
@@ -51,6 +52,7 @@ export type { CmsResearchCategoryDoc, CmsResearchDoc };
 export type { CmsNewsDoc };
 export type { CmsBlogCategoryDoc, CmsBlogDoc };
 export type { CmsAcademyCategoryDoc, CmsAcademyDoc };
+export type { CmsChangelogDoc };
 export type { CmsAuthorDoc };
 
 type PayloadListResponse<T> = {
@@ -354,6 +356,56 @@ export async function getAcademyDraftBySlug(
   });
   const data = await payloadFetch<PayloadListResponse<CmsAcademyDoc>>(
     `/${ACADEMY_COLLECTION}?${query}`,
+    {
+      headers: {
+        Authorization: `JWT ${token.trim()}`,
+      },
+    },
+  );
+  return data?.docs[0] ?? null;
+}
+
+const CHANGELOG_COLLECTION = "changelogs";
+
+export async function getChangelogList(): Promise<CmsChangelogDoc[] | null> {
+  const query = new URLSearchParams({
+    limit: "200",
+    depth: "2",
+    sort: "-publishedAt",
+    "where[_status][equals]": "published",
+  });
+  const data = await payloadFetch<PayloadListResponse<CmsChangelogDoc>>(
+    `/${CHANGELOG_COLLECTION}?${query}`,
+  );
+  if (!data?.docs?.length) return null;
+  return data.docs;
+}
+
+export async function getChangelogBySlug(slug: string): Promise<CmsChangelogDoc | null> {
+  const query = new URLSearchParams({
+    limit: "1",
+    depth: "2",
+    "where[slug][equals]": slug,
+    "where[_status][equals]": "published",
+  });
+  const data = await payloadFetch<PayloadListResponse<CmsChangelogDoc>>(
+    `/${CHANGELOG_COLLECTION}?${query}`,
+  );
+  return data?.docs[0] ?? null;
+}
+
+export async function getChangelogDraftBySlug(
+  slug: string,
+  token: string,
+): Promise<CmsChangelogDoc | null> {
+  const query = new URLSearchParams({
+    limit: "1",
+    depth: "2",
+    draft: "true",
+    "where[slug][equals]": slug,
+  });
+  const data = await payloadFetch<PayloadListResponse<CmsChangelogDoc>>(
+    `/${CHANGELOG_COLLECTION}?${query}`,
     {
       headers: {
         Authorization: `JWT ${token.trim()}`,
