@@ -1,0 +1,344 @@
+---
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import FaqSection from "@/components/home/FaqSection.astro";
+import type { Faq } from "@/lib/faqs";
+import {
+  hotPromptFinderContent,
+  hotPromptPreviewPlaceholder,
+  hotPromptRelatedTools,
+} from "@/lib/free-tools/hot-prompt-finder";
+import { ArrowRight, FileText } from "@lucide/astro";
+
+interface Props {
+  faqs: Faq[];
+}
+
+const { faqs } = Astro.props;
+const content = hotPromptFinderContent;
+const { form } = content;
+---
+
+<SiteHeader />
+
+<main class="tool-page flex flex-1 flex-col">
+  <section class="tool-hero-section">
+    <div class="tool-shell">
+      <div class="tool-grid">
+        <div class="tool-main">
+          <header class="tool-intro">
+            <p class="tool-eyebrow">{content.eyebrow}</p>
+            <h1 class="tool-title">{content.title}</h1>
+            <p class="tool-lead">{content.description}</p>
+          </header>
+
+          <div class="tool-form-card">
+            <form class="tool-form" id="hot-prompt-finder-form" novalidate>
+              <div class="tool-field">
+                <label class="tool-label" for="hot-prompt-finder-domain">{form.domainLabel}</label>
+                <div class="tool-input-row">
+                  <input
+                    id="hot-prompt-finder-domain"
+                    class="tool-input"
+                    type="text"
+                    inputmode="url"
+                    name="domain"
+                    placeholder={form.domainPlaceholder}
+                    autocomplete="url"
+                    spellcheck="false"
+                    required
+                  />
+                  <button class="tool-submit" type="submit">{form.submitLabel}</button>
+                </div>
+              </div>
+
+              <div class="tool-field">
+                <label class="tool-label" for="hot-prompt-finder-business-line">{form.businessLineLabel}</label>
+                <input
+                  id="hot-prompt-finder-business-line"
+                  class="tool-input tool-input--block"
+                  type="text"
+                  name="businessLine"
+                  placeholder={form.businessLinePlaceholder}
+                  required
+                />
+              </div>
+
+              <ul class="tool-chips" aria-label="工具特点">
+                {form.chips.map((chip) => <li>{chip}</li>)}
+              </ul>
+            </form>
+
+            <div class="tool-preview" aria-live="polite">
+              <div class="tool-preview-head">
+                <span class="tool-preview-title">{form.previewTitle}</span>
+                <span class="tool-preview-path" id="hot-prompt-finder-preview-path">{form.previewPath}</span>
+              </div>
+              <pre class="tool-preview-code" id="hot-prompt-finder-preview-code">{hotPromptPreviewPlaceholder}</pre>
+              <p class="tool-preview-foot">{form.previewFootnote}</p>
+            </div>
+          </div>
+        </div>
+
+        <aside class="tool-aside" aria-label="升级 AI 搜索监测">
+          <div class="tool-aside-card">
+            <h2 class="tool-aside-title">{content.sidebar.title}</h2>
+            <p class="tool-aside-desc">{content.sidebar.description}</p>
+            <a class="tool-aside-cta group" href={content.sidebar.ctaHref}>
+              <span>{content.sidebar.ctaLabel}</span>
+              <ArrowRight size={18} aria-hidden="true" class="tool-aside-cta-icon" />
+            </a>
+
+            <div class="tool-aside-related">
+              <p class="tool-aside-related-label">{content.sidebar.relatedTools.title}</p>
+              <div class="tool-aside-related-list">
+                {
+                  content.sidebar.relatedTools.items.map((tool) => (
+                    <a class="tool-aside-related-link group" href={tool.href}>
+                      <div class="tool-aside-related-copy">
+                        <p class="tool-aside-related-title">{tool.title}</p>
+                        <p class="tool-aside-related-desc">{tool.description}</p>
+                      </div>
+                      <ArrowRight size={14} aria-hidden="true" class="tool-aside-related-arrow" />
+                    </a>
+                  ))
+                }
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <section class="tool-notes-section" aria-label="提示词发现说明">
+    <div class="tool-shell">
+      <article class="tool-notes">
+        <section class="tool-note-block">
+          <div class="tool-note-head">
+            <h2 class="tool-note-title">{content.howItFinds.title}</h2>
+            <p class="tool-note-intro">{content.howItFinds.intro}</p>
+          </div>
+          <p class="tool-note-highlight">{content.howItFinds.highlight}</p>
+        </section>
+
+        <section class="tool-note-block tool-note-block--bordered">
+          <div class="tool-note-head">
+            <h2 class="tool-note-title">{content.whatPromptsMean.title}</h2>
+            <p class="tool-note-intro">{content.whatPromptsMean.intro}</p>
+          </div>
+          <p class="tool-note-lead">{content.whatPromptsMean.subtitle}</p>
+          <div class="tool-opportunity-grid">
+            {
+              content.whatPromptsMean.opportunities.map((item) => (
+                <article class:list={["tool-opportunity-card", `tool-opportunity-card--${item.tone}`]}>
+                  <h3 class="tool-opportunity-title">{item.title}</h3>
+                  <p class="tool-opportunity-desc">{item.description}</p>
+                  <p class="tool-opportunity-example">{item.example}</p>
+                </article>
+              ))
+            }
+          </div>
+          <p class="tool-note-closing">{content.whatPromptsMean.closing}</p>
+        </section>
+
+        <section class="tool-note-block tool-note-block--bordered">
+          <div class="tool-note-head">
+            <h2 class="tool-note-title">{content.whyItMatters.title}</h2>
+            <p class="tool-note-intro">{content.whyItMatters.intro}</p>
+          </div>
+          <p class="tool-note-lead">{content.whyItMatters.lead}</p>
+          <ul class="tool-bullet-list">
+            {content.whyItMatters.items.map((item) => (
+              <li>
+                <span class="tool-bullet-dot" aria-hidden="true"></span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+          <p class="tool-note-closing">{content.whyItMatters.closing}</p>
+        </section>
+
+        <section class="tool-note-block tool-note-block--bordered">
+          <div class="tool-note-head">
+            <h2 class="tool-note-title">{content.howToUse.title}</h2>
+            <p class="tool-note-intro">{content.howToUse.intro}</p>
+          </div>
+          <ul class="tool-bullet-list">
+            {content.howToUse.items.map((item) => (
+              <li>
+                <span class="tool-bullet-dot" aria-hidden="true"></span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section class="tool-note-block tool-note-block--bordered">
+          <div class="tool-note-head">
+            <h2 class="tool-note-title">{content.audience.title}</h2>
+          </div>
+          <ul class="tool-bullet-list">
+            {content.audience.items.map((item) => (
+              <li>
+                <span class="tool-bullet-dot" aria-hidden="true"></span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </article>
+    </div>
+  </section>
+
+  <section class="tool-related" aria-labelledby="hpf-related-title">
+    <div class="tool-related-shell">
+      <div class="tool-related-head">
+        <p class="tool-related-eyebrow">{content.relatedTools.eyebrow}</p>
+        <h2 id="hpf-related-title" class="tool-related-title">{content.relatedTools.title}</h2>
+        <p class="tool-related-desc">{content.relatedTools.description}</p>
+      </div>
+
+      <div class="tool-related-grid">
+        {
+          hotPromptRelatedTools.map((tool) =>
+            tool.current ? (
+              <div class="tool-related-card tool-related-card--current" aria-current="page">
+                <div class="tool-related-card-top">
+                  <span class="tool-related-icon" aria-hidden="true">
+                    <FileText size={16} />
+                  </span>
+                </div>
+                <div class="tool-related-copy">
+                  <span class="tool-related-card-title">{tool.title}</span>
+                  <span class="tool-related-card-desc">{tool.description}</span>
+                </div>
+                <span class="tool-related-current">当前工具</span>
+              </div>
+            ) : (
+              <a class="tool-related-card group" href={tool.href}>
+                <div class="tool-related-card-top">
+                  <span class="tool-related-icon" aria-hidden="true">
+                    <FileText size={16} />
+                  </span>
+                  <ArrowRight size={16} class="tool-related-arrow" aria-hidden="true" />
+                </div>
+                <div class="tool-related-copy">
+                  <span class="tool-related-card-title">{tool.title}</span>
+                  <span class="tool-related-card-desc">{tool.description}</span>
+                </div>
+                <span class="tool-related-link">打开工具</span>
+              </a>
+            ),
+          )
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="tool-faq">
+    <div class="tool-faq-shell">
+      <h2 class="tool-faq-title">常见问题</h2>
+      <FaqSection items={faqs} embedded />
+    </div>
+  </section>
+</main>
+
+<SiteFooter />
+
+<script define:vars={{ registerHref: content.sidebar.ctaHref, submitLabel: form.submitLabel }}>
+  const form = document.getElementById("hot-prompt-finder-form");
+  const domainInput = document.getElementById("hot-prompt-finder-domain");
+  const businessLineInput = document.getElementById("hot-prompt-finder-business-line");
+  const previewCode = document.getElementById("hot-prompt-finder-preview-code");
+  const previewPath = document.getElementById("hot-prompt-finder-preview-path");
+  const submitButton = form?.querySelector("button[type='submit']");
+
+  const placeholder = `发现你的目标客户正在问 AI 的高价值问题
+
+输入品牌域名和核心业务线，识别与你业务相关的 AI 搜索问题、购买意图和内容机会，帮助你判断哪些提示词值得持续监测和优化。`;
+
+  function normalizeDomain(raw) {
+    const value = raw.trim();
+    if (!value) return "";
+    try {
+      const parsed = new URL(value.includes("://") ? value : `https://${value}`);
+      return parsed.hostname || value;
+    } catch {
+      return value.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+    }
+  }
+
+  function buildPreviewText({ domain, businessLine }) {
+    const topic = businessLine || "your category";
+    return `# 高价值提示词分析结果
+
+域名：${domain}
+业务线：${topic}
+
+## 高意图问题预览
+1. best tools for ${topic}
+2. alternative to [competitor] for ${topic}
+3. what tool can help improve ${topic} results?
+4. ${topic} pricing comparison for enterprise teams
+5. how to choose a ${topic} platform
+
+## 建议下一步
+- 优先监测漏斗底部提示词（alternatives / vs / pricing）
+- 检查 AI 回答里是否出现你的品牌
+- 注册 ${registerHref} 持续追踪这些提示词下的 AI 回答变化`;
+  }
+
+  form?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (
+      !(domainInput instanceof HTMLInputElement) ||
+      !(businessLineInput instanceof HTMLInputElement) ||
+      !(previewCode instanceof HTMLElement)
+    ) {
+      return;
+    }
+
+    const domain = normalizeDomain(domainInput.value);
+    const businessLine = businessLineInput.value.trim();
+
+    if (!domain) {
+      domainInput.setCustomValidity("请输入有效的域名或链接");
+      domainInput.reportValidity();
+      return;
+    }
+    domainInput.setCustomValidity("");
+
+    if (!businessLine) {
+      businessLineInput.setCustomValidity("请输入核心业务线");
+      businessLineInput.reportValidity();
+      return;
+    }
+    businessLineInput.setCustomValidity("");
+
+    if (submitButton instanceof HTMLButtonElement) {
+      submitButton.disabled = true;
+      submitButton.textContent = "分析中…";
+    }
+
+    previewCode.textContent = `# 高价值提示词分析结果
+
+正在分析 ${domain}（${businessLine}）…`;
+    if (previewPath) previewPath.textContent = "/report.html";
+
+    window.setTimeout(() => {
+      previewCode.textContent = buildPreviewText({
+        domain,
+        businessLine,
+      });
+      if (submitButton instanceof HTMLButtonElement) {
+        submitButton.disabled = false;
+        submitButton.textContent = submitLabel;
+      }
+    }, 1200);
+  });
+
+  if (previewCode instanceof HTMLElement) {
+    previewCode.textContent = placeholder;
+  }
+</script>

@@ -1,0 +1,351 @@
+---
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import FaqSection from "@/components/home/FaqSection.astro";
+import type { Faq } from "@/lib/faqs";
+import {
+  llmsTxtGeneratorContent,
+  llmsTxtPreviewPlaceholder,
+  llmsTxtRelatedTools,
+} from "@/lib/free-tools/llms-txt-generator";
+import { ArrowRight, FileText } from "@lucide/astro";
+
+interface Props {
+  faqs: Faq[];
+}
+
+const { faqs } = Astro.props;
+const content = llmsTxtGeneratorContent;
+---
+
+<SiteHeader />
+
+<main class="tool-page flex flex-1 flex-col">
+  <section class="tool-hero-section">
+    <div class="tool-shell">
+      <div class="tool-grid">
+        <div class="tool-main">
+          <header class="tool-intro">
+            <p class="tool-eyebrow">{content.eyebrow}</p>
+            <h1 class="tool-title">{content.title}</h1>
+            <p class="tool-lead">{content.description}</p>
+          </header>
+
+          <div class="tool-form-card">
+            <form class="tool-form" id="llms-txt-generator-form" novalidate>
+              <div class="tool-field">
+                <label class="tool-label" for="llms-txt-generator-url">{content.form.urlLabel}</label>
+                <div class="tool-input-row">
+                  <input
+                    id="llms-txt-generator-url"
+                    class="tool-input"
+                    type="url"
+                    inputmode="url"
+                    name="url"
+                    placeholder={content.form.urlPlaceholder}
+                    autocomplete="url"
+                    spellcheck="false"
+                    required
+                  />
+                  <button class="tool-submit" type="submit">{content.form.submitLabel}</button>
+                </div>
+              </div>
+
+              <ul class="tool-chips" aria-label="工具特点">
+                {content.form.chips.map((chip) => <li>{chip}</li>)}
+              </ul>
+            </form>
+
+            <p class="tool-form-note">{content.form.note}</p>
+
+            <div class="tool-preview" aria-live="polite">
+              <div class="tool-preview-head">
+                <span class="tool-preview-title">{content.form.previewTitle}</span>
+                <span class="tool-preview-path" id="llms-txt-generator-preview-path">{content.form.previewPath}</span>
+              </div>
+              <pre class="tool-preview-code" id="llms-txt-generator-preview-code">{llmsTxtPreviewPlaceholder}</pre>
+              <p class="tool-preview-foot">{content.form.previewFootnote}</p>
+            </div>
+          </div>
+        </div>
+
+        <aside class="tool-aside" aria-label="升级全站审计">
+          <div class="tool-aside-card">
+            <h2 class="tool-aside-title">{content.sidebar.title}</h2>
+            <p class="tool-aside-desc">{content.sidebar.description}</p>
+            <a class="tool-aside-cta group" href={content.sidebar.ctaHref}>
+              <span>{content.sidebar.ctaLabel}</span>
+              <ArrowRight size={18} aria-hidden="true" class="tool-aside-cta-icon" />
+            </a>
+
+            <div class="tool-aside-related">
+              <p class="tool-aside-related-label">{content.sidebar.relatedTools.title}</p>
+              <div class="tool-aside-related-list">
+                {
+                  content.sidebar.relatedTools.items.map((tool) => (
+                    <a class="tool-aside-related-link group" href={tool.href}>
+                      <div class="tool-aside-related-copy">
+                        <p class="tool-aside-related-title">{tool.title}</p>
+                        <p class="tool-aside-related-desc">{tool.description}</p>
+                      </div>
+                      <ArrowRight size={14} aria-hidden="true" class="tool-aside-related-arrow" />
+                    </a>
+                  ))
+                }
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <section class="tool-notes-section" aria-label="LLMs.txt 说明">
+    <div class="tool-shell">
+      <article class="tool-notes">
+        <section class="tool-note-block">
+          <div class="tool-note-head">
+            <h2 class="tool-note-title">{content.howItWorks.title}</h2>
+            <p class="tool-note-intro">{content.howItWorks.intro}</p>
+          </div>
+          <ol class="tool-steps">
+            {
+              content.howItWorks.steps.map((step) => (
+                <li class="tool-step-card">
+                  <p class="tool-step-label">{step.label}</p>
+                  <h3 class="tool-step-title">{step.title}</h3>
+                  <p class="tool-step-desc">{step.description}</p>
+                </li>
+              ))
+            }
+          </ol>
+        </section>
+
+        <section class="tool-note-block tool-note-block--bordered">
+          <div class="tool-note-head">
+            <h2 class="tool-note-title">{content.whatIsLlms.title}</h2>
+          </div>
+          <div class="tool-card-grid">
+            {content.whatIsLlms.cards.map((text) => (
+              <div class="tool-info-card">
+                <p>{text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section class="tool-note-block tool-note-block--bordered">
+          <div class="tool-note-head">
+            <h2 class="tool-note-title">{content.whyItMatters.title}</h2>
+            <p class="tool-note-intro">{content.whyItMatters.intro}</p>
+          </div>
+          <ul class="tool-bullet-list">
+            {content.whyItMatters.items.map((item) => (
+              <li>
+                <span class="tool-bullet-dot" aria-hidden="true"></span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+          <p class="tool-note-closing">{content.whyItMatters.closing}</p>
+        </section>
+
+        <section class="tool-note-block tool-note-block--bordered">
+          <div class="tool-note-head">
+            <h2 class="tool-note-title">{content.fileComparison.title}</h2>
+            <p class="tool-note-intro">{content.fileComparison.intro}</p>
+          </div>
+          <div class="tool-table-wrap">
+            <table class="tool-table tool-table--wide">
+              <thead>
+                <tr>
+                  {content.fileComparison.columns.map((column) => <th scope="col">{column}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {
+                  content.fileComparison.rows.map((row) => (
+                    <tr>
+                      <th scope="row">{row.item}</th>
+                      <td>{row.llms}</td>
+                      <td>{row.robots}</td>
+                      <td>{row.sitemap}</td>
+                    </tr>
+                  ))
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="tool-note-block tool-note-block--bordered">
+          <div class="tool-note-head">
+            <h2 class="tool-note-title">{content.howToPublish.title}</h2>
+            <p class="tool-note-intro">{content.howToPublish.intro}</p>
+          </div>
+          <ol class="tool-steps tool-steps--quad">
+            {
+              content.howToPublish.steps.map((step) => (
+                <li class="tool-step-card">
+                  <p class="tool-step-label">{step.label}</p>
+                  <h3 class="tool-step-title">{step.title}</h3>
+                  <p class="tool-step-desc">{step.description}</p>
+                </li>
+              ))
+            }
+          </ol>
+        </section>
+
+        <section class="tool-note-block tool-note-block--bordered">
+          <div class="tool-note-head">
+            <h2 class="tool-note-title">{content.audience.title}</h2>
+          </div>
+          <ul class="tool-bullet-list">
+            {content.audience.items.map((item) => (
+              <li>
+                <span class="tool-bullet-dot" aria-hidden="true"></span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </article>
+    </div>
+  </section>
+
+  <section class="tool-related" aria-labelledby="llms-related-title">
+    <div class="tool-related-shell">
+      <div class="tool-related-head">
+        <p class="tool-related-eyebrow">{content.relatedTools.eyebrow}</p>
+        <h2 id="llms-related-title" class="tool-related-title">{content.relatedTools.title}</h2>
+        <p class="tool-related-desc">{content.relatedTools.description}</p>
+      </div>
+
+      <div class="tool-related-grid">
+        {
+          llmsTxtRelatedTools.map((tool) =>
+            tool.current ? (
+              <div class="tool-related-card tool-related-card--current" aria-current="page">
+                <div class="tool-related-card-top">
+                  <span class="tool-related-icon" aria-hidden="true">
+                    <FileText size={16} />
+                  </span>
+                </div>
+                <div class="tool-related-copy">
+                  <span class="tool-related-card-title">{tool.title}</span>
+                  <span class="tool-related-card-desc">{tool.description}</span>
+                </div>
+                <span class="tool-related-current">当前工具</span>
+              </div>
+            ) : (
+              <a class="tool-related-card group" href={tool.href}>
+                <div class="tool-related-card-top">
+                  <span class="tool-related-icon" aria-hidden="true">
+                    <FileText size={16} />
+                  </span>
+                  <ArrowRight size={16} class="tool-related-arrow" aria-hidden="true" />
+                </div>
+                <div class="tool-related-copy">
+                  <span class="tool-related-card-title">{tool.title}</span>
+                  <span class="tool-related-card-desc">{tool.description}</span>
+                </div>
+                <span class="tool-related-link">打开工具</span>
+              </a>
+            ),
+          )
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="tool-faq">
+    <div class="tool-faq-shell">
+      <h2 class="tool-faq-title">常见问题</h2>
+      <FaqSection items={faqs} embedded />
+    </div>
+  </section>
+</main>
+
+<SiteFooter />
+
+<script define:vars={{ registerHref: content.sidebar.ctaHref, submitLabel: content.form.submitLabel }}>
+  const form = document.getElementById("llms-txt-generator-form");
+  const input = document.getElementById("llms-txt-generator-url");
+  const previewCode = document.getElementById("llms-txt-generator-preview-code");
+  const previewPath = document.getElementById("llms-txt-generator-preview-path");
+  const submitButton = form?.querySelector("button[type='submit']");
+
+  const placeholder = `# llms.txt
+
+输入可访问的网站 URL，生成真实的 llms.txt 文件
+
+提交后我们会读取你的网站 sitemap，提取关键页面，并把真实生成结果返回到这里。`;
+
+  function buildPreviewText(url) {
+    let origin = url;
+    let hostname = url;
+    try {
+      const parsed = new URL(url);
+      origin = parsed.origin;
+      hostname = parsed.hostname;
+    } catch {
+      /* keep raw url */
+    }
+
+    return `# llms.txt
+
+> ${hostname} — 面向 AI 的网站内容导览
+
+## 核心页面
+- ${origin}/ : 首页与品牌定位
+- ${origin}/pricing/ : 定价与方案说明
+- ${origin}/about/ : 公司与团队介绍
+
+## 产品与文档
+- ${origin}/platform/ : 产品能力与平台介绍
+- ${origin}/blog/ : 内容与行业洞察
+
+## 可选说明
+- 优先阅读「核心页面」中的首页、定价与产品页
+- 如需完整 AI 可见性诊断，请访问 ${registerHref}`;
+  }
+
+  form?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!(input instanceof HTMLInputElement) || !(previewCode instanceof HTMLElement)) return;
+
+    const raw = input.value.trim();
+    let parsed;
+    try {
+      parsed = new URL(raw);
+      if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("invalid protocol");
+    } catch {
+      input.setCustomValidity("请输入有效的 http(s) URL");
+      input.reportValidity();
+      return;
+    }
+    input.setCustomValidity("");
+
+    if (submitButton instanceof HTMLButtonElement) {
+      submitButton.disabled = true;
+      submitButton.textContent = "生成中…";
+    }
+
+    previewCode.textContent = `# llms.txt
+
+正在读取 ${parsed.href} 的 sitemap…`;
+    if (previewPath) previewPath.textContent = "/llms.txt";
+
+    window.setTimeout(() => {
+      previewCode.textContent = buildPreviewText(parsed.href);
+      if (submitButton instanceof HTMLButtonElement) {
+        submitButton.disabled = false;
+        submitButton.textContent = submitLabel;
+      }
+    }, 1200);
+  });
+
+  if (previewCode instanceof HTMLElement) {
+    previewCode.textContent = placeholder;
+  }
+</script>

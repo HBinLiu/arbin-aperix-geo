@@ -7,6 +7,9 @@ import {
   monitorFaqDefaults,
   pricingFaqDefaults,
   promptExplorerFaqDefaults,
+  singlePageAuditFaqDefaults,
+  llmsTxtGeneratorFaqDefaults,
+  hotPromptFinderFaqDefaults,
   teamSolutionFaqDefaultsBySlug,
   sceneFaqDefaultsBySlug,
 } from "@shared/faq/defaults";
@@ -55,6 +58,21 @@ export const faqSeedGroups: FaqSeedGroup[] = [
     page: FAQ_PAGE.platformContent,
     label: FAQ_PAGE_LABEL_BY_VALUE[FAQ_PAGE.platformContent],
     items: contentCreationFaqDefaults,
+  },
+  {
+    page: FAQ_PAGE.singlePageAudit,
+    label: FAQ_PAGE_LABEL_BY_VALUE[FAQ_PAGE.singlePageAudit],
+    items: singlePageAuditFaqDefaults,
+  },
+  {
+    page: FAQ_PAGE.llmsTxtGenerator,
+    label: FAQ_PAGE_LABEL_BY_VALUE[FAQ_PAGE.llmsTxtGenerator],
+    items: llmsTxtGeneratorFaqDefaults,
+  },
+  {
+    page: FAQ_PAGE.hotPromptFinder,
+    label: FAQ_PAGE_LABEL_BY_VALUE[FAQ_PAGE.hotPromptFinder],
+    items: hotPromptFinderFaqDefaults,
   },
   ...MONITOR_FAQ_SLUGS.map((slug) => {
     const page = monitorFaqPage(slug);

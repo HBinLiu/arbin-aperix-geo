@@ -8,6 +8,9 @@ import {
   blogSeo,
   academySeo,
   changelogsSeo,
+  llmsTxtGeneratorSeo,
+  hotPromptFinderSeo,
+  singlePageAuditSeo,
   homeSeo,
   platformAnswerSeo,
   platformContentSeo,
@@ -106,6 +109,21 @@ export function buildLlmsTxt(site: URL, faqs: Faq[] = homeFaqs): string {
     { path: "/blog", label: "博客", description: blogSeo.description },
     { path: "/academy", label: "学院", description: academySeo.description },
     { path: "/changelogs", label: "更新日志", description: changelogsSeo.description },
+    {
+      path: "/free-tools/single-page-audit",
+      label: "单页审计",
+      description: singlePageAuditSeo.description,
+    },
+    {
+      path: "/free-tools/llms-txt-generator",
+      label: "LLMs.txt 生成器",
+      description: llmsTxtGeneratorSeo.description,
+    },
+    {
+      path: "/free-tools/hot-prompt-finder",
+      label: "热门提示词发现器",
+      description: hotPromptFinderSeo.description,
+    },
   ];
 
   const homeFaqLink: LlmsEntry = {

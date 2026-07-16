@@ -1,0 +1,353 @@
+---
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import FaqSection from "@/components/home/FaqSection.astro";
+import type { Faq } from "@/lib/faqs";
+import {
+  singlePageAuditContent,
+  singlePageAuditPreviewPlaceholder,
+  singlePageAuditRelatedTools,
+} from "@/lib/free-tools/single-page-audit";
+import { ArrowRight, FileText } from "@lucide/astro";
+
+interface Props {
+  faqs: Faq[];
+}
+
+const { faqs } = Astro.props;
+const content = singlePageAuditContent;
+---
+
+<SiteHeader />
+
+<main class="tool-page flex flex-1 flex-col">
+  <section class="tool-hero-section">
+    <div class="tool-shell">
+      <div class="tool-grid">
+        <div class="tool-main">
+          <header class="tool-intro">
+            <p class="tool-eyebrow">{content.eyebrow}</p>
+            <h1 class="tool-title">{content.title}</h1>
+            <p class="tool-lead">{content.description}</p>
+          </header>
+
+          <div class="tool-form-card">
+            <form class="tool-form" id="single-page-audit-form" novalidate>
+              <div class="tool-field">
+                <label class="tool-label" for="single-page-audit-url">{content.form.urlLabel}</label>
+                <div class="tool-input-row">
+                  <input
+                    id="single-page-audit-url"
+                    class="tool-input"
+                    type="url"
+                    inputmode="url"
+                    name="url"
+                    placeholder={content.form.urlPlaceholder}
+                    autocomplete="url"
+                    spellcheck="false"
+                    required
+                  />
+                  <button class="tool-submit" type="submit">{content.form.submitLabel}</button>
+                </div>
+              </div>
+
+              <ul class="tool-chips" aria-label="工具特点">
+                {content.form.chips.map((chip) => <li>{chip}</li>)}
+              </ul>
+            </form>
+
+            <p class="tool-form-note">{content.form.note}</p>
+
+            <div class="tool-preview" aria-live="polite">
+              <div class="tool-preview-head">
+                <span class="tool-preview-title">{content.form.previewTitle}</span>
+                <span class="tool-preview-path" id="single-page-audit-preview-path">{content.form.previewPath}</span>
+              </div>
+              <pre class="tool-preview-code" id="single-page-audit-preview-code">{singlePageAuditPreviewPlaceholder}</pre>
+              <p class="tool-preview-foot">{content.form.previewFootnote}</p>
+            </div>
+          </div>
+        </div>
+
+        <aside class="tool-aside" aria-label="升级全站审计">
+          <div class="tool-aside-card">
+            <h2 class="tool-aside-title">{content.sidebar.title}</h2>
+            <p class="tool-aside-desc">{content.sidebar.description}</p>
+            <a class="tool-aside-cta group" href={content.sidebar.ctaHref}>
+              <span>{content.sidebar.ctaLabel}</span>
+              <ArrowRight size={18} aria-hidden="true" class="tool-aside-cta-icon" />
+            </a>
+
+            <div class="tool-aside-related">
+              <p class="tool-aside-related-label">{content.sidebar.relatedTools.title}</p>
+              <div class="tool-aside-related-list">
+                {
+                  content.sidebar.relatedTools.items.map((tool) => (
+                    <a class="tool-aside-related-link group" href={tool.href}>
+                      <div class="tool-aside-related-copy">
+                        <p class="tool-aside-related-title">{tool.title}</p>
+                        <p class="tool-aside-related-desc">{tool.description}</p>
+                      </div>
+                      <ArrowRight size={14} aria-hidden="true" class="tool-aside-related-arrow" />
+                    </a>
+                  ))
+                }
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <section class="tool-notes-section" aria-label="审计说明">
+    <div class="tool-shell">
+      <article class="tool-notes">
+        <section class="tool-note-block">
+          <div class="tool-note-head">
+            <h2 class="tool-note-title">{content.howItWorks.title}</h2>
+            <p class="tool-note-intro">{content.howItWorks.intro}</p>
+          </div>
+          <ol class="tool-steps">
+            {
+              content.howItWorks.steps.map((step) => (
+                <li class="tool-step-card">
+                  <p class="tool-step-label">{step.label}</p>
+                  <h3 class="tool-step-title">{step.title}</h3>
+                  <p class="tool-step-desc">{step.description}</p>
+                </li>
+              ))
+            }
+          </ol>
+        </section>
+
+        <section class="tool-note-block tool-note-block--bordered">
+          <div class="tool-note-head">
+            <h2 class="tool-note-title">{content.auditScope.title}</h2>
+            <p class="tool-note-intro">{content.auditScope.intro}</p>
+          </div>
+          <ul class="tool-bullet-list">
+            {content.auditScope.items.map((item) => (
+              <li>
+                <span class="tool-bullet-dot" aria-hidden="true"></span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section class="tool-note-block tool-note-block--bordered">
+          <div class="tool-note-head">
+            <h2 class="tool-note-title">{content.understandResults.title}</h2>
+            <p class="tool-note-intro">{content.understandResults.intro}</p>
+          </div>
+          <ul class="tool-bullet-list">
+            {content.understandResults.items.map((item) => (
+              <li>
+                <span class="tool-bullet-dot" aria-hidden="true"></span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section class="tool-note-block tool-note-block--bordered">
+          <div class="tool-note-head">
+            <h2 class="tool-note-title">{content.previewHighlights.title}</h2>
+            <p class="tool-note-intro">{content.previewHighlights.intro}</p>
+          </div>
+          <div class="tool-table-wrap">
+            <table class="tool-table">
+              <thead>
+                <tr>
+                  {content.previewHighlights.columns.map((column) => <th scope="col">{column}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {
+                  content.previewHighlights.rows.map((row) => (
+                    <tr>
+                      <th scope="row">{row.item}</th>
+                      <td>{row.why}</td>
+                      <td>{row.issues}</td>
+                    </tr>
+                  ))
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="tool-note-block tool-note-block--bordered">
+          <div class="tool-note-head">
+            <h2 class="tool-note-title">{content.commonIssues.title}</h2>
+            <p class="tool-note-intro">{content.commonIssues.intro}</p>
+          </div>
+          <ul class="tool-bullet-list">
+            {content.commonIssues.items.map((item) => (
+              <li>
+                <span class="tool-bullet-dot" aria-hidden="true"></span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section class="tool-note-block tool-note-block--bordered">
+          <div class="tool-note-head">
+            <h2 class="tool-note-title">{content.goodPages.title}</h2>
+            <p class="tool-note-intro">{content.goodPages.intro}</p>
+          </div>
+          <ul class="tool-bullet-list">
+            {content.goodPages.items.map((item) => (
+              <li>
+                <span class="tool-bullet-dot" aria-hidden="true"></span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </article>
+    </div>
+  </section>
+
+  <section class="tool-related" aria-labelledby="tool-related-title">
+    <div class="tool-related-shell">
+      <div class="tool-related-head">
+        <p class="tool-related-eyebrow">{content.relatedTools.eyebrow}</p>
+        <h2 id="tool-related-title" class="tool-related-title">{content.relatedTools.title}</h2>
+        <p class="tool-related-desc">{content.relatedTools.description}</p>
+      </div>
+
+      <div class="tool-related-grid">
+        {
+          singlePageAuditRelatedTools.map((tool) =>
+            tool.current ? (
+              <div class="tool-related-card tool-related-card--current" aria-current="page">
+                <div class="tool-related-card-top">
+                  <span class="tool-related-icon" aria-hidden="true">
+                    <FileText size={16} />
+                  </span>
+                </div>
+                <div class="tool-related-copy">
+                  <span class="tool-related-card-title">{tool.title}</span>
+                  <span class="tool-related-card-desc">{tool.description}</span>
+                </div>
+                <span class="tool-related-current">当前工具</span>
+              </div>
+            ) : (
+              <a class="tool-related-card group" href={tool.href}>
+                <div class="tool-related-card-top">
+                  <span class="tool-related-icon" aria-hidden="true">
+                    <FileText size={16} />
+                  </span>
+                  <ArrowRight size={16} class="tool-related-arrow" aria-hidden="true" />
+                </div>
+                <div class="tool-related-copy">
+                  <span class="tool-related-card-title">{tool.title}</span>
+                  <span class="tool-related-card-desc">{tool.description}</span>
+                </div>
+                <span class="tool-related-link">打开工具</span>
+              </a>
+            ),
+          )
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="tool-faq">
+    <div class="tool-faq-shell">
+      <h2 class="tool-faq-title">常见问题</h2>
+      <FaqSection items={faqs} embedded />
+    </div>
+  </section>
+</main>
+
+<SiteFooter />
+
+<script define:vars={{ registerHref: content.sidebar.ctaHref }}>
+  const form = document.getElementById("single-page-audit-form");
+  const input = document.getElementById("single-page-audit-url");
+  const previewCode = document.getElementById("single-page-audit-preview-code");
+  const previewPath = document.getElementById("single-page-audit-preview-path");
+  const submitButton = form?.querySelector("button[type='submit']");
+
+  const placeholder = `<!doctype html>
+<html>
+  <body>
+    <h1>结果将在这里显示</h1>
+    <p>输入一个可访问的页面 URL，生成当前页面的 HTML 审计报告预览。</p>
+  </body>
+</html>`;
+
+  function buildPreviewHtml(url) {
+    let hostname = url;
+    try {
+      hostname = new URL(url).hostname;
+    } catch {
+      /* keep raw url */
+    }
+
+    return `<!doctype html>
+<html>
+  <head>
+    <title>单页审计预览 · ${hostname}</title>
+  </head>
+  <body>
+    <h1>单页审计预览</h1>
+    <p>目标 URL：${url}</p>
+    <h2>初步检查项</h2>
+    <ul>
+      <li>页面标题与 H1 是否明确说明提供什么</li>
+      <li>首屏是否在 3 秒内回答「是什么 / 给谁 / 解决什么」</li>
+      <li>关键证据（案例、数据、客户类型）是否可被读取</li>
+      <li>内容结构是否便于 AI 拆解与总结</li>
+    </ul>
+    <p>注册 ${registerHref} 获取完整 HTML 审计报告与全站 AI 可见性诊断。</p>
+  </body>
+</html>`;
+  }
+
+  form?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!(input instanceof HTMLInputElement) || !(previewCode instanceof HTMLElement)) return;
+
+    const raw = input.value.trim();
+    let parsed;
+    try {
+      parsed = new URL(raw);
+      if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("invalid protocol");
+    } catch {
+      input.setCustomValidity("请输入有效的 http(s) URL");
+      input.reportValidity();
+      return;
+    }
+    input.setCustomValidity("");
+
+    if (submitButton instanceof HTMLButtonElement) {
+      submitButton.disabled = true;
+      submitButton.textContent = "审计中…";
+    }
+
+    previewCode.textContent = `<!doctype html>
+<html>
+  <body>
+    <p>正在分析 ${parsed.href} …</p>
+  </body>
+</html>`;
+    if (previewPath) previewPath.textContent = "/audit.html";
+
+    window.setTimeout(() => {
+      previewCode.textContent = buildPreviewHtml(parsed.href);
+      if (submitButton instanceof HTMLButtonElement) {
+        submitButton.disabled = false;
+        submitButton.textContent = "免费审计页面";
+      }
+    }, 1200);
+  });
+
+  if (previewCode instanceof HTMLElement) {
+    previewCode.textContent = placeholder;
+  }
+</script>

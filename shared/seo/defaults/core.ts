@@ -64,4 +64,25 @@ export const CORE_PAGE_SEO = {
     description:
       "集中查看 {{siteName}} 的产品发布、界面优化与问题修复。",
   },
+  singlePageAudit: {
+    label: "单页审计",
+    path: "/free-tools/single-page-audit/",
+    titleTopic: "免费单页审计",
+    description:
+      "快速审计单个页面，预览关键问题，并在进入更完整产品流程前先看清下一步该优化什么。",
+  },
+  llmsTxtGenerator: {
+    label: "LLMs.txt 生成器",
+    path: "/free-tools/llms-txt-generator/",
+    titleTopic: "免费 LLMs.txt 生成器",
+    description:
+      "输入网站 URL，生成一份面向 AI 的 llms.txt 草稿，整理品牌介绍、核心页面与可引用信息。",
+  },
+  hotPromptFinder: {
+    label: "热门提示词发现器",
+    path: "/free-tools/hot-prompt-finder/",
+    titleTopic: "热门提示词发现器",
+    description:
+      "输入品牌域名和核心业务线，识别与你业务相关的 AI 搜索问题与内容机会。",
+  },
 } as const satisfies Record<string, PageSeoDefault>;

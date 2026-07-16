@@ -177,22 +177,17 @@ export const resourcesMenuSections: ResourcesMenuSection[] = [
       {
         title: "单页审计",
         description: "快速审计页面是否适合被 AI 理解和引用",
-        href: "/app",
+        href: "/free-tools/single-page-audit/",
       },
       {
         title: "LLMs.txt 生成器",
         description: "生成一份面向 AI 的 llms.txt 文件",
-        href: "/app",
+        href: "/free-tools/llms-txt-generator/",
       },
       {
         title: "热门提示词发现器",
         description: "发现用户在 AI 引擎中搜索的热门提示词",
-        href: "/app",
-      },
-      {
-        title: "AI 文章生成器",
-        description: "使用 AI 生成高质量文章",
-        href: "/app",
+        href: "/free-tools/hot-prompt-finder/",
       },
     ],
   },

@@ -7,6 +7,9 @@ export const FAQ_PAGE = {
   platformTopics: "platform/find-topics-ideas",
   platformPrompt: "platform/prompt-volumes-explorer",
   platformContent: "platform/content-creation-optimization",
+  singlePageAudit: "free-tools/single-page-audit",
+  llmsTxtGenerator: "free-tools/llms-txt-generator",
+  hotPromptFinder: "free-tools/hot-prompt-finder",
 } as const;
 
 export const TEAM_SOLUTION_SLUGS = [
@@ -73,6 +76,9 @@ export const FAQ_PAGE_OPTIONS = [
   { label: "发现机会与差距", value: FAQ_PAGE.platformTopics },
   { label: "提示词查询探索", value: FAQ_PAGE.platformPrompt },
   { label: "内容创作与优化", value: FAQ_PAGE.platformContent },
+  { label: "单页审计", value: FAQ_PAGE.singlePageAudit },
+  { label: "LLMs.txt 生成器", value: FAQ_PAGE.llmsTxtGenerator },
+  { label: "热门提示词发现器", value: FAQ_PAGE.hotPromptFinder },
   { label: "豆包监测", value: monitorFaqPage("we-monitor-doubao") },
   { label: "DeepSeek 监测", value: monitorFaqPage("we-monitor-deepseek") },
   { label: "通义千问监测", value: monitorFaqPage("we-monitor-qwen") },

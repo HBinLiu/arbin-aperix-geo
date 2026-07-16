@@ -1,0 +1,16 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import HotPromptFinderPage from "@/components/free-tools/HotPromptFinderPage.astro";
+import { mergeHotPromptFinderFaqs } from "@/lib/free-tools/hot-prompt-finder";
+import { getFaqsByPage } from "@/lib/payload";
+import { hotPromptFinderSeo } from "@/lib/seo";
+import { FAQ_PAGE } from "@shared/faq/pages";
+import "@/styles/style.css";
+import "@/styles/free-tools/index.css";
+
+const faqs = mergeHotPromptFinderFaqs(await getFaqsByPage(FAQ_PAGE.hotPromptFinder));
+---
+
+<BaseLayout seo={hotPromptFinderSeo}>
+  <HotPromptFinderPage faqs={faqs} />
+</BaseLayout>

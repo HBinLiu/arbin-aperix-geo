@@ -1,0 +1,16 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import SinglePageAuditPage from "@/components/free-tools/SinglePageAuditPage.astro";
+import { mergeSinglePageAuditFaqs } from "@/lib/free-tools/single-page-audit";
+import { getFaqsByPage } from "@/lib/payload";
+import { singlePageAuditSeo } from "@/lib/seo";
+import { FAQ_PAGE } from "@shared/faq/pages";
+import "@/styles/style.css";
+import "@/styles/free-tools/index.css";
+
+const faqs = mergeSinglePageAuditFaqs(await getFaqsByPage(FAQ_PAGE.singlePageAudit));
+---
+
+<BaseLayout seo={singlePageAuditSeo}>
+  <SinglePageAuditPage faqs={faqs} />
+</BaseLayout>

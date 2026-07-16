@@ -1,0 +1,16 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import LlmsTxtGeneratorPage from "@/components/free-tools/LlmsTxtGeneratorPage.astro";
+import { mergeLlmsTxtGeneratorFaqs } from "@/lib/free-tools/llms-txt-generator";
+import { getFaqsByPage } from "@/lib/payload";
+import { llmsTxtGeneratorSeo } from "@/lib/seo";
+import { FAQ_PAGE } from "@shared/faq/pages";
+import "@/styles/style.css";
+import "@/styles/free-tools/index.css";
+
+const faqs = mergeLlmsTxtGeneratorFaqs(await getFaqsByPage(FAQ_PAGE.llmsTxtGenerator));
+---
+
+<BaseLayout seo={llmsTxtGeneratorSeo}>
+  <LlmsTxtGeneratorPage faqs={faqs} />
+</BaseLayout>

@@ -689,12 +689,14 @@
   transition-delay: 0.1s;
 }
 
-.faq-item-answer ul {
+.faq-item-answer ul,
+.faq-rich-text ul {
   padding-left: 1.25rem;
   list-style: disc;
 }
 
-.faq-item-answer li {
+.faq-item-answer li,
+.faq-rich-text li {
   margin: 0.25rem 0;
 }
 

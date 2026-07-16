@@ -145,6 +145,15 @@ export const academySeo = toPageSeo(CORE_PAGE_SEO.academy);
 /** 更新日志 */
 export const changelogsSeo = toPageSeo(CORE_PAGE_SEO.changelogs);
 
+/** 免费工具 · 单页审计 */
+export const singlePageAuditSeo = toPageSeo(CORE_PAGE_SEO.singlePageAudit);
+
+/** 免费工具 · LLMs.txt 生成器 */
+export const llmsTxtGeneratorSeo = toPageSeo(CORE_PAGE_SEO.llmsTxtGenerator);
+
+/** 免费工具 · 热门提示词发现器 */
+export const hotPromptFinderSeo = toPageSeo(CORE_PAGE_SEO.hotPromptFinder);
+
 /** 研究报告详情 */
 export function researchDetailSeo(report: { title: string; description: string; slug: string }) {
   return {
