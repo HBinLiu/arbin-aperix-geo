@@ -42,7 +42,9 @@ const images = HOME_PANEL_IMAGES;
     <div class="feature-shell mt-12 lg:mt-16">
       <aside class="feature-nav" aria-label="功能目录">
         <p class="feature-nav-heading">目录</p>
-        <nav class="feature-nav-list">
+        <nav class="feature-nav-list" data-feature-nav-list>
+          <div class="feature-nav-track" data-feature-nav-track aria-hidden="true"></div>
+          <div class="feature-nav-progress" data-feature-nav-progress aria-hidden="true"></div>
           <ul class="feature-nav-items">
             {
               items.map((item, index) => (
@@ -75,7 +77,11 @@ const images = HOME_PANEL_IMAGES;
             const hasTitleParts = Boolean(item.titleBefore || item.titleHighlight || item.titleAfter);
 
             return (
-              <article id={`feature-${index}`} class="feature-panel scroll-mt-28">
+              <article
+                id={`feature-${index}`}
+                class:list={["feature-panel scroll-mt-28", index !== 0 && "is-faded"]}
+                data-feature-panel={index}
+              >
                 <p class="feature-panel-phase flex items-center gap-2 text-sm font-medium tracking-wide">
                   <span class="feature-panel-phase-meta">{String(index + 1).padStart(2, "0")}</span>
                   <span class="feature-panel-phase-meta">/</span>
@@ -119,19 +125,30 @@ const images = HOME_PANEL_IMAGES;
                 </div>
 
                 {image && (
-                  <div
-                    class="panel-frame mt-6"
-                    style={`background-image: url(${PANEL_BACKGROUND_URL})`}
-                  >
-                    <StaticImage
-                      image={image}
-                      alt={item.title}
-                      className="panel-image rounded-md"
-                      loading="lazy"
-                    />
+                  <div class="panel-scroll-spacer mt-6" data-panel-scroll-spacer>
+                    <div class="panel-scroll-sticky">
+                      <div
+                        class="panel-frame"
+                        style={`background-image: url(${PANEL_BACKGROUND_URL})`}
+                      >
+                        <div
+                          class:list={["panel-viewport", index === 0 && "is-visible"]}
+                          data-panel-viewport
+                        >
+                          <div class="panel-viewport-fade" aria-hidden="true"></div>
+                          <div class="panel-scroll-track" data-panel-scroll-track>
+                            <StaticImage
+                              image={image}
+                              alt={item.title}
+                              className="panel-image"
+                              loading={index === 0 ? "eager" : "lazy"}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
-
               </article>
             );
           })
@@ -142,43 +159,7 @@ const images = HOME_PANEL_IMAGES;
 </section>
 
 <script>
-  function initFeatureNav() {
-    const section = document.getElementById("features");
-    if (!section) return;
+  import { initFeatureSection } from "@/lib/home/feature-section";
 
-    const links = Array.from(section.querySelectorAll<HTMLButtonElement>("[data-feature-nav]"));
-    const panels = Array.from(section.querySelectorAll<HTMLElement>(".feature-panel"));
-    if (!links.length || !panels.length) return;
-
-    const setActive = (index: number) => {
-      links.forEach((link, i) => link.classList.toggle("is-active", i === index));
-    };
-
-    links.forEach((link) => {
-      link.addEventListener("click", () => {
-        const index = Number(link.dataset.featureNav);
-        if (Number.isNaN(index)) return;
-
-        setActive(index);
-        panels[index]?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-    });
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-        if (!visible.length) return;
-
-        const index = panels.indexOf(visible[0]!.target as HTMLElement);
-        if (index >= 0) setActive(index);
-      },
-      { rootMargin: "-45% 0px -45% 0px", threshold: [0, 0.15, 0.35, 0.55] },
-    );
-
-    panels.forEach((panel) => observer.observe(panel));
-  }
-
-  initFeatureNav();
+  initFeatureSection();
 </script>
