@@ -3,7 +3,7 @@ import type { CollectionConfig } from "payload";
 import { authenticatedWrite, publishedOrAuthenticatedRead } from "../access";
 import { RESOURCE_EXPLORATION_ADMIN_GROUP } from "../lib/admin";
 import { buildCollectionPreviewPath, buildPreviewUrl } from "../lib/preview";
-import { researchLexicalEditor } from "../lib/lexical/research";
+import { contentLexicalEditor } from "../lib/lexical/content";
 
 export const Researches: CollectionConfig = {
   slug: "researches",
@@ -118,7 +118,7 @@ export const Researches: CollectionConfig = {
               name: "body",
               type: "richText",
               label: "正文",
-              editor: researchLexicalEditor,
+              editor: contentLexicalEditor,
               admin: {
                 description:
                   "H2 自动生成左侧目录。可用 Block：图片、高亮框、章节导语、行内 CTA；表格用编辑器内置表格。",

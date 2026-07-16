@@ -1,4 +1,4 @@
-import { BLOG_BLOCK_SLUGS } from "@shared/blog/blocks";
+import { CONTENT_BLOCK_SLUGS } from "@shared/content/blocks";
 import type { BlogTocItem } from "@shared/blog";
 
 type LexicalNode = {
@@ -38,7 +38,7 @@ function walkNodesInOrder(
   }
 }
 
-/** 从 Lexical JSON 提取目录：H2 +「60 秒简报」+ 带标题的「双栏信息卡」（按文档顺序） */
+/** 从 Lexical JSON 提取目录：H2 +「简要列表」+ 带标题的「双栏信息卡」（按文档顺序） */
 export function extractBlogToc(content: unknown): BlogTocItem[] {
   if (!content || typeof content !== "object" || !("root" in content)) return [];
 
@@ -75,14 +75,14 @@ export function extractBlogToc(content: unknown): BlogTocItem[] {
 
     if (node.type !== "block") return;
     const blockType = node.fields?.blockType;
-    if (blockType !== BLOG_BLOCK_SLUGS.brief && blockType !== BLOG_BLOCK_SLUGS.infoGrid) return;
+    if (blockType !== CONTENT_BLOCK_SLUGS.brief && blockType !== CONTENT_BLOCK_SLUGS.infoGrid) return;
 
     const title = node.fields?.title?.trim();
     if (!title) return;
 
     const anchorId =
       node.fields?.anchorId?.trim() ||
-      (blockType === BLOG_BLOCK_SLUGS.brief ? "brief" : slugifyHeading(title));
+      (blockType === CONTENT_BLOCK_SLUGS.brief ? "brief" : slugifyHeading(title));
     pushItem(anchorId, title);
   });
 

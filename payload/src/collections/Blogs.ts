@@ -3,7 +3,7 @@ import type { CollectionConfig } from "payload";
 import { authenticatedWrite, publishedOrAuthenticatedRead } from "../access";
 import { RESOURCE_EXPLORATION_ADMIN_GROUP } from "../lib/admin";
 import { buildCollectionPreviewPath, buildPreviewUrl } from "../lib/preview";
-import { blogLexicalEditor } from "../lib/lexical/blog";
+import { contentLexicalEditor } from "../lib/lexical/content";
 
 export const Blogs: CollectionConfig = {
   slug: "blogs",
@@ -146,7 +146,7 @@ export const Blogs: CollectionConfig = {
               name: "body",
               type: "richText",
               label: "正文",
-              editor: blogLexicalEditor,
+              editor: contentLexicalEditor,
             },
           ],
         },

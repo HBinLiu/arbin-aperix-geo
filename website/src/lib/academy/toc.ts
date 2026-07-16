@@ -1,4 +1,4 @@
-import { ACADEMY_BLOCK_SLUGS } from "@shared/academy/blocks";
+import { CONTENT_BLOCK_SLUGS } from "@shared/content/blocks";
 import type { AcademyTocItem } from "@shared/academy";
 
 type LexicalNode = {
@@ -38,7 +38,7 @@ function walkNodesInOrder(
   }
 }
 
-/** 从 Lexical JSON 提取目录：H2 +「60 秒简报」+ 带标题的「双栏信息卡」（按文档顺序） */
+/** 从 Lexical JSON 提取目录：H2 +「简要列表」+ 带标题的「双栏信息卡」（按文档顺序） */
 export function extractAcademyToc(content: unknown): AcademyTocItem[] {
   if (!content || typeof content !== "object" || !("root" in content)) return [];
 
@@ -75,14 +75,14 @@ export function extractAcademyToc(content: unknown): AcademyTocItem[] {
 
     if (node.type !== "block") return;
     const blockType = node.fields?.blockType;
-    if (blockType !== ACADEMY_BLOCK_SLUGS.brief && blockType !== ACADEMY_BLOCK_SLUGS.infoGrid) return;
+    if (blockType !== CONTENT_BLOCK_SLUGS.brief && blockType !== CONTENT_BLOCK_SLUGS.infoGrid) return;
 
     const title = node.fields?.title?.trim();
     if (!title) return;
 
     const anchorId =
       node.fields?.anchorId?.trim() ||
-      (blockType === ACADEMY_BLOCK_SLUGS.brief ? "brief" : slugifyHeading(title));
+      (blockType === CONTENT_BLOCK_SLUGS.brief ? "brief" : slugifyHeading(title));
     pushItem(anchorId, title);
   });
 

@@ -3,7 +3,7 @@ import type { CollectionConfig } from "payload";
 import { authenticatedWrite, publishedOrAuthenticatedRead } from "../access";
 import { RESOURCE_EXPLORATION_ADMIN_GROUP } from "../lib/admin";
 import { buildCollectionPreviewPath, buildPreviewUrl } from "../lib/preview";
-import { newsLexicalEditor } from "../lib/lexical/news";
+import { contentLexicalEditor } from "../lib/lexical/content";
 
 export const News: CollectionConfig = {
   slug: "news",
@@ -137,10 +137,10 @@ export const News: CollectionConfig = {
               name: "body",
               type: "richText",
               label: "正文",
-              editor: newsLexicalEditor,
+              editor: contentLexicalEditor,
               admin: {
                 description:
-                  "H2 与「60 秒简报」「双栏信息卡」自动生成目录。Block：60 秒简报、引用框、插入图片、高亮框、章节导语、双栏信息卡、行内 CTA；表格用内置表格。",
+                  "H2 与「简要列表」「双栏信息卡」自动生成目录。Block：简要列表、引用框、插入图片、高亮框、章节导语、双栏信息卡、行内 CTA；表格用内置表格。",
               },
             },
           ],

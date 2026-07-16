@@ -3,7 +3,7 @@ import type { CollectionConfig } from "payload";
 import { authenticatedWrite, publishedOrAuthenticatedRead } from "../access";
 import { RESOURCE_EXPLORATION_ADMIN_GROUP } from "../lib/admin";
 import { buildCollectionPreviewPath, buildPreviewUrl } from "../lib/preview";
-import { academyLexicalEditor } from "../lib/lexical/academy";
+import { contentLexicalEditor } from "../lib/lexical/content";
 
 export const Academies: CollectionConfig = {
   slug: "academies",
@@ -147,7 +147,7 @@ export const Academies: CollectionConfig = {
               name: "body",
               type: "richText",
               label: "正文",
-              editor: academyLexicalEditor,
+              editor: contentLexicalEditor,
             },
           ],
         },

@@ -7,11 +7,11 @@ import {
   TextStateFeature,
 } from "@payloadcms/richtext-lexical";
 
-import { blogLexicalBlocks } from "../../blocks/blog";
+import { contentLexicalBlocks } from "../../blocks";
 import { textStateConfig } from "./default";
 
-/** 博客正文编辑器（独立 blocks） */
-export const blogLexicalEditor = lexicalEditor({
+/** 正文 richText 编辑器：news / blog / academy / research 共用 */
+export const contentLexicalEditor = lexicalEditor({
   features: ({ defaultFeatures }) => {
     const withoutInlineToolbar = defaultFeatures.filter((feature) => feature.key !== "toolbarInline");
     const withoutHeading = withoutInlineToolbar.filter((feature) => feature.key !== "heading");
@@ -22,7 +22,7 @@ export const blogLexicalEditor = lexicalEditor({
       HeadingFeature({ enabledHeadingSizes: ["h2", "h3", "h4"] }),
       TextStateFeature({ state: textStateConfig }),
       EXPERIMENTAL_TableFeature(),
-      BlocksFeature({ blocks: blogLexicalBlocks }),
+      BlocksFeature({ blocks: contentLexicalBlocks }),
     ];
   },
 });
