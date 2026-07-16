@@ -36,20 +36,17 @@ const { form } = content;
             <form class="tool-form" id="hot-prompt-finder-form" novalidate>
               <div class="tool-field">
                 <label class="tool-label" for="hot-prompt-finder-domain">{form.domainLabel}</label>
-                <div class="tool-input-row">
-                  <input
-                    id="hot-prompt-finder-domain"
-                    class="tool-input"
-                    type="text"
-                    inputmode="url"
-                    name="domain"
-                    placeholder={form.domainPlaceholder}
-                    autocomplete="url"
-                    spellcheck="false"
-                    required
-                  />
-                  <button class="tool-submit" type="submit">{form.submitLabel}</button>
-                </div>
+                <input
+                  id="hot-prompt-finder-domain"
+                  class="tool-input tool-input--block"
+                  type="text"
+                  inputmode="url"
+                  name="domain"
+                  placeholder={form.domainPlaceholder}
+                  autocomplete="url"
+                  spellcheck="false"
+                  required
+                />
               </div>
 
               <div class="tool-field">
@@ -64,9 +61,9 @@ const { form } = content;
                 />
               </div>
 
-              <ul class="tool-chips" aria-label="工具特点">
-                {form.chips.map((chip) => <li>{chip}</li>)}
-              </ul>
+              <div class="tool-form-actions">
+                <button class="tool-submit" type="submit">{form.submitLabel}</button>
+              </div>
             </form>
 
             <div class="tool-preview" aria-live="polite">
@@ -119,7 +116,7 @@ const { form } = content;
             <h2 class="tool-note-title">{content.howItFinds.title}</h2>
             <p class="tool-note-intro">{content.howItFinds.intro}</p>
           </div>
-          <p class="tool-note-highlight">{content.howItFinds.highlight}</p>
+          <p class="tool-note-highlight" set:html={content.howItFinds.highlight} />
         </section>
 
         <section class="tool-note-block tool-note-block--bordered">

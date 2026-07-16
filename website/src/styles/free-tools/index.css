@@ -208,6 +208,10 @@
   }
 }
 
+.tool-form-actions {
+  margin-top: 0.75rem;
+}
+
 .tool-submit {
   display: inline-flex;
   min-height: 3rem;
@@ -586,6 +590,11 @@
 
 .tool-note-highlight {
   max-width: 45rem;
+}
+
+.tool-note-highlight strong {
+  font-weight: 600;
+  color: var(--tool-ink);
 }
 
 .tool-note-lead {

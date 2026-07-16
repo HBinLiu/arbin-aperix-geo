@@ -6,54 +6,23 @@ import { resolveSiteCopyDeep } from "@/lib/site";
 
 export const hotPromptPreviewPlaceholder = `发现你的目标客户正在问 AI 的高价值问题
 
-输入品牌域名、目标地区、语言和核心业务线，识别与你业务相关的 AI 搜索问题、购买意图和内容机会，帮助你判断哪些提示词值得持续监测和优化。`;
+输入品牌域名和核心业务线，识别与你业务相关的 AI 搜索问题、购买意图和内容机会，帮助你判断哪些提示词值得持续监测和优化。`;
 
 export const hotPromptFinderContent = resolveSiteCopyDeep({
   eyebrow: "免费工具",
   title: "发现你的目标客户正在问 AI 的高价值问题",
   description:
-    "输入品牌域名、目标地区、语言和核心业务线，识别与你业务相关的 AI 搜索问题、购买意图和内容机会，帮助你判断哪些提示词值得持续监测和优化。",
+    "输入品牌域名和核心业务线，识别与你业务相关的 AI 搜索问题、购买意图和内容机会，帮助你判断哪些提示词值得持续监测和优化。",
   form: {
     domainLabel: "官网域名或链接",
     domainPlaceholder: "example.com",
     businessLineLabel: "核心业务线",
     businessLinePlaceholder: "例如：AI 内容营销、企业 SaaS、在线教育",
-    languageLabel: "语言",
-    regionLabel: "地区",
     submitLabel: "查找高价值提示词",
     previewTitle: "高价值提示词分析结果",
     previewPath: "/report.html",
     previewFootnote:
       "我们会结合网站内容、目标市场、行业关键词和 AI 搜索意图，识别与你业务最相关的 AI 搜索问题机会。",
-    chips: ["免费使用", "识别高意图问题", "支持多地区语言"],
-    languages: [
-      { value: "zh-CN", label: "简体中文" },
-      { value: "en-US", label: "English (US)" },
-      { value: "en-GB", label: "English (UK)" },
-      { value: "zh-HK", label: "繁體中文 (中国香港)" },
-      { value: "zh-TW", label: "繁體中文 (中国台湾)" },
-      { value: "ja-JP", label: "日本語" },
-      { value: "ko-KR", label: "한국어" },
-      { value: "de-DE", label: "Deutsch" },
-      { value: "fr-FR", label: "Français" },
-      { value: "es-ES", label: "Español" },
-    ],
-    regions: [
-      { value: "CN", label: "中国" },
-      { value: "US", label: "美国" },
-      { value: "HK", label: "中国香港" },
-      { value: "TW", label: "中国台湾" },
-      { value: "GB", label: "英国" },
-      { value: "SG", label: "新加坡" },
-      { value: "JP", label: "日本" },
-      { value: "KR", label: "韩国" },
-      { value: "DE", label: "德国" },
-      { value: "FR", label: "法国" },
-      { value: "AU", label: "澳大利亚" },
-      { value: "GLOBAL", label: "全球" },
-    ],
-    defaultLanguage: "zh-CN",
-    defaultRegion: "CN",
   },
   sidebar: {
     title: "这些问题下，AI 现在推荐谁？",
@@ -82,7 +51,7 @@ export const hotPromptFinderContent = resolveSiteCopyDeep({
     intro:
       "这个工具会先读取你的品牌域名和核心业务线，理解你提供什么、服务谁、属于哪个市场，并推断目标客户在 AI 工具中可能提出的高意图问题。",
     highlight:
-      "它不是随机生成 AI 搜索提示词，而是从业务相关性、搜索意图、购买阶段和内容机会四个维度筛选出值得持续监测的问题。",
+      "它不是随机生成 AI 搜索提示词，而是从<strong>业务相关性、搜索意图、购买阶段和内容机会</strong>四个维度筛选出值得持续监测的问题。",
   },
   whatPromptsMean: {
     title: "这些 AI 搜索提示词 代表什么？",
