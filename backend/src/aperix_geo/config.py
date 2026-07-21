@@ -78,11 +78,10 @@ class Settings(BaseSettings):
     wechat_pay_app_id: str = ""
     wechat_pay_api_v3_key: str = ""
     wechat_pay_mch_cert_serial_no: str = ""
-    wechat_pay_private_key: str = ""
     wechat_pay_private_key_path: str = ""
-    wechat_pay_platform_cert_pem: str = ""
-    wechat_pay_platform_cert_path: str = ""
-    wechat_pay_platform_cert_serial: str = ""
+    # 微信支付公钥（回调验签；非商户 apiclient_cert）
+    wechat_pay_public_key_path: str = ""
+    wechat_pay_public_key_id: str = ""  # 形如 PUB_KEY_ID_...
     wechat_pay_notify_url: str = ""
     wechat_pay_timeout_s: float = Field(default=15.0, ge=5.0, le=60.0)
 

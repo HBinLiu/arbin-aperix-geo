@@ -15,10 +15,9 @@ from typing import Any
 import httpx
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
-from cryptography.hazmat.primitives.asymmetric.types import CertificatePublicKeyTypes
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.x509 import load_pem_x509_certificate
+from cryptography.hazmat.primitives.serialization import load_pem_public_key
 
 from aperix_geo.config import Settings, get_settings
 from aperix_geo.db.models import TenantPayOrder
@@ -54,9 +53,10 @@ def is_wechat_pay_configured(settings: Settings | None = None) -> bool:
         and settings.wechat_pay_app_id.strip()
         and settings.wechat_pay_api_v3_key.strip()
         and settings.wechat_pay_mch_cert_serial_no.strip()
+        and settings.wechat_pay_public_key_id.strip()
         and settings.wechat_pay_notify_url.strip()
         and _load_private_key(settings) is not None
-        and _load_platform_public_key(settings) is not None
+        and _load_wechat_public_key(settings) is not None
     )
 
 
@@ -106,6 +106,8 @@ def create_native_prepay(order: TenantPayOrder, *, settings: Settings | None = N
             "Authorization": auth,
             "Accept": "application/json",
             "Content-Type": "application/json",
+            # 告知微信用微信支付公钥对应私钥签应答
+            "Wechatpay-Serial": settings.wechat_pay_public_key_id.strip(),
         },
         timeout=settings.wechat_pay_timeout_s,
     )
@@ -134,15 +136,14 @@ def handle_wechat_notification(
     if not is_wechat_pay_configured(settings):
         raise WechatPayError("WeChat Pay is not configured")
 
-    platform_key = _load_platform_public_key(settings)
-    if platform_key is None:
-        raise WechatPayError("WeChat Pay platform certificate is missing")
+    public_key = _load_wechat_public_key(settings)
+    if public_key is None:
+        raise WechatPayError("WeChat Pay public key is missing")
 
-    _verify_signature(platform_key, timestamp=timestamp, nonce=nonce, body=body, signature_b64=signature)
-    if serial.strip() and serial.strip() != settings.wechat_pay_platform_cert_serial.strip():
-        configured_serial = settings.wechat_pay_platform_cert_serial.strip()
-        if configured_serial:
-            logger.warning("WeChat notify serial mismatch got=%s expected=%s", serial, configured_serial)
+    _verify_signature(public_key, timestamp=timestamp, nonce=nonce, body=body, signature_b64=signature)
+    expected_id = settings.wechat_pay_public_key_id.strip()
+    if serial.strip() and serial.strip() != expected_id:
+        logger.warning("WeChat notify serial mismatch got=%s expected=%s", serial, expected_id)
 
     envelope = json.loads(body.decode("utf-8"))
     if envelope.get("event_type") != "TRANSACTION.SUCCESS":
@@ -182,29 +183,30 @@ def _format_api_error(response: httpx.Response) -> str:
 
 
 def _load_private_key(settings: Settings) -> RSAPrivateKey | None:
-    pem = settings.wechat_pay_private_key.strip()
-    if not pem and settings.wechat_pay_private_key_path.strip():
-        path = Path(settings.wechat_pay_private_key_path.strip())
-        if path.is_file():
-            pem = path.read_text(encoding="utf-8")
-    if not pem:
+    path_str = settings.wechat_pay_private_key_path.strip()
+    if not path_str:
         return None
-    key = serialization.load_pem_private_key(pem.encode("utf-8"), password=None)
+    path = Path(path_str)
+    if not path.is_file():
+        return None
+    key = serialization.load_pem_private_key(path.read_bytes(), password=None)
     if not isinstance(key, RSAPrivateKey):
         raise WechatPayError("WeChat Pay private key must be RSA")
     return key
 
 
-def _load_platform_public_key(settings: Settings) -> CertificatePublicKeyTypes | None:
-    pem = settings.wechat_pay_platform_cert_pem.strip()
-    if not pem and settings.wechat_pay_platform_cert_path.strip():
-        path = Path(settings.wechat_pay_platform_cert_path.strip())
-        if path.is_file():
-            pem = path.read_text(encoding="utf-8")
-    if not pem:
+def _load_wechat_public_key(settings: Settings) -> RSAPublicKey | None:
+    """Load WeChat Pay public key PEM (微信支付公钥，非商户证书)."""
+    path_str = settings.wechat_pay_public_key_path.strip()
+    if not path_str:
         return None
-    cert = load_pem_x509_certificate(pem.encode("utf-8"))
-    return cert.public_key()
+    path = Path(path_str)
+    if not path.is_file():
+        return None
+    key = load_pem_public_key(path.read_bytes())
+    if not isinstance(key, RSAPublicKey):
+        raise WechatPayError("WeChat Pay public key must be RSA")
+    return key
 
 
 def _build_authorization(
@@ -229,7 +231,7 @@ def _build_authorization(
 
 
 def _verify_signature(
-    public_key: CertificatePublicKeyTypes,
+    public_key: RSAPublicKey,
     *,
     timestamp: str,
     nonce: str,

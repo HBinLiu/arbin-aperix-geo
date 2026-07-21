@@ -5,18 +5,15 @@ from __future__ import annotations
 import base64
 import json
 import uuid
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
-from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
-from cryptography.x509 import CertificateBuilder, Name, NameAttribute
-from cryptography.x509.oid import NameOID
-from cryptography.hazmat.primitives import hashes as cert_hashes
-import datetime
+from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat, PublicFormat
 
 from aperix_geo.config import Settings
 from aperix_geo.db.models import TenantPayOrder
@@ -29,35 +26,29 @@ from aperix_geo.services.billing.wechat_pay import (
     parse_out_trade_no,
 )
 
+_PUB_KEY_ID = "PUB_KEY_ID_123"
 
-def _generate_rsa_keypair() -> tuple[rsa.RSAPrivateKey, str]:
+
+def _generate_rsa_keypair() -> tuple[rsa.RSAPrivateKey, str, str]:
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     private_pem = private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()).decode()
-    public_key = private_key.public_key()
-    subject = Name([NameAttribute(NameOID.COMMON_NAME, "wechat-platform")])
-    cert = (
-        CertificateBuilder()
-        .subject_name(subject)
-        .issuer_name(subject)
-        .public_key(public_key)
-        .serial_number(1)
-        .not_valid_before(datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=1))
-        .not_valid_after(datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=365))
-        .sign(private_key, cert_hashes.SHA256())
-    )
-    cert_pem = cert.public_bytes(Encoding.PEM).decode()
-    return private_key, cert_pem
+    public_pem = private_key.public_key().public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode()
+    return private_key, private_pem, public_pem
 
 
-def _settings(private_pem: str, platform_pem: str) -> Settings:
+def _settings(tmp_path: Path, private_pem: str, public_pem: str) -> Settings:
+    private_path = tmp_path / "apiclient_key.pem"
+    public_path = tmp_path / "public_key.pem"
+    private_path.write_text(private_pem, encoding="utf-8")
+    public_path.write_text(public_pem, encoding="utf-8")
     return Settings(
         wechat_pay_mch_id="1900000109",
         wechat_pay_app_id="wx1234567890abcdef",
         wechat_pay_api_v3_key="0123456789abcdef0123456789abcdef",
         wechat_pay_mch_cert_serial_no="merchant-serial",
-        wechat_pay_private_key=private_pem,
-        wechat_pay_platform_cert_pem=platform_pem,
-        wechat_pay_platform_cert_serial="1",
+        wechat_pay_private_key_path=str(private_path),
+        wechat_pay_public_key_path=str(public_path),
+        wechat_pay_public_key_id=_PUB_KEY_ID,
         wechat_pay_notify_url="https://example.com/api/v1/billing/webhook/wechat",
     )
 
@@ -67,18 +58,16 @@ def test_order_out_trade_no_roundtrip() -> None:
     assert parse_out_trade_no(order_out_trade_no(order_id)) == order_id
 
 
-def test_is_wechat_pay_configured_requires_all_fields() -> None:
-    private_key, platform_pem = _generate_rsa_keypair()
-    private_pem = private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()).decode()
-    assert is_wechat_pay_configured(_settings(private_pem, platform_pem))
+def test_is_wechat_pay_configured_requires_all_fields(tmp_path: Path) -> None:
+    _, private_pem, public_pem = _generate_rsa_keypair()
+    assert is_wechat_pay_configured(_settings(tmp_path, private_pem, public_pem))
     assert not is_wechat_pay_configured(Settings())
 
 
 @patch("aperix_geo.services.billing.wechat_pay.httpx.post")
-def test_create_native_prepay_returns_code_url(mock_post: MagicMock) -> None:
-    private_key, platform_pem = _generate_rsa_keypair()
-    private_pem = private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()).decode()
-    settings = _settings(private_pem, platform_pem)
+def test_create_native_prepay_returns_code_url(mock_post: MagicMock, tmp_path: Path) -> None:
+    _, private_pem, public_pem = _generate_rsa_keypair()
+    settings = _settings(tmp_path, private_pem, public_pem)
     order = TenantPayOrder(
         id=uuid.uuid4(),
         tenant_id=uuid.uuid4(),
@@ -95,12 +84,12 @@ def test_create_native_prepay_returns_code_url(mock_post: MagicMock) -> None:
     code_url = create_native_prepay(order, settings=settings)
     assert code_url.startswith("weixin://")
     mock_post.assert_called_once()
+    assert mock_post.call_args.kwargs["headers"]["Wechatpay-Serial"] == _PUB_KEY_ID
 
 
-def test_handle_wechat_notification_decrypts_success_payload() -> None:
-    private_key, platform_pem = _generate_rsa_keypair()
-    private_pem = private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()).decode()
-    settings = _settings(private_pem, platform_pem)
+def test_handle_wechat_notification_decrypts_success_payload(tmp_path: Path) -> None:
+    private_key, private_pem, public_pem = _generate_rsa_keypair()
+    settings = _settings(tmp_path, private_pem, public_pem)
     order_id = uuid.uuid4()
     api_key = settings.wechat_pay_api_v3_key
     nonce = "nonce-123456789012"
@@ -148,7 +137,7 @@ def test_handle_wechat_notification_decrypts_success_payload() -> None:
         signature=signature,
         timestamp=timestamp,
         nonce=wx_nonce,
-        serial="1",
+        serial=_PUB_KEY_ID,
         settings=settings,
     )
     assert result.order_id == order_id
@@ -156,10 +145,9 @@ def test_handle_wechat_notification_decrypts_success_payload() -> None:
     assert result.amount_cents == 29900
 
 
-def test_handle_wechat_notification_rejects_bad_signature() -> None:
-    private_key, platform_pem = _generate_rsa_keypair()
-    private_pem = private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()).decode()
-    settings = _settings(private_pem, platform_pem)
+def test_handle_wechat_notification_rejects_bad_signature(tmp_path: Path) -> None:
+    _, private_pem, public_pem = _generate_rsa_keypair()
+    settings = _settings(tmp_path, private_pem, public_pem)
     body = b'{"event_type":"TRANSACTION.SUCCESS"}'
     with pytest.raises(WechatPayError, match="signature"):
         handle_wechat_notification(
@@ -167,6 +155,6 @@ def test_handle_wechat_notification_rejects_bad_signature() -> None:
             signature="invalid",
             timestamp="1",
             nonce="n",
-            serial="1",
+            serial=_PUB_KEY_ID,
             settings=settings,
         )
