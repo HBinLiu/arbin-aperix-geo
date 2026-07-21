@@ -9,6 +9,7 @@ import { DotBadge, type SemanticBadgeVariant } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBacklinkOpportunityDetail } from "@/hooks/useBacklinkOpportunityDetail";
+import { DomainTypeBadge } from "@/components/common/DomainTypeBadge";
 import { formatRate } from "@/lib/analysis/format";
 import {
   BACKLINK_OPPORTUNITY_DETAIL_TABS,
@@ -81,12 +82,19 @@ export function OpportunityBacklinkDetailView({
 
   return (
     <div className="flex flex-col gap-4 px-4 py-4 sm:px-6">
-      <div className="border-border grid gap-4 rounded-lg border bg-muted-background p-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="border-border grid grid-cols-4 gap-4 rounded-lg border bg-muted-background p-4">
         <InfoField label="域名">
           {isLoading ? (
             <Skeleton className="h-5 w-32" />
           ) : (
-            <span className="truncate font-semibold">{domain}</span>
+            <span className="block truncate font-semibold">{domain}</span>
+          )}
+        </InfoField>
+        <InfoField label="类型">
+          {isLoading ? (
+            <Skeleton className="h-5 w-16" />
+          ) : (
+            <DomainTypeBadge domainType={data?.domain_type} />
           )}
         </InfoField>
         <InfoField label="优先级">

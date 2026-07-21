@@ -10,8 +10,9 @@ from uuid import UUID
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
-from aperix_geo.db.models import CitationDomain, CitationUrl, LLMResponse, Prompt, Subject, Topic
+from aperix_geo.db.models import CitationDomain, CitationUrl, DomainProfile, LLMResponse, Prompt, Subject, Topic
 from aperix_geo.services.analysis.backlink_sql import (
+    _attach_backlink_domain_types,
     _attach_backlink_platforms,
     _backlink_domain_filter,
     _backlink_domain_response_ids_stmt,
@@ -21,6 +22,7 @@ from aperix_geo.services.analysis.backlink_sql import (
     backlink_priority,
 )
 from aperix_geo.services.analysis.entity import own_entity
+from aperix_geo.services.domain.taxonomy import normalize_domain_type
 from aperix_geo.utils.net import citation_registrable_key
 
 
@@ -64,6 +66,9 @@ def build_backlink_opportunities(
             platform=platform,
             topic_id=topic_id,
         )
+    elif page_items:
+        # Test override path has no DomainProfile join; fill types in a second query.
+        _attach_backlink_domain_types(db, items=page_items)
     return {
         "items": page_items,
         "total": total,
@@ -127,6 +132,7 @@ def _backlink_mentioned_competitors(
 def _empty_backlink_detail(domain: str) -> dict[str, Any]:
     return {
         "domain": domain,
+        "domain_type": normalize_domain_type(""),
         "priority": "low",
         "platforms": [],
         "citation_count": 0,
@@ -174,8 +180,16 @@ def build_backlink_opportunity_detail(
         prompt_id=None,
     )
 
+    profile_type = db.scalar(
+        select(DomainProfile.domain_type).where(
+            DomainProfile.domain == domain,
+            DomainProfile.deleted.is_(False),
+        )
+    )
+
     return {
         "domain": domain,
+        "domain_type": normalize_domain_type(str(profile_type or "")),
         "priority": backlink_priority(prompt_count, ctx.chat_count),
         "platforms": ctx.platforms,
         "citation_count": ctx.citation_count,

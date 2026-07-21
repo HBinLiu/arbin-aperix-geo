@@ -13,6 +13,7 @@ import { performanceTableClasses } from "@/components/analysis/prompt/performanc
 import { PlatformLogoGroup } from "@/components/brand/PlatformLogo";
 import { FaviconImage } from "@/components/common/FaviconImage";
 import { faviconUrlFromHost } from "@/lib/favicon";
+import { DomainTypeBadge } from "@/components/common/DomainTypeBadge";
 import { DotBadge, type SemanticBadgeVariant } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -103,27 +104,11 @@ function BacklinkSkeletonRows({ count = 8 }: { count?: number }) {
     <>
       {Array.from({ length: count }).map((_, rowIndex) => (
         <tr key={rowIndex} className={performanceTableClasses.row} aria-hidden>
-          <td>
-            <Skeleton className="h-4 w-full max-w-xs" />
-          </td>
-          <td>
-            <Skeleton className="h-4 w-10" />
-          </td>
-          <td>
-            <Skeleton className="h-4 w-24" />
-          </td>
-          <td>
-            <Skeleton className="size-8 rounded-md" />
-          </td>
-          <td>
-            <Skeleton className="h-4 w-8" />
-          </td>
-          <td>
-            <Skeleton className="h-4 w-8" />
-          </td>
-          <td>
-            <Skeleton className="h-4 w-8" />
-          </td>
+          {Array.from({ length: BACKLINK_OPPORTUNITY_COLUMNS.length }).map((__, cellIndex) => (
+            <td key={cellIndex}>
+              <Skeleton className={cellIndex === 0 ? "h-4 w-full max-w-xs" : "h-4 w-10"} />
+            </td>
+          ))}
         </tr>
       ))}
     </>
@@ -199,6 +184,7 @@ export function OpportunityBacklinkTable({
             <th className="overflow-hidden pl-5" style={backlinkOpportunityDomainCellStyle()}>
               域名
             </th>
+            <th>类型</th>
             <th>
               <SortableHeader
                 column="priority"
@@ -239,7 +225,10 @@ export function OpportunityBacklinkTable({
             <BacklinkSkeletonRows />
           ) : total === 0 ? (
             <tr>
-              <td colSpan={6} className="text-muted-foreground px-5 py-10 text-center text-sm">
+              <td
+                colSpan={BACKLINK_OPPORTUNITY_COLUMNS.length}
+                className="text-muted-foreground px-5 py-10 text-center text-sm"
+              >
                 暂无反向链接机会
               </td>
             </tr>
@@ -268,6 +257,9 @@ export function OpportunityBacklinkTable({
                       {row.domain}
                     </span>
                   </div>
+                </td>
+                <td>
+                  <DomainTypeBadge domainType={row.domainType} />
                 </td>
                 <td>
                   <PriorityCell priority={row.priority} label={row.priorityLabel} />

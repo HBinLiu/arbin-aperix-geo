@@ -15,11 +15,12 @@ import { DotBadge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBacklinkOpportunityUrls } from "@/hooks/useBacklinkOpportunityDetail";
 import { citationMentionsOwnBrand, citationUrlDisplayTitle } from "@/lib/analysis/citation";
+import { UrlTypeBadge } from "@/components/common/UrlTypeBadge";
 import { cn } from "@/lib/utils";
 import type { AnalysisFilters, BacklinkOpportunityUrlRow, CitationUrlSortField } from "@/types";
 
 const SKELETON_ROWS = 8;
-const COLUMN_COUNT = 5;
+const COLUMN_COUNT = 6;
 
 type UrlSortKey = CitationUrlSortField;
 type UrlSortDir = "asc" | "desc";
@@ -177,17 +178,19 @@ export function OpportunityBacklinkUrlTable({
         ) : null
       }
     >
-        <table className="w-full min-w-[840px] table-fixed text-sm">
+        <table className="w-full min-w-[960px] table-fixed text-sm">
           <colgroup>
-            <col style={{ width: "35%" }} />
-            <col style={{ width: "15%" }} />
-            <col style={{ width: "15%" }} />
-            <col style={{ width: "20%" }} />
-            <col style={{ width: "15%" }} />
+            <col style={{ width: "30%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "14%" }} />
           </colgroup>
           <thead className="text-muted-foreground bg-background/80 text-left">
             <tr className="[&>th]:whitespace-nowrap [&>th]:px-4 [&>th]:py-2.5 [&>th]:font-medium">
               <th className="pl-5 pr-10">URL</th>
+              <th>类型</th>
               <th>
                 <SortableHeader
                   label="引用次数"
@@ -215,6 +218,9 @@ export function OpportunityBacklinkUrlTable({
                 <tr key={row.url} className={wideTableRowClass}>
                   <td className="max-w-0 pl-5 pr-10">
                     <UrlCell url={row.url} title={citationUrlDisplayTitle(row.title, row.url)} />
+                  </td>
+                  <td className="px-4">
+                    <UrlTypeBadge urlType={row.url_type} />
                   </td>
                   <td className="px-4 font-semibold tabular-nums">{row.count}</td>
                   <td className="px-4">

@@ -12,8 +12,9 @@ from uuid import UUID
 from sqlalchemy import and_, case, exists, func, or_, select
 from sqlalchemy.orm import Session
 
-from aperix_geo.db.models import CitationDomain, EntityKind, LLMResponse, LLMResponseSignal, Subject
+from aperix_geo.db.models import CitationDomain, DomainProfile, EntityKind, LLMResponse, LLMResponseSignal, Subject
 from aperix_geo.services.analysis._query import response_ids_in_window_stmt
+from aperix_geo.services.domain.taxonomy import normalize_domain_type
 from aperix_geo.utils.net import registrable_from
 
 
@@ -154,7 +155,13 @@ def _backlink_sql_order_clauses(grouped, priority_rank, *, sort_by: str | None, 
     )
 
 
-def _backlink_row_from_sql(domain, citation_count, chat_count, prompt_count) -> dict[str, Any] | None:
+def _backlink_row_from_sql(
+    domain,
+    citation_count,
+    chat_count,
+    prompt_count,
+    domain_type: str = "",
+) -> dict[str, Any] | None:
     domain_key = str(domain or "").strip().lower()
     if not domain_key:
         return None
@@ -165,6 +172,7 @@ def _backlink_row_from_sql(domain, citation_count, chat_count, prompt_count) -> 
     return {
         "id": domain_key,
         "domain": domain_key,
+        "domain_type": normalize_domain_type(str(domain_type or "")),
         "platforms": [],
         "priority": backlink_priority(prompts, chat),
         "citation_count": int(citation_count or 0),
@@ -355,7 +363,13 @@ class _BacklinkDomainPageQuery:
                 filtered.c.citation_count,
                 filtered.c.chat_count,
                 filtered.c.prompt_count,
+                func.coalesce(DomainProfile.domain_type, "").label("domain_type"),
                 func.count().over().label("_total"),
+            )
+            .select_from(filtered)
+            .outerjoin(
+                DomainProfile,
+                (DomainProfile.domain == filtered.c.domain) & (DomainProfile.deleted.is_(False)),
             )
             .order_by(*order_clauses)
             .offset(offset)
@@ -368,8 +382,10 @@ class _BacklinkDomainPageQuery:
         total = int(rows[0]._total)
 
         items: list[dict[str, Any]] = []
-        for domain, citation_count, chat_count, prompt_count, _row_total in rows:
-            row = _backlink_row_from_sql(domain, citation_count, chat_count, prompt_count)
+        for domain, citation_count, chat_count, prompt_count, domain_type, _row_total in rows:
+            row = _backlink_row_from_sql(
+                domain, citation_count, chat_count, prompt_count, domain_type=str(domain_type or "")
+            )
             if row is not None:
                 items.append(row)
         return items, total
@@ -377,6 +393,24 @@ class _BacklinkDomainPageQuery:
 
 _query_backlink_domain_page = _BacklinkDomainPageQuery()
 _query_backlink_domain_stats = _query_backlink_domain_page
+
+
+def _attach_backlink_domain_types(db: Session, *, items: list[dict[str, Any]]) -> None:
+    if not items:
+        return
+    domains = sorted({str(item.get("domain") or "").strip().lower() for item in items if item.get("domain")})
+    if not domains:
+        return
+    rows = db.execute(
+        select(DomainProfile.domain, DomainProfile.domain_type).where(
+            DomainProfile.domain.in_(domains),
+            DomainProfile.deleted.is_(False),
+        )
+    ).all()
+    type_map = {str(domain): normalize_domain_type(str(domain_type or "")) for domain, domain_type in rows}
+    for item in items:
+        domain = str(item.get("domain") or "").strip().lower()
+        item["domain_type"] = type_map.get(domain, normalize_domain_type(""))
 
 
 def _attach_backlink_platforms(

@@ -4,8 +4,9 @@ Field-level rules (also documented in backend/README.md §页面元数据提取�
 and docs/06-分析指标.md §3.1):
 
 - title / description / keywords / tags / mentions: SEO head + JSON-LD priority chain
-- body / headings / structure flags: prefer markdown when substantial (>= MIN_BODY_CHARS)
-  or when HTML body is insufficient; else HTML extraction
+- body: prefer rs-trafilatura when available and substantial; else markdown when
+  substantial (>= MIN_BODY_CHARS) or when HTML body is insufficient; else HTML
+- headings / structure flags: follow the body source when possible
 - favicon parsing is intentionally out of scope (see services/favicon/_parse.py)
 """
 
@@ -37,7 +38,7 @@ from aperix_geo.utils.text import coalesce_page_title, headings_from_markdown
 HEAD_PARSE_MAX_CHARS = 120_000
 MIN_BODY_CHARS = 40
 
-BodySource = Literal["markdown", "html", "none"]
+BodySource = Literal["rs", "markdown", "html", "none"]
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,7 @@ class PageMetadata:
     has_table: bool = False
     has_code_block: bool = False
     body_source: BodySource = "none"
+    url_type: str = ""
     keywords: list[str] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
     schema_types: list[str] = field(default_factory=list)
@@ -140,6 +142,7 @@ def _page_metadata_from_seo(
     has_table: bool,
     has_code_block: bool,
     body_source: BodySource,
+    url_type: str = "",
 ) -> PageMetadata:
     return PageMetadata(
         title=seo.title,
@@ -149,6 +152,7 @@ def _page_metadata_from_seo(
         has_table=has_table,
         has_code_block=has_code_block,
         body_source=body_source,
+        url_type=url_type,
         keywords=list(seo.keywords),
         tags=list(seo.tags),
         schema_types=list(seo.schema_types),
@@ -171,6 +175,7 @@ def extract_page_metadata(
     *,
     html: str = "",
     markdown: str = "",
+    url: str = "",
     html_parse_limit: int = HEAD_PARSE_MAX_CHARS,
     body_limit: int | None = None,
     heading_limit: int = 20,
@@ -182,6 +187,7 @@ def extract_page_metadata(
     return _build_page_metadata(
         html=html,
         markdown=markdown,
+        url=url,
         html_parse_limit=html_parse_limit,
         body_limit=body_limit,
         heading_limit=heading_limit,
@@ -205,6 +211,7 @@ def extract_metadata_from_fetch(
     return _build_page_metadata(
         html=result.html,
         markdown=result.markdown,
+        url=result.final_url or "",
         html_parse_limit=html_parse_limit,
         body_limit=body_limit,
         heading_limit=heading_limit,
@@ -218,6 +225,7 @@ def _build_page_metadata(
     *,
     html: str,
     markdown: str,
+    url: str,
     html_parse_limit: int,
     body_limit: int | None,
     heading_limit: int,
@@ -228,11 +236,13 @@ def _build_page_metadata(
     """Extract page metadata with field-level source rules.
 
     - title / description / SEO fields: HTML head + JSON-LD first, then markdown fallbacks
-    - body / headings / structure flags: markdown when substantial (>= min_body_chars),
-      else HTML; short markdown used only when HTML body is unavailable
+    - body: prefer ``rs-trafilatura`` when installed and body is substantial; else
+      markdown when substantial (>= min_body_chars), else HTML
+    - headings / structure flags: markdown when used for body, else HTML
     """
     html_slice = _slice_text(html, html_parse_limit)
     md = markdown or ""
+    page_url = (url or "").strip()
 
     include_microdata = profile_include_microdata(seo_profile)
     seo_raw = (
@@ -241,33 +251,51 @@ def _build_page_metadata(
         else SeoMetadata()
     )
     seo = apply_seo_profile(seo_raw, seo_profile)
-    description = seo.description
 
     body_text = ""
     headings: list[str] = []
     has_table = False
     has_code_block = False
     body_source: BodySource = "none"
+    url_type = ""
 
     if include_body:
         md_stripped = md.strip()
         html_body = html_to_text(html_slice, limit=body_limit if body_limit is not None else html_parse_limit)
         html_body_sufficient = len(html_body.strip()) >= min_body_chars
         md_sufficient = len(md_stripped) >= min_body_chars
-        use_markdown = md_sufficient or (bool(md_stripped) and not html_body_sufficient)
 
-        if use_markdown:
-            body_source = "markdown"
-            body_text = _slice_text(md_stripped, body_limit)
-            headings = _headings_list_from_markdown(md, limit=heading_limit)
-            has_table = markdown_has_table(md)
-            has_code_block = "```" in md
-        elif html_slice.strip():
-            body_source = "html"
-            body_text = html_body
-            headings = extract_headings_from_html(html_slice, limit=heading_limit)
-            has_table = html_has_table(html_slice)
-            has_code_block = html_has_code_block(html_slice)
+        if html_slice.strip():
+            from aperix_geo.services.url_type.extract import extract_main_content
+
+            rs_body, rs_type = extract_main_content(html_slice, url=page_url)
+            if len(rs_body.strip()) >= min_body_chars:
+                body_source = "rs"
+                body_text = _slice_text(rs_body, body_limit)
+                url_type = rs_type
+                if md_sufficient:
+                    headings = _headings_list_from_markdown(md, limit=heading_limit)
+                    has_table = markdown_has_table(md)
+                    has_code_block = "```" in md
+                else:
+                    headings = extract_headings_from_html(html_slice, limit=heading_limit)
+                    has_table = html_has_table(html_slice)
+                    has_code_block = html_has_code_block(html_slice)
+
+        if body_source == "none":
+            use_markdown = md_sufficient or (bool(md_stripped) and not html_body_sufficient)
+            if use_markdown:
+                body_source = "markdown"
+                body_text = _slice_text(md_stripped, body_limit)
+                headings = _headings_list_from_markdown(md, limit=heading_limit)
+                has_table = markdown_has_table(md)
+                has_code_block = "```" in md
+            elif html_slice.strip():
+                body_source = "html"
+                body_text = html_body
+                headings = extract_headings_from_html(html_slice, limit=heading_limit)
+                has_table = html_has_table(html_slice)
+                has_code_block = html_has_code_block(html_slice)
 
     title = coalesce_page_title(
         seo.title,
@@ -285,6 +313,7 @@ def _build_page_metadata(
         has_table=has_table,
         has_code_block=has_code_block,
         body_source=body_source,
+        url_type=url_type,
     )
 
 

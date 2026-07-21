@@ -30,6 +30,7 @@ class CitationPageMeta:
     text_snippet: str = ""
     schema_types: list[str] = field(default_factory=list)
     content_type: str = ""
+    url_type: str = ""
     fetch_ok: bool = False
     fetch_source: str = "none"
 
@@ -50,6 +51,7 @@ class CitationPageMeta:
             "text_snippet": self.text_snippet,
             "schema_types": list(self.schema_types),
             "content_type": self.content_type,
+            "url_type": self.url_type,
             "fetch_ok": self.fetch_ok,
             "fetch_source": self.fetch_source,
         }
@@ -68,6 +70,7 @@ class CitationPageMeta:
             text_snippet=str(data.get("text_snippet") or ""),
             schema_types=list(data.get("schema_types") or []),
             content_type=str(data.get("content_type") or ""),
+            url_type=str(data.get("url_type") or ""),
             fetch_ok=bool(data.get("fetch_ok")),
             fetch_source=str(data.get("fetch_source") or "none"),
         )
@@ -138,6 +141,7 @@ def _citation_meta_from_fetch(
     parsed = extract_page_metadata(
         html=fetched.html,
         markdown=fetched.markdown,
+        url=fetched.final_url or url,
         html_parse_limit=html_limit,
         body_limit=html_limit,
         seo_profile=SeoProfile.CITATION,
@@ -156,6 +160,12 @@ def _citation_meta_from_fetch(
     meta.text_snippet = truncate_text("\n\n".join(snippet_parts), snippet_chars) if snippet_parts else ""
     meta.schema_types = list(parsed.schema_types)
     meta.content_type = parsed.content_type
+    if parsed.url_type:
+        meta.url_type = parsed.url_type
+    else:
+        from aperix_geo.services.url_type import classify_page_type
+
+        meta.url_type = classify_page_type(url, html=fetched.html)
     meta.fetch_ok = parsed.has_content()
 
     if meta.fetch_ok and fetched.html.strip():

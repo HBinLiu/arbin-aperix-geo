@@ -166,6 +166,7 @@ def build_citation_document(
                 "has_code_block": page.has_code_block,
                 "text_snippet": page.text_snippet,
                 "fetch_ok": page.fetch_ok,
+                "url_type": page.url_type,
                 "target": target,
                 "page_mentions_brand": target == "own" and brand_names_match(own_brand_keys, page_mentioned),
                 "llm_analysis": page_analysis,

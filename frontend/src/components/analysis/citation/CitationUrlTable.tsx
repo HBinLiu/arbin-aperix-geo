@@ -20,13 +20,15 @@ import { useCitationDomainUrls, useCitationUrls } from "@/hooks/useCitationList"
 import { DEFAULT_ANALYSIS_FILTERS } from "@/lib/analysis/filters";
 import { citationMentionsOwnBrand, citationUrlDisplayTitle } from "@/lib/analysis/citation";
 import { formatRate } from "@/lib/analysis/format";
+import { UrlTypeBadge } from "@/components/common/UrlTypeBadge";
 import { cn } from "@/lib/utils";
-import type { AnalysisFilters, CitationUrlRow, CitationUrlSortField, SamplingPlatform } from "@/types";
+import type { AnalysisFilters, CitationUrlRow, CitationUrlSortField } from "@/types";
 
 const SKELETON_ROWS = 8;
-const COLUMN_COUNT = 6;
+const COLUMN_COUNT = 7;
 const URL_COUNT_DESCRIPTION = "此特定页面在 AI 回复中被引用为来源的总次数。";
 const URL_CITATION_RATE_DESCRIPTION = "此特定页面在全部 AI 回复中的引用占比。";
+const URL_TYPE_DESCRIPTION = "页面类型（文章、文档、商品等），由 URL 启发式分类。";
 
 type UrlSortKey = CitationUrlSortField;
 type UrlSortDir = "asc" | "desc";
@@ -263,18 +265,25 @@ export function CitationUrlTable(props: CitationUrlTableProps) {
         ) : null
       }
     >
-        <table className="w-full min-w-[1040px] table-fixed text-sm">
+        <table className="w-full min-w-[1120px] table-fixed text-sm">
           <colgroup>
-            <col style={{ width: "34%" }} />
-            <col style={{ width: "14%" }} />
+            <col style={{ width: "30%" }} />
             <col style={{ width: "12%" }} />
-            <col style={{ width: "14%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "11%" }} />
             <col style={{ width: "13%" }} />
-            <col style={{ width: "13%" }} />
+            <col style={{ width: "11%" }} />
+            <col style={{ width: "11%" }} />
           </colgroup>
           <thead className="text-muted-foreground bg-background/80 text-left">
             <tr className="[&>th]:whitespace-nowrap [&>th]:px-4 [&>th]:py-2.5 [&>th]:font-medium">
               <th className="pl-5 pr-10">URL</th>
+              <th>
+                <span className="inline-flex items-center gap-1">
+                  类型
+                  <ColumnHelp label="类型" description={URL_TYPE_DESCRIPTION} />
+                </span>
+              </th>
               <th>
                 <span className="inline-flex items-center gap-1">
                   平台
@@ -340,6 +349,9 @@ export function CitationUrlTable(props: CitationUrlTableProps) {
                 >
                   <td className="max-w-0 pl-5 pr-10">
                     <UrlCell url={row.url} title={citationUrlDisplayTitle(row.title, row.url)} />
+                  </td>
+                  <td className="px-4">
+                    <UrlTypeBadge urlType={row.url_type} />
                   </td>
                   <td className="px-4" onClick={(event) => event.stopPropagation()}>
                     <PlatformLogoGroup

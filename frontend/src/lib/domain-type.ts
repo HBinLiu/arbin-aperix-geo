@@ -1,0 +1,48 @@
+/** Shallalist / piedomains domain content-type → 中文展示。 */
+export const DOMAIN_TYPE_LABELS: Record<string, string> = {
+  adv: "广告",
+  alcohol: "酒类",
+  automobile: "汽车",
+  dating: "婚恋交友",
+  downloads: "下载/软件",
+  drugs: "药品",
+  education: "教育",
+  finance: "金融",
+  fortunetelling: "占卜运势",
+  forum: "论坛社区",
+  gamble: "博彩",
+  government: "政府",
+  hobby: "兴趣爱好",
+  hospitals: "医疗健康",
+  imagehosting: "图床",
+  isp: "网络服务商",
+  jobsearch: "求职招聘",
+  models: "模特时尚",
+  movies: "影视",
+  music: "音乐",
+  news: "新闻",
+  politics: "政治",
+  porn: "成人内容",
+  radiotv: "广播电视",
+  recreation: "休闲娱乐",
+  redirector: "跳转跳板",
+  religion: "宗教",
+  science: "科学",
+  searchengines: "搜索引擎",
+  sex: "两性",
+  shopping: "购物",
+  socialnet: "社交网络",
+  spyware: "恶意软件",
+  tracker: "追踪分析",
+  urlshortener: "短链接",
+  warez: "盗版资源",
+  weapons: "武器",
+  webmail: "网页邮箱",
+  webradio: "网络电台",
+  other: "其他",
+};
+
+export function domainTypeLabel(domainType: string | null | undefined): string {
+  const key = (domainType ?? "").trim().toLowerCase() || "other";
+  return DOMAIN_TYPE_LABELS[key] ?? key;
+}

@@ -267,6 +267,7 @@ export type CitationDomainRow = {
   platforms?: string[];
   citation_rate: number;
   monthly_visits: number | null;
+  domain_type?: string;
 };
 
 export type CitationMentionedBrand = {
@@ -285,6 +286,7 @@ export type CitationUrlRow = {
   host: string;
   domain?: string;
   title: string;
+  url_type?: string;
   count: number;
   platforms?: string[];
   citation_rate: number;
@@ -504,6 +506,7 @@ export type ContentOpportunityDetailTab = "brand" | "source" | "chat";
 export type BacklinkOpportunityItem = {
   id: string;
   domain: string;
+  domain_type?: string;
   platforms: string[];
   priority: OpportunityPriority;
   citation_count: number;
@@ -553,6 +556,7 @@ export type BrandSortField =
 
 export type BacklinkOpportunityDetailData = {
   domain: string;
+  domain_type?: string;
   priority: OpportunityPriority;
   platforms: string[];
   citation_count: number;

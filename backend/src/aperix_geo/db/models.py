@@ -612,6 +612,31 @@ class CitationDomain(Base):
     )
 
 
+class DomainProfile(Base):
+    """Registrable domain content type (Shallalist / piedomains code)."""
+
+    __tablename__ = "tb_domain_profiles"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    domain: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
+    domain_type: Mapped[str] = mapped_column(String(64), nullable=False, default="", server_default="")
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="", server_default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
+    )
+
+    __table_args__ = (
+        Index(
+            "uq_domain_profiles_domain",
+            "domain",
+            unique=True,
+            postgresql_where=sa_text("deleted = false"),
+        ),
+        Index("ix_domain_profiles_domain_type", "domain_type"),
+    )
+
+
 class CitationUrl(Base):
     """单次采样回答中的引用 URL 明细。"""
 
@@ -625,6 +650,7 @@ class CitationUrl(Base):
         Uuid(as_uuid=True), ForeignKey("tb_subject_prompts.id", ondelete="CASCADE"), nullable=False
     )
     url: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    url_type: Mapped[str] = mapped_column(String(64), nullable=False, default="", server_default="")
     page_title: Mapped[str] = mapped_column(String(500), nullable=False, default="", server_default="")
     http_status: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     description: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
@@ -659,6 +685,7 @@ class CitationUrl(Base):
         Index("ix_citation_urls_prompt_id", "prompt_id"),
         Index("ix_citation_urls_response_id", "response_id"),
         Index("ix_citation_urls_url_response", "url", "response_id"),
+        Index("ix_citation_urls_url_type", "url_type"),
     )
 
 

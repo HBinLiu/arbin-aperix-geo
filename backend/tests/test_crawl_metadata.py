@@ -1,5 +1,7 @@
 """Tests for unified page metadata extraction."""
 
+from unittest.mock import patch
+
 from aperix_geo.services.crawl.metadata import (
     extract_metadata_from_fetch,
     extract_page_metadata,
@@ -16,7 +18,11 @@ def test_head_from_html_only() -> None:
     <meta name="description" content="站点描述" />
     </head><body><h1>正文标题</h1><p>内容</p></body></html>
     """
-    parsed = extract_page_metadata(html=html)
+    with patch(
+        "aperix_geo.services.url_type.extract.extract_main_content",
+        return_value=("", ""),
+    ):
+        parsed = extract_page_metadata(html=html)
     assert parsed.title == "站点标题"
     assert parsed.description == "站点描述"
     assert parsed.body_source == "html"
@@ -27,12 +33,30 @@ def test_head_from_html_only() -> None:
 def test_markdown_preferred_when_both_present() -> None:
     html = "<head><title>HTML Title</title></head><body><nav>noise</nav><p>html body</p></body>"
     md = "# MD Title\n\nClean markdown body " * 5
-    parsed = extract_page_metadata(html=html, markdown=md)
+    with patch(
+        "aperix_geo.services.url_type.extract.extract_main_content",
+        return_value=("", ""),
+    ):
+        parsed = extract_page_metadata(html=html, markdown=md)
     assert parsed.title == "HTML Title"
     assert parsed.body_source == "markdown"
     assert parsed.body_text.startswith("# MD Title")
     assert parsed.headings == ["MD Title"]
     assert parsed.has_code_block is False
+
+
+def test_rs_body_preferred_when_substantial() -> None:
+    html = "<head><title>HTML Title</title></head><body><nav>noise</nav><p>html body</p></body>"
+    md = "# MD Title\n\nClean markdown body " * 5
+    with patch(
+        "aperix_geo.services.url_type.extract.extract_main_content",
+        return_value=("RS clean body text here with enough characters for the threshold", "article"),
+    ):
+        parsed = extract_page_metadata(html=html, markdown=md, url="https://example.com/a")
+    assert parsed.body_source == "rs"
+    assert parsed.body_text.startswith("RS clean body")
+    assert parsed.url_type == "article"
+    assert parsed.headings == ["MD Title"]
 
 
 def test_markdown_only_fallback() -> None:
@@ -52,7 +76,11 @@ def test_title_fallback_from_markdown_when_no_html_head() -> None:
 def test_homepage_metadata_dict() -> None:
     html = "<head><title>深睿医疗</title><meta name=description content='AI辅助诊断'></head>"
     md = "# 用AI赋能\n\n## 改变未来"
-    parsed = extract_page_metadata(html=html, markdown=md)
+    with patch(
+        "aperix_geo.services.url_type.extract.extract_main_content",
+        return_value=("", ""),
+    ):
+        parsed = extract_page_metadata(html=html, markdown=md)
     meta = homepage_metadata_dict(parsed)
     assert meta["title"] == "深睿医疗"
     assert meta["description"] == "AI辅助诊断"

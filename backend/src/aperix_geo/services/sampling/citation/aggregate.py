@@ -14,7 +14,8 @@ from uuid import UUID
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from aperix_geo.db.models import CitationDomain, CitationUrl, LLMResponse, Prompt, Subject, Topic
+from aperix_geo.db.models import CitationDomain, CitationUrl, DomainProfile, LLMResponse, Prompt, Subject, Topic
+from aperix_geo.services.domain.taxonomy import normalize_domain_type
 from aperix_geo.services.sampling.citation.labels import page_mentioned_brand_names
 from aperix_geo.services.subject.labels import competitor_rank_label
 from aperix_geo.utils.net import citation_registrable_key, host_from, registrable_from
@@ -128,11 +129,14 @@ def _aggregate_url_row(
         for record in records
     )
 
+    url_type = mode_nonempty([record.url_type for record in records if record.url_type])
+
     return {
         "url": url,
         "host": host,
         "domain": registrable_from(url) or host,
         "title": coalesce_page_title(page_title, url=url),
+        "url_type": url_type,
         "count": count,
         "citation_rate": round(count / total, 4) if total else 0,
         "has_brand_analysis": has_brand_analysis,
@@ -256,7 +260,16 @@ def paginate_citation_domains(
     )
     offset = (safe_page - 1) * safe_page_size
     rows = db.execute(
-        select(grouped.c.domain, grouped.c.count)
+        select(
+            grouped.c.domain,
+            grouped.c.count,
+            func.coalesce(DomainProfile.domain_type, "").label("domain_type"),
+        )
+        .select_from(grouped)
+        .outerjoin(
+            DomainProfile,
+            (DomainProfile.domain == grouped.c.domain) & (DomainProfile.deleted.is_(False)),
+        )
         .order_by(order_clause, grouped.c.domain.asc())
         .offset(offset)
         .limit(safe_page_size)
@@ -267,8 +280,9 @@ def paginate_citation_domains(
             "domain": str(domain or "").strip().lower(),
             "count": int(count or 0),
             "citation_rate": round(int(count or 0) / response_total, 4),
+            "domain_type": normalize_domain_type(str(domain_type or "")),
         }
-        for domain, count in rows
+        for domain, count, domain_type in rows
         if domain
     ]
     page_domains = [item["domain"] for item in items]

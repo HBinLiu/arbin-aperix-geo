@@ -3,18 +3,19 @@ import type { CSSProperties } from "react";
 import type { BacklinkOpportunityDetailTab, BacklinkOpportunityItem, BacklinkOpportunitySortField, OpportunityPriority } from "@/types";
 
 export type BacklinkOpportunityColumn = {
-  id: "domain" | "priority" | "platform" | "citationCount" | "promptCount" | "chatCount";
+  id: "domain" | "domainType" | "priority" | "platform" | "citationCount" | "promptCount" | "chatCount";
   width: string;
   minWidth: number;
 };
 
 export const BACKLINK_OPPORTUNITY_COLUMNS: readonly BacklinkOpportunityColumn[] = [
-  { id: "domain", width: "28%", minWidth: 200 },
-  { id: "priority", width: "12%", minWidth: 100 },
-  { id: "platform", width: "16%", minWidth: 180 },
-  { id: "citationCount", width: "14%", minWidth: 120 },
-  { id: "promptCount", width: "15%", minWidth: 120 },
-  { id: "chatCount", width: "15%", minWidth: 120 },
+  { id: "domain", width: "22%", minWidth: 180 },
+  { id: "domainType", width: "12%", minWidth: 96 },
+  { id: "priority", width: "10%", minWidth: 88 },
+  { id: "platform", width: "16%", minWidth: 160 },
+  { id: "citationCount", width: "13%", minWidth: 110 },
+  { id: "promptCount", width: "13.5%", minWidth: 110 },
+  { id: "chatCount", width: "13.5%", minWidth: 110 },
 ];
 
 export const BACKLINK_OPPORTUNITY_MIN_WIDTH = BACKLINK_OPPORTUNITY_COLUMNS.reduce(
@@ -37,6 +38,7 @@ export function backlinkOpportunityColumnColStyle(column: BacklinkOpportunityCol
 export type BacklinkOpportunityRow = {
   id: string;
   domain: string;
+  domainType: string;
   priority: OpportunityPriority;
   priorityLabel: string;
   platforms: string[];
@@ -64,6 +66,7 @@ export function buildBacklinkOpportunityRows(items: BacklinkOpportunityItem[]): 
   return items.map((item) => ({
     id: item.id,
     domain: item.domain,
+    domainType: item.domain_type ?? "",
     priority: item.priority,
     priorityLabel: PRIORITY_LABELS[item.priority],
     platforms: item.platforms,

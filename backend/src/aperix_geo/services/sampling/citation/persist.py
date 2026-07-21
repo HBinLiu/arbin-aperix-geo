@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import CitationDomain, CitationUrl
 from aperix_geo.services.sampling.parsed import ParsedSamplingResult
+from aperix_geo.services.url_type import classify_url, normalize_url_type
 from aperix_geo.utils.coerce import safe_int
 from aperix_geo.utils.net import filter_citation_urls, host_from, is_citation_host, registrable_from
 
@@ -48,10 +49,13 @@ def citations_from_parsed(parsed: dict[str, Any] | ParsedSamplingResult) -> list
         src = source_map.get(key, {})
         page_title = str(src.get("page_title") or "").strip()
         llm_analysis = src.get("llm_analysis") if isinstance(src.get("llm_analysis"), dict) else {}
+        raw_type = str(src.get("url_type") or "").strip()
+        url_type = normalize_url_type(raw_type) if raw_type else classify_url(key)
         rows.append(
             {
                 "domain": domain[:255],
                 "url": key,
+                "url_type": url_type[:64],
                 "page_title": page_title[:500],
                 "http_status": safe_int(src, "http_status", 0),
                 "description": str(src.get("description") or "")[:8000],
@@ -102,6 +106,7 @@ def replace_citations_for_response(
                 response_id=response_id,
                 prompt_id=prompt_id,
                 url=row["url"],
+                url_type=row["url_type"],
                 page_title=row["page_title"],
                 http_status=row["http_status"],
                 description=row["description"],
@@ -115,7 +120,8 @@ def replace_citations_for_response(
             )
         )
 
-    for domain, cite_count in domain_counts_from_url_rows(url_rows).items():
+    domain_counts = domain_counts_from_url_rows(url_rows)
+    for domain, cite_count in domain_counts.items():
         db.add(
             CitationDomain(
                 response_id=response_id,
@@ -124,5 +130,15 @@ def replace_citations_for_response(
                 cite_count=cite_count,
             )
         )
+
+    if domain_counts:
+        from aperix_geo.services.domain.classify import (
+            ensure_domain_profiles,
+            maybe_enqueue_domain_type_classify,
+        )
+
+        pending = ensure_domain_profiles(db, domain_counts.keys())
+        if pending:
+            maybe_enqueue_domain_type_classify(pending)
 
     return len(url_rows)

@@ -12,18 +12,20 @@ import { ColumnHelp } from "@/components/analysis/prompt/PerformanceMetricCells"
 import { wideTableRowClass } from "@/components/analysis/prompt/performanceTableLayout";
 import { PlatformLogoGroup } from "@/components/brand/PlatformLogo";
 import { FaviconImage } from "@/components/common/FaviconImage";
+import { DomainTypeBadge } from "@/components/common/DomainTypeBadge";
 import { faviconUrlFromHost } from "@/lib/favicon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCitationDomains } from "@/hooks/useCitationList";
 import { formatRate } from "@/lib/analysis/format";
 import { citationDomainDetailPath } from "@/lib/analysis/nav";
 import { cn } from "@/lib/utils";
-import type { AnalysisFilters, CitationDomainSortField, SamplingPlatform } from "@/types";
+import type { AnalysisFilters, CitationDomainSortField } from "@/types";
 
 const SKELETON_ROWS = 8;
-const COLUMN_COUNT = 4;
-const COL_DOMAIN_WIDTH = "40%";
-const COL_PLATFORM_WIDTH = "24%";
+const COLUMN_COUNT = 5;
+const COL_DOMAIN_WIDTH = "28%";
+const COL_TYPE_WIDTH = "18%";
+const COL_PLATFORM_WIDTH = "18%";
 const COL_COUNT_WIDTH = "18%";
 const COL_RATE_WIDTH = "18%";
 
@@ -134,6 +136,7 @@ export function CitationDomainTable({
       <table className="w-full min-w-[800px] table-fixed text-sm">
           <colgroup>
             <col style={{ width: COL_DOMAIN_WIDTH }} />
+            <col style={{ width: COL_TYPE_WIDTH }} />
             <col style={{ width: COL_PLATFORM_WIDTH }} />
             <col style={{ width: COL_COUNT_WIDTH }} />
             <col style={{ width: COL_RATE_WIDTH }} />
@@ -141,6 +144,7 @@ export function CitationDomainTable({
           <thead className="text-muted-foreground bg-background/80 text-left">
             <tr className="[&>th]:whitespace-nowrap [&>th]:px-4 [&>th]:py-2.5 [&>th]:font-medium">
               <th className="pl-5">域名</th>
+              <th>类型</th>
               <th>平台</th>
               <th>
                 <DomainSortableHeader
@@ -187,6 +191,9 @@ export function CitationDomainTable({
                         {row.domain}
                       </span>
                     </div>
+                  </td>
+                  <td className="px-4">
+                    <DomainTypeBadge domainType={row.domain_type} />
                   </td>
                   <td className="px-4" onClick={(event) => event.stopPropagation()}>
                     <PlatformLogoGroup
