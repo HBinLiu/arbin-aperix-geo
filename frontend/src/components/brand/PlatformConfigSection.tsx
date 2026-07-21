@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock, Settings2 } from "lucide-react";
+import { Clock, Pause, Play, Settings2 } from "lucide-react";
 
 import { BrandSectionCard } from "@/components/brand/BrandSectionCard";
 import {
@@ -9,6 +9,7 @@ import {
   togglePlatformSelection,
 } from "@/components/brand/EditPlatformEditor";
 import { PlatformLogo } from "@/components/brand/PlatformLogo";
+import { ActionTooltip } from "@/components/common/ActionTooltip";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -64,10 +65,12 @@ export function PlatformConfigSection({ subject }: PlatformConfigSectionProps) {
   );
 
   const currentHours = samplingFrequencyToHours(subject.sampling_frequency);
-  const nextHint = useMemo(
-    () => (editing ? null : nextSamplingHint(subject.last_sampled_at, subject.sampling_frequency)),
-    [editing, subject.last_sampled_at, subject.sampling_frequency],
-  );
+  const samplingEnabled = subject.sampling_enabled !== false;
+  const nextHint = useMemo(() => {
+    if (editing) return null;
+    if (!samplingEnabled) return "监控已暂停";
+    return nextSamplingHint(subject.last_sampled_at, subject.sampling_frequency);
+  }, [editing, samplingEnabled, subject.last_sampled_at, subject.sampling_frequency]);
 
   const { data: platforms = [], isLoading } = useQuery({
     queryKey: queryKeys.samplingPlatforms,
@@ -109,6 +112,25 @@ export function PlatformConfigSection({ subject }: PlatformConfigSectionProps) {
       setEditing(false);
     } catch (e: unknown) {
       toast.error(formatApiError(e, "保存失败，请重试。"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onToggleSampling = async () => {
+    const next = !samplingEnabled;
+    setSaving(true);
+    try {
+      const updated = await patchSubject(subject.id, { sampling_enabled: next });
+      queryClient.setQueryData<Subject[]>(queryKeys.subjects, (prev) => {
+        if (!prev) return prev;
+        return prev.map((s) =>
+          s.id === updated.id ? { ...s, ...updated, sampling_enabled: updated.sampling_enabled ?? next } : s,
+        );
+      });
+      toast.success(next ? "监控已开启。" : "监控已暂停。");
+    } catch (e: unknown) {
+      toast.error(formatApiError(e, next ? "开启失败，请重试。" : "暂停失败，请重试。"));
     } finally {
       setSaving(false);
     }
@@ -183,9 +205,9 @@ export function PlatformConfigSection({ subject }: PlatformConfigSectionProps) {
       )}
 
       <div className="border-border bg-muted/40 mt-3 rounded-lg border px-3 py-2 text-sm">
-        <div className="flex items-center">
+        <div className="flex items-center gap-2">
           <Clock className="text-muted-foreground size-4 shrink-0" aria-hidden />
-          <span className="text-muted-foreground ml-2 shrink-0 text-sm">采样间隔：</span>
+          <span className="text-muted-foreground shrink-0 text-sm">采样间隔：</span>
           <div className="min-w-0 flex-1 text-left">
             {editing ? (
               <div className="space-y-2">
@@ -209,6 +231,23 @@ export function PlatformConfigSection({ subject }: PlatformConfigSectionProps) {
               </p>
             )}
           </div>
+          <ActionTooltip label={samplingEnabled ? "暂停监控" : "开启监控"}>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="size-7 shrink-0 rounded-md"
+              disabled={saving}
+              aria-label={samplingEnabled ? "暂停监控" : "开启监控"}
+              onClick={() => void onToggleSampling()}
+            >
+              {samplingEnabled ? (
+                <Pause className="size-4" aria-hidden />
+              ) : (
+                <Play className="size-4" aria-hidden />
+              )}
+            </Button>
+          </ActionTooltip>
         </div>
       </div>
     </BrandSectionCard>

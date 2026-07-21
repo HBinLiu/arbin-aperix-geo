@@ -151,6 +151,25 @@ def test_is_subject_not_due_when_interval_not_elapsed() -> None:
     ) is False
 
 
+def test_is_subject_not_due_when_sampling_paused() -> None:
+    settings = _settings()
+    subject_id = uuid4()
+    slot = subject_daily_slot_at(subject_id, datetime(2026, 5, 20).date(), settings=settings)
+    subject = Subject(
+        id=subject_id,
+        tenant_id=uuid4(),
+        type=SubjectType.domain,
+        domain="example.com",
+        last_sampled_at=datetime(2026, 5, 19, 10, 0, tzinfo=UTC),
+        sampling_enabled=False,
+    )
+    assert is_subject_due_for_scheduled_sampling(
+        subject,
+        now=slot.astimezone(UTC),
+        settings=settings,
+    ) is False
+
+
 def test_find_subjects_due_uses_single_subject_query() -> None:
     settings = _settings()
     subject_id = uuid4()

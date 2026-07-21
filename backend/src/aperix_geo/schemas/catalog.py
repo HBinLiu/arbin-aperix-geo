@@ -20,6 +20,7 @@ class SubjectUpdate(BaseModel):
     profile_summary: str | None = None
     sampling_platforms: list[str] | None = None
     sampling_frequency: str | None = None
+    sampling_enabled: bool | None = None
 
 
 class SubjectOut(BaseModel):
@@ -34,6 +35,7 @@ class SubjectOut(BaseModel):
     profile_summary: str
     sampling_platforms: list[str]
     sampling_frequency: str
+    sampling_enabled: bool
     last_sampled_at: datetime
     created_at: datetime
     updated_at: datetime

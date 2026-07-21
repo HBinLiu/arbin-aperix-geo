@@ -160,7 +160,9 @@ def is_subject_due_for_scheduled_sampling(
     now: datetime | None = None,
     settings: Settings | None = None,
 ) -> bool:
-    """True when local time is inside today's window, past slot, and interval elapsed."""
+    """True when monitoring is on, inside today's window, past slot, and interval elapsed."""
+    if subject.sampling_enabled is False:
+        return False
     settings = settings or get_settings()
     now = now or datetime.now(UTC)
     local_now = _local_now(now, SAMPLING_TIMEZONE)
@@ -192,6 +194,7 @@ def find_subjects_due_for_scheduled_sampling(
     stmt = (
         select(Subject)
         .where(Subject.deleted.is_(False))
+        .where(Subject.sampling_enabled.is_(True))
         .where(_has_enabled_prompt_exists(Subject.id))
         .where(~_latest_active_sampling_job_exists(Subject.id))
     )

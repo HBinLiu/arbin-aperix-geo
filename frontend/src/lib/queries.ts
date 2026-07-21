@@ -525,7 +525,7 @@ export const sessionCatalogQueryOptions = {
 
 /** Mark matching React Query cache entries stale. */
 export function clearQueries(queryClient: QueryClient, filters: InvalidateQueryFilters) {
-  void queryClient.invalidateQueries(filters);
+  return queryClient.invalidateQueries(filters);
 }
 
 export function clearAnalysisCatalog(queryClient: QueryClient, subjectId: string) {

@@ -96,6 +96,8 @@ def update_subject(
             )
         except QuotaExceededError as exc:
             raise quota_exceeded_http_exception(exc) from exc
+    if body.sampling_enabled is not None:
+        sub.sampling_enabled = body.sampling_enabled
     if brand_catalog_dirty:
         sync_subject_brands_from_setup(db, subject=sub)
     validate_subject_fields(sub)

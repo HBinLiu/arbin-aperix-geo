@@ -9,6 +9,7 @@ export type Subject = {
   profile_summary: string;
   sampling_platforms?: string[];
   sampling_frequency?: string;
+  sampling_enabled?: boolean;
   last_sampled_at: string;
   tenant_id?: string;
   created_at?: string;

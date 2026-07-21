@@ -236,6 +236,9 @@ class Subject(Base):
     sampling_frequency: Mapped[str] = mapped_column(
         String(32), nullable=False, default="daily_1", server_default="daily_1"
     )
+    sampling_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
