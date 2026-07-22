@@ -43,7 +43,8 @@ type NodeTooltip = {
 
 type KnowledgeForceGraphProps = {
   data: GraphViewData;
-  height?: number;
+  /** Fallback height when the container has no measured height yet. */
+  minHeight?: number;
   selectedId: string | null;
   hoveredId: string | null;
   highlightIds: ReadonlySet<string>;
@@ -67,7 +68,7 @@ function truncateLabel(label: string, max: number): string {
 
 export function KnowledgeForceGraph({
   data,
-  height = 420,
+  minHeight = 320,
   selectedId,
   hoveredId,
   highlightIds,
@@ -84,20 +85,35 @@ export function KnowledgeForceGraph({
   const selectedIdRef = useRef(selectedId);
   const setTooltipRef = useRef<(next: NodeTooltip | null) => void>(() => {});
   const [tooltip, setTooltip] = useState<NodeTooltip | null>(null);
+  const [size, setSize] = useState({ width: 640, height: 420 });
 
   onHoverRef.current = onHover;
   onSelectRef.current = onSelect;
   selectedIdRef.current = selectedId;
   setTooltipRef.current = setTooltip;
 
-  // Build / rebuild force graph when data changes (Case pattern).
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => {
+      const width = Math.max(1, Math.round(el.clientWidth));
+      const height = Math.max(minHeight, Math.round(el.clientHeight || minHeight));
+      setSize((prev) => (prev.width === width && prev.height === height ? prev : { width, height }));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [minHeight]);
+
+  // Build / rebuild force graph when data or canvas size changes (Case pattern).
   useEffect(() => {
     const svgEl = svgRef.current;
     const container = containerRef.current;
     if (!svgEl || !container) return;
 
-    const W = container.clientWidth || 640;
-    const H = height;
+    const W = size.width;
+    const H = size.height;
     const svg = select(svgEl);
     svg.selectAll("*").remove();
     svg.attr("width", W).attr("height", H).attr("viewBox", `0 0 ${W} ${H}`);
@@ -199,6 +215,8 @@ export function KnowledgeForceGraph({
       .attr("opacity", 0)
       .attr("pointer-events", "none");
 
+    let dragging = false;
+
     const node = root
       .append("g")
       .attr("class", "nodes")
@@ -209,6 +227,8 @@ export function KnowledgeForceGraph({
       .call(
         drag<SVGGElement, SimNode>()
           .on("start", (event, d) => {
+            dragging = true;
+            setTooltipRef.current(null);
             if (!event.active) sim.alphaTarget(0.3).restart();
             d.fx = d.x;
             d.fy = d.y;
@@ -218,6 +238,7 @@ export function KnowledgeForceGraph({
             d.fy = event.y;
           })
           .on("end", (event, d) => {
+            dragging = false;
             if (!event.active) sim.alphaTarget(0);
             d.fx = null;
             d.fy = null;
@@ -262,6 +283,7 @@ export function KnowledgeForceGraph({
     }
 
     const showTooltip = (event: MouseEvent, d: SimNode) => {
+      if (dragging) return;
       const rect = container.getBoundingClientRect();
       setTooltipRef.current({
         x: event.clientX - rect.left,
@@ -326,7 +348,7 @@ export function KnowledgeForceGraph({
       zoomRef.current = null;
       setTooltipRef.current(null);
     };
-  }, [data, height]);
+  }, [data, size.width, size.height]);
 
   // Highlight / dim (Case pattern) — does not rebuild simulation.
   useEffect(() => {
@@ -396,7 +418,6 @@ export function KnowledgeForceGraph({
     <div
       ref={containerRef}
       className="dark border-border bg-background relative h-full min-h-[320px] w-full overflow-hidden rounded-md border"
-      style={{ height }}
     >
       <svg ref={svgRef} className="block h-full w-full" role="img" aria-label="知识图谱" />
       {tooltip ? (

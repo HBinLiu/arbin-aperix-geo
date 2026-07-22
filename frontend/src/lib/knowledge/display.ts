@@ -4,14 +4,7 @@ import type {
   KnowledgeNodeType,
   KnowledgeSource,
   KnowledgeSourceKind,
-  KnowledgeStatus,
 } from "@/types";
-
-const STATUS_LABELS: Record<string, string> = {
-  draft: "草稿",
-  verified: "已验证",
-  stale: "待更新",
-};
 
 const INDEX_STATUS_LABELS: Record<string, string> = {
   pending: "待索引",
@@ -44,10 +37,6 @@ const NODE_TYPE_LABELS: Record<string, string> = {
   scenario: "场景",
   proof: "证据",
 };
-
-export function knowledgeStatusLabel(status: KnowledgeStatus | string): string {
-  return STATUS_LABELS[status] ?? status;
-}
 
 export function knowledgeIndexStatusLabel(status: KnowledgeIndexStatus | string): string {
   return INDEX_STATUS_LABELS[status] ?? status;

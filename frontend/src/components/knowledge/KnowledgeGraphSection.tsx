@@ -15,6 +15,7 @@ import {
   neighborIdsForNode,
   toGraphViewData,
 } from "@/lib/knowledge/graphView";
+import { cn } from "@/lib/utils";
 import type { KnowledgeGraph, SubjectKnowledge } from "@/types";
 
 type KnowledgeGraphSectionProps = {
@@ -23,6 +24,7 @@ type KnowledgeGraphSectionProps = {
   graph: KnowledgeGraph | null | undefined;
   extracting?: boolean;
   onRetryExtract?: () => void;
+  className?: string;
 };
 
 const DEFAULT_ENABLED = new Set<string>(KNOWLEDGE_GRAPH_NODE_TYPES);
@@ -33,6 +35,7 @@ export function KnowledgeGraphSection({
   graph,
   extracting,
   onRetryExtract,
+  className,
 }: KnowledgeGraphSectionProps) {
   const [enabledTypes, setEnabledTypes] = useState<Set<string>>(() => new Set(DEFAULT_ENABLED));
   const [search, setSearch] = useState("");
@@ -63,9 +66,14 @@ export function KnowledgeGraphSection({
 
   if (loading) {
     return (
-      <div className="border-border rounded-lg border bg-muted-background p-4">
-        <Skeleton className="mb-3 h-5 w-28" />
-        <Skeleton className="h-[320px] w-full rounded-md" />
+      <div
+        className={cn(
+          "border-border flex h-full min-h-[320px] flex-col rounded-lg border bg-muted-background p-4",
+          className,
+        )}
+      >
+        <Skeleton className="mb-3 h-5 w-28 shrink-0" />
+        <Skeleton className="min-h-0 w-full flex-1 rounded-md" />
       </div>
     );
   }
@@ -89,8 +97,13 @@ export function KnowledgeGraphSection({
   }
 
   return (
-    <section className="border-border rounded-lg border bg-muted-background p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+    <section
+      className={cn(
+        "border-border flex h-full min-h-0 flex-col rounded-lg border bg-muted-background p-4",
+        className,
+      )}
+    >
+      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <Network className="text-muted-foreground size-4" aria-hidden />
           <h2 className="text-foreground text-sm font-medium">知识图谱</h2>
@@ -119,7 +132,7 @@ export function KnowledgeGraphSection({
       </div>
 
       {failed && (graph?.extract_error || knowledge.extract_error) ? (
-        <p className="text-destructive mb-3 text-xs">{graph?.extract_error || knowledge.extract_error}</p>
+        <p className="text-destructive mb-3 shrink-0 text-xs">{graph?.extract_error || knowledge.extract_error}</p>
       ) : null}
 
       {pending && nodes.length === 0 ? (
@@ -131,25 +144,29 @@ export function KnowledgeGraphSection({
       ) : null}
 
       {nodes.length > 0 ? (
-        <div className="flex flex-col gap-3">
-          <KnowledgeGraphToolbar
-            countsByType={countsByType}
-            enabledTypes={enabledTypes}
-            search={search}
-            onSearchChange={setSearch}
-            onToggleType={toggleType}
-          />
-          <KnowledgeForceGraph
-            data={filteredView}
-            selectedId={selectedId}
-            hoveredId={hoveredId}
-            highlightIds={highlightIds}
-            searchMatchIds={searchMatchIds}
-            onHover={setHoveredId}
-            onSelect={setSelectedId}
-          />
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <div className="shrink-0">
+            <KnowledgeGraphToolbar
+              countsByType={countsByType}
+              enabledTypes={enabledTypes}
+              search={search}
+              onSearchChange={setSearch}
+              onToggleType={toggleType}
+            />
+          </div>
+          <div className="min-h-0 flex-1">
+            <KnowledgeForceGraph
+              data={filteredView}
+              selectedId={selectedId}
+              hoveredId={hoveredId}
+              highlightIds={highlightIds}
+              searchMatchIds={searchMatchIds}
+              onHover={setHoveredId}
+              onSelect={setSelectedId}
+            />
+          </div>
           {edges.length > 0 && filteredView.links.length === 0 ? (
-            <p className="text-muted-foreground text-xs">当前类型筛选下没有可见关系。</p>
+            <p className="text-muted-foreground shrink-0 text-xs">当前类型筛选下没有可见关系。</p>
           ) : null}
         </div>
       ) : null}

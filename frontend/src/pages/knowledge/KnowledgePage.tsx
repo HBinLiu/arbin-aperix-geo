@@ -1,12 +1,10 @@
 import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { FileStack, Network } from "lucide-react";
 
-import {
-  KnowledgeStatusBar,
-  KnowledgeStatusBarSkeleton,
-} from "@/components/knowledge/KnowledgePanels";
 import { KnowledgeGraphSection } from "@/components/knowledge/KnowledgeGraphSection";
 import { KnowledgeSourcesSection } from "@/components/knowledge/KnowledgeSourcesSection";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatApiError } from "@/api/client";
 import {
   deleteKnowledgeSource,
@@ -143,8 +141,8 @@ export function KnowledgeContent() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted-background">
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+      <div className="min-h-0 flex-1 overflow-hidden px-4 py-4 sm:px-6">
+        <div className="mx-auto flex h-full min-h-0 w-full max-w-5xl flex-col gap-4">
           {isError ? (
             <div className="border-border rounded-lg border bg-muted-background p-6 text-sm">
               <p className="text-destructive">知识库加载失败，请稍后重试。</p>
@@ -152,42 +150,61 @@ export function KnowledgeContent() {
           ) : (
             <>
               {!isLoading && !knowledge && sources.length === 0 ? (
-                <div className="border-border rounded-lg border bg-muted-background p-4">
+                <div className="border-border shrink-0 rounded-lg border bg-muted-background p-4">
                   <KnowledgeEmptyHint isBrand={isBrand} />
                 </div>
               ) : null}
 
-              {isLoading ? (
-                <KnowledgeStatusBarSkeleton />
-              ) : knowledge ? (
-                <KnowledgeStatusBar
-                  knowledge={knowledge}
-                  chunkCount={data?.chunk_count ?? 0}
-                  reindexing={reindexMutation.isPending}
-                  onReindex={() => reindexMutation.mutate()}
-                />
-              ) : null}
+              <Tabs defaultValue="sources" className="flex min-h-0 flex-1 flex-col">
+                <TabsList className="shrink-0 self-start">
+                  <TabsTrigger value="sources" className="gap-1.5">
+                    <FileStack className="size-3.5" aria-hidden />
+                    数据来源
+                  </TabsTrigger>
+                  <TabsTrigger value="graph" className="gap-1.5">
+                    <Network className="size-3.5" aria-hidden />
+                    知识图谱
+                  </TabsTrigger>
+                </TabsList>
 
-              <KnowledgeGraphSection
-                loading={isLoading}
-                knowledge={knowledge}
-                graph={data?.graph}
-                extracting={extractMutation.isPending}
-                onRetryExtract={() => extractMutation.mutate()}
-              />
+                <TabsContent
+                  value="graph"
+                  forceMount
+                  className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden"
+                >
+                  <KnowledgeGraphSection
+                    className="h-full min-h-0"
+                    loading={isLoading}
+                    knowledge={knowledge}
+                    graph={data?.graph}
+                    extracting={extractMutation.isPending}
+                    onRetryExtract={() => extractMutation.mutate()}
+                  />
+                </TabsContent>
 
-              <KnowledgeSourcesSection
-                loading={isLoading}
-                sources={sources}
-                knowledge={knowledge}
-                disabled={readOnly || mutating}
-                uploading={uploadMutation.isPending}
-                deletingSourceId={deleteMutation.isPending ? deleteMutation.variables ?? null : null}
-                savingManualText={saveManualMutation.isPending}
-                onUploadFiles={(files) => uploadMutation.mutate(files)}
-                onDeleteSource={(sourceId) => deleteMutation.mutate(sourceId)}
-                onSaveManualText={(input) => saveManualMutation.mutateAsync(input)}
-              />
+                <TabsContent
+                  value="sources"
+                  className="mt-4 min-h-0 flex-1 overflow-y-auto data-[state=inactive]:hidden"
+                >
+                  <div className="pb-2">
+                    <KnowledgeSourcesSection
+                      loading={isLoading}
+                      sources={sources}
+                      knowledge={knowledge}
+                      chunkCount={data?.chunk_count ?? 0}
+                      disabled={readOnly || mutating}
+                      uploading={uploadMutation.isPending}
+                      deletingSourceId={deleteMutation.isPending ? deleteMutation.variables ?? null : null}
+                      savingManualText={saveManualMutation.isPending}
+                      reindexing={reindexMutation.isPending}
+                      onUploadFiles={(files) => uploadMutation.mutate(files)}
+                      onDeleteSource={(sourceId) => deleteMutation.mutate(sourceId)}
+                      onSaveManualText={(input) => saveManualMutation.mutateAsync(input)}
+                      onReindex={() => reindexMutation.mutate()}
+                    />
+                  </div>
+                </TabsContent>
+              </Tabs>
             </>
           )}
         </div>

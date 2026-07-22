@@ -2,7 +2,13 @@ import { useMemo, useRef, useState } from "react";
 import { Eye, Loader2, Pencil, Plus, Search, Trash2, Upload } from "lucide-react";
 
 import { KnowledgeInputDialog } from "@/components/knowledge/KnowledgeInputDialog";
-import { KnowledgeSourceKindIcon } from "@/components/knowledge/KnowledgePanels";
+import {
+  KnowledgeReindexButton,
+  KnowledgeSourceKindIcon,
+  KnowledgeStatusBadges,
+  KnowledgeStatusBadgesSkeleton,
+  KnowledgeStatusDescription,
+} from "@/components/knowledge/KnowledgePanels";
 import {
   DEFAULT_TABLE_PAGE_SIZE,
   paginateRows,
@@ -59,14 +65,18 @@ function formatSourceSize(source: KnowledgeSource): string {
 type KnowledgeSourcesSectionProps = {
   sources: KnowledgeSource[];
   knowledge: SubjectKnowledge | null;
+  chunkCount?: number;
   loading?: boolean;
   disabled?: boolean;
   uploading?: boolean;
   deletingSourceId?: string | null;
   savingManualText?: boolean;
+  reindexing?: boolean;
+  className?: string;
   onUploadFiles: (files: FileList | null) => void;
   onDeleteSource: (sourceId: string) => void;
   onSaveManualText: (input: { title: string; text: string }) => Promise<unknown> | void;
+  onReindex?: () => void;
 };
 
 function isDeletableSource(source: KnowledgeSource): boolean {
@@ -80,14 +90,18 @@ function isEditableManualSource(source: KnowledgeSource): boolean {
 export function KnowledgeSourcesSection({
   sources,
   knowledge,
+  chunkCount = 0,
   loading = false,
   disabled = false,
   uploading = false,
   deletingSourceId = null,
   savingManualText = false,
+  reindexing = false,
+  className,
   onUploadFiles,
   onDeleteSource,
   onSaveManualText,
+  onReindex,
 }: KnowledgeSourcesSectionProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [filter, setFilter] = useState<KnowledgeSourceFilter>("all");
@@ -137,7 +151,21 @@ export function KnowledgeSourcesSection({
     <>
       <BrandSectionCard
         title="数据来源"
-        description="管理文档、链接与录入文本，作为品牌知识库的原始证据。"
+        titleExtra={
+          loading ? (
+            <KnowledgeStatusBadgesSkeleton />
+          ) : knowledge ? (
+            <KnowledgeStatusBadges knowledge={knowledge} />
+          ) : null
+        }
+        description={
+          knowledge ? (
+            <KnowledgeStatusDescription knowledge={knowledge} chunkCount={chunkCount} />
+          ) : (
+            "管理文档、链接与录入文本，作为品牌知识库的原始证据。"
+          )
+        }
+        className={className}
         headerActions={
           loading ? (
             <>
@@ -145,45 +173,52 @@ export function KnowledgeSourcesSection({
               <Skeleton className="h-9 w-[5.75rem] rounded-md" />
             </>
           ) : (
-          <>
-            <input
-              ref={inputRef}
-              type="file"
-              className="hidden"
-              accept=".docx,.md,.txt"
-              multiple
-              disabled={interactionsDisabled || uploading || uploadCount >= MAX_SETUP_UPLOAD_FILES}
-              onChange={(event) => {
-                onUploadFiles(event.target.files);
-                event.target.value = "";
-              }}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              className="gap-1.5"
-              disabled={interactionsDisabled || uploading || uploadCount >= MAX_SETUP_UPLOAD_FILES}
-              onClick={() => inputRef.current?.click()}
-            >
-              {uploading ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Upload className="size-4" aria-hidden />}
-              上传文件
-            </Button>
-            <Button
-              type="button"
-              className="gap-1.5"
-              disabled={interactionsDisabled || savingManualText}
-              onClick={() => openManualDialog(existingManual)}
-            >
-              <Plus className="size-4" aria-hidden />
-              录入内容
-            </Button>
-          </>
+            <>
+              {knowledge ? (
+                <KnowledgeReindexButton
+                  knowledge={knowledge}
+                  reindexing={reindexing}
+                  onReindex={onReindex}
+                />
+              ) : null}
+              <input
+                ref={inputRef}
+                type="file"
+                className="hidden"
+                accept=".docx,.md,.txt"
+                multiple
+                disabled={interactionsDisabled || uploading || uploadCount >= MAX_SETUP_UPLOAD_FILES}
+                onChange={(event) => {
+                  onUploadFiles(event.target.files);
+                  event.target.value = "";
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-1.5"
+                disabled={interactionsDisabled || uploading || uploadCount >= MAX_SETUP_UPLOAD_FILES}
+                onClick={() => inputRef.current?.click()}
+              >
+                {uploading ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Upload className="size-4" aria-hidden />}
+                上传文件
+              </Button>
+              <Button
+                type="button"
+                className="gap-1.5"
+                disabled={interactionsDisabled || savingManualText}
+                onClick={() => openManualDialog(existingManual)}
+              >
+                <Plus className="size-4" aria-hidden />
+                录入内容
+              </Button>
+            </>
           )
         }
       />
 
-      <div className="space-y-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="mt-4 min-w-0 max-w-full space-y-4">
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {loading ? (
             <>
               <div className="bg-background inline-flex h-auto flex-wrap items-center justify-start gap-1 rounded-md p-[3px]">
@@ -192,13 +227,13 @@ export function KnowledgeSourcesSection({
                 ))}
               </div>
 
-              <div className="relative w-full lg:max-w-xs">
-                <Skeleton className="h-10 w-full rounded-md" />
+              <div className="relative w-full sm:max-w-xs">
+                <Skeleton className="h-9 w-full rounded-md" />
               </div>
             </>
           ) : (
             <>
-              <Tabs value={filter} onValueChange={handleFilterChange}>
+              <Tabs value={filter} onValueChange={handleFilterChange} className="min-w-0">
                 <TabsList className="h-auto flex-wrap justify-start gap-1">
                   {KNOWLEDGE_SOURCE_FILTERS.map((item) => (
                     <TabsTrigger key={item.id} value={item.id}>
@@ -208,7 +243,7 @@ export function KnowledgeSourcesSection({
                 </TabsList>
               </Tabs>
 
-              <div className="relative w-full lg:max-w-xs">
+              <div className="relative min-w-0 w-full max-w-full sm:max-w-xs">
                 <span className="pointer-events-none absolute inset-y-0 left-3.5 z-10 flex items-center">
                   <Search className="text-muted-foreground size-4" aria-hidden />
                 </span>
@@ -216,7 +251,8 @@ export function KnowledgeSourcesSection({
                   value={query}
                   onChange={(event) => handleSearchChange(event.target.value)}
                   placeholder="搜索名称或内容"
-                  className="pl-9"
+                  controlSize="sm"
+                  className="mx-0 w-full max-w-full pl-9"
                   aria-label="搜索资料来源"
                 />
               </div>

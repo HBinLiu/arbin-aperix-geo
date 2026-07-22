@@ -5,7 +5,8 @@ import { cn } from "@/lib/utils";
 
 type BrandSectionCardProps = {
   title: string;
-  description: string;
+  description?: ReactNode;
+  titleExtra?: ReactNode;
   actionLabel?: string;
   actionIcon?: ReactNode;
   actionVariant?: "default" | "outline";
@@ -21,6 +22,7 @@ type BrandSectionCardProps = {
 export function BrandSectionCard({
   title,
   description,
+  titleExtra,
   actionLabel,
   actionIcon,
   actionVariant = "outline",
@@ -52,11 +54,16 @@ export function BrandSectionCard({
         )}
       >
         <div className="min-w-0">
-          <h3 className="text-base font-semibold tracking-tight">{title}</h3>
-          <p className="text-muted-foreground mt-1 text-sm leading-relaxed">{description}</p>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <h3 className="text-base font-semibold tracking-tight">{title}</h3>
+            {titleExtra}
+          </div>
+          {description ? (
+            <div className="text-muted-foreground mt-1 text-sm leading-relaxed">{description}</div>
+          ) : null}
         </div>
         {headerActions ? (
-          <div className="flex shrink-0 items-center gap-2">{headerActions}</div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">{headerActions}</div>
         ) : actionLabel && onAction ? (
           <Button
             type="button"
