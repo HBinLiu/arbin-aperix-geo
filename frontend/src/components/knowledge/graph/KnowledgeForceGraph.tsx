@@ -15,6 +15,7 @@ import {
   type SimulationLinkDatum,
   type SimulationNodeDatum,
   type ZoomBehavior,
+  type ZoomTransform,
 } from "d3";
 
 import { knowledgeNodeTypeLabel } from "@/lib/knowledge/display";
@@ -80,6 +81,9 @@ export function KnowledgeForceGraph({
   const svgRef = useRef<SVGSVGElement>(null);
   const simRef = useRef<Simulation<SimNode, SimLink> | null>(null);
   const zoomRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+  const zoomTransformRef = useRef<ZoomTransform>(zoomIdentity);
+  const hasFittedRef = useRef(false);
+  const nodePosRef = useRef(new Map<string, { x: number; y: number }>());
   const onHoverRef = useRef(onHover);
   const onSelectRef = useRef(onSelect);
   const selectedIdRef = useRef(selectedId);
@@ -123,9 +127,12 @@ export function KnowledgeForceGraph({
     const zoomBehavior = zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.3, 4])
       .on("zoom", (event) => {
+        zoomTransformRef.current = event.transform;
         root.attr("transform", event.transform.toString());
       });
     svg.call(zoomBehavior);
+    // Keep current viewport across filter rebuilds — avoid zoom flash.
+    svg.call(zoomBehavior.transform, zoomTransformRef.current);
     zoomRef.current = zoomBehavior;
 
     svg.on("click", (event) => {
@@ -154,11 +161,14 @@ export function KnowledgeForceGraph({
         .attr("fill", fill);
     }
 
-    const nodes: SimNode[] = data.nodes.map((node) => ({
-      ...node,
-      x: W / 2 + (Math.random() - 0.5) * 280,
-      y: H / 2 + (Math.random() - 0.5) * 280,
-    }));
+    const nodes: SimNode[] = data.nodes.map((node) => {
+      const prev = nodePosRef.current.get(node.id);
+      return {
+        ...node,
+        x: prev?.x ?? W / 2 + (Math.random() - 0.5) * 280,
+        y: prev?.y ?? H / 2 + (Math.random() - 0.5) * 280,
+      };
+    });
     const nodeById = new Map(nodes.map((node) => [node.id, node]));
     const links: SimLink[] = data.links
       .filter((link) => nodeById.has(link.fromId) && nodeById.has(link.toId))
@@ -337,12 +347,23 @@ export function KnowledgeForceGraph({
       node.attr("transform", (d) => `translate(${d.x ?? 0},${d.y ?? 0})`);
     });
 
-    const fitTimer = window.setTimeout(() => {
-      svg.transition().duration(600).call(zoomBehavior.transform, zoomIdentity.translate(0, 0).scale(0.85));
-    }, 700);
+    let fitTimer: number | undefined;
+    if (!hasFittedRef.current) {
+      fitTimer = window.setTimeout(() => {
+        hasFittedRef.current = true;
+        const next = zoomIdentity.translate(0, 0).scale(0.85);
+        zoomTransformRef.current = next;
+        svg.transition().duration(600).call(zoomBehavior.transform, next);
+      }, 700);
+    }
 
     return () => {
-      window.clearTimeout(fitTimer);
+      if (fitTimer != null) window.clearTimeout(fitTimer);
+      for (const n of nodes) {
+        if (n.x != null && n.y != null) {
+          nodePosRef.current.set(n.id, { x: n.x, y: n.y });
+        }
+      }
       sim.stop();
       simRef.current = null;
       zoomRef.current = null;

@@ -25,8 +25,8 @@ export function KnowledgeGraphToolbar({
         <div className="flex flex-wrap gap-1.5">
           {KNOWLEDGE_GRAPH_NODE_TYPES.map((type) => {
             const pinned = type === "brand";
-            const on = pinned || enabledTypes.has(type);
             const count = countsByType[type] ?? 0;
+            const on = count > 0 && (pinned || enabledTypes.has(type));
             const color = knowledgeGraphNodeStyle(type).color;
             return (
               <button
@@ -40,8 +40,7 @@ export function KnowledgeGraphToolbar({
                   on
                     ? "border-primary/40 bg-primary/10 text-foreground"
                     : "border-border bg-background text-muted-foreground",
-                  count === 0 && !pinned ? "opacity-40" : "",
-                  pinned ? "cursor-default" : "hover:bg-muted",
+                  pinned ? "cursor-default" : count > 0 ? "hover:bg-muted" : "",
                 ].join(" ")}
               >
                 <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
