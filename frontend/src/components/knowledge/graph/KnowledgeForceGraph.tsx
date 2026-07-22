@@ -238,6 +238,8 @@ export function KnowledgeForceGraph({
         drag<SVGGElement, SimNode>()
           .on("start", (event, d) => {
             dragging = true;
+            // Freeze neighborhood highlight on the dragged node; ignore leave/enter until end.
+            onHoverRef.current(d.id);
             setTooltipRef.current(null);
             if (!event.active) sim.alphaTarget(0.3).restart();
             d.fx = d.x;
@@ -306,11 +308,13 @@ export function KnowledgeForceGraph({
 
     node
       .on("mouseenter", (event, d) => {
+        if (dragging) return;
         onHoverRef.current(d.id);
         showTooltip(event, d);
       })
       .on("mousemove", (event, d) => showTooltip(event, d))
       .on("mouseleave", () => {
+        if (dragging) return;
         onHoverRef.current(null);
         setTooltipRef.current(null);
       })
