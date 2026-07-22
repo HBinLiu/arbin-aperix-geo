@@ -21,6 +21,7 @@ def test_get_subject_knowledge_detail_empty() -> None:
     assert result["knowledge"] is None
     assert result["sources"] == []
     assert result["chunk_count"] == 0
+    assert result["graph"] is None
 
 
 def test_get_subject_knowledge_detail_with_payload() -> None:
@@ -79,7 +80,10 @@ def test_get_subject_knowledge_detail_with_payload() -> None:
     assert result["knowledge"] is not None
     assert result["knowledge"]["status"] == "verified"
     assert result["knowledge"]["version"] == 2
+    assert result["knowledge"]["extract_status"] == "pending"
     assert result["chunk_count"] == 3
+    assert result["graph"] is not None
+    assert result["graph"]["extract_status"] == "pending"
     assert len(result["sources"]) == 1
     assert result["sources"][0]["kind"] == "user_input"
     assert "identity" not in result["knowledge"]

@@ -136,6 +136,16 @@ def enqueue_knowledge_index(subject_id: UUID) -> None:
         index_subject.delay(str(subject_id))
     except Exception:
         logger.warning("knowledge index enqueue failed subject=%s", subject_id, exc_info=True)
+    enqueue_knowledge_extract(subject_id)
+
+
+def enqueue_knowledge_extract(subject_id: UUID) -> None:
+    try:
+        from aperix_geo.tasks.knowledge import extract_subject
+
+        extract_subject.delay(str(subject_id))
+    except Exception:
+        logger.warning("knowledge extract enqueue failed subject=%s", subject_id, exc_info=True)
 
 
 def _source_row(

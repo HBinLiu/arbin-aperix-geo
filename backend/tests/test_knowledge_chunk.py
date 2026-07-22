@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from aperix_geo.services.knowledge.chunk import chunk_text, estimate_token_count
+from aperix_geo.services.knowledge.vector.chunk import chunk_text, estimate_token_count
 
 
 def test_chunk_text_empty() -> None:

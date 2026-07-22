@@ -67,7 +67,7 @@ export function SetupTextInput({
   return (
     <div className={cn(setupControlShell(shell), containerClassName)}>
       {leading ? (
-        <div className="pointer-events-none absolute inset-y-0 left-3 z-10 flex items-center">{leading}</div>
+        <div className="pointer-events-none absolute inset-y-0 left-3.5 z-10 flex items-center">{leading}</div>
       ) : null}
       <Input
         controlSize="sm"

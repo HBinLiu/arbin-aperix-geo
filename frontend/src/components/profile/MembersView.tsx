@@ -95,10 +95,9 @@ export function MembersView() {
       <div className="flex flex-col gap-3 px-2 py-6 sm:px-3 md:px-4 lg:px-6 xl:px-8">
         <div className="flex flex-wrap items-center gap-2 gap-y-3">
           <div className="relative w-full max-w-xs sm:w-[240px]">
-            <Search
-              className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2"
-              aria-hidden
-            />
+            <span className="pointer-events-none absolute inset-y-0 left-3.5 z-10 flex items-center">
+              <Search className="text-muted-foreground size-4" aria-hidden />
+            </span>
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}

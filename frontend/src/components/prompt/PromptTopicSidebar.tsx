@@ -36,10 +36,9 @@ export function PromptTopicSidebar({
     <aside className="border-border flex min-h-0 w-[240px] shrink-0 flex-col self-stretch border-r bg-muted-background">
       <div className="border-border border-b p-3">
         <div className="relative">
-          <Search
-            className="text-muted-foreground pointer-events-none absolute top-1/2 left-4 size-3.5 -translate-y-1/2"
-            aria-hidden
-          />
+          <span className="pointer-events-none absolute inset-y-0 left-3.5 z-10 flex items-center">
+            <Search className="text-muted-foreground size-3.5" aria-hidden />
+          </span>
           <Input
             type="search"
             value={search}

@@ -5,10 +5,13 @@ import {
   KnowledgeStatusBar,
   KnowledgeStatusBarSkeleton,
 } from "@/components/knowledge/KnowledgePanels";
+import { KnowledgeGraphSection } from "@/components/knowledge/KnowledgeGraphSection";
 import { KnowledgeSourcesSection } from "@/components/knowledge/KnowledgeSourcesSection";
 import { formatApiError } from "@/api/client";
 import {
   deleteKnowledgeSource,
+  enqueueKnowledgeExtract,
+  enqueueKnowledgeReindex,
   fetchSubjectKnowledge,
   uploadKnowledgeSourceFile,
   upsertKnowledgeTextSource,
@@ -98,8 +101,30 @@ export function KnowledgeContent() {
     onError: (error) => toast.error(formatApiError(error)),
   });
 
+  const extractMutation = useMutation({
+    mutationFn: () => enqueueKnowledgeExtract(subject.id),
+    onSuccess: async () => {
+      toast.success("已开始重新抽取图谱");
+      await invalidateKnowledge();
+    },
+    onError: (error) => toast.error(formatApiError(error)),
+  });
+
+  const reindexMutation = useMutation({
+    mutationFn: () => enqueueKnowledgeReindex(subject.id),
+    onSuccess: async () => {
+      toast.success("已开始重新索引");
+      await invalidateKnowledge();
+    },
+    onError: (error) => toast.error(formatApiError(error)),
+  });
+
   const mutating =
-    saveManualMutation.isPending || uploadMutation.isPending || deleteMutation.isPending;
+    saveManualMutation.isPending ||
+    uploadMutation.isPending ||
+    deleteMutation.isPending ||
+    extractMutation.isPending ||
+    reindexMutation.isPending;
 
   if (!isBrand) {
     return (
@@ -135,8 +160,21 @@ export function KnowledgeContent() {
               {isLoading ? (
                 <KnowledgeStatusBarSkeleton />
               ) : knowledge ? (
-                <KnowledgeStatusBar knowledge={knowledge} chunkCount={data?.chunk_count ?? 0} />
+                <KnowledgeStatusBar
+                  knowledge={knowledge}
+                  chunkCount={data?.chunk_count ?? 0}
+                  reindexing={reindexMutation.isPending}
+                  onReindex={() => reindexMutation.mutate()}
+                />
               ) : null}
+
+              <KnowledgeGraphSection
+                loading={isLoading}
+                knowledge={knowledge}
+                graph={data?.graph}
+                extracting={extractMutation.isPending}
+                onRetryExtract={() => extractMutation.mutate()}
+              />
 
               <KnowledgeSourcesSection
                 loading={isLoading}

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 from aperix_geo.db.models import SubjectType
@@ -19,6 +19,7 @@ def _knowledge_row(*, version: int = 1) -> SimpleNamespace:
         index_status="pending",
         index_error="",
         identity_json={"primary_name": "示例品牌", "aliases": [], "official_url": ""},
+        relations_json={},
         verified_at=datetime(2026, 7, 1, tzinfo=UTC),
         verified_by_user_id=uuid4(),
     )
@@ -35,7 +36,7 @@ def _subject(subject_id) -> SimpleNamespace:
     )
 
 
-def test_schedule_knowledge_reindex_bumps_version_and_enqueues() -> None:
+def test_schedule_knowledge_reindex_bumps_version() -> None:
     subject_id = uuid4()
     user_id = uuid4()
     subject = _subject(subject_id)
@@ -43,11 +44,11 @@ def test_schedule_knowledge_reindex_bumps_version_and_enqueues() -> None:
 
     db = MagicMock()
 
-    with patch("aperix_geo.services.knowledge.mutate.enqueue_knowledge_index") as enqueue:
-        schedule_knowledge_reindex(db, subject=subject, knowledge=knowledge, user_id=user_id)
+    schedule_knowledge_reindex(db, subject=subject, knowledge=knowledge, user_id=user_id)
 
     assert knowledge.version == 2
     assert knowledge.status == "verified"
     assert knowledge.verified_by_user_id == user_id
     assert knowledge.index_status == "pending"
-    enqueue.assert_called_once_with(subject_id)
+    assert knowledge.relations_json["extract_status"] == "pending"
+    db.flush.assert_called()

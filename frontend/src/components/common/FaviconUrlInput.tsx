@@ -105,7 +105,7 @@ export function FaviconUrlInput({
   if (layout === "merged") {
     return (
       <div className={cn("relative min-w-0 flex-1", containerClassName)}>
-        <div className="pointer-events-none absolute top-1/2 left-2.5 z-10 flex -translate-y-1/2 items-center">
+        <div className="pointer-events-none absolute top-1/2 left-3.5 z-10 flex -translate-y-1/2 items-center">
           {leading}
         </div>
         <Input
@@ -120,7 +120,7 @@ export function FaviconUrlInput({
 
   return (
     <div className={cn(setupControlShellClass, containerClassName)}>
-      <div className="pointer-events-none absolute inset-y-0 left-3 z-10 flex items-center">{leading}</div>
+      <div className="pointer-events-none absolute inset-y-0 left-3.5 z-10 flex items-center">{leading}</div>
       <Input controlSize="sm" className={cn("pl-9", className)} {...inputProps} />
     </div>
   );

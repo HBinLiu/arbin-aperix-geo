@@ -1,4 +1,4 @@
-"""Knowledge indexing errors."""
+"""Knowledge indexing / extract errors."""
 
 
 class KnowledgeIndexError(Exception):
@@ -7,3 +7,7 @@ class KnowledgeIndexError(Exception):
 
 class KnowledgeNotReadyError(KnowledgeIndexError):
     """Subject knowledge missing or not verified for indexing."""
+
+
+class KnowledgeExtractError(Exception):
+    """Base error for knowledge graph extract pipeline."""

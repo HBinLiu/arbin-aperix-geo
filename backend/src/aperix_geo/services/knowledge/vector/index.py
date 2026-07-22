@@ -14,9 +14,9 @@ from sqlalchemy.orm import Session
 
 from aperix_geo.config import Settings, get_settings
 from aperix_geo.db.models import KnowledgeChunk, KnowledgeSource, SubjectKnowledge
-from aperix_geo.services.knowledge.chunk import TextChunk, chunk_text, estimate_token_count
-from aperix_geo.services.knowledge.embed import embed_texts
 from aperix_geo.services.knowledge.exceptions import KnowledgeIndexError, KnowledgeNotReadyError
+from aperix_geo.services.knowledge.vector.chunk import TextChunk, chunk_text, estimate_token_count
+from aperix_geo.services.knowledge.vector.embed import embed_texts
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,7 @@ class IndexSubjectResult:
     chunks_skipped: int
     sources_indexed: int
     embedding_usage: dict[str, Any] = field(default_factory=dict)
+    superseded: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,18 +63,50 @@ def index_subject_knowledge(
             f"subject knowledge status must be verified, got {knowledge.status!r}"
         )
 
+    target_version = knowledge.version
     knowledge.index_status = "indexing"
     knowledge.index_error = ""
     db.flush()
 
     try:
-        result = _index_verified_knowledge(db, knowledge, settings=cfg)
+        result = _index_verified_knowledge(db, knowledge, settings=cfg, target_version=target_version)
+        db.refresh(knowledge)
+        # A newer edit may have bumped version + set pending while this job ran.
+        if knowledge.version != target_version:
+            if knowledge.index_status == "indexing":
+                knowledge.index_status = "pending"
+                knowledge.index_error = ""
+            db.flush()
+            logger.info(
+                "knowledge index superseded subject=%s indexed_for=%s current=%s",
+                subject_id,
+                target_version,
+                knowledge.version,
+            )
+            return IndexSubjectResult(
+                subject_id=result.subject_id,
+                knowledge_version=result.knowledge_version,
+                chunks_created=result.chunks_created,
+                chunks_skipped=result.chunks_skipped,
+                sources_indexed=result.sources_indexed,
+                embedding_usage=result.embedding_usage,
+                superseded=True,
+            )
         knowledge.index_status = "indexed"
-        knowledge.indexed_version = knowledge.version
+        knowledge.indexed_version = target_version
         knowledge.index_error = ""
         db.flush()
         return result
     except Exception as exc:
+        db.refresh(knowledge)
+        if knowledge.version != target_version:
+            if knowledge.index_status == "indexing":
+                knowledge.index_status = "pending"
+            knowledge.index_error = ""
+            db.flush()
+            if isinstance(exc, KnowledgeIndexError):
+                raise
+            raise KnowledgeIndexError(str(exc)) from exc
         knowledge.index_status = "failed"
         knowledge.index_error = str(exc)[:2000]
         db.flush()
@@ -87,7 +120,9 @@ def _index_verified_knowledge(
     knowledge: SubjectKnowledge,
     *,
     settings: Settings,
+    target_version: int | None = None,
 ) -> IndexSubjectResult:
+    version = target_version if target_version is not None else knowledge.version
     sources = list(
         db.scalars(
             select(KnowledgeSource)
@@ -104,7 +139,7 @@ def _index_verified_knowledge(
         db.scalars(
             select(KnowledgeChunk.content_hash).where(
                 KnowledgeChunk.subject_id == knowledge.subject_id,
-                KnowledgeChunk.knowledge_version == knowledge.version,
+                KnowledgeChunk.knowledge_version == version,
                 KnowledgeChunk.deleted.is_(False),
                 KnowledgeChunk.content_hash != "",
             )
@@ -137,7 +172,7 @@ def _index_verified_knowledge(
     if not pending:
         return IndexSubjectResult(
             subject_id=knowledge.subject_id,
-            knowledge_version=knowledge.version,
+            knowledge_version=version,
             chunks_created=0,
             chunks_skipped=skipped,
             sources_indexed=sources_with_text,
@@ -161,7 +196,7 @@ def _index_verified_knowledge(
                     tenant_id=knowledge.tenant_id,
                     subject_id=knowledge.subject_id,
                     source_id=source.id,
-                    knowledge_version=knowledge.version,
+                    knowledge_version=version,
                     chunk_index=piece.chunk_index,
                     content_text=piece.text,
                     content_hash=item.content_hash,
@@ -181,14 +216,14 @@ def _index_verified_knowledge(
     logger.info(
         "indexed subject=%s version=%s chunks=%s skipped=%s sources=%s",
         knowledge.subject_id,
-        knowledge.version,
+        version,
         created,
         skipped,
         sources_with_text,
     )
     return IndexSubjectResult(
         subject_id=knowledge.subject_id,
-        knowledge_version=knowledge.version,
+        knowledge_version=version,
         chunks_created=created,
         chunks_skipped=skipped,
         sources_indexed=sources_with_text,

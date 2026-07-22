@@ -179,10 +179,9 @@ export function OpportunityContent({ subjectId }: OpportunityContentProps) {
 
   const afterFilters = meta.searchPlaceholder ? (
     <div className="relative">
-      <Search
-        className="text-muted-foreground pointer-events-none absolute top-1/2 left-4 size-3.5 -translate-y-1/2"
-        aria-hidden
-      />
+      <span className="pointer-events-none absolute inset-y-0 left-3.5 z-10 flex items-center">
+        <Search className="text-muted-foreground size-3.5" aria-hidden />
+      </span>
       <Input
         type="search"
         value={search}

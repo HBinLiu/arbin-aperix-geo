@@ -11,7 +11,7 @@ import pytest
 from aperix_geo.config import Settings
 from aperix_geo.db.models import EPOCH, KnowledgeSource, SubjectKnowledge, ZERO_UUID
 from aperix_geo.services.knowledge.exceptions import KnowledgeIndexError, KnowledgeNotReadyError
-from aperix_geo.services.knowledge.index import _index_verified_knowledge, index_subject_knowledge
+from aperix_geo.services.knowledge.vector.index import _index_verified_knowledge, index_subject_knowledge
 
 
 def _settings() -> Settings:
@@ -69,7 +69,7 @@ def test_index_subject_knowledge_requires_verified() -> None:
         index_subject_knowledge(db, knowledge.subject_id, settings=_settings())
 
 
-@patch("aperix_geo.services.knowledge.index.embed_texts")
+@patch("aperix_geo.services.knowledge.vector.index.embed_texts")
 def test_index_verified_knowledge_inserts_chunks(mock_embed: MagicMock) -> None:
     knowledge = _knowledge()
     text = "品牌介绍正文。" * 80
@@ -91,13 +91,13 @@ def test_index_verified_knowledge_inserts_chunks(mock_embed: MagicMock) -> None:
     assert db.add.call_count == 2
 
 
-@patch("aperix_geo.services.knowledge.index.embed_texts")
+@patch("aperix_geo.services.knowledge.vector.index.embed_texts")
 def test_index_skips_duplicate_content_hash(mock_embed: MagicMock) -> None:
     knowledge = _knowledge()
     text = "重复内容" * 200
     source = _source(subject_id=knowledge.subject_id, tenant_id=knowledge.tenant_id, text=text)
-    from aperix_geo.services.knowledge.chunk import chunk_text
-    from aperix_geo.services.knowledge.index import _content_hash
+    from aperix_geo.services.knowledge.vector.chunk import chunk_text
+    from aperix_geo.services.knowledge.vector.index import _content_hash
 
     first = chunk_text(text, chunk_size=500, overlap=64)[0]
     existing = _content_hash(first.text)
@@ -113,7 +113,7 @@ def test_index_skips_duplicate_content_hash(mock_embed: MagicMock) -> None:
     assert result.chunks_skipped >= 1
 
 
-@patch("aperix_geo.services.knowledge.index.embed_texts")
+@patch("aperix_geo.services.knowledge.vector.index.embed_texts")
 def test_index_subject_knowledge_marks_failed_on_embed_error(mock_embed: MagicMock) -> None:
     knowledge = _knowledge()
     source = _source(

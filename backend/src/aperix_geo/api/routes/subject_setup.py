@@ -220,10 +220,15 @@ def setup_finalize_endpoint(
     db: DbSession,
     current: CurrentUser,
 ) -> SetupFinalizeResponse:
-    subject, job = finalize_setup(
+    subject, job, knowledge_ready = finalize_setup(
         db,
         user=current,
         session_id=body.session_id.strip(),
         body=body,
     )
+    db.commit()
+    if knowledge_ready:
+        from aperix_geo.services.knowledge.persist import enqueue_knowledge_index
+
+        enqueue_knowledge_index(subject.id)
     return SetupFinalizeResponse(subject_id=subject.id, sampling_job_id=job.id)

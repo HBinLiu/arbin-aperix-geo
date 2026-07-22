@@ -145,7 +145,7 @@ def test_finalize_setup_writes_aliases_and_deletes_session(
         ],
     )
 
-    subject, job = finalize_setup(db, user=user, session_id=body.session_id, body=body)
+    subject, job, knowledge_ready = finalize_setup(db, user=user, session_id=body.session_id, body=body)
 
     assert subject.aliases == ["Airwallex"]
     assert subject.brand == "Airwallex"
@@ -153,3 +153,4 @@ def test_finalize_setup_writes_aliases_and_deletes_session(
     assert subject.sampling_frequency == "daily_1"
     mock_delete.assert_called_once_with(user_id="user-1", session_id=body.session_id)
     assert job.id == "job-1"
+    assert knowledge_ready is False

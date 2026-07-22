@@ -11,6 +11,16 @@ export async function fetchSubjectKnowledge(subjectId: string): Promise<SubjectK
   return data;
 }
 
+export async function enqueueKnowledgeExtract(subjectId: string): Promise<SubjectKnowledgeDetail> {
+  const { data } = await api.post<SubjectKnowledgeDetail>(`/subjects/${subjectId}/knowledge/extract`);
+  return data;
+}
+
+export async function enqueueKnowledgeReindex(subjectId: string): Promise<SubjectKnowledgeDetail> {
+  const { data } = await api.post<SubjectKnowledgeDetail>(`/subjects/${subjectId}/knowledge/reindex`);
+  return data;
+}
+
 export async function upsertKnowledgeTextSource(
   subjectId: string,
   body: KnowledgeTextSourceBody,

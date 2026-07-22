@@ -215,10 +215,9 @@ export function CompetitorConfigSection({ subject }: CompetitorConfigSectionProp
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative min-w-0 flex-1 sm:max-w-xs">
-          <Search
-            className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2"
-            aria-hidden
-          />
+          <span className="pointer-events-none absolute inset-y-0 left-3.5 z-10 flex items-center">
+            <Search className="text-muted-foreground size-4" aria-hidden />
+          </span>
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}

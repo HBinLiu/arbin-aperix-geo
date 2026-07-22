@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import KnowledgeChunk, KnowledgeSource, SubjectKnowledge
+from aperix_geo.services.knowledge.graph.schema import parse_relations_json
 
 _RAW_TEXT_PREVIEW_LEN = 400
 
@@ -36,6 +37,7 @@ def _source_row(source: KnowledgeSource) -> dict:
 
 
 def _knowledge_meta(knowledge: SubjectKnowledge) -> dict:
+    graph = parse_relations_json(knowledge.relations_json)
     return {
         "id": knowledge.id,
         "subject_id": knowledge.subject_id,
@@ -44,6 +46,10 @@ def _knowledge_meta(knowledge: SubjectKnowledge) -> dict:
         "index_status": knowledge.index_status,
         "indexed_version": knowledge.indexed_version,
         "index_error": knowledge.index_error,
+        "extract_status": graph.extract_status.value,
+        "extract_error": graph.extract_error,
+        "node_count": len(graph.nodes),
+        "edge_count": len(graph.edges),
         "verified_at": knowledge.verified_at,
         "updated_at": knowledge.updated_at,
     }
@@ -72,6 +78,7 @@ def get_subject_knowledge_detail(db: Session, subject_id: UUID) -> dict:
             "knowledge": None,
             "sources": [_source_row(row) for row in sources],
             "chunk_count": 0,
+            "graph": None,
         }
 
     chunk_count = int(
@@ -91,4 +98,5 @@ def get_subject_knowledge_detail(db: Session, subject_id: UUID) -> dict:
         "knowledge": _knowledge_meta(knowledge),
         "sources": [_source_row(row) for row in sources],
         "chunk_count": chunk_count,
+        "graph": parse_relations_json(knowledge.relations_json).to_api(),
     }

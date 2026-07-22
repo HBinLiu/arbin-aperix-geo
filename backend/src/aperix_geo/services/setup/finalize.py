@@ -35,7 +35,7 @@ from aperix_geo.services.brand.sync import sync_subject_brands_from_setup
 from aperix_geo.services.sampling.platforms import resolve_subject_sampling_platforms
 from aperix_geo.services.sampling.workflow.jobs import create_and_enqueue_sampling_job
 from aperix_geo.services.setup.cache import delete_session, get_session
-from aperix_geo.services.knowledge.persist import enqueue_knowledge_index, persist_brand_knowledge_from_setup
+from aperix_geo.services.knowledge.persist import persist_brand_knowledge_from_setup
 from aperix_geo.services.setup.helpers import (
     company_from_session,
     confirmed_competitors_from_session,
@@ -58,13 +58,14 @@ def finalize_setup(
     user: User,
     session_id: str,
     body: SetupFinalizeBody,
-) -> tuple[Subject, SamplingJob]:
+) -> tuple[Subject, SamplingJob, bool]:
     t0 = time.perf_counter()
     setup_session_id = session_id.strip()
     setup_session = get_session(user_id=str(user.id), session_id=setup_session_id)
     if setup_session is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="setup session not found")
 
+    knowledge_ready = False
     st = SubjectType(setup_session["subject_type"])
     target = str(setup_session.get("target") or "").strip()
     prompt_count = sum(len(topic.prompts) for topic in body.topics)
@@ -186,8 +187,7 @@ def finalize_setup(
             setup_session=setup_session,
             user_id=user.id,
         )
-        if knowledge is not None:
-            enqueue_knowledge_index(subject.id)
+        knowledge_ready = knowledge is not None
 
     platforms = resolve_subject_sampling_platforms(subject)
     if not platforms:
@@ -264,4 +264,4 @@ def finalize_setup(
         len(prompts),
         len(aliases),
     )
-    return subject, job
+    return subject, job, knowledge_ready

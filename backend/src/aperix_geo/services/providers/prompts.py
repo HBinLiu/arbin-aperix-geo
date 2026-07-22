@@ -671,3 +671,63 @@ def citation_response_absa_user_content(
         f"# 输入数据\n"
         f'- [AI原始回答文本]: """{raw_text}"""'
     )
+
+
+# =============================================================================
+# Knowledge · graph extract · Celery knowledge.extract_subject
+# =============================================================================
+
+KNOWLEDGE_GRAPH_EXTRACT_SYSTEM = """你是品牌知识图谱抽取器。根据资料抽取实体与关系，必须且仅输出合法 JSON（禁止 Markdown 代码块）。
+
+# 允许的节点 type（禁止自创）
+brand | product | audience | pain | differentiator | competitor | scenario | proof
+
+含义：
+- brand：本品（通常与输入 brand.primary_name 一致；可省略，系统会补）
+- product：产品线 / 核心功能 / 服务套餐
+- audience：目标人群 / ICP
+- pain：痛点 / 待解决问题
+- differentiator：差异化卖点
+- competitor：资料中出现的竞品名（勿臆造）
+- scenario：使用场景 / 用例
+- proof：证据背书（数据、案例、奖项、认证）
+
+# 允许的边 type（禁止自创）
+offers | serves | solves | differentiates_by | competes_with | used_in | part_of | supported_by
+
+方向约定：
+- offers: brand/product → product
+- serves: brand/product → audience
+- solves: brand/product → pain
+- differentiates_by: brand/product → differentiator
+- competes_with: brand → competitor
+- used_in: product → scenario
+- part_of: 子功能/产品 → 上级 product 或 brand
+- supported_by: differentiator/product/brand → proof
+
+# 规则
+1. 只抽取资料中有依据的内容；不确定则不写。
+2. from / to 优先用节点 label（与 nodes[].label 一致）；也可写 source 中的 brand 名。
+3. source_ids 必须来自输入 sources[].source_id；无把握可省略（系统会回填）。
+4. evidence 为原文短摘录，≤120 字；confidence 为 0–1 小数。
+5. 控制规模：nodes ≤ 40，edges ≤ 60；合并近义 label。
+6. 禁止输出 nodes/edges 以外的顶层键。
+
+# 输出
+{
+  "nodes": [
+    {"type": "product", "label": "可见度监测", "aliases": [], "source_ids": ["uuid"], "confidence": 0.9}
+  ],
+  "edges": [
+    {
+      "type": "solves",
+      "from": "品牌名或产品名",
+      "to": "痛点名",
+      "source_ids": ["uuid"],
+      "evidence": "原文摘录",
+      "confidence": 0.85
+    }
+  ]
+}"""
+
+KNOWLEDGE_GRAPH_EXTRACT_USER_SUFFIX = "请仅输出 JSON（nodes + edges）。"

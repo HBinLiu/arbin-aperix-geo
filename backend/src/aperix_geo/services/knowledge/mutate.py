@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from aperix_geo.db.base import utc_now
 from aperix_geo.db.models import Subject, SubjectKnowledge, SubjectType
-from aperix_geo.services.knowledge.persist import enqueue_knowledge_index
+from aperix_geo.services.knowledge.graph.extract import mark_extract_pending
 from aperix_geo.services.subject.domain_fields import apply_subject_domain_fields
 from aperix_geo.utils.net import ensure_brand, registrable_from
 
@@ -18,7 +18,7 @@ class KnowledgeNotFoundError(LookupError):
     """Subject has no knowledge row."""
 
 
-def _get_knowledge_row(db: Session, subject_id: UUID) -> SubjectKnowledge:
+def get_knowledge_row(db: Session, subject_id: UUID) -> SubjectKnowledge:
     knowledge = db.scalar(
         select(SubjectKnowledge).where(
             SubjectKnowledge.subject_id == subject_id,
@@ -28,6 +28,11 @@ def _get_knowledge_row(db: Session, subject_id: UUID) -> SubjectKnowledge:
     if knowledge is None:
         raise KnowledgeNotFoundError(f"knowledge not found for subject {subject_id}")
     return knowledge
+
+
+def _get_knowledge_row(db: Session, subject_id: UUID) -> SubjectKnowledge:
+    """Backward-compatible alias."""
+    return get_knowledge_row(db, subject_id)
 
 
 def _clean_str_list(values: list[str] | None) -> list[str]:
@@ -61,7 +66,7 @@ def schedule_knowledge_reindex(
     knowledge: SubjectKnowledge,
     user_id: UUID,
 ) -> None:
-    """Bump knowledge version and enqueue vector indexing after source changes."""
+    """Bump knowledge version after source changes. Caller must enqueue after commit."""
     _sync_subject_from_identity(subject, dict(knowledge.identity_json or {}))
 
     knowledge.version += 1
@@ -70,6 +75,6 @@ def schedule_knowledge_reindex(
     knowledge.verified_by_user_id = user_id
     knowledge.index_status = "pending"
     knowledge.index_error = ""
+    mark_extract_pending(knowledge)
 
     db.flush()
-    enqueue_knowledge_index(subject.id)

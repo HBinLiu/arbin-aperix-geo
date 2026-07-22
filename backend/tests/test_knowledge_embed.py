@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from aperix_geo.config import Settings
-from aperix_geo.services.knowledge.embed import embed_texts
+from aperix_geo.services.knowledge.vector.embed import embed_texts
 from aperix_geo.services.knowledge.exceptions import KnowledgeIndexError
 
 
@@ -17,7 +17,7 @@ def test_embed_texts_requires_api_key() -> None:
         embed_texts(["hello"], settings=settings)
 
 
-@patch("aperix_geo.services.knowledge.embed.OpenAI")
+@patch("aperix_geo.services.knowledge.vector.embed.OpenAI")
 def test_embed_texts_returns_vectors(mock_openai_cls: MagicMock) -> None:
     client = MagicMock()
     mock_openai_cls.return_value = client

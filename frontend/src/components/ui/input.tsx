@@ -1,5 +1,6 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
+import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -63,18 +64,122 @@ const inputVariants = cva(
   },
 );
 
+const NON_CLEARABLE_TYPES = new Set([
+  "file",
+  "hidden",
+  "checkbox",
+  "radio",
+  "range",
+  "color",
+  "submit",
+  "button",
+  "reset",
+  "image",
+]);
+
 export type InputProps = Omit<React.ComponentProps<"input">, "size"> &
-  VariantProps<typeof inputVariants>;
+  VariantProps<typeof inputVariants> & {
+    /** 有内容时显示圆角清除按钮。默认：普通文本开，merged / 特殊 type 关。 */
+    clearable?: boolean;
+  };
+
+function shouldEnableClearable(
+  clearable: boolean | undefined,
+  type: string,
+  variant: InputProps["variant"],
+): boolean {
+  if (clearable != null) return clearable;
+  if (variant === "merged") return false;
+  return !NON_CLEARABLE_TYPES.has(type);
+}
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, variant, controlSize, type, ...props }, ref) => (
-    <input
-      type={type}
-      className={cn(inputVariants({ variant, controlSize }), className)}
-      ref={ref}
-      {...props}
-    />
-  ),
+  (
+    {
+      className,
+      variant,
+      controlSize,
+      type = "text",
+      clearable,
+      value,
+      defaultValue,
+      onChange,
+      disabled,
+      readOnly,
+      ...props
+    },
+    ref,
+  ) => {
+    const enableClearable = shouldEnableClearable(clearable, type, variant);
+    const isControlled = value !== undefined;
+    const [uncontrolled, setUncontrolled] = React.useState(() => String(defaultValue ?? ""));
+    const currentValue = isControlled ? String(value ?? "") : uncontrolled;
+    const showClear = enableClearable && !disabled && !readOnly && currentValue.length > 0;
+
+    const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+      if (!isControlled) setUncontrolled(event.target.value);
+      onChange?.(event);
+    };
+
+    const handleClear = () => {
+      if (disabled || readOnly) return;
+      if (!isControlled) setUncontrolled("");
+      onChange?.({
+        target: { value: "" },
+        currentTarget: { value: "" },
+      } as React.ChangeEvent<HTMLInputElement>);
+    };
+
+    if (!enableClearable) {
+      return (
+        <input
+          type={type}
+          className={cn(inputVariants({ variant, controlSize }), className)}
+          ref={ref}
+          value={value}
+          defaultValue={defaultValue}
+          onChange={onChange}
+          disabled={disabled}
+          readOnly={readOnly}
+          {...props}
+        />
+      );
+    }
+
+    return (
+      <div className="relative z-0 w-full min-w-0">
+        <input
+          type={type}
+          className={cn(inputVariants({ variant, controlSize }), className, showClear && "pr-9")}
+          ref={ref}
+          disabled={disabled}
+          readOnly={readOnly}
+          {...props}
+          {...(isControlled
+            ? { value, onChange: handleChange }
+            : { value: uncontrolled, onChange: handleChange })}
+        />
+        {showClear ? (
+          <span
+            className={cn(
+              "absolute inset-y-0 right-2.5 z-10 flex items-center",
+              controlSize === "sm" && "right-2",
+            )}
+          >
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={handleClear}
+              className="text-muted-foreground hover:text-foreground border-border flex size-5 items-center justify-center rounded-full border"
+              aria-label="清除"
+            >
+              <X className="size-3" strokeWidth={2.5} aria-hidden />
+            </button>
+          </span>
+        ) : null}
+      </div>
+    );
+  },
 );
 Input.displayName = "Input";
 
