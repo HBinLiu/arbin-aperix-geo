@@ -25,7 +25,13 @@ export type DashboardNavSection = {
   items: DashboardNavItem[];
 };
 
-export type AnalysisDimension = "visibility" | "prompt" | "platform" | "sentiment" | "citation";
+export type AnalysisDimension =
+  | "visibility"
+  | "prompt"
+  | "fanout"
+  | "platform"
+  | "sentiment"
+  | "citation";
 
 export type BillingTab = "plan" | "details";
 

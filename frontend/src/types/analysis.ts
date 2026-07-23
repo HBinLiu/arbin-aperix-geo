@@ -250,6 +250,75 @@ export type CitationRankRow = {
   pre_value: number | null;
 };
 
+export type FanoutAnalysisData = {
+  fanout_count: number;
+  fanout_previous: number;
+  labels: string[];
+  series: VisibilitySeriesPoint[];
+  previous_series: VisibilitySeriesPoint[];
+  rank_table: CitationRankRow[];
+};
+
+export type FanoutPromptQueryItem = {
+  query: string;
+  frequency: number;
+  platforms: string[];
+  platform_counts?: Record<string, number>;
+  /** 该子查询频次 / 全部子查询频次合计 */
+  contribution_rate?: number;
+};
+
+export type FanoutPromptRow = {
+  prompt_id: string;
+  prompt_text: string;
+  topic_id: string;
+  topic_name: string;
+  quantity: number;
+  unique_count: number;
+  platform_counts: Record<string, number>;
+  series: { date: string; value: number }[];
+  top_queries: FanoutPromptQueryItem[];
+};
+
+export type FanoutPromptSortField = "quantity";
+
+export type FanoutPromptsPage = {
+  items: FanoutPromptRow[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
+export type FanoutQueriesPage = {
+  items: FanoutPromptQueryItem[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
+export type PromptFanoutOpportunityRow = {
+  id: string;
+  query_text: string;
+  frequency: number;
+  contribution_rate: number;
+  platform_counts: Record<string, number>;
+  parent_prompt_id: string;
+  parent_prompt_text: string;
+  topic_id: string;
+  topic_name: string;
+  status: string;
+  first_seen_at: string;
+  last_seen_at: string;
+};
+
+export type PromptFanoutOpportunityPage = {
+  items: PromptFanoutOpportunityRow[];
+  total: number;
+  page: number;
+  page_size: number;
+  frequency_total?: number;
+};
+
 export type CitationListPage<T> = {
   items: T[];
   total: number;
@@ -374,6 +443,8 @@ export type AnalysisResponseRow = {
   rank?: number | null;
   mentioned_brands?: CitationMentionedBrand[];
   cited_on_source?: boolean;
+  search_queries?: string[];
+  fanout_supported?: boolean;
 };
 
 export type AnalysisResponseSortField = "created_at" | "sentiment_score" | "rank";
@@ -398,7 +469,7 @@ export type SentimentTab = "positive" | "neutral" | "negative";
 
 export type OpportunityPriority = "high" | "medium" | "low";
 
-export type OpportunityTab = "backlink" | "competitor" | "social";
+export type OpportunityTab = "backlink" | "competitor" | "prompt";
 
 export type ContentOpportunityItem = {
   id: string;
@@ -636,6 +707,22 @@ export type PromptDetailResponseRow = LlmResponseDialogRow & {
   rank: number | null;
   created_at: string;
   cited_on_source?: boolean;
+  search_queries?: string[];
+  fanout_supported?: boolean;
+};
+
+export type PromptFanoutQueryItem = {
+  query: string;
+  frequency: number;
+  platforms: string[];
+  monitored?: boolean;
+};
+
+export type PromptFanoutSummary = {
+  fanout_count: number;
+  fanout_avg_per_response: number;
+  top_queries: PromptFanoutQueryItem[];
+  unmonitored_queries: PromptFanoutQueryItem[];
 };
 
 export type PromptDetailSeriesPoint = {
@@ -676,6 +763,8 @@ export type PromptDetailData = {
   platforms: PromptDetailPlatformRow[];
   opportunity: PromptDetailOpportunityPayload | null;
   citation_responses: PromptDetailResponseRow[];
+  query_expansion_responses?: PromptDetailResponseRow[];
+  fanout?: PromptFanoutSummary | null;
 };
 
 /** LLM 回复 parsed 字段（与后端 sampling parser 一致） */
@@ -714,6 +803,8 @@ export type LlmResponseParsed = {
   urls?: string[];
   url_hosts?: string[];
   source_urls_from_api?: string[];
+  search_queries_from_api?: string[];
+  search_query_events?: { query: string; platform?: string; rank?: number }[];
   citation_urls_own?: string[];
   citation_sources?: unknown[];
   citation_response_absa?: CitationResponseAbsa;

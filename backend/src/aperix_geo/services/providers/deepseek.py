@@ -10,7 +10,11 @@ import httpx
 
 from aperix_geo.services.providers.result import SamplingChatResult
 from aperix_geo.services.providers.errors import DeepseekProviderError, raise_provider_error
-from aperix_geo.services.providers._helpers import dedupe_urls
+from aperix_geo.services.providers._helpers import (
+    dedupe_search_queries,
+    dedupe_urls,
+    query_from_tool_args,
+)
 from aperix_geo.services.providers.openai import openai_chat_completion
 from aperix_geo.services.providers.prompts import DEEPSEEK_WEB_SEARCH_SYSTEM
 from aperix_geo.utils.net import extract_urls, filter_citation_urls
@@ -99,9 +103,18 @@ def _collect_urls_from_block(block: dict[str, Any]) -> list[str]:
     return urls
 
 
-def parse_deepseek_anthropic_payload(data: dict[str, Any]) -> tuple[str, tuple[str, ...], bool]:
+def _query_from_server_tool_input(value: Any) -> str:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return query_from_tool_args(value if isinstance(value, dict) else {})
+
+
+def parse_deepseek_anthropic_payload(
+    data: dict[str, Any],
+) -> tuple[str, tuple[str, ...], bool, tuple[str, ...]]:
     texts: list[str] = []
     urls: list[str] = []
+    queries: list[str] = []
     searched = False
 
     for block in data.get("content") or []:
@@ -114,6 +127,9 @@ def parse_deepseek_anthropic_payload(data: dict[str, Any]) -> tuple[str, tuple[s
                 texts.append(text)
         elif block_type == "server_tool_use" and block.get("name") == "web_search":
             searched = True
+            query = _query_from_server_tool_input(block.get("input"))
+            if query:
+                queries.append(query)
         elif block_type == "web_search_tool_result":
             searched = True
         urls.extend(_collect_urls_from_block(block))
@@ -126,7 +142,7 @@ def parse_deepseek_anthropic_payload(data: dict[str, Any]) -> tuple[str, tuple[s
     text = "\n".join(texts).strip()
     urls.extend(filter_citation_urls(extract_urls(text)))
     source_urls = dedupe_urls(urls)
-    return text, source_urls, searched
+    return text, source_urls, searched, dedupe_search_queries(queries)
 
 
 def _usage_from_anthropic(data: dict[str, Any]) -> dict[str, Any]:
@@ -289,7 +305,7 @@ def deepseek_chat(
         )
 
     latency_ms = int((time.perf_counter() - t0) * 1000)
-    text, source_urls, searched = parse_deepseek_anthropic_payload(final_data)
+    text, source_urls, searched, search_queries = parse_deepseek_anthropic_payload(final_data)
     if not text:
         raise DeepseekProviderError(f"DeepSeek empty response: {final_data!r}")
 
@@ -300,10 +316,11 @@ def deepseek_chat(
         logger.info("DeepSeek chat completed without web_search blocks (model skipped search)")
 
     logger.info(
-        "DeepSeek response: latency_ms=%d chars=%d source_urls=%d mode=%s",
+        "DeepSeek response: latency_ms=%d chars=%d source_urls=%d search_queries=%d mode=%s",
         latency_ms,
         len(text),
         len(source_urls),
+        len(search_queries),
         mode,
     )
     from aperix_geo.services.alerts.dispatch import maybe_report_provider_success
@@ -316,4 +333,5 @@ def deepseek_chat(
         latency_ms=latency_ms,
         source_urls=source_urls,
         web_search_mode=mode,
+        search_queries=search_queries,
     )

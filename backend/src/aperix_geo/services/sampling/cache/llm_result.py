@@ -23,6 +23,7 @@ def _to_payload(result: SamplingChatResult) -> dict[str, Any]:
         "latency_ms": result.latency_ms,
         "source_urls": list(result.source_urls),
         "web_search_mode": result.web_search_mode,
+        "search_queries": list(result.search_queries),
         "expires_at": expires_at_from_ttl(ttl_s),
     }
 
@@ -34,6 +35,9 @@ def _from_payload(payload: dict[str, Any]) -> SamplingChatResult:
         latency_ms=int(payload.get("latency_ms") or 0),
         source_urls=tuple(str(u) for u in (payload.get("source_urls") or []) if str(u).strip()),
         web_search_mode=str(payload.get("web_search_mode") or "none"),
+        search_queries=tuple(
+            str(q) for q in (payload.get("search_queries") or []) if str(q).strip()
+        ),
     )
 
 

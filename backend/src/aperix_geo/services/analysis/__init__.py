@@ -21,6 +21,11 @@ from aperix_geo.services.analysis.diagnosis import (
     build_diagnosis_content_summary,
 )
 from aperix_geo.services.analysis.entity import list_analysis_entities, resolve_analysis_entity
+from aperix_geo.services.analysis.fanout import (
+    build_fanout_analysis,
+    build_fanout_prompts_page,
+    build_fanout_queries_page,
+)
 from aperix_geo.services.analysis.metrics import MetricsBundle, build_analysis_entities
 from aperix_geo.services.analysis.backlink import (
     build_backlink_opportunities,
@@ -55,6 +60,9 @@ __all__ = [
     "build_prompts_performance",
     "build_prompts_performance_page",
     "build_prompt_detail",
+    "build_fanout_analysis",
+    "build_fanout_prompts_page",
+    "build_fanout_queries_page",
     "build_topic_visibility_ranks",
     "build_visibility_analysis",
     "build_platform_performance",

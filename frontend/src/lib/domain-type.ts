@@ -1,4 +1,4 @@
-/** Shallalist / piedomains domain content-type → 中文展示。 */
+/** Shallalist domain content-type → 中文展示。 */
 export const DOMAIN_TYPE_LABELS: Record<string, string> = {
   adv: "广告",
   alcohol: "酒类",

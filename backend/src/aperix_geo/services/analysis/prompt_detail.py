@@ -11,9 +11,13 @@ from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import Prompt, Subject, Topic
 from aperix_geo.services.analysis._query import responses_in_window
-from aperix_geo.services.analysis._rows import build_citation_response_row
+from aperix_geo.services.analysis._rows import (
+    build_citation_response_row,
+    mention_rank_display,
+    reply_preview,
+)
 from aperix_geo.services.analysis._series import previous_date_range, single_value_series
-from aperix_geo.services.analysis.aggregate import metrics_from_signals
+from aperix_geo.services.analysis.aggregate import mentioned_brands_for_response, metrics_from_signals
 from aperix_geo.services.analysis.diagnosis_rules import (
     diagnosis_mention_rate,
     gap_action_priority,
@@ -34,6 +38,113 @@ from aperix_geo.services.analysis.signal_load import (
     load_llm_response_signals,
     load_mention_brand_signals,
 )
+from aperix_geo.services.sampling.fanout import (
+    aggregate_fanout_metrics,
+    monitored_origin_keys,
+    platform_exposes_search_queries,
+    search_queries_from_parsed,
+)
+
+
+def _query_expansion_response_rows(
+    rows,
+    *,
+    signal_by_response: dict[UUID, LLMResponseSignalRow],
+    all_signals: list[LLMResponseSignalRow],
+    entities: list,
+) -> list[dict[str, Any]]:
+    """Responses that either have search queries or are on unsupported platforms (for empty-state copy)."""
+    out: list[dict[str, Any]] = []
+    for row in sorted(rows, key=lambda item: item.created_at, reverse=True):
+        parsed = row.parsed if isinstance(row.parsed, dict) else {}
+        queries = search_queries_from_parsed(parsed)
+        platform = str(row.platform or "")
+        supported = platform_exposes_search_queries(platform)
+        if not queries and supported:
+            # Supported platform but no queries this turn — skip from expansion tab list.
+            continue
+        if not queries and not supported:
+            # Include one placeholder-style row so UI can say「该平台未暴露检索词」.
+            pass
+        signal = signal_by_response.get(row.id)
+        out.append(
+            {
+                "response_id": str(row.id),
+                "platform": platform,
+                "reply_preview": reply_preview(row.raw_text) if hasattr(row, "raw_text") else "",
+                "mentioned_brands": mentioned_brands_for_response(
+                    row.id,
+                    all_signals=all_signals,
+                    entities=entities,
+                )
+                if signal is not None or all_signals
+                else [],
+                "mentioned": bool(signal.mentioned) if signal else False,
+                "rank": mention_rank_display(signal.mention_rank) if signal else None,
+                "created_at": row.created_at.isoformat(),
+                "cited_on_source": bool(signal.cited_on_source) if signal else False,
+                "search_queries": queries,
+                "fanout_supported": supported,
+            }
+        )
+    # Prefer rows with queries; keep a few unsupported empty rows for copy.
+    with_queries = [item for item in out if item["search_queries"]]
+    unsupported = [item for item in out if not item["fanout_supported"]]
+    if with_queries:
+        return with_queries
+    # Dedupe unsupported by platform for empty-state messaging.
+    seen_platforms: set[str] = set()
+    unique_unsupported: list[dict[str, Any]] = []
+    for item in unsupported:
+        if item["platform"] in seen_platforms:
+            continue
+        seen_platforms.add(item["platform"])
+        unique_unsupported.append(item)
+    return unique_unsupported
+
+
+def _fanout_summary_for_prompt(
+    db: Session,
+    *,
+    subject: Subject,
+    prompt: Prompt,
+    response_rows,
+) -> dict[str, Any]:
+    from sqlalchemy import select
+
+    children = list(
+        db.execute(
+            select(Prompt).where(
+                Prompt.subject_id == subject.id,
+                Prompt.parent_prompt_id == prompt.id,
+                Prompt.deleted.is_(False),
+            )
+        )
+        .scalars()
+        .all()
+    )
+    # Also treat same-text fanout prompts under subject as monitored.
+    fanout_prompts = list(
+        db.execute(
+            select(Prompt).where(
+                Prompt.subject_id == subject.id,
+                Prompt.kind == "fanout",
+                Prompt.deleted.is_(False),
+            )
+        )
+        .scalars()
+        .all()
+    )
+    monitored = monitored_origin_keys(fanout_prompts + children)
+    query_rows = [
+        (str(row.platform or ""), search_queries_from_parsed(row.parsed if isinstance(row.parsed, dict) else {}))
+        for row in response_rows
+    ]
+    metrics = aggregate_fanout_metrics(
+        response_query_rows=query_rows,
+        monitored_query_keys=monitored,
+    )
+    return metrics
 
 
 def _response_ids_with_competitor_signal(
@@ -382,6 +493,18 @@ def build_prompt_detail(
         all_signals=mention_brand_signals,
         entities=entities,
     )
+    query_expansion_responses = _query_expansion_response_rows(
+        response_rows,
+        signal_by_response=signal_by_response,
+        all_signals=mention_brand_signals,
+        entities=entities,
+    )
+    fanout = _fanout_summary_for_prompt(
+        db,
+        subject=subject,
+        prompt=prompt,
+        response_rows=response_rows,
+    )
 
     return {
         "entity_id": entity.id,
@@ -405,4 +528,6 @@ def build_prompt_detail(
             focus_entity_id=entity.id,
         ),
         "citation_responses": citation_responses,
+        "query_expansion_responses": query_expansion_responses,
+        "fanout": fanout,
     }

@@ -1,6 +1,6 @@
-/** 近 30 天窗口（按自然日对齐，便于作为稳定 queryKey）。 */
+/** 近 7 天窗口（按自然日对齐，便于作为稳定 queryKey）。 */
 export function defaultDateRange(): { from: string; to: string } {
-  return dateRangeDays(30);
+  return dateRangeDays(7);
 }
 
 /** 近 N 天窗口（含当天）。 */

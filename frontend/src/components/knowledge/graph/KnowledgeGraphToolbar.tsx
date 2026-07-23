@@ -55,11 +55,12 @@ export function KnowledgeGraphToolbar({
             <Search className="text-muted-foreground size-4" aria-hidden />
           </span>
           <Input
+            type="search"
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
             placeholder="搜索实体…"
             controlSize="sm"
-            className="pl-9"
+            className="w-full pl-9"
             aria-label="搜索实体"
           />
         </div>

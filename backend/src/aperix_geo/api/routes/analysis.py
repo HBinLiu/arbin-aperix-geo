@@ -14,6 +14,8 @@ from aperix_geo.api.schemas.analysis_query import (
     CitationDomainUrlsParams,
     CitationDomainsParams,
     CitationUrlsParams,
+    FanoutPromptsParams,
+    FanoutQueriesParams,
     PlatformAnalysisParams,
     AnalysisResponsesParams,
 )
@@ -139,6 +141,78 @@ def prompt_detail(
         prompt_id=params.prompt_id,
         dt_from=f,
         dt_to=t,
+    )
+
+
+#分析页-查询扇出接口
+@router.post("/subjects/{subject_id}/analysis/fanout")
+def fanout_analysis(
+    subject_id: UUID,
+    params: AnalysisWindowParams,
+    db: DbSession,
+    current: CurrentUser,
+) -> dict:
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
+    f = parse_iso_datetime(params.start_date)
+    t = parse_iso_datetime(params.end_date)
+    return analysis_svc.build_fanout_analysis(
+        db,
+        subject=s,
+        platform=params.platform,
+        topic_id=params.topic_id,
+        prompt_id=params.prompt_id,
+        dt_from=f,
+        dt_to=t,
+    )
+
+
+@router.post("/subjects/{subject_id}/analysis/fanout/prompts")
+def fanout_prompts(
+    subject_id: UUID,
+    params: FanoutPromptsParams,
+    db: DbSession,
+    current: CurrentUser,
+) -> dict:
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
+    f = parse_iso_datetime(params.start_date)
+    t = parse_iso_datetime(params.end_date)
+    return analysis_svc.build_fanout_prompts_page(
+        db,
+        subject=s,
+        platform=params.platform,
+        topic_id=params.topic_id,
+        search=params.search,
+        dt_from=f,
+        dt_to=t,
+        sort_by=params.sort_by,
+        order=params.order,
+        page=params.page,
+        page_size=params.page_size,
+    )
+
+
+@router.post("/subjects/{subject_id}/analysis/fanout/queries")
+def fanout_queries(
+    subject_id: UUID,
+    params: FanoutQueriesParams,
+    db: DbSession,
+    current: CurrentUser,
+) -> dict:
+    if params.prompt_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="prompt_id is required")
+    s = get_subject_for_user(db, current, subject_id, with_competitors=True)
+    f = parse_iso_datetime(params.start_date)
+    t = parse_iso_datetime(params.end_date)
+    return analysis_svc.build_fanout_queries_page(
+        db,
+        subject=s,
+        prompt_id=params.prompt_id,
+        platform=params.platform,
+        topic_id=params.topic_id,
+        dt_from=f,
+        dt_to=t,
+        page=params.page,
+        page_size=params.page_size,
     )
 
 

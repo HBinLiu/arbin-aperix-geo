@@ -158,7 +158,7 @@ export const PROMPT_DETAIL_RESPONSE_TABS: {
   { id: "citation", label: "引用率" },
   {
     id: "queryExpansion",
-    label: "查询扩展",
+    label: "查询扇出",
     help: "AI 在回答前展开的子问题与查询变体，用于衡量提示词深度覆盖。",
   },
 ];
@@ -166,6 +166,7 @@ export const PROMPT_DETAIL_RESPONSE_TABS: {
 export function promptDetailResponsesForTab(
   data: {
     citation_responses: PromptDetailResponseRow[];
+    query_expansion_responses?: PromptDetailResponseRow[];
   } | null | undefined,
   tab: PromptDetailResponseTab,
   chatResponses: PromptDetailResponseRow[] = [],
@@ -173,7 +174,7 @@ export function promptDetailResponsesForTab(
   if (tab === "chat") return chatResponses;
   if (!data) return [];
   if (tab === "citation") return data.citation_responses;
-  return [];
+  return data.query_expansion_responses ?? [];
 }
 
 export function promptDetailResponseFromAnalysis(row: AnalysisResponseRow): PromptDetailResponseRow {
@@ -186,5 +187,13 @@ export function promptDetailResponseFromAnalysis(row: AnalysisResponseRow): Prom
     rank: row.rank ?? null,
     created_at: row.created_at,
     cited_on_source: row.cited_on_source,
+    search_queries: row.search_queries ?? [],
+    fanout_supported: row.fanout_supported,
   };
+}
+
+export function queryExpansionEmptyMessage(row: PromptDetailResponseRow | null | undefined): string {
+  if (!row) return "暂无联网检索词数据";
+  if (row.fanout_supported === false) return "该平台未暴露检索词";
+  return "本次未联网或未触发搜索";
 }

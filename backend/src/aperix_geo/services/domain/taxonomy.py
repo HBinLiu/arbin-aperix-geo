@@ -1,7 +1,7 @@
-"""Shallalist-aligned domain content type codes (piedomains / Shallalist).
+"""Shallalist-aligned domain content type codes.
 
 English codes are stored in DB; Chinese labels live on the frontend
-(``DOMAIN_TYPE_LABELS``).
+(``DOMAIN_TYPE_LABELS``). Classification uses curated seeds + light heuristics.
 """
 
 from __future__ import annotations

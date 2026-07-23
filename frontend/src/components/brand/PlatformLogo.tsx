@@ -42,6 +42,8 @@ const DEFAULT_MAX_VISIBLE = 4;
 
 type PlatformLogoGroupProps = {
   providers: string[];
+  /** 可选：hover 列表右侧显示各平台数量 */
+  counts?: Record<string, number>;
   maxVisible?: number;
   className?: string;
   logoClassName?: string;
@@ -51,6 +53,7 @@ type PlatformLogoGroupProps = {
 /** 多平台 logo 叠放；空列表显示 —，超出 maxVisible 显示 +N */
 export function PlatformLogoGroup({
   providers,
+  counts,
   maxVisible = DEFAULT_MAX_VISIBLE,
   className,
   logoClassName,
@@ -101,18 +104,29 @@ export function PlatformLogoGroup({
           </span>
         </TooltipTrigger>
         <TooltipContent
-          side="top"
+          side="bottom"
+          align="start"
           sideOffset={8}
           showArrow={false}
           className="border-border w-auto min-w-48 border bg-muted-background px-3 py-2.5 text-foreground shadow-lg"
         >
           <ul className="flex flex-col gap-2">
-            {resolved.map((meta) => (
-              <li key={meta.platform} className="flex items-center gap-2">
-                <PlatformLogo provider={meta.platform} label={meta.label} className="size-4" />
-                <span className="text-sm font-normal">{meta.label}</span>
-              </li>
-            ))}
+            {resolved.map((meta) => {
+              const count = counts?.[meta.platform] ?? counts?.[meta.platform.toLowerCase()];
+              return (
+                <li key={meta.platform} className="flex items-center justify-between gap-4">
+                  <span className="inline-flex min-w-0 items-center gap-2">
+                    <PlatformLogo provider={meta.platform} label={meta.label} className="size-4" />
+                    <span className="text-sm font-normal">{meta.label}</span>
+                  </span>
+                  {count != null ? (
+                    <span className="text-foreground shrink-0 text-sm font-medium tabular-nums">
+                      {count}
+                    </span>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         </TooltipContent>
       </Tooltip>

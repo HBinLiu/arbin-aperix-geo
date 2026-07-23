@@ -17,7 +17,7 @@ export const ANALYSIS_DATE_OPTIONS = ANALYSIS_DATE_PRESETS.map((preset) => ({
 }));
 
 export const DEFAULT_ANALYSIS_FILTERS: AnalysisFilters = {
-  ...dateRangeDays(30),
+  ...dateRangeDays(7),
   entityId: ANALYSIS_ENTITY_OWN,
   platformIds: [],
   topicIds: [],

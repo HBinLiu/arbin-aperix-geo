@@ -223,25 +223,7 @@ export function AnalysisRankTable({
   const heightStyle = height != null ? { height } : undefined;
   const heightClass = height != null ? "h-auto shrink-0" : DEFAULT_HEIGHT_CLASS;
   const colWidths = rankTableColWidths(showDeltaColumn);
-
-  if (!loading && rows.length === 0) {
-    return (
-      <div
-        className={cn(
-          "flex flex-col",
-          heightClass,
-          embedded ? "bg-transparent" : "border-border bg-background rounded-lg border p-4",
-          className,
-        )}
-        style={heightStyle}
-      >
-        <h3 className="text-sm font-semibold">{title}</h3>
-        <div className="flex flex-1 items-center justify-center">
-          <p className="text-muted-foreground text-sm">{emptyMessage}</p>
-        </div>
-      </div>
-    );
-  }
+  const isEmpty = !loading && rows.length === 0;
 
   return (
     <div
@@ -253,14 +235,15 @@ export function AnalysisRankTable({
       )}
       style={heightStyle}
     >
-      <div className={cn("shrink-0 p-3", !embedded && "border-border border-b")}>
+      {/* embedded 时外层 section 已有 padding，标题不再套一层 p-3，避免比表头更缩进 */}
+      <div className={cn("shrink-0", embedded ? "pb-3" : "border-border border-b p-3")}>
         <h3 className="text-sm font-semibold">{title}</h3>
       </div>
       {loading ? (
         <RankTableSkeleton showMoreFooter={showMoreFooter} showDeltaColumn={showDeltaColumn} />
       ) : (
         <>
-          <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto">
+          <div className={cn("overflow-x-auto", isEmpty ? "shrink-0" : "min-h-0 flex-1 overflow-y-auto")}>
             <table
               className="w-full table-fixed text-sm"
               style={{ minWidth: RANK_TABLE_MIN_WIDTH }}
@@ -300,36 +283,43 @@ export function AnalysisRankTable({
                   ) : null}
                 </tr>
               </thead>
-              <tbody>
-                {sortedRows.map((row, index) => (
-                  <tr key={row.id} className={compactTableRowClass}>
-                    <td className="text-foreground px-2 pl-4 tabular-nums">
-                      #{index + 1}
-                    </td>
-                    <td className="min-w-0 overflow-hidden px-4 whitespace-normal">
-                      <BrandRankLabel
-                        label={row.label}
-                        icon={row.icon}
-                        domain={row.domain}
-                        isOwn={row.isOwn}
-                        isFocus={row.isFocus}
-                        showHover={showEntityHover}
-                      />
-                    </td>
-                    <td className="px-4 font-medium tabular-nums">
-                      {renderValue ? renderValue(row) : row.value}
-                    </td>
-                    {showDeltaColumn ? (
-                      <td className="px-4 tabular-nums">
-                        <RankDeltaCell delta={row.delta} />
+              {!isEmpty ? (
+                <tbody>
+                  {sortedRows.map((row, index) => (
+                    <tr key={row.id} className={compactTableRowClass}>
+                      <td className="text-foreground px-2 pl-4 tabular-nums">
+                        #{index + 1}
                       </td>
-                    ) : null}
-                  </tr>
-                ))}
-              </tbody>
+                      <td className="min-w-0 overflow-hidden px-4 whitespace-normal">
+                        <BrandRankLabel
+                          label={row.label}
+                          icon={row.icon}
+                          domain={row.domain}
+                          isOwn={row.isOwn}
+                          isFocus={row.isFocus}
+                          showHover={showEntityHover}
+                        />
+                      </td>
+                      <td className="px-4 font-medium tabular-nums">
+                        {renderValue ? renderValue(row) : row.value}
+                      </td>
+                      {showDeltaColumn ? (
+                        <td className="px-4 tabular-nums">
+                          <RankDeltaCell delta={row.delta} />
+                        </td>
+                      ) : null}
+                    </tr>
+                  ))}
+                </tbody>
+              ) : null}
             </table>
           </div>
-          {showMoreFooter ? (
+          {isEmpty ? (
+            <div className="flex min-h-0 flex-1 items-center justify-center px-4">
+              <p className="text-muted-foreground text-sm">{emptyMessage}</p>
+            </div>
+          ) : null}
+          {showMoreFooter && !isEmpty ? (
             <div className="shrink-0 px-4 py-2">
               <Link
                 to={moreHref}

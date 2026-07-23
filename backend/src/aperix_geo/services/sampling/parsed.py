@@ -15,6 +15,8 @@ class ParsedSamplingResult:
     url_hosts: list[str] = field(default_factory=list)
     web_search_mode: str = "none"
     source_urls_from_api: list[str] = field(default_factory=list)
+    search_queries_from_api: list[str] = field(default_factory=list)
+    search_query_events: list[dict[str, Any]] = field(default_factory=list)
     own_brand: str = ""
     sentiment_source: str = "none"
     citation_response_absa: dict[str, Any] = field(default_factory=dict)
@@ -46,6 +48,10 @@ class ParsedSamplingResult:
             url_hosts=list(data.get("url_hosts") or []),
             web_search_mode=str(data.get("web_search_mode") or "none"),
             source_urls_from_api=list(data.get("source_urls_from_api") or []),
+            search_queries_from_api=list(data.get("search_queries_from_api") or []),
+            search_query_events=[
+                dict(event) for event in (data.get("search_query_events") or []) if isinstance(event, dict)
+            ],
             own_brand=str(data.get("own_brand") or ""),
             sentiment_source=str(data.get("sentiment_source") or "none"),
             citation_response_absa=dict(data.get("citation_response_absa") or {}),

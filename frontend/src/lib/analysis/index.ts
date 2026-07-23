@@ -14,6 +14,8 @@ export {
   formatRankMetric,
   formatScore,
   formatScoreDelta,
+  formatCount,
+  formatCountDelta,
 } from "@/lib/analysis/format";
 export {
   ANALYSIS_DATE_OPTIONS,

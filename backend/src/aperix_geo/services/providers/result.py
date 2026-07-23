@@ -13,3 +13,5 @@ class SamplingChatResult:
     latency_ms: int
     source_urls: tuple[str, ...] = ()
     web_search_mode: str = "none"
+    # Engine web-search queries extracted from tool traces (query fan-out).
+    search_queries: tuple[str, ...] = ()

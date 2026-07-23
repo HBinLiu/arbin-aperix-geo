@@ -352,6 +352,14 @@ class Prompt(Base):
         String(32), nullable=False, default="", server_default=""
     )
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    parent_prompt_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=False,
+        default=ZERO_UUID,
+        server_default=sa_text("'00000000-0000-0000-0000-000000000000'::uuid"),
+    )
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default="root", server_default="root")
+    origin_query: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
@@ -377,6 +385,60 @@ class Prompt(Base):
         ),
         Index("ix_subject_prompts_subject_id", "subject_id"),
         Index("ix_subject_prompts_topic_id", "topic_id"),
+    )
+
+
+class SubjectPromptFanout(Base):
+    """Materialized search-query fan-out candidates (promote to Prompt separately)."""
+
+    __tablename__ = "tb_subject_prompt_fanouts"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    subject_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_subjects.id", ondelete="CASCADE"), nullable=False
+    )
+    parent_prompt_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_subject_prompts.id", ondelete="CASCADE"), nullable=False
+    )
+    topic_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tb_subject_topics.id", ondelete="CASCADE"), nullable=False
+    )
+    query_text: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    query_key: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    frequency: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    platform_counts: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=sa_text("'{}'::jsonb")
+    )
+    first_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=EPOCH, server_default=sa_text("'1970-01-01T00:00:00+00:00'")
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=EPOCH, server_default=sa_text("'1970-01-01T00:00:00+00:00'")
+    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending", server_default="pending")
+    promoted_prompt_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=False,
+        default=ZERO_UUID,
+        server_default=sa_text("'00000000-0000-0000-0000-000000000000'::uuid"),
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
+    )
+
+    __table_args__ = (
+        Index(
+            "uq_subject_prompt_fanouts_parent_query",
+            "subject_id",
+            "parent_prompt_id",
+            "query_key",
+            unique=True,
+            postgresql_where=sa_text("deleted = false"),
+        ),
+        Index("ix_subject_prompt_fanouts_subject_status_freq", "subject_id", "status", "frequency"),
+        Index("ix_subject_prompt_fanouts_subject_topic_status", "subject_id", "topic_id", "status"),
+        Index("ix_subject_prompt_fanouts_last_seen_at", "last_seen_at"),
     )
 
 
@@ -616,7 +678,7 @@ class CitationDomain(Base):
 
 
 class DomainProfile(Base):
-    """Registrable domain content type (Shallalist / piedomains code)."""
+    """Registrable domain content type (Shallalist code via seed/heuristic)."""
 
     __tablename__ = "tb_domain_profiles"
 

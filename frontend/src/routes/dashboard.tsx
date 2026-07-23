@@ -19,6 +19,7 @@ import { PromptPage } from "@/pages/analysis/PromptPage";
 import { PromptDetailPage } from "@/pages/analysis/PromptDetailPage";
 import { SentimentPage } from "@/pages/analysis/SentimentPage";
 import { VisibilityPage } from "@/pages/analysis/VisibilityPage";
+import { FanoutPage } from "@/pages/analysis/FanoutPage";
 
 export function OverviewRoute() {
   const { subject } = useDashboardContext();
@@ -40,6 +41,10 @@ export function AnalysisVisibilityRoute() {
 
 export function AnalysisPromptRoute() {
   return <PromptPage />;
+}
+
+export function AnalysisFanoutRoute() {
+  return <FanoutPage />;
 }
 
 export function AnalysisPromptDetailRoute() {

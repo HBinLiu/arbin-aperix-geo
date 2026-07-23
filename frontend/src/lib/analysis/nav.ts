@@ -18,6 +18,12 @@ export const ANALYSIS_DIMENSIONS: {
     description: "在提示词层面分析产品可见度与表现，帮助理解 AI 搜索场景下的用户需求与转化潜力。",
   },
   {
+    id: "fanout",
+    label: "查询扇出",
+    description:
+      "衡量 AI 回答前而生成的执行子查询数量；扇出越高，通常反映检索策略更充分、覆盖面更广。",
+  },
+  {
     id: "platform",
     label: "AI 平台",
     description:
@@ -102,8 +108,13 @@ export function isCitationDomainDetailPathname(pathname: string): boolean {
 
 const PROMPT_DETAIL_PREFIX = `${ANALYSIS_BASE_PATH}/prompt/`;
 
-export function promptDetailPath(promptId: string): string {
-  return `${PROMPT_DETAIL_PREFIX}${encodeURIComponent(promptId)}`;
+export function promptDetailPath(
+  promptId: string,
+  options?: { tab?: "chat" | "citation" | "queryExpansion" },
+): string {
+  const base = `${PROMPT_DETAIL_PREFIX}${encodeURIComponent(promptId)}`;
+  if (!options?.tab || options.tab === "chat") return base;
+  return `${base}?tab=${options.tab}`;
 }
 
 export function promptIdFromPathname(pathname: string): string | null {

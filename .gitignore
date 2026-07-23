@@ -11,6 +11,7 @@ __pycache__/
 alembic.ini.bak
 backend/.venv/
 backend/celerybeat.db
+backend/cache/
 backend/data/favicons/
 frontend/.env
 payload/.env

@@ -42,6 +42,17 @@ export function formatCount(value: number | null | undefined): string {
   return String(Math.round(value));
 }
 
+/** 计数类环比（问题数量等） */
+export function formatCountDelta(
+  current: number | null | undefined,
+  previous: number | null | undefined,
+): string | null {
+  if (current == null || previous == null) return null;
+  const delta = Math.round(current - previous);
+  if (delta === 0) return "0";
+  return delta > 0 ? `+${delta}` : String(delta);
+}
+
 export function formatRank(value: number | null | undefined): string {
   if (value == null) return "-";
   return `#${value.toFixed(1)}`;

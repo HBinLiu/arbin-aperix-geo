@@ -5,7 +5,7 @@ import {
 } from "@shared/changelog/types";
 
 import { authenticatedWrite, publishedOrAuthenticatedRead } from "../access";
-import { RESOURCE_EXPLORATION_ADMIN_GROUP } from "../lib/admin";
+import { RESOURCE_EXPLORATION_ADMIN_GROUP, adminDayOnlyDate } from "../lib/admin";
 import { buildCollectionPreviewPath, buildPreviewUrl } from "../lib/preview";
 import { contentLexicalEditor } from "../lib/lexical/content";
 
@@ -113,7 +113,7 @@ export const Changelogs: CollectionConfig = {
               required: true,
               label: "发布日期",
               admin: {
-                date: { pickerAppearance: "dayOnly" },
+                date: adminDayOnlyDate,
               },
             },
             {

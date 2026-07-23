@@ -51,6 +51,20 @@ class AnalysisPromptsParams(AnalysisWindowParams):
     page_size: int = Field(default=10, ge=1, le=100)
 
 
+class FanoutPromptsParams(AnalysisWindowParams):
+    sort_by: Literal["quantity"] = "quantity"
+    order: Literal["asc", "desc"] = "desc"
+    page: int = Field(default=1, ge=1)
+    page_size: int = Field(default=10, ge=1, le=100)
+
+
+class FanoutQueriesParams(AnalysisWindowParams):
+    """单提示词下全部扇出子查询分页；prompt_id 必填。"""
+
+    page: int = Field(default=1, ge=1)
+    page_size: int = Field(default=10, ge=1, le=100)
+
+
 class PlatformAnalysisParams(AnalysisWindowParams):
     matrix_row: MatrixRowDimension = "competitor"
 
@@ -169,3 +183,14 @@ class BrandParams(OpportunityWindowParams):
     search: str | None = None
     sort_by: BrandSortField | None = None
     order: Literal["asc", "desc"] = "desc"
+
+
+class PromptFanoutOpportunityParams(OpportunityWindowParams):
+    page: int = Field(default=1, ge=1)
+    page_size: int = Field(default=10, ge=1, le=100)
+    search: str | None = None
+    status: Literal["pending", "promoted", "dismissed"] = "pending"
+
+
+class PromptFanoutPromoteParams(BaseModel):
+    enabled: bool = False

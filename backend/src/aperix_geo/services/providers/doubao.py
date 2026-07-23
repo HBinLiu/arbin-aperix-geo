@@ -9,7 +9,12 @@ from typing import Any
 from openai import APIError, APITimeoutError, OpenAI
 
 from aperix_geo.services.providers.result import SamplingChatResult
-from aperix_geo.services.providers._helpers import dedupe_urls, response_data, with_system_prompt
+from aperix_geo.services.providers._helpers import (
+    dedupe_search_queries,
+    dedupe_urls,
+    response_data,
+    with_system_prompt,
+)
 from aperix_geo.services.providers.errors import DoubaoProviderError, raise_provider_error
 from aperix_geo.services.providers.openai import _usage_dict, openai_chat_completion
 from aperix_geo.services.providers.prompts import DOUBAO_WEB_SEARCH_SYSTEM
@@ -41,6 +46,20 @@ def _collect_citation_urls(output: list[Any]) -> list[str]:
     return urls
 
 
+def _collect_search_queries(output: list[Any]) -> list[str]:
+    queries: list[str] = []
+    for item in output:
+        if not isinstance(item, dict) or item.get("type") != "web_search_call":
+            continue
+        action = item.get("action")
+        if not isinstance(action, dict):
+            continue
+        query = action.get("query")
+        if isinstance(query, str) and query.strip():
+            queries.append(query.strip())
+    return queries
+
+
 def _extract_response_text(output: list[Any]) -> str:
     parts: list[str] = []
     for item in output:
@@ -59,14 +78,17 @@ def _web_search_used(output: list[Any]) -> bool:
     return any(isinstance(item, dict) and item.get("type") == "web_search_call" for item in output)
 
 
-def parse_responses_payload(data: dict[str, Any] | Any) -> tuple[str, tuple[str, ...], bool]:
+def parse_responses_payload(
+    data: dict[str, Any] | Any,
+) -> tuple[str, tuple[str, ...], bool, tuple[str, ...]]:
     payload = response_data(data)
     output = payload.get("output") or []
     if not isinstance(output, list):
         output = []
     text = _extract_response_text(output)
     source_urls = dedupe_urls(_collect_citation_urls(output))
-    return text, source_urls, _web_search_used(output)
+    search_queries = dedupe_search_queries(_collect_search_queries(output))
+    return text, source_urls, _web_search_used(output), search_queries
 
 
 def doubao_responses_chat(
@@ -129,7 +151,7 @@ def doubao_responses_chat(
         raise_provider_error(DoubaoProviderError, f"Doubao error: {exc}", cause=exc)
     latency_ms = int((time.perf_counter() - t0) * 1000)
 
-    text, source_urls, searched = parse_responses_payload(response)
+    text, source_urls, searched, search_queries = parse_responses_payload(response)
     if not text:
         raise DoubaoProviderError(f"Doubao empty response: {response_data(response)!r}")
 
@@ -144,6 +166,7 @@ def doubao_responses_chat(
         latency_ms=latency_ms,
         source_urls=source_urls,
         web_search_mode=mode,
+        search_queries=search_queries,
     )
 
 

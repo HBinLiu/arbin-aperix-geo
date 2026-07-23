@@ -56,6 +56,7 @@ def create_and_enqueue_sampling_job(
     q = select(Prompt).where(Prompt.subject_id == subject.id, Prompt.enabled.is_(True))
     if prompt_ids:
         q = q.where(Prompt.id.in_(prompt_ids))
+    # Fanout prompts start disabled; once enabled they join auto sampling with roots.
     prompts = list(db.execute(q).scalars().all())
     if not prompts:
         raise SamplingJobError("No enabled prompts to sample")

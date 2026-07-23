@@ -18,7 +18,7 @@ function decodeRouteDomain(value: string | undefined): string {
   }
 }
 
-/** 机会 · 反向链接 · 单域名详情 */
+/** 机会 · 引用信源 · 单域名详情 */
 export function BacklinkDetailPage({ subjectId }: BacklinkDetailPageProps) {
   const { domain: domainParam } = useParams<{ domain: string }>();
   const domain = decodeRouteDomain(domainParam);

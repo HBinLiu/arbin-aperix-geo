@@ -48,10 +48,12 @@ export function ColumnHelp({ label, description }: { label: string; description:
 export function PromptTextCell({
   text,
   tooltipMaxLength,
+  className,
 }: {
   text: string | null | undefined;
   /** 设置后 tooltip 仅展示截断后的内容 */
   tooltipMaxLength?: number;
+  className?: string;
 }) {
   const tooltipText = text != null ?
     tooltipMaxLength != null && text.length > tooltipMaxLength
@@ -61,7 +63,11 @@ export function PromptTextCell({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="block w-full min-w-0 cursor-pointer truncate">{text || "—"}</span>
+        <span
+          className={cn("block w-full min-w-0 cursor-pointer truncate", className)}
+        >
+          {text || "—"}
+        </span>
       </TooltipTrigger>
       <TooltipContent
         side="top"

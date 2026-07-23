@@ -295,6 +295,16 @@ class PromptOut(BaseModel):
     search_intent: str
     decision_type: str = ""
     enabled: bool
+    parent_prompt_id: UUID | None = None
+    kind: str = "root"
+    origin_query: str = ""
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class PromptFanoutPromote(BaseModel):
+    """Promote an observed search query into a monitorable fanout prompt."""
+
+    query: str = Field(..., min_length=1, max_length=2000)
+    enabled: bool = False

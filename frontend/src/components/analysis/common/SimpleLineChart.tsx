@@ -156,12 +156,15 @@ export function SimpleLineChart({
       <div
         className={cn(
           "flex w-full min-w-0 flex-col",
-          !fixedHeight && "min-h-[120px] flex-1",
+          !fixedHeight && "min-h-0 flex-1",
           className,
         )}
         style={rootStyle}
       >
-        <ChartEmptyState style={{ minHeight: fixedHeight ? chartHeight : 120 }} />
+        <ChartEmptyState
+          className={cn(!fixedHeight && "min-h-0 flex-1")}
+          style={fixedHeight ? { height: chartHeight, minHeight: chartHeight } : undefined}
+        />
       </div>
     );
   }

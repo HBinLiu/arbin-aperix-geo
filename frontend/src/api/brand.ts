@@ -65,3 +65,16 @@ export async function promoteSubjectBrand(
   );
   return data;
 }
+
+export async function promotePromptFanout(
+  subjectId: string,
+  promptId: string,
+  body: { query: string; enabled?: boolean },
+): Promise<SubjectPrompt> {
+  const { data } = await api.post<SubjectPrompt>(
+    `/subjects/${subjectId}/prompts/${promptId}/fanout`,
+    body,
+    { skipErrorToast: true },
+  );
+  return data;
+}

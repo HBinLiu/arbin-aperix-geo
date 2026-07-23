@@ -171,6 +171,7 @@ def build_parse_phase_spec(_task, response_id: str) -> SamplingPhaseSpec:
             subject=subject,
             source_urls=list(chat_result.source_urls),
             web_search_mode=chat_result.web_search_mode,
+            search_queries=list(chat_result.search_queries),
             sampling_job_id=ctx["sampling_job_id"],
             db=None,
             fetch_pages=False,

@@ -219,10 +219,11 @@ export function CompetitorConfigSection({ subject }: CompetitorConfigSectionProp
             <Search className="text-muted-foreground size-4" aria-hidden />
           </span>
           <Input
+            type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="搜索竞争对手…"
-            className="pl-9"
+            className="w-full pl-9"
           />
         </div>
         <div className="flex shrink-0 items-center gap-3">

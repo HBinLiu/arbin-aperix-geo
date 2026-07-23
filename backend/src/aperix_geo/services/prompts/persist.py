@@ -8,12 +8,15 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from aperix_geo.db.models import Prompt, Subject, Topic
+from aperix_geo.db.models import Prompt, Subject, Topic, ZERO_UUID
 from aperix_geo.services.billing.exceptions import QuotaExceededError
 from aperix_geo.services.billing.quota import assert_can_add_prompts, remaining_prompt_slots
 from aperix_geo.services.prompts.taxonomy import normalize_funnel_stage, normalize_search_intent
 from aperix_geo.services.prompts.taxonomy import normalize_decision_type
 from aperix_geo.utils.text import prompt_text_hash
+
+PROMPT_KIND_ROOT = "root"
+PROMPT_KIND_FANOUT = "fanout"
 
 
 class PromptValidationError(ValueError):
@@ -91,6 +94,9 @@ def _build_prompt(
     search_intent: str,
     decision_type: str = "",
     enabled: bool,
+    parent_prompt_id: UUID = ZERO_UUID,
+    kind: str = PROMPT_KIND_ROOT,
+    origin_query: str = "",
 ) -> Prompt:
     normalized = text.strip()
     return Prompt(
@@ -102,6 +108,9 @@ def _build_prompt(
         search_intent=normalize_search_intent(search_intent),
         decision_type=normalize_decision_type(decision_type),
         enabled=enabled,
+        parent_prompt_id=parent_prompt_id,
+        kind=kind,
+        origin_query=origin_query.strip(),
     )
 
 
@@ -187,3 +196,55 @@ def batch_create_subject_prompts(
     for prompt in created:
         db.refresh(prompt)
     return created
+
+
+def promote_fanout_prompt(
+    db: Session,
+    subject_id: UUID,
+    *,
+    parent_prompt_id: UUID,
+    query: str,
+    enabled: bool = False,
+) -> Prompt:
+    """Create a kind=fanout child prompt from an observed search query."""
+    parent = db.get(Prompt, parent_prompt_id)
+    if parent is None or parent.subject_id != subject_id or parent.deleted:
+        raise PromptValidationError("父提示词不存在")
+    if str(parent.kind or PROMPT_KIND_ROOT) == PROMPT_KIND_FANOUT:
+        raise PromptValidationError("不能从扇出提示词再次晋升")
+
+    normalized = query.strip()
+    if not normalized:
+        raise PromptValidationError("查询词不能为空")
+
+    _assert_can_add(db, subject_id, count=1)
+    text_hash = prompt_text_hash(normalized)
+    if _text_hash_exists(db, subject_id, text_hash):
+        raise PromptValidationError("该主体下已存在相同提示词")
+
+    prompt = _build_prompt(
+        subject_id=subject_id,
+        topic_id=parent.topic_id,
+        text=normalized,
+        funnel_stage=parent.funnel_stage,
+        search_intent=parent.search_intent,
+        decision_type=parent.decision_type,
+        enabled=enabled,
+        parent_prompt_id=parent.id,
+        kind=PROMPT_KIND_FANOUT,
+        origin_query=normalized,
+    )
+    db.add(prompt)
+    db.flush()
+    from aperix_geo.services.sampling.prompt_fanouts import mark_prompt_fanout_promoted
+
+    mark_prompt_fanout_promoted(
+        db,
+        subject_id=subject_id,
+        parent_prompt_id=parent.id,
+        query=normalized,
+        promoted_prompt_id=prompt.id,
+    )
+    db.commit()
+    db.refresh(prompt)
+    return prompt

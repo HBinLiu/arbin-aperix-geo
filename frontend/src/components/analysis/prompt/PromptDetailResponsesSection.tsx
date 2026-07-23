@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { DEFAULT_TABLE_PAGE_SIZE } from "@/components/analysis/common/TablePagination";
+import { PromptDetailFanoutQueriesPanel } from "@/components/analysis/prompt/PromptDetailFanoutQueriesPanel";
 import { PromptDetailResponseTable } from "@/components/analysis/prompt/PromptDetailResponseTable";
 import { ColumnHelp } from "@/components/analysis/prompt/PerformanceMetricCells";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -24,6 +26,11 @@ function rankSortParams(sort: RankSortState): {
   return { sortBy: "rank", order: sort };
 }
 
+function parseResponseTab(value: string | null): PromptDetailResponseTab {
+  if (value === "citation" || value === "queryExpansion" || value === "chat") return value;
+  return "chat";
+}
+
 type PromptDetailResponsesSectionProps = {
   subjectId: string;
   promptId: string;
@@ -32,7 +39,7 @@ type PromptDetailResponsesSectionProps = {
   detailLoading?: boolean;
 };
 
-/** 提示词详情 · 聊天 / 引用率 / 查询扩展 */
+/** 提示词详情 · 聊天 / 引用率 / 查询扇出 */
 export function PromptDetailResponsesSection({
   subjectId,
   promptId,
@@ -40,25 +47,34 @@ export function PromptDetailResponsesSection({
   data,
   detailLoading = false,
 }: PromptDetailResponsesSectionProps) {
-  const [activeTab, setActiveTab] = useState<PromptDetailResponseTab>("chat");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<PromptDetailResponseTab>(() =>
+    parseResponseTab(searchParams.get("tab")),
+  );
   const [chatPage, setChatPage] = useState(1);
   const [chatPageSize, setChatPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
   const [rankSort, setRankSort] = useState<RankSortState>(null);
 
   const { sortBy, order } = rankSortParams(rankSort);
 
-  const { loading: chatLoading, fetching: chatFetching, responses: chatRaw, total: chatTotal } = usePromptDetailChatResponses(
-    subjectId,
-    promptId,
-    filters,
-    { page: chatPage, pageSize: chatPageSize, sortBy, order },
-    activeTab === "chat",
-  );
+  const { loading: chatLoading, fetching: chatFetching, responses: chatRaw, total: chatTotal } =
+    usePromptDetailChatResponses(
+      subjectId,
+      promptId,
+      filters,
+      { page: chatPage, pageSize: chatPageSize, sortBy, order },
+      activeTab === "chat",
+    );
 
   const chatResponses = useMemo(
     () => chatRaw.map(promptDetailResponseFromAnalysis),
     [chatRaw],
   );
+
+  useEffect(() => {
+    const fromUrl = parseResponseTab(searchParams.get("tab"));
+    setActiveTab(fromUrl);
+  }, [searchParams]);
 
   useEffect(() => {
     setChatPage(1);
@@ -72,12 +88,23 @@ export function PromptDetailResponsesSection({
   const loading = detailLoading || (activeTab === "chat" && chatLoading);
   const fetching = activeTab === "chat" && chatFetching;
 
+  const handleTabChange = (value: string) => {
+    const next = parseResponseTab(value);
+    setActiveTab(next);
+    setSearchParams(
+      (prev) => {
+        const nextParams = new URLSearchParams(prev);
+        if (next === "chat") nextParams.delete("tab");
+        else nextParams.set("tab", next);
+        return nextParams;
+      },
+      { replace: true },
+    );
+  };
+
   return (
     <div className="flex flex-col gap-3">
-      <Tabs
-        value={activeTab}
-        onValueChange={(value) => setActiveTab(value as PromptDetailResponseTab)}
-      >
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           {PROMPT_DETAIL_RESPONSE_TABS.map((tab) => (
             <TabsTrigger key={tab.id} value={tab.id}>
@@ -99,27 +126,35 @@ export function PromptDetailResponsesSection({
       </Tabs>
 
       <section className="border-border overflow-hidden rounded-lg border bg-muted-background">
-        <PromptDetailResponseTable
-          activeTab={activeTab}
-          data={data}
-          chatResponses={chatResponses}
-          chatTotal={chatTotal}
-          chatPage={chatPage}
-          chatPageSize={chatPageSize}
-          onChatPageChange={setChatPage}
-          onChatPageSizeChange={(nextPageSize) => {
-            setChatPageSize(nextPageSize);
-            setChatPage(1);
-          }}
-          rankSort={rankSort}
-          onRankSortChange={(nextSort) => {
-            setRankSort(nextSort);
-            setChatPage(1);
-          }}
-          promptText={data?.prompt_text ?? ""}
-          loading={loading}
-          fetching={fetching}
-        />
+        {activeTab === "queryExpansion" ? (
+          <PromptDetailFanoutQueriesPanel
+            subjectId={subjectId}
+            promptId={promptId}
+            filters={filters}
+          />
+        ) : (
+          <PromptDetailResponseTable
+            activeTab={activeTab}
+            data={data}
+            chatResponses={chatResponses}
+            chatTotal={chatTotal}
+            chatPage={chatPage}
+            chatPageSize={chatPageSize}
+            onChatPageChange={setChatPage}
+            onChatPageSizeChange={(nextPageSize) => {
+              setChatPageSize(nextPageSize);
+              setChatPage(1);
+            }}
+            rankSort={rankSort}
+            onRankSortChange={(nextSort) => {
+              setRankSort(nextSort);
+              setChatPage(1);
+            }}
+            promptText={data?.prompt_text ?? ""}
+            loading={loading}
+            fetching={fetching}
+          />
+        )}
       </section>
     </div>
   );

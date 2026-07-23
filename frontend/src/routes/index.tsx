@@ -14,6 +14,7 @@ import {
   AnalysisPlatformRoute,
   AnalysisPromptRoute,
   AnalysisPromptDetailRoute,
+  AnalysisFanoutRoute,
   AnalysisRoute,
   AnalysisSentimentRoute,
   AnalysisVisibilityRoute,
@@ -59,6 +60,7 @@ export function AppRoutes() {
                 <Route path="visibility" element={<AnalysisVisibilityRoute />} />
                 <Route path="prompt/:promptId" element={<AnalysisPromptDetailRoute />} />
                 <Route path="prompt" element={<AnalysisPromptRoute />} />
+                <Route path="fanout" element={<AnalysisFanoutRoute />} />
                 <Route path="platform" element={<AnalysisPlatformRoute />} />
                 <Route path="sentiment" element={<AnalysisSentimentRoute />} />
                 <Route path="citation" element={<AnalysisCitationRoute />} />

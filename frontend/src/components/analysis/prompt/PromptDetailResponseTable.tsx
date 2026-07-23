@@ -21,6 +21,7 @@ import { formatRank } from "@/lib/analysis/format";
 import {
   PROMPT_DETAIL_RESPONSE_TABS,
   promptDetailResponsesForTab,
+  queryExpansionEmptyMessage,
   type PromptDetailResponseTab,
 } from "@/lib/analysis/promptDetail";
 import { formatSentimentDateTime } from "@/lib/analysis/sentiment";
@@ -204,6 +205,57 @@ function ResponseRow({
   );
 }
 
+function QueryExpansionRow({
+  row,
+  onSelect,
+}: {
+  row: PromptDetailResponseRow;
+  onSelect: (row: PromptDetailResponseRow) => void;
+}) {
+  const platformCatalog = usePlatformCatalog();
+  const platformMeta = resolvePlatformMeta(row.platform, platformCatalog);
+  const queries = row.search_queries ?? [];
+  const depthLabel =
+    queries.length > 0 ? `扇出 ${queries.length} 条` : queryExpansionEmptyMessage(row);
+
+  return (
+    <tr
+      className={cn(wideTableRowClass, queries.length > 0 && "cursor-pointer")}
+      onClick={() => {
+        if (queries.length > 0) onSelect(row);
+      }}
+    >
+      <td className="pl-5">
+        <div className="flex items-center gap-2 whitespace-nowrap">
+          <PlatformLogo
+            provider={row.platform}
+            label={platformMeta.label}
+            className="size-6 rounded-md"
+          />
+          <span className="font-medium">{platformMeta.label}</span>
+        </div>
+      </td>
+      <td className="text-muted-foreground max-w-0 pl-4 pr-8" colSpan={3}>
+        {queries.length > 0 ? (
+          <ul className="text-foreground flex flex-col gap-1 text-sm">
+            {queries.map((query) => (
+              <li key={query} className="truncate">
+                {query}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <span className="text-sm">{depthLabel}</span>
+        )}
+      </td>
+      <td className="px-4 text-sm font-medium tabular-nums whitespace-nowrap">{depthLabel}</td>
+      <td className="text-foreground px-4 whitespace-nowrap tabular-nums" style={DATE_CELL_STYLE}>
+        {formatSentimentDateTime(row.created_at)}
+      </td>
+    </tr>
+  );
+}
+
 export function PromptDetailResponseTable({
   activeTab,
   data,
@@ -221,11 +273,17 @@ export function PromptDetailResponseTable({
 }: PromptDetailResponseTableProps) {
   const [citationPage, setCitationPage] = useState(1);
   const [citationPageSize, setCitationPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
+  const [expansionPage, setExpansionPage] = useState(1);
+  const [expansionPageSize, setExpansionPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
   const [selectedRow, setSelectedRow] = useState<PromptDetailResponseRow | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const citationRows = useMemo(
     () => promptDetailResponsesForTab(data, "citation"),
+    [data],
+  );
+  const expansionRows = useMemo(
+    () => promptDetailResponsesForTab(data, "queryExpansion"),
     [data],
   );
 
@@ -238,19 +296,42 @@ export function PromptDetailResponseTable({
     () => paginateRows(sortedCitationRows, citationPage, citationPageSize),
     [sortedCitationRows, citationPage, citationPageSize],
   );
+  const expansionPageRows = useMemo(
+    () => paginateRows(expansionRows, expansionPage, expansionPageSize),
+    [expansionRows, expansionPage, expansionPageSize],
+  );
 
   const isChatTab = activeTab === "chat";
-  const displayRows = isChatTab ? chatResponses : citationPageRows;
-  const paginationTotal = isChatTab ? chatTotal : sortedCitationRows.length;
-  const paginationPage = isChatTab ? chatPage : citationPage;
-  const paginationPageSize = isChatTab ? chatPageSize : citationPageSize;
+  const isExpansionTab = activeTab === "queryExpansion";
+  const displayRows = isChatTab
+    ? chatResponses
+    : isExpansionTab
+      ? expansionPageRows
+      : citationPageRows;
+  const paginationTotal = isChatTab
+    ? chatTotal
+    : isExpansionTab
+      ? expansionRows.length
+      : sortedCitationRows.length;
+  const paginationPage = isChatTab ? chatPage : isExpansionTab ? expansionPage : citationPage;
+  const paginationPageSize = isChatTab
+    ? chatPageSize
+    : isExpansionTab
+      ? expansionPageSize
+      : citationPageSize;
 
   useEffect(() => {
     setCitationPage(1);
+    setExpansionPage(1);
   }, [activeTab, data, rankSort]);
 
   const emptyLabel =
     PROMPT_DETAIL_RESPONSE_TABS.find((tab) => tab.id === activeTab)?.label ?? "数据";
+
+  const selectRow = (nextRow: PromptDetailResponseRow) => {
+    setSelectedRow(nextRow);
+    setDialogOpen(true);
+  };
 
   return (
     <>
@@ -267,48 +348,48 @@ export function PromptDetailResponseTable({
         <thead className={performanceTableClasses.head}>
           <tr>
             <th className="pl-5">平台</th>
-            <th>回复</th>
-            <th>
-              <span className="inline-flex items-center gap-1">
-                提及品牌
-                <ColumnHelp
-                  label="提及品牌"
-                  description="AI 回复正文中提及的品牌列表。"
-                />
-              </span>
-            </th>
-            <th>
-              <span className="inline-flex items-center gap-1">
-                是否提及
-                <ColumnHelp
-                  label="是否提及"
-                  description="AI 回复正文中是否提及当前品牌。"
-                />
-              </span>
-            </th>
-            <th>
-              <RankSortableHeader
-                label="提及排名"
-                sort={rankSort}
-                onSort={() => onRankSortChange?.(cycleRankSort(rankSort))}
-                help={{
-                  label: "提及排名",
-                  description: "AI 回复正文中当前品牌的排名。",
-                }}
-              />
-            </th>
+            <th colSpan={isExpansionTab ? 3 : 1}>{isExpansionTab ? "联网检索词" : "回复"}</th>
+            {isExpansionTab ? (
+              <th>扇出深度</th>
+            ) : (
+              <>
+                <th>
+                  <span className="inline-flex items-center gap-1">
+                    提及品牌
+                    <ColumnHelp
+                      label="提及品牌"
+                      description="AI 回复正文中提及的品牌列表。"
+                    />
+                  </span>
+                </th>
+                <th>
+                  <span className="inline-flex items-center gap-1">
+                    是否提及
+                    <ColumnHelp
+                      label="是否提及"
+                      description="AI 回复正文中是否提及当前品牌。"
+                    />
+                  </span>
+                </th>
+                <th>
+                  <RankSortableHeader
+                    label="提及排名"
+                    sort={rankSort}
+                    onSort={() => onRankSortChange?.(cycleRankSort(rankSort))}
+                    help={{
+                      label: "提及排名",
+                      description: "AI 回复正文中当前品牌的排名。",
+                    }}
+                  />
+                </th>
+              </>
+            )}
             <th style={DATE_CELL_STYLE}>日期</th>
           </tr>
         </thead>
         <tbody>
           {loading && displayRows.length === 0 ? (
             <SkeletonRows />
-          ) : activeTab === "queryExpansion" ? (
-            <tr>
-              <td colSpan={6} className="text-muted-foreground px-5 py-10 text-center text-sm">
-                暂无查询扩展数据
-              </td>
-            </tr>
           ) : paginationTotal === 0 ? (
             <tr>
               <td colSpan={6} className="text-muted-foreground px-5 py-10 text-center text-sm">
@@ -316,16 +397,13 @@ export function PromptDetailResponseTable({
               </td>
             </tr>
           ) : (
-            displayRows.map((row) => (
-              <ResponseRow
-                key={row.response_id}
-                row={row}
-                onSelect={(nextRow) => {
-                  setSelectedRow(nextRow);
-                  setDialogOpen(true);
-                }}
-              />
-            ))
+            displayRows.map((row) =>
+              isExpansionTab ? (
+                <QueryExpansionRow key={row.response_id} row={row} onSelect={selectRow} />
+              ) : (
+                <ResponseRow key={row.response_id} row={row} onSelect={selectRow} />
+              ),
+            )
           )}
         </tbody>
         </table>
@@ -338,7 +416,7 @@ export function PromptDetailResponseTable({
         promptText={promptText}
       />
 
-      {activeTab !== "queryExpansion" && paginationTotal > 0 ? (
+      {paginationTotal > 0 ? (
         <TablePagination
           total={paginationTotal}
           page={paginationPage}
@@ -349,11 +427,20 @@ export function PromptDetailResponseTable({
               onChatPageChange?.(nextPage);
               return;
             }
+            if (isExpansionTab) {
+              setExpansionPage(nextPage);
+              return;
+            }
             setCitationPage(nextPage);
           }}
           onPageSizeChange={(nextPageSize) => {
             if (isChatTab) {
               onChatPageSizeChange?.(nextPageSize);
+              return;
+            }
+            if (isExpansionTab) {
+              setExpansionPageSize(nextPageSize);
+              setExpansionPage(1);
               return;
             }
             setCitationPageSize(nextPageSize);

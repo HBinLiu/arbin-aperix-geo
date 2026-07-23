@@ -20,7 +20,12 @@ import type {
   CitationUrlRow,
   CitationUrlSortField,
   DashboardOverviewData,
+  FanoutAnalysisData,
+  FanoutPromptSortField,
+  FanoutPromptsPage,
+  FanoutQueriesPage,
   PlatformAnalysisData,
+  PromptFanoutOpportunityPage,
   PromptPerformancePage,
   PromptPerformanceSortField,
   PromptDetailData,
@@ -196,6 +201,78 @@ export async function fetchCitationAnalysis(
   }
   const { data } = await api.post<CitationAnalysisData>(
     `/subjects/${subjectId}/analysis/citation`,
+    body,
+  );
+  return data;
+}
+
+export async function fetchFanoutAnalysis(
+  subjectId: string,
+  filters: AnalysisQueryFilters,
+): Promise<FanoutAnalysisData> {
+  const params = buildAnalysisParams(filters);
+  const body: Record<string, string | string[]> = { ...params };
+  if (typeof body.platform === "string") {
+    body.platform = [body.platform];
+  }
+  const { data } = await api.post<FanoutAnalysisData>(
+    `/subjects/${subjectId}/analysis/fanout`,
+    body,
+  );
+  return data;
+}
+
+export async function fetchFanoutPrompts(
+  subjectId: string,
+  filters: AnalysisQueryFilters,
+  options: {
+    page?: number;
+    pageSize?: number;
+    sortBy?: FanoutPromptSortField;
+    order?: "asc" | "desc";
+    search?: string;
+  } = {},
+): Promise<FanoutPromptsPage> {
+  const body: Record<string, string | number | string[] | undefined> = {
+    ...buildAnalysisParams(filters),
+    page: options.page ?? 1,
+    page_size: options.pageSize ?? 10,
+    sort_by: options.sortBy ?? "quantity",
+    order: options.order ?? "desc",
+  };
+  if (typeof body.platform === "string") {
+    body.platform = [body.platform];
+  }
+  const search = options.search?.trim();
+  if (search) {
+    body.search = search;
+  }
+  const { data } = await api.post<FanoutPromptsPage>(
+    `/subjects/${subjectId}/analysis/fanout/prompts`,
+    body,
+  );
+  return data;
+}
+
+export async function fetchFanoutQueries(
+  subjectId: string,
+  filters: AnalysisQueryFilters,
+  options: {
+    promptId: string;
+    page?: number;
+    pageSize?: number;
+  },
+): Promise<FanoutQueriesPage> {
+  const body: Record<string, string | number | string[] | undefined> = {
+    ...buildAnalysisParams(filters, options.promptId),
+    page: options.page ?? 1,
+    page_size: options.pageSize ?? 10,
+  };
+  if (typeof body.platform === "string") {
+    body.platform = [body.platform];
+  }
+  const { data } = await api.post<FanoutQueriesPage>(
+    `/subjects/${subjectId}/analysis/fanout/queries`,
     body,
   );
   return data;
@@ -523,6 +600,60 @@ export async function fetchBrands(
   const { data } = await api.post<BrandData>(
     `/subjects/${subjectId}/opportunity/brand`,
     body,
+  );
+  return data;
+}
+
+export async function fetchPromptFanoutOpportunities(
+  subjectId: string,
+  filters: AnalysisQueryFilters,
+  options: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    status?: "pending" | "promoted" | "dismissed";
+  } = {},
+): Promise<PromptFanoutOpportunityPage> {
+  const params = buildAnalysisParams(filters);
+  const body: Record<string, string | number | string[] | undefined> = { ...params };
+  if (typeof body.platform === "string") {
+    body.platform = [body.platform];
+  }
+  body.page = options.page ?? 1;
+  body.page_size = options.pageSize ?? 10;
+  body.status = options.status ?? "pending";
+  const search = options.search?.trim();
+  if (search) {
+    body.search = search;
+  }
+  const { data } = await api.post<PromptFanoutOpportunityPage>(
+    `/subjects/${subjectId}/opportunity/prompt-fanouts`,
+    body,
+  );
+  return data;
+}
+
+export async function promotePromptFanoutOpportunity(
+  subjectId: string,
+  fanoutId: string,
+  body: { enabled?: boolean } = {},
+): Promise<{ fanout_id: string; prompt_id: string; query_text: string; status: string }> {
+  const { data } = await api.post(
+    `/subjects/${subjectId}/opportunity/prompt-fanouts/${fanoutId}/promote`,
+    { enabled: body.enabled ?? false },
+    { skipErrorToast: true },
+  );
+  return data;
+}
+
+export async function dismissPromptFanoutOpportunity(
+  subjectId: string,
+  fanoutId: string,
+): Promise<{ id: string; status: string }> {
+  const { data } = await api.post(
+    `/subjects/${subjectId}/opportunity/prompt-fanouts/${fanoutId}/dismiss`,
+    {},
+    { skipErrorToast: true },
   );
   return data;
 }

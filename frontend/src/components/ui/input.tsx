@@ -64,22 +64,9 @@ const inputVariants = cva(
   },
 );
 
-const NON_CLEARABLE_TYPES = new Set([
-  "file",
-  "hidden",
-  "checkbox",
-  "radio",
-  "range",
-  "color",
-  "submit",
-  "button",
-  "reset",
-  "image",
-]);
-
 export type InputProps = Omit<React.ComponentProps<"input">, "size"> &
   VariantProps<typeof inputVariants> & {
-    /** 有内容时显示圆角清除按钮。默认：普通文本开，merged / 特殊 type 关。 */
+    /** 有内容时显示清除按钮。默认仅 type="search" 开启，可用 clearable 显式开关。 */
     clearable?: boolean;
   };
 
@@ -90,7 +77,7 @@ function shouldEnableClearable(
 ): boolean {
   if (clearable != null) return clearable;
   if (variant === "merged") return false;
-  return !NON_CLEARABLE_TYPES.has(type);
+  return type === "search";
 }
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
@@ -134,7 +121,12 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       return (
         <input
           type={type}
-          className={cn(inputVariants({ variant, controlSize }), className)}
+          className={cn(
+            inputVariants({ variant, controlSize }),
+            type === "search" &&
+              "[&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none",
+            className,
+          )}
           ref={ref}
           value={value}
           defaultValue={defaultValue}
@@ -150,7 +142,14 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       <div className="relative z-0 w-full min-w-0">
         <input
           type={type}
-          className={cn(inputVariants({ variant, controlSize }), className, showClear && "pr-9")}
+          className={cn(
+            inputVariants({ variant, controlSize }),
+            // type=search 自带 WebKit 清除钮，与 clearable 自定义钮重复
+            type === "search" &&
+              "[&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none",
+            className,
+            showClear && "pr-9",
+          )}
           ref={ref}
           disabled={disabled}
           readOnly={readOnly}

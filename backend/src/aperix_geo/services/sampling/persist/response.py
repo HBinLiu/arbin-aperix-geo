@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import LLMResponse, LLMResponseStatus, Subject
 from aperix_geo.services.providers.result import SamplingChatResult
+from aperix_geo.services.sampling.fanout import build_search_query_events
 from aperix_geo.services.sampling.parse.context import extract_citation_urls
 from aperix_geo.services.sampling.parsed import ParsedSamplingResult
 from aperix_geo.services.sampling.persist.artifacts import refresh_parsed_artifacts
@@ -19,11 +20,14 @@ def persist_llm_result(
     result: SamplingChatResult,
 ) -> None:
     """Store platform LLM output; parse/citation runs in a follow-up task."""
+    queries = list(result.search_queries)
     row.raw_text = sanitize_text(result.text)
     row.parsed = sanitize_json_value(
         {
             "source_urls_from_api": list(result.source_urls),
             "web_search_mode": result.web_search_mode,
+            "search_queries_from_api": queries,
+            "search_query_events": build_search_query_events(queries, platform=str(row.platform or "")),
         }
     )
     row.usage = sanitize_json_value(result.usage or {})
@@ -34,6 +38,16 @@ def persist_llm_result(
     else:
         row.status = LLMResponseStatus.llm_ready
     row.error_text = ""
+    if queries:
+        from aperix_geo.services.sampling.prompt_fanouts import upsert_prompt_fanouts_for_response
+
+        upsert_prompt_fanouts_for_response(
+            db,
+            prompt_id=row.prompt_id,
+            platform=str(row.platform or ""),
+            queries=queries,
+            seen_at=row.created_at,
+        )
 
 
 def persist_successful_response(

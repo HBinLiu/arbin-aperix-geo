@@ -4,6 +4,10 @@ import { Search } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { promoteSubjectBrand } from "@/api/brand";
+import {
+  dismissPromptFanoutOpportunity,
+  promotePromptFanoutOpportunity,
+} from "@/api/analysis";
 import { AnalysisFilterBar } from "@/components/analysis/common/AnalysisFilterBar";
 import { DEFAULT_TABLE_PAGE_SIZE } from "@/components/analysis/common/TablePagination";
 import {
@@ -16,12 +20,14 @@ import {
   OpportunityCompetitorTable,
   type BrandSortState,
 } from "@/components/opportunity/OpportunityCompetitorTable";
+import { OpportunityPromptFanoutTable } from "@/components/opportunity/OpportunityPromptFanoutTable";
 import { PromptConfirmDialog } from "@/components/prompt/PromptConfirmDialog";
 import { Input } from "@/components/ui/input";
 import { useAnalysisFiltersState } from "@/hooks/useAnalysisFiltersState";
 import { useBacklinkOpportunity } from "@/hooks/useBacklinkOpportunity";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
 import { useBrandOpportunities } from "@/hooks/useBrandOpportunities";
+import { usePromptFanoutOpportunities } from "@/hooks/usePromptFanoutOpportunities";
 import { formatApiError } from "@/api/client";
 import { backlinkOpportunitySortToApiField } from "@/lib/opportunity/backlink";
 import { brandSortToApiField } from "@/lib/opportunity/brand";
@@ -30,13 +36,13 @@ import {
   BACKLINK_OPPORTUNITY_TITLE,
   BRAND_OPPORTUNITY_DESCRIPTION,
   BRAND_OPPORTUNITY_TITLE,
-  SOCIAL_OPPORTUNITY_DESCRIPTION,
-  SOCIAL_OPPORTUNITY_TITLE,
+  PROMPT_FANOUT_OPPORTUNITY_DESCRIPTION,
+  PROMPT_FANOUT_OPPORTUNITY_TITLE,
 } from "@/lib/opportunity/meta";
 import { backlinkOpportunityDetailPath, opportunityTabFromPathname } from "@/lib/opportunity/nav";
 import { clearAnalysisCatalog } from "@/lib/queries";
 import { toast } from "@/lib/toast";
-import type { OpportunityTab } from "@/types";
+import type { OpportunityTab, PromptFanoutOpportunityRow } from "@/types";
 
 const TAB_META: Record<
   OpportunityTab,
@@ -45,7 +51,7 @@ const TAB_META: Record<
   backlink: {
     title: BACKLINK_OPPORTUNITY_TITLE,
     description: BACKLINK_OPPORTUNITY_DESCRIPTION,
-    empty: "暂无反向链接",
+    empty: "暂无引用信源",
     searchPlaceholder: "搜索域名...",
   },
   competitor: {
@@ -54,10 +60,11 @@ const TAB_META: Record<
     empty: "暂无潜在竞品",
     searchPlaceholder: "搜索品牌...",
   },
-  social: {
-    title: SOCIAL_OPPORTUNITY_TITLE,
-    description: SOCIAL_OPPORTUNITY_DESCRIPTION,
-    empty: "社交媒体机会即将推出",
+  prompt: {
+    title: PROMPT_FANOUT_OPPORTUNITY_TITLE,
+    description: PROMPT_FANOUT_OPPORTUNITY_DESCRIPTION,
+    empty: "暂无潜在提示词",
+    searchPlaceholder: "搜索子查询...",
   },
 };
 
@@ -66,11 +73,13 @@ type PromoteConfirmTarget = {
   label: string;
 };
 
+type FanoutPromoteTarget = PromptFanoutOpportunityRow;
+
 type OpportunityContentProps = {
   subjectId: string;
 };
 
-/** 机会页：反向链接 / 潜在竞品 / 社交媒体 Tab */
+/** 机会页：引用信源 / 潜在竞品 / 潜在提示词 */
 export function OpportunityContent({ subjectId }: OpportunityContentProps) {
   const queryClient = useQueryClient();
   const { subject } = useDashboardContext();
@@ -87,6 +96,9 @@ export function OpportunityContent({ subjectId }: OpportunityContentProps) {
   );
   const [competitorSort, setCompetitorSort] = useState<BrandSortState>(DEFAULT_BRAND_SORT);
   const [promoteConfirm, setPromoteConfirm] = useState<PromoteConfirmTarget | null>(null);
+  const [fanoutPromoteConfirm, setFanoutPromoteConfirm] = useState<FanoutPromoteTarget | null>(
+    null,
+  );
 
   useEffect(() => {
     setSearch("");
@@ -133,6 +145,15 @@ export function OpportunityContent({ subjectId }: OpportunityContentProps) {
     };
   }, [page, pageSize, debouncedSearch, competitorSort]);
 
+  const promptFanoutListRequest = useMemo(
+    () => ({
+      page,
+      pageSize,
+      search: debouncedSearch,
+    }),
+    [page, pageSize, debouncedSearch],
+  );
+
   const {
     loading: isBacklinkLoading,
     fetching: isBacklinkFetching,
@@ -162,6 +183,21 @@ export function OpportunityContent({ subjectId }: OpportunityContentProps) {
     activeTab === "competitor",
   );
 
+  const {
+    loading: isPromptFanoutLoading,
+    fetching: isPromptFanoutFetching,
+    rows: promptFanoutRows,
+    total: promptFanoutTotal,
+    page: promptFanoutPage,
+    pageSize: promptFanoutPageSize,
+    refetch: refetchPromptFanouts,
+  } = usePromptFanoutOpportunities(
+    subjectId,
+    filters,
+    promptFanoutListRequest,
+    activeTab === "prompt",
+  );
+
   const promoteMutation = useMutation({
     mutationFn: (brandId: string) => promoteSubjectBrand(subjectId, brandId),
     onSuccess: (result) => {
@@ -175,10 +211,36 @@ export function OpportunityContent({ subjectId }: OpportunityContentProps) {
     },
   });
 
+  const fanoutPromoteMutation = useMutation({
+    mutationFn: (row: PromptFanoutOpportunityRow) =>
+      promotePromptFanoutOpportunity(subjectId, row.id, { enabled: false }),
+    onSuccess: () => {
+      setFanoutPromoteConfirm(null);
+      toast.success("已升级为监测提示词（默认关闭采样，可在提示词库启用）");
+      clearAnalysisCatalog(queryClient, subjectId);
+      void refetchPromptFanouts();
+    },
+    onError: (error) => {
+      toast.error(formatApiError(error));
+    },
+  });
+
+  const fanoutDismissMutation = useMutation({
+    mutationFn: (row: PromptFanoutOpportunityRow) =>
+      dismissPromptFanoutOpportunity(subjectId, row.id),
+    onSuccess: () => {
+      toast.success("已忽略该潜在提示词");
+      void refetchPromptFanouts();
+    },
+    onError: (error) => {
+      toast.error(formatApiError(error));
+    },
+  });
+
   const meta = TAB_META[activeTab];
 
   const afterFilters = meta.searchPlaceholder ? (
-    <div className="relative">
+    <div className="relative w-[min(100%,220px)]">
       <span className="pointer-events-none absolute inset-y-0 left-3.5 z-10 flex items-center">
         <Search className="text-muted-foreground size-3.5" aria-hidden />
       </span>
@@ -188,7 +250,7 @@ export function OpportunityContent({ subjectId }: OpportunityContentProps) {
         onChange={(event) => setSearch(event.target.value)}
         placeholder={meta.searchPlaceholder}
         controlSize="sm"
-        className="border-border h-9 w-[min(100%,220px)] rounded-lg bg-muted-background pr-3 pl-9 text-xs"
+        className="border-border h-9 w-full rounded-lg bg-muted-background pl-9 text-xs"
         aria-label={meta.searchPlaceholder}
       />
     </div>
@@ -243,9 +305,24 @@ export function OpportunityContent({ subjectId }: OpportunityContentProps) {
             onPromote={(target) => setPromoteConfirm(target)}
           />
         ) : (
-          <div className="border-border text-muted-foreground flex min-h-[240px] items-center justify-center rounded-lg border bg-muted-background px-6 py-10 text-sm">
-            {meta.empty}
-          </div>
+          <OpportunityPromptFanoutTable
+            rows={promptFanoutRows}
+            loading={isPromptFanoutLoading}
+            fetching={isPromptFanoutFetching}
+            total={promptFanoutTotal}
+            page={promptFanoutPage}
+            pageSize={promptFanoutPageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            promotingId={
+              fanoutPromoteMutation.isPending ? fanoutPromoteMutation.variables?.id ?? null : null
+            }
+            dismissingId={
+              fanoutDismissMutation.isPending ? fanoutDismissMutation.variables?.id ?? null : null
+            }
+            onPromote={(row) => setFanoutPromoteConfirm(row)}
+            onDismiss={(row) => fanoutDismissMutation.mutate(row)}
+          />
         )}
       </div>
 
@@ -267,6 +344,28 @@ export function OpportunityContent({ subjectId }: OpportunityContentProps) {
         onConfirm={() => {
           if (promoteConfirm) {
             promoteMutation.mutate(promoteConfirm.brandId);
+          }
+        }}
+      />
+
+      <PromptConfirmDialog
+        open={fanoutPromoteConfirm !== null}
+        title="升级为提示词"
+        description={
+          fanoutPromoteConfirm
+            ? `确定将「${fanoutPromoteConfirm.query_text}」升级为监测提示词吗？将占用提示词额度，默认关闭采样。`
+            : ""
+        }
+        confirmLabel="升级"
+        submitting={fanoutPromoteMutation.isPending}
+        onOpenChange={(open) => {
+          if (!open && !fanoutPromoteMutation.isPending) {
+            setFanoutPromoteConfirm(null);
+          }
+        }}
+        onConfirm={() => {
+          if (fanoutPromoteConfirm) {
+            fanoutPromoteMutation.mutate(fanoutPromoteConfirm);
           }
         }}
       />

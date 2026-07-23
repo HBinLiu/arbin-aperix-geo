@@ -2,9 +2,9 @@ import { DASHBOARD_APP_BASE } from "@/lib/dashboard";
 import type { OpportunityTab } from "@/types";
 
 export const OPPORTUNITY_TABS: { id: OpportunityTab; label: string }[] = [
-  { id: "backlink", label: "反向链接" },
+  { id: "backlink", label: "引用信源" },
   { id: "competitor", label: "潜在竞品" },
-  /*{ id: "prompt", label: "潜在提示词" },*/
+  { id: "prompt", label: "潜在提示词" },
 ];
 
 export const DEFAULT_OPPORTUNITY_TAB: OpportunityTab = "backlink";

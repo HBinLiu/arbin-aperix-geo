@@ -19,6 +19,9 @@ export type SubjectPrompt = {
   search_intent: string;
   decision_type: string;
   enabled: boolean;
+  parent_prompt_id?: string;
+  kind?: "root" | "fanout" | string;
+  origin_query?: string;
   created_at: string;
 };
 

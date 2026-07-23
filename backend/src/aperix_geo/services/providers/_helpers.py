@@ -2,7 +2,28 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
+
+# Models sometimes pack multiple search intents into one tool-call query.
+_SEARCH_QUERY_SPLIT_RE = re.compile(
+    r"[;；|｜\n\r,，、]+"  # semicolon / pipe / newline / comma /顿号
+    r"|(?:\s+/\s+)"  # spaced slash only (avoid ChatGPT/Perplexity)
+)
+
+
+def expand_search_queries(queries: list[str] | tuple[str, ...]) -> list[str]:
+    """Split packed provider queries on common delimiters; trim empties."""
+    out: list[str] = []
+    for raw in queries:
+        text = (raw or "").replace("\u3000", " ").strip()
+        if not text:
+            continue
+        for part in _SEARCH_QUERY_SPLIT_RE.split(text):
+            query = part.strip()
+            if query:
+                out.append(query)
+    return out
 
 
 def dedupe_urls(urls: list[str]) -> tuple[str, ...]:
@@ -15,6 +36,29 @@ def dedupe_urls(urls: list[str]) -> tuple[str, ...]:
         seen.add(url)
         out.append(url)
     return tuple(out)
+
+
+def dedupe_search_queries(queries: list[str]) -> tuple[str, ...]:
+    """Expand semicolon-joined queries, then preserve first-seen order (no lowercase)."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for query in expand_search_queries(queries):
+        if query in seen:
+            continue
+        seen.add(query)
+        out.append(query)
+    return tuple(out)
+
+
+def query_from_tool_args(args: dict[str, Any] | Any) -> str:
+    """Pull search query text from provider tool-call argument objects."""
+    if not isinstance(args, dict):
+        return ""
+    for key in ("query", "q", "search_query"):
+        value = args.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
 
 
 def with_system_prompt(

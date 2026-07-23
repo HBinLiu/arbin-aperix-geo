@@ -126,6 +126,28 @@ export const SENTIMENT_RESPONSE_TABLE_MIN_WIDTH = SENTIMENT_RESPONSE_TABLE_COLUM
   0,
 );
 
+/** 查询扇出 · 提示词表列宽（百分比，合计 100%） */
+export const FANOUT_TABLE_COLUMNS = [
+  { id: "prompt", width: "42%" },
+  { id: "platforms", width: "24%" },
+  { id: "trend", width: "18%" },
+  { id: "quantity", width: "16%" },
+] as const;
+
+export const FANOUT_TABLE_MIN_WIDTH = 720;
+export const FANOUT_TABLE_COLUMN_COUNT = FANOUT_TABLE_COLUMNS.length;
+
+/** 提示词详情 · 查询扇出子查询表列宽 */
+export const FANOUT_QUERY_TABLE_COLUMNS = [
+  { id: "name", width: "46%" },
+  { id: "platforms", width: "18%" },
+  { id: "quantity", width: "18%" },
+  { id: "contribution", width: "18%" },
+] as const;
+
+export const FANOUT_QUERY_TABLE_MIN_WIDTH = 640;
+export const FANOUT_QUERY_TABLE_COLUMN_COUNT = FANOUT_QUERY_TABLE_COLUMNS.length;
+
 export function sentimentResponseColumnColStyle(
   column: SentimentResponseTableColumn,
 ): CSSProperties {

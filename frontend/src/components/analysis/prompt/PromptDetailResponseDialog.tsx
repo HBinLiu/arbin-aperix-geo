@@ -335,8 +335,42 @@ export function PromptDetailResponseDialog({
               )}
             </SidebarSection>
 
-            <SidebarSection title="查询扩展">
-              <p className="text-muted-foreground text-sm">未找到查询扩展</p>
+            <SidebarSection title="查询扇出">
+              {(() => {
+                const queries =
+                  parsed?.search_queries_from_api?.filter(Boolean) ??
+                  row.search_queries ??
+                  [];
+                if (detailQuery.isLoading) {
+                  return (
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-3/4" />
+                    </div>
+                  );
+                }
+                if (queries.length === 0) {
+                  return (
+                    <p className="text-muted-foreground text-sm">
+                      {row.fanout_supported === false
+                        ? "该平台未暴露检索词"
+                        : "本次未联网或未触发搜索"}
+                    </p>
+                  );
+                }
+                return (
+                  <div className="space-y-2">
+                    <p className="text-muted-foreground text-xs">本回复扇出 {queries.length} 条</p>
+                    <ul className="space-y-1.5">
+                      {queries.map((query) => (
+                        <li key={query} className="text-sm leading-5">
+                          {query}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })()}
             </SidebarSection>
           </aside>
         </div>

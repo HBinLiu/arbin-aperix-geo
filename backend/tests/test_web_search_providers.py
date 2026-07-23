@@ -83,7 +83,7 @@ def test_normalize_web_search_tool_type_rejects_unknown() -> None:
 def test_deepseek_parse_anthropic_payload_extracts_text_and_urls() -> None:
     data = {
         "content": [
-            {"type": "server_tool_use", "name": "web_search", "id": "srv_1"},
+            {"type": "server_tool_use", "name": "web_search", "id": "srv_1", "input": {"query": "DeepSeek 文档"}},
             {
                 "type": "web_search_tool_result",
                 "tool_use_id": "srv_1",
@@ -109,10 +109,11 @@ def test_deepseek_parse_anthropic_payload_extracts_text_and_urls() -> None:
         ],
         "usage": {"input_tokens": 100, "output_tokens": 50, "server_tool_use": {"web_search_requests": 1}},
     }
-    text, source_urls, searched = parse_deepseek_anthropic_payload(data)
+    text, source_urls, searched, search_queries = parse_deepseek_anthropic_payload(data)
     assert searched is True
     assert "DeepSeek 提供 Context Caching" in text
     assert "https://docs.deepseek.com/guide" in source_urls
+    assert search_queries == ("DeepSeek 文档",)
 
 
 @patch("aperix_geo.services.providers.deepseek.httpx.Client")
@@ -202,6 +203,7 @@ def test_kimi_chat_runs_web_search_tool_loop(mock_openai_cls) -> None:
     tool_call.function.name = "$web_search"
     tool_call.function.arguments = json.dumps(
         {
+            "query": "跨境支付工具对比",
             "search_result": [{"url": "https://docs.moonshot.cn/source"}],
         }
     )
@@ -262,6 +264,7 @@ def test_kimi_chat_runs_web_search_tool_loop(mock_openai_cls) -> None:
     assert result.text == "回答正文 [1](https://docs.moonshot.cn/source)"
     assert result.web_search_mode == "kimi_native"
     assert "https://docs.moonshot.cn/source" in result.source_urls
+    assert result.search_queries == ("跨境支付工具对比",)
     assert mock_client.chat.completions.create.call_count == 2
 
     first_kwargs = mock_client.chat.completions.create.call_args_list[0].kwargs
@@ -324,10 +327,11 @@ def test_doubao_parse_responses_payload_extracts_text_and_citations() -> None:
         ],
         "usage": {"input_tokens": 10, "output_tokens": 20},
     }
-    text, source_urls, searched = parse_responses_payload(data)
+    text, source_urls, searched, search_queries = parse_responses_payload(data)
     assert searched is True
     assert "推荐 A 和 B" in text
     assert source_urls == ("https://example.com/a",)
+    assert search_queries == ("跨境支付工具",)
 
 
 @patch("aperix_geo.services.providers.doubao.OpenAI")

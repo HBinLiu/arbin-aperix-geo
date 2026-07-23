@@ -12,6 +12,7 @@ from aperix_geo.schemas.catalog import (
     GeneratedPromptOut,
     PromptBatchCreate,
     PromptCreate,
+    PromptFanoutPromote,
     PromptOut,
     PromptTaxonomyOut,
     PromptUpdate,
@@ -27,6 +28,7 @@ from aperix_geo.services.prompts.persist import (
     batch_create_subject_prompts,
     create_subject_prompt,
     get_topic_for_subject,
+    promote_fanout_prompt,
 )
 from aperix_geo.services.prompts.taxonomy import (
     normalize_decision_type,
@@ -69,17 +71,40 @@ def list_prompts(
     subject_id: UUID,
     db: DbSession,
     current: CurrentUser,
+    kind: str | None = None,
 ) -> list[Prompt]:
+    """List prompts. Default returns all kinds; pass ``kind=root`` or ``kind=fanout`` to filter."""
     get_subject_for_user(db, current, subject_id)
-    return list(
-        db.execute(
-            select(Prompt)
-            .where(Prompt.subject_id == subject_id)
-            .order_by(Prompt.created_at.asc())
+    q = select(Prompt).where(Prompt.subject_id == subject_id)
+    kind_filter = (kind or "").strip().lower()
+    if kind_filter and kind_filter != "all":
+        q = q.where(Prompt.kind == kind_filter)
+    return list(db.execute(q.order_by(Prompt.created_at.asc())).scalars().all())
+
+
+@router.post(
+    "/subjects/{subject_id}/prompts/{prompt_id}/fanout",
+    response_model=PromptOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def promote_prompt_fanout(
+    subject_id: UUID,
+    prompt_id: UUID,
+    body: PromptFanoutPromote,
+    db: DbSession,
+    current: CurrentUser,
+) -> Prompt:
+    get_subject_for_user(db, current, subject_id)
+    try:
+        return promote_fanout_prompt(
+            db,
+            subject_id,
+            parent_prompt_id=prompt_id,
+            query=body.query,
+            enabled=body.enabled,
         )
-        .scalars()
-        .all()
-    )
+    except (PromptValidationError, QuotaExceededError) as exc:
+        raise _prompt_mutation_error(exc) from exc
 
 
 @router.post("/subjects/{subject_id}/prompts", response_model=PromptOut, status_code=status.HTTP_201_CREATED)

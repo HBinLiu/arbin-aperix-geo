@@ -5,4 +5,25 @@
       width: min(36rem, calc(100% - var(--gutter-h))) !important;
     }
   }
+
+  /* 列表页各列垂直居中（默认 td 为 top） */
+  .table {
+    th,
+    td {
+      vertical-align: middle;
+    }
+
+    .cell-_dragHandle > div {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  }
+
+  .select-all__checkbox,
+  .select-row__checkbox {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 }

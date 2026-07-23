@@ -130,7 +130,7 @@ type OpportunityBacklinkTableProps = {
   onRowClick?: (row: BacklinkOpportunityRow) => void;
 };
 
-/** 反向链接机会表：高权重引用域名与平台分布 */
+/** 引用信源表：高权重引用域名与平台分布 */
 export function OpportunityBacklinkTable({
   rows,
   loading = false,
@@ -229,7 +229,7 @@ export function OpportunityBacklinkTable({
                 colSpan={BACKLINK_OPPORTUNITY_COLUMNS.length}
                 className="text-muted-foreground px-5 py-10 text-center text-sm"
               >
-                暂无反向链接机会
+                暂无引用信源
               </td>
             </tr>
           ) : (

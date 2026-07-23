@@ -99,10 +99,11 @@ export function MembersView() {
               <Search className="text-muted-foreground size-4" aria-hidden />
             </span>
             <Input
+              type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="搜索手机号…"
-              className="pl-9"
+              className="w-full pl-9"
             />
           </div>
           {isAdmin ? (

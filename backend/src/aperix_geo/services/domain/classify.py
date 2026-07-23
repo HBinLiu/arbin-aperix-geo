@@ -1,8 +1,7 @@
-"""Domain content-type classification (Shallalist codes)."""
+"""Domain content-type classification (Shallalist codes via seed + heuristics)."""
 
 from __future__ import annotations
 
-import logging
 from typing import Iterable
 
 from sqlalchemy import select
@@ -13,10 +12,8 @@ from aperix_geo.services.domain.seeds import seed_domain_type
 from aperix_geo.services.domain.taxonomy import DEFAULT_DOMAIN_TYPE, normalize_domain_type
 from aperix_geo.utils.net import registrable_from
 
-logger = logging.getLogger(__name__)
-
-# Pending ML uses source=""; seed/piedomains are final. "other" is fallback after ML miss.
-_RESOLVED_SOURCES = frozenset({"seed", "piedomains"})
+# Seed/heuristic hits are final. Pending rows use source=""; unresolved end as other.
+_RESOLVED_SOURCES = frozenset({"seed"})
 
 
 def _normalize_domain(domain: str) -> str:
@@ -31,7 +28,7 @@ def _is_resolved(row: DomainProfile) -> bool:
 
 
 def ensure_domain_profiles(db: Session, domains: Iterable[str]) -> list[str]:
-    """Upsert profile rows; apply seed types immediately. Returns domains still pending ML."""
+    """Upsert profile rows; apply seed/heuristics. Returns domains still pending."""
     keys = sorted({_normalize_domain(d) for d in domains if _normalize_domain(d)})
     if not keys:
         return []
@@ -83,30 +80,15 @@ def domain_types_for(db: Session, domains: Iterable[str]) -> dict[str, str]:
 
 
 def classify_domains(db: Session, domains: Iterable[str]) -> dict[str, str]:
-    """Classify pending domains via seed, then optional piedomains.
-
-    Domains still unresolved after the attempt stay ``other`` (source=other).
-    """
+    """Classify domains via seed map + TLD heuristics; unresolved → ``other``."""
     pending = ensure_domain_profiles(db, domains)
     if not pending:
         return domain_types_for(db, domains)
 
-    predictions = _classify_with_piedomains(pending)
     rows = {
         row.domain: row
         for row in db.execute(select(DomainProfile).where(DomainProfile.domain.in_(pending))).scalars().all()
     }
-    if predictions:
-        for domain, label in predictions.items():
-            normalized = normalize_domain_type(label)
-            row = rows.get(domain)
-            if row is None or _is_resolved(row):
-                continue
-            if normalized == DEFAULT_DOMAIN_TYPE and not (label or "").strip():
-                continue
-            row.domain_type = normalized
-            row.source = "piedomains"
-
     for domain in pending:
         row = rows.get(domain)
         if row is None or _is_resolved(row):
@@ -115,43 +97,6 @@ def classify_domains(db: Session, domains: Iterable[str]) -> dict[str, str]:
         row.source = "other"
 
     return domain_types_for(db, domains)
-
-
-def _classify_with_piedomains(domains: list[str]) -> dict[str, str]:
-    if not domains:
-        return {}
-    try:
-        from piedomains import DomainClassifier  # type: ignore[import-not-found]
-    except Exception:
-        logger.debug("piedomains not installed; skip ML domain classification")
-        return {}
-
-    try:
-        classifier = DomainClassifier()
-        result = classifier.classify_by_text(domains)
-    except Exception:
-        logger.warning("piedomains classify_by_text failed", exc_info=True)
-        return {}
-
-    out: dict[str, str] = {}
-    # API may return DataFrame or list[dict]
-    if hasattr(result, "iterrows"):
-        for _, row in result.iterrows():
-            domain = _normalize_domain(str(row.get("domain", "")))
-            label = str(row.get("pred_label") or row.get("category") or "").strip()
-            if domain and label:
-                out[domain] = label
-        return out
-
-    if isinstance(result, list):
-        for item in result:
-            if not isinstance(item, dict):
-                continue
-            domain = _normalize_domain(str(item.get("domain", "")))
-            label = str(item.get("pred_label") or item.get("category") or "").strip()
-            if domain and label:
-                out[domain] = label
-    return out
 
 
 def maybe_enqueue_domain_type_classify(domains: Iterable[str]) -> None:

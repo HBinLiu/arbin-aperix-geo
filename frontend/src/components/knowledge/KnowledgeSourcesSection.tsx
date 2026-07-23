@@ -243,11 +243,12 @@ export function KnowledgeSourcesSection({
                 </TabsList>
               </Tabs>
 
-              <div className="relative min-w-0 w-full max-w-full sm:max-w-xs">
+              <div className="relative min-w-0 w-full max-w-full pr-1 sm:max-w-xs">
                 <span className="pointer-events-none absolute inset-y-0 left-3.5 z-10 flex items-center">
                   <Search className="text-muted-foreground size-4" aria-hidden />
                 </span>
                 <Input
+                  type="search"
                   value={query}
                   onChange={(event) => handleSearchChange(event.target.value)}
                   placeholder="搜索名称或内容"

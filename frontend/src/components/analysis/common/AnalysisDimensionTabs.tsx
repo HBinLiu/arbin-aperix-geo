@@ -15,7 +15,7 @@ type AnalysisDimensionTabsProps = {
   embedded?: boolean;
 };
 
-/** 分析页五维度 Tab：未选中黑色，选中/悬停时主色底边滑动指示。 */
+/** 分析页维度 Tab：未选中黑色，选中/悬停时主色底边滑动指示。 */
 export function AnalysisDimensionTabs({
   value,
   className,

@@ -45,12 +45,6 @@ dev = [
     "pytest>=8.3.0",
     "httpx>=0.28.0",
 ]
-domain = [
-    # piedomains → TensorFlow。Intel macOS 仅有 TF 2.16（protobuf<5），
-    # 与 chromadb/opentelemetry（protobuf>=5）同环境会冲突；请用 backend/.venv，
-    # 且该 venv 内不要装 chromadb。
-    "piedomains>=0.5.0",
-]
 url_type = [
     # 官方页面类型分类（含 URL 启发式 + HTML/ML）；需对应平台 wheel。
     "rs-trafilatura>=0.1.0",

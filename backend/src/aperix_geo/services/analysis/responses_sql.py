@@ -50,6 +50,7 @@ def _prompt_chat_base_stmt(
             LLMResponse.prompt_id.label("prompt_id"),
             LLMResponse.created_at.label("created_at"),
             LLMResponse.raw_text.label("raw_text"),
+            LLMResponse.parsed.label("parsed"),
             LLMResponseSignal.mention_rank.label("mention_rank"),
             LLMResponseSignal.sentiment_score.label("sentiment_score"),
             LLMResponseSignal.sentiment_reason.label("sentiment_reason"),
@@ -144,8 +145,11 @@ def _load_prompt_chat_page_sql(
     )
     entities = list_analysis_entities(subject)
 
+    from aperix_geo.services.sampling.fanout import search_queries_from_parsed
+
     rows: list[dict[str, Any]] = []
     for row in page_rows:
+        parsed = row.parsed if isinstance(row.parsed, dict) else {}
         rows.append(
             build_chat_response_row(
                 response_id=row.response_id,
@@ -157,6 +161,7 @@ def _load_prompt_chat_page_sql(
                 signal=_signal_from_chat_row(row),
                 all_signals=mention_brand_signals,
                 entities=entities,
+                search_queries=search_queries_from_parsed(parsed),
             )
         )
     return rows, total

@@ -12,7 +12,9 @@ from openai import APIError, APITimeoutError, OpenAI
 from aperix_geo.services.providers.result import SamplingChatResult
 from aperix_geo.services.providers.errors import KimiProviderError
 from aperix_geo.services.providers._helpers import (
+    dedupe_search_queries,
     dedupe_urls,
+    query_from_tool_args,
     with_system_prompt,
 )
 from aperix_geo.services.providers.openai import (
@@ -123,6 +125,7 @@ def kimi_chat(
     usage: dict[str, Any] = {}
     searched = False
     tool_source_urls: list[str] = []
+    tool_search_queries: list[str] = []
     finish_reason: str | None = None
     text = ""
     iterations = 0
@@ -197,6 +200,9 @@ def kimi_chat(
                     args = {"raw": raw_args}
                 if name == "$web_search":
                     tool_source_urls.extend(_collect_urls_from_value(args))
+                    query = query_from_tool_args(args)
+                    if query:
+                        tool_search_queries.append(query)
                     tool_result: Any = args
                 else:
                     tool_result = {"error": f"unknown tool {name}"}
@@ -226,11 +232,13 @@ def kimi_chat(
         mode = "kimi_chat"
         logger.info("Kimi chat completed without $web_search tool_calls (model skipped search)")
 
+    search_queries = dedupe_search_queries(tool_search_queries)
     logger.info(
-        "Kimi response: latency_ms=%d chars=%d source_urls=%d mode=%s",
+        "Kimi response: latency_ms=%d chars=%d source_urls=%d search_queries=%d mode=%s",
         latency_ms,
         len(text),
         len(source_urls),
+        len(search_queries),
         mode,
     )
     from aperix_geo.services.alerts.billing import provider_id_from_message
@@ -246,4 +254,5 @@ def kimi_chat(
         latency_ms=latency_ms,
         source_urls=source_urls,
         web_search_mode=mode,
+        search_queries=search_queries,
     )

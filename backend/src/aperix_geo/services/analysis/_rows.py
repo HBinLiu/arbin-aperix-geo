@@ -32,9 +32,16 @@ def build_citation_response_row(
 ) -> dict[str, Any] | None:
     if signal is None or not (signal.has_domain_link or signal.cited_on_source):
         return None
+    from aperix_geo.services.sampling.fanout import (
+        platform_exposes_search_queries,
+        search_queries_from_parsed,
+    )
+
+    parsed = response.parsed if isinstance(getattr(response, "parsed", None), dict) else {}
+    platform = str(response.platform or "")
     return {
         "response_id": str(response.id),
-        "platform": response.platform,
+        "platform": platform,
         "reply_preview": reply_preview(response.raw_text),
         "mentioned_brands": mentioned_brands_for_response(
             response.id,
@@ -45,6 +52,8 @@ def build_citation_response_row(
         "rank": mention_rank_display(signal.mention_rank),
         "created_at": response.created_at.isoformat(),
         "cited_on_source": signal.cited_on_source,
+        "search_queries": search_queries_from_parsed(parsed),
+        "fanout_supported": platform_exposes_search_queries(platform),
     }
 
 
@@ -59,10 +68,14 @@ def build_chat_response_row(
     signal: LLMResponseSignalRow | None,
     all_signals: list[LLMResponseSignalRow],
     entities: list,
+    search_queries: list[str] | None = None,
 ) -> dict[str, Any]:
+    from aperix_geo.services.sampling.fanout import platform_exposes_search_queries
+
     mentioned = signal.mentioned if signal is not None else False
     cited = signal.cited_on_source if signal is not None else False
     score = signal.sentiment_score if signal is not None else 0.0
+    queries = [str(q).strip() for q in (search_queries or []) if str(q).strip()]
     return {
         "response_id": str(response_id),
         "platform_id": platform_id,
@@ -81,6 +94,8 @@ def build_chat_response_row(
             entities=entities,
         ),
         "cited_on_source": cited,
+        "search_queries": queries,
+        "fanout_supported": platform_exposes_search_queries(platform_id),
     }
 
 

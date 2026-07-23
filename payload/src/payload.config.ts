@@ -23,6 +23,7 @@ import { createEmailAdapter } from "./lib/email";
 import { contactEndpoint, contactOptionsEndpoint } from "./endpoints/contact";
 import { previewUrlEndpoint } from "./endpoints/preview-url";
 import { getPayloadServerUrl, getWebsiteUrl } from "./lib/urls";
+import { ADMIN_DATE_TIME_FORMAT } from "./lib/admin";
 import { seo } from "./plugins/seo";
 
 const filename = fileURLToPath(import.meta.url);
@@ -35,6 +36,8 @@ export default buildConfig({
   admin: {
     user: Users.slug,
     avatar: "default",
+    /** 列表/详情日期展示：24 小时制（date-fns） */
+    dateFormat: ADMIN_DATE_TIME_FORMAT,
     importMap: {
       baseDir: payloadAppDir,
       importMapFile: path.resolve(payloadAppDir, "./admin/importMap.js"),

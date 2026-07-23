@@ -53,6 +53,9 @@ def chat_result_from_row(row: LLMResponse) -> SamplingChatResult:
             if str(url).strip()
         ),
         web_search_mode=str(prior.get("web_search_mode") or "none"),
+        search_queries=tuple(
+            str(q) for q in (prior.get("search_queries_from_api") or []) if str(q).strip()
+        ),
     )
 
 
@@ -72,6 +75,8 @@ def parse_stored_raw_text(
         subject=subject,
         source_urls=list(prior.get("source_urls_from_api") or []),
         web_search_mode=web_search_mode or str(prior.get("web_search_mode") or "none"),
+        search_queries=list(prior.get("search_queries_from_api") or []),
+        search_query_events=list(prior.get("search_query_events") or []),
         sampling_job_id=sampling_job_id,
         db=db,
     )

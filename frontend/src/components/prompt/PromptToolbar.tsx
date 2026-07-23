@@ -69,7 +69,7 @@ export function PromptToolbar({
               onChange={(event) => onSearchChange(event.target.value)}
               placeholder="搜索提示词..."
               controlSize="sm"
-              className="border-border h-9 w-full rounded-lg bg-muted-background pr-3 pl-8 text-xs"
+              className="border-border h-9 w-full rounded-lg bg-muted-background pl-8 text-xs"
               aria-label="搜索提示词"
               disabled={disabled}
             />

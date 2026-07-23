@@ -45,7 +45,7 @@ export function PromptTopicSidebar({
             onChange={(event) => setSearch(event.target.value)}
             placeholder="搜索主题..."
             controlSize="sm"
-            className="border-border h-9 rounded-lg bg-muted-background pr-3 pl-9 text-xs"
+            className="border-border h-9 rounded-lg bg-muted-background pl-9 text-xs"
             aria-label="搜索主题"
           />
         </div>
