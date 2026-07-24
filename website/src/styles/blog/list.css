@@ -489,70 +489,10 @@
   font-size: 0.9375rem;
 }
 
-/* Pagination */
+/* Pagination（样式由 SitePagination / shadcn pagination 提供） */
 
 .blog-pagination {
-  display: flex;
-  justify-content: center;
   margin-top: 3rem;
-}
-
-.blog-pagination-list {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0.25rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.blog-pagination-control,
-.blog-pagination-page {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 2rem;
-  min-height: 2.25rem;
-  padding-inline: 0.75rem;
-  border-radius: 0.5rem;
-  border: 1px solid transparent;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #64748b;
-  text-decoration: none;
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease,
-    border-color 0.15s ease;
-}
-
-.blog-pagination-control:hover,
-.blog-pagination-page:hover {
-  background: #f8fafc;
-  color: #0f172a;
-}
-
-.blog-pagination-control.is-disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.blog-pagination-page.is-active {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: #fff;
-}
-
-.blog-pagination-ellipsis {
-  display: inline-flex;
-  min-width: 2rem;
-  min-height: 2.25rem;
-  align-items: center;
-  justify-content: center;
-  color: #94a3b8;
-  font-size: 0.875rem;
 }
 
 @media (max-width: 767px) {

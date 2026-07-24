@@ -43,40 +43,42 @@ npm run preview
 
 ## 站点地图（Sitemap）与各搜索引擎提交
 
-构建后 `@astrojs/sitemap` 会在 `dist/` 生成两类文件（符合 [sitemap.org](https://www.sitemaps.org/) 规范）：
+采用建站 skill **模式 A**：营销页走构建期 `@astrojs/sitemap`；CMS 栏目（博客 / 学院 / 研究 / 新闻 / Changelog / 作者）为 **SSR + 动态 sitemap**，后台发布后无需 rebuild 即可打开与进入动态 sitemap。
 
 | 文件 | 类型 | 说明 |
 |------|------|------|
-| `sitemap-index.xml` | 索引 | 指向一个或多个子 sitemap |
-| `sitemap-0.xml` | URL 列表 | 当前全站页面均在此文件（`<urlset>`） |
+| `sitemap-index.xml` / `sitemap-N.xml` | 静态 | 营销页等预渲染路由（已 filter 掉 CMS 路径） |
+| `sitemap-blog.xml` 等 | 动态 SSR | 请求时查 Payload 全量已发布文档 |
 
-站点域名以 `site.config.mjs` 的 `url` 为准（当前为 `https://aperix.ai`）。下文用 `{origin}` 表示该域名。
+站点域名以 `site.config.mjs` 的 `url` 为准。下文用 `{origin}` 表示该域名。
 
-`src/pages/robots.txt.ts` 会向 Google / Bing 等爬虫声明：
+`src/pages/robots.txt.ts` 会声明：
 
 ```txt
 Sitemap: {origin}/sitemap-index.xml
+Sitemap: {origin}/sitemap-blog.xml
+Sitemap: {origin}/sitemap-academy.xml
+Sitemap: {origin}/sitemap-research.xml
+Sitemap: {origin}/sitemap-news.xml
+Sitemap: {origin}/sitemap-changelogs.xml
+Sitemap: {origin}/sitemap-authors.xml
 ```
-
-这是国际搜索引擎的常规入口，**无需为百度单独改 robots.txt**。
 
 ### 各平台填写方式
 
 | 平台 | 控制台 | 提交的 Sitemap URL | 备注 |
 |------|--------|-------------------|------|
-| **Google** | [Search Console](https://search.google.com/search-console) → 站点地图 | `{origin}/sitemap-index.xml` | 支持索引型 |
-| **Bing** | [Bing Webmaster](https://www.bing.com/webmasters) → Sitemaps | `{origin}/sitemap-index.xml` | 支持索引型 |
-| **百度** | [百度搜索资源平台](https://ziyuan.baidu.com) → 资源提交 → 普通收录 → sitemap | `{origin}/sitemap-0.xml` | **勿提交** `sitemap-index.xml`（会提示「索引型不予处理」） |
-| **头条搜索** | [头条搜索站长平台](https://zhanzhang.toutiao.com) → 数据提交 → 链接提交 → sitemap 提交 | `{origin}/sitemap-0.xml` | 支持 XML / TXT；单文件 ≤1 万 URL、≤10MB。与百度类似，提交含 URL 的最终 xml，勿交索引文件 |
-| **360** | [360 站长平台](https://zhanzhang.so.com) | 先试 `{origin}/sitemap-index.xml`，若异常则改 `{origin}/sitemap-0.xml` | |
+| **Google** | [Search Console](https://search.google.com/search-console) → 站点地图 | `{origin}/sitemap-index.xml`，并分别提交各 `sitemap-<topic>.xml` | 支持索引型与动态 urlset |
+| **Bing** | [Bing Webmaster](https://www.bing.com/webmasters) → Sitemaps | 同上 | |
+| **百度** | [百度搜索资源平台](https://ziyuan.baidu.com) → 资源提交 → 普通收录 → sitemap | `{origin}/sitemap-0.xml` + 各 `sitemap-<topic>.xml` | **勿提交** `sitemap-index.xml`（会提示「索引型不予处理」） |
+| **头条搜索** | [头条搜索站长平台](https://zhanzhang.toutiao.com) | 同百度，交最终 urlset | |
+| **360** | [360 站长平台](https://zhanzhang.so.com) | 先试 index，异常则 `sitemap-0.xml` + 动态 topic | |
 | **搜狗** | [搜狗站长平台](https://zhanzhang.sogou.com) | 同上 | |
-| **神马 / 夸克** | [神马站长平台](https://zhanzhang.sm.cn) → Sitemap 提交 | `{origin}/sitemap-0.xml` | 阿里系移动搜索；夸克无独立站长台，与神马共用抓取。建议交最终 urlset，并配合「链接提交 / 实时推送」 |
+| **神马 / 夸克** | [神马站长平台](https://zhanzhang.sm.cn) | `{origin}/sitemap-0.xml` + 各动态 topic | |
 
 **百度 / 头条 / 神马注意：** 若曾误提交 `sitemap-index.xml`，请在对应后台删除，避免占配额且不处理。
 
-**站点变大后：** Astro 可能额外生成 `sitemap-1.xml`、`sitemap-2.xml` …  
-- Google / Bing：仍只提交 `{origin}/sitemap-index.xml`  
-- 百度 / 头条 / 神马：将每个 `sitemap-N.xml` **分别提交**（不要提交 index）
+**生产部署：** CMS SSR 与动态 sitemap 依赖 Node adapter（`astro build` 后的 server）；反向代理需把对应路由转到 website Node 进程，且能访问 Payload API。
 
 ### 其他 SEO 产物
 

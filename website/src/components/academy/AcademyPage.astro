@@ -2,7 +2,7 @@
 import SiteFooter from "@/components/SiteFooter.astro";
 import SiteHeader from "@/components/SiteHeader.astro";
 import StaticImage from "@/components/StaticImage.tsx";
-import AcademyPagination from "@/components/academy/AcademyPagination.astro";
+import SitePagination from "@/components/ui/SitePagination";
 import {
   academyHref,
   type AcademyCategory,
@@ -220,7 +220,7 @@ function categoryLabel(post: AcademyListItem): string {
                 未找到匹配的文章，请尝试其他分类或搜索关键词。
               </p>
 
-              <AcademyPagination />
+              <SitePagination client:load kind="academy" />
             </>
           )
         }

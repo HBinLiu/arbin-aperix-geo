@@ -9,7 +9,7 @@ import {
   researchReportsSection,
   type ResearchListItem,
 } from "@/lib/research";
-import ResearchPagination from "@/components/research/ResearchPagination.astro";
+import SitePagination from "@/components/ui/SitePagination";
 import { ArrowRight } from "@lucide/astro";
 
 type ResearchCategoryOption = {
@@ -103,7 +103,7 @@ const { reports, categories } = Astro.props;
         }
       </div>
 
-      <ResearchPagination />
+      <SitePagination client:load kind="research" />
     </div>
   </section>
 </main>

@@ -11,5 +11,6 @@ export type CmsAuthorDoc = {
     url?: string | null;
   }> | null;
   sortOrder?: number | null;
+  updatedAt?: string | null;
   meta?: CmsSeoMeta | null;
 };

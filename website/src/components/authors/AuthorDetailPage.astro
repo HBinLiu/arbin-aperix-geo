@@ -2,7 +2,7 @@
 import SiteFooter from "@/components/SiteFooter.astro";
 import SiteHeader from "@/components/SiteHeader.astro";
 import StaticImage from "@/components/StaticImage.tsx";
-import BlogPagination from "@/components/blog/BlogPagination.astro";
+import SitePagination from "@/components/ui/SitePagination";
 import { blogHref } from "@/lib/blog";
 import type { AuthorProfile } from "@/lib/authors";
 import type { BlogListItem } from "@/lib/blog";
@@ -141,7 +141,7 @@ function formatUpdatedLabel(value: string | undefined): string {
                 暂无更多文章。
               </p>
 
-              <BlogPagination variant="author" authorSlug={author.slug} />
+              <SitePagination client:load kind="author" authorSlug={author.slug} />
             </>
           )
         }

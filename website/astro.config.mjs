@@ -10,11 +10,37 @@ import { siteConfig } from "./site.config.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 
+/** CMS SSR 栏目：勿进构建期静态 sitemap（由动态 sitemap-*.xml 提供） */
+const CMS_SITEMAP_PATH_PREFIXES = [
+  "/blog",
+  "/academy",
+  "/research",
+  "/news",
+  "/changelogs",
+  "/authors",
+];
+
+function isCmsSitemapPath(pageUrl) {
+  try {
+    const pathName = new URL(pageUrl).pathname.replace(/\/$/, "") || "/";
+    return CMS_SITEMAP_PATH_PREFIXES.some(
+      (prefix) => pathName === prefix || pathName.startsWith(`${prefix}/`),
+    );
+  } catch {
+    return false;
+  }
+}
+
 export default defineConfig({
   site: siteConfig.url,
   output: "static",
   adapter: node({ mode: "standalone" }),
-  integrations: [react(), sitemap()],
+  integrations: [
+    react(),
+    sitemap({
+      filter: (page) => !isCmsSitemapPath(page),
+    }),
+  ],
   vite: {
     plugins: [tailwindcss(), sharedAssetsPlugin()],
     optimizeDeps: {

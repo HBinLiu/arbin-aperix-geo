@@ -1,28 +1,29 @@
 ---
+export const prerender = false;
+
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import AuthorDetailPage from "@/components/authors/AuthorDetailPage.astro";
-import { cmsDocToAuthor, mergeAuthors } from "@/lib/authors/cms";
+import { cmsDocToAuthor } from "@/lib/authors/cms";
 import { mergeBlogList } from "@/lib/blog/cms";
-import { getAuthorBySlug, getAuthors, getBlogList } from "@/lib/payload";
+import { getAuthorBySlug, getBlogList } from "@/lib/payload";
 import { mergeAuthorDetailSeo } from "@/lib/seo";
 import "@/styles/style.css";
 import "@/styles/authors/detail.css";
 
-export async function getStaticPaths() {
-  const authors = mergeAuthors(await getAuthors());
-
-  return authors.map((author) => ({
-    params: { slug: author.slug },
-    props: { author },
-  }));
+const slug = Astro.params.slug?.trim();
+if (!slug) {
+  return new Response(null, { status: 404, statusText: "Not Found" });
 }
 
-const { author: authorProp } = Astro.props;
-const cmsDoc = await getAuthorBySlug(authorProp.slug);
-const author = cmsDoc ? cmsDocToAuthor(cmsDoc) : authorProp;
+const cmsDoc = await getAuthorBySlug(slug);
+if (!cmsDoc) {
+  return new Response(null, { status: 404, statusText: "Not Found" });
+}
+
+const author = cmsDocToAuthor(cmsDoc);
 const allPosts = mergeBlogList(await getBlogList());
 const posts = allPosts.filter((post) => post.author?.slug === author.slug);
-const seo = mergeAuthorDetailSeo(author, cmsDoc?.meta);
+const seo = mergeAuthorDetailSeo(author, cmsDoc.meta);
 ---
 
 <BaseLayout seo={seo}>

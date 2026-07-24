@@ -1,27 +1,9 @@
+import { getPageItems, parseListPage } from "@/lib/pagination";
+
 /** 与博客列表一致：3 列 × 2 行 */
 export const ACADEMY_LIST_PAGE_SIZE = 6;
 
-export function getAcademyPageItems(
-  current: number,
-  totalPages: number,
-): (number | "ellipsis")[] {
-  if (totalPages <= 7) {
-    return Array.from({ length: totalPages }, (_, index) => index + 1);
-  }
-
-  const items: (number | "ellipsis")[] = [1];
-  if (current > 3) items.push("ellipsis");
-
-  const start = Math.max(2, current - 1);
-  const end = Math.min(totalPages - 1, current + 1);
-  for (let page = start; page <= end; page += 1) {
-    items.push(page);
-  }
-
-  if (current < totalPages - 2) items.push("ellipsis");
-  items.push(totalPages);
-  return items;
-}
+export const getAcademyPageItems = getPageItems;
 
 export function buildAcademyListUrl(
   page: number,
@@ -37,10 +19,7 @@ export function buildAcademyListUrl(
   return query ? `/academy/?${query}` : "/academy/";
 }
 
-export function parseAcademyListPage(value: string | null | undefined): number {
-  const parsed = Number.parseInt(value ?? "1", 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
-}
+export const parseAcademyListPage = parseListPage;
 
 export function parseAcademyListCategory(params: URLSearchParams | string | null | undefined): string {
   if (typeof params === "string" || params == null) {

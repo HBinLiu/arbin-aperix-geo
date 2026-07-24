@@ -2,7 +2,7 @@
 import SiteFooter from "@/components/SiteFooter.astro";
 import SiteHeader from "@/components/SiteHeader.astro";
 import StaticImage from "@/components/StaticImage.tsx";
-import BlogPagination from "@/components/blog/BlogPagination.astro";
+import SitePagination from "@/components/ui/SitePagination";
 import {
   blogHref,
   type BlogCategory,
@@ -261,7 +261,7 @@ function readTimeLabel(minutes: number | undefined): string {
                 未找到匹配的文章，请尝试其他分类或搜索关键词。
               </p>
 
-              <BlogPagination />
+              <SitePagination client:load kind="blog" />
             </>
           )
         }

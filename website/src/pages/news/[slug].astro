@@ -1,24 +1,26 @@
 ---
+export const prerender = false;
+
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import NewsDetailPage from "@/components/news/NewsDetailPage.astro";
-import { mergeNewsList } from "@/lib/news/cms";
+import { cmsDocToNewsListItem } from "@/lib/news/cms";
 import { buildNewsDetail } from "@/lib/news/detail";
-import { getNewsBySlug, getNewsList } from "@/lib/payload";
+import { getNewsBySlug } from "@/lib/payload";
 import { mergeNewsDetailSeo } from "@/lib/seo";
 import "@/styles/style.css";
 import "@/styles/news/detail.css";
 
-export async function getStaticPaths() {
-  const items = mergeNewsList(await getNewsList());
-
-  return items.map((item) => ({
-    params: { slug: item.slug },
-    props: { item },
-  }));
+const slug = Astro.params.slug?.trim();
+if (!slug) {
+  return new Response(null, { status: 404, statusText: "Not Found" });
 }
 
-const { item } = Astro.props;
-const cmsDoc = await getNewsBySlug(item.slug);
+const cmsDoc = await getNewsBySlug(slug);
+if (!cmsDoc) {
+  return new Response(null, { status: 404, statusText: "Not Found" });
+}
+
+const item = cmsDocToNewsListItem(cmsDoc);
 const detail = buildNewsDetail(item, cmsDoc);
 const seo = mergeNewsDetailSeo(
   {
@@ -26,7 +28,7 @@ const seo = mergeNewsDetailSeo(
     description: item.cardDescription,
     slug: item.slug,
   },
-  cmsDoc?.meta,
+  cmsDoc.meta,
 );
 ---
 

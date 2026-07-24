@@ -57,11 +57,17 @@ export type { CmsAuthorDoc };
 
 type PayloadListResponse<T> = {
   docs: T[];
+  totalDocs?: number;
+  totalPages?: number;
+  page?: number;
+  hasNextPage?: boolean;
 };
 
 const CMS_API_PATH = "/cms/api";
 const ABOUT_GLOBAL_SLUG = "about-page";
 const PAYLOAD_TIMEOUT_MS = import.meta.env.DEV ? 15_000 : 5_000;
+/** 全量拉取时单页大小上限（禁止用单次 limit 当全站上限） */
+const CMS_PAGE_SIZE_MAX = 100;
 
 export function payloadApiBase(): string {
   const configured = (import.meta.env.PAYLOAD_API_URL || CMS_API_PATH).replace(/\/$/, "");
@@ -92,6 +98,44 @@ async function payloadFetch<T>(path: string, init?: RequestInit): Promise<T | nu
   } catch {
     return null;
   }
+}
+
+type FetchAllCollectionOptions = {
+  collection: string;
+  depth?: number;
+  sort?: string;
+  pageSize?: number;
+  /** 默认 true：只取已发布；作者等无草稿的集合传 false */
+  publishedOnly?: boolean;
+};
+
+/** 分页拉全量已发布文档（模式 A/B 共用） */
+async function fetchAllCollectionDocs<T>(opts: FetchAllCollectionOptions): Promise<T[]> {
+  const pageSize = Math.min(Math.max(opts.pageSize ?? CMS_PAGE_SIZE_MAX, 1), CMS_PAGE_SIZE_MAX);
+  const docs: T[] = [];
+  let page = 1;
+  let totalPages = 1;
+
+  do {
+    const query = new URLSearchParams({
+      limit: String(pageSize),
+      page: String(page),
+      depth: String(opts.depth ?? 1),
+      sort: opts.sort ?? "-publishedAt",
+    });
+    if (opts.publishedOnly !== false) {
+      query.set("where[_status][equals]", "published");
+    }
+
+    const data = await payloadFetch<PayloadListResponse<T>>(`/${opts.collection}?${query}`);
+    if (!data?.docs?.length) break;
+
+    docs.push(...data.docs);
+    totalPages = Math.max(1, data.totalPages ?? 1);
+    page += 1;
+  } while (page <= totalPages);
+
+  return docs;
 }
 
 export async function getAboutPage(): Promise<CmsAboutPage | null> {
@@ -155,18 +199,17 @@ export async function getResearchCategories(): Promise<CmsResearchCategoryDoc[] 
   return data.docs;
 }
 
-export async function getResearchList(): Promise<CmsResearchDoc[] | null> {
-  const query = new URLSearchParams({
-    limit: "100",
-    depth: "1",
+export async function getAllResearchDocs(): Promise<CmsResearchDoc[]> {
+  return fetchAllCollectionDocs<CmsResearchDoc>({
+    collection: RESEARCH_COLLECTION,
+    depth: 1,
     sort: "-publishedAt",
-    "where[_status][equals]": "published",
   });
-  const data = await payloadFetch<PayloadListResponse<CmsResearchDoc>>(
-    `/${RESEARCH_COLLECTION}?${query}`,
-  );
-  if (!data?.docs?.length) return null;
-  return data.docs;
+}
+
+export async function getResearchList(): Promise<CmsResearchDoc[] | null> {
+  const docs = await getAllResearchDocs();
+  return docs.length ? docs : null;
 }
 
 export async function getResearchBySlug(slug: string): Promise<CmsResearchDoc | null> {
@@ -206,16 +249,17 @@ export async function getResearchDraftBySlug(
 
 const NEWS_COLLECTION = "news";
 
-export async function getNewsList(): Promise<CmsNewsDoc[] | null> {
-  const query = new URLSearchParams({
-    limit: "200",
-    depth: "0",
+export async function getAllNewsDocs(): Promise<CmsNewsDoc[]> {
+  return fetchAllCollectionDocs<CmsNewsDoc>({
+    collection: NEWS_COLLECTION,
+    depth: 0,
     sort: "-publishedAt",
-    "where[_status][equals]": "published",
   });
-  const data = await payloadFetch<PayloadListResponse<CmsNewsDoc>>(`/${NEWS_COLLECTION}?${query}`);
-  if (!data?.docs?.length) return null;
-  return data.docs;
+}
+
+export async function getNewsList(): Promise<CmsNewsDoc[] | null> {
+  const docs = await getAllNewsDocs();
+  return docs.length ? docs : null;
 }
 
 export async function getNewsBySlug(slug: string): Promise<CmsNewsDoc | null> {
@@ -262,17 +306,18 @@ export async function getBlogCategories(): Promise<CmsBlogCategoryDoc[] | null> 
   return data.docs;
 }
 
-export async function getBlogList(): Promise<CmsBlogDoc[] | null> {
-  const query = new URLSearchParams({
-    limit: "200",
+export async function getAllBlogDocs(): Promise<CmsBlogDoc[]> {
+  return fetchAllCollectionDocs<CmsBlogDoc>({
+    collection: BLOG_COLLECTION,
     // depth 2：展开 author.avatar（depth 1 时 avatar 仅为 media id）
-    depth: "2",
+    depth: 2,
     sort: "-publishedAt",
-    "where[_status][equals]": "published",
   });
-  const data = await payloadFetch<PayloadListResponse<CmsBlogDoc>>(`/${BLOG_COLLECTION}?${query}`);
-  if (!data?.docs?.length) return null;
-  return data.docs;
+}
+
+export async function getBlogList(): Promise<CmsBlogDoc[] | null> {
+  const docs = await getAllBlogDocs();
+  return docs.length ? docs : null;
 }
 
 export async function getBlogBySlug(slug: string): Promise<CmsBlogDoc | null> {
@@ -317,18 +362,17 @@ export async function getAcademyCategories(): Promise<CmsAcademyCategoryDoc[] | 
   return data.docs;
 }
 
-export async function getAcademyList(): Promise<CmsAcademyDoc[] | null> {
-  const query = new URLSearchParams({
-    limit: "200",
-    depth: "1",
+export async function getAllAcademyDocs(): Promise<CmsAcademyDoc[]> {
+  return fetchAllCollectionDocs<CmsAcademyDoc>({
+    collection: ACADEMY_COLLECTION,
+    depth: 1,
     sort: "-publishedAt",
-    "where[_status][equals]": "published",
   });
-  const data = await payloadFetch<PayloadListResponse<CmsAcademyDoc>>(
-    `/${ACADEMY_COLLECTION}?${query}`,
-  );
-  if (!data?.docs?.length) return null;
-  return data.docs;
+}
+
+export async function getAcademyList(): Promise<CmsAcademyDoc[] | null> {
+  const docs = await getAllAcademyDocs();
+  return docs.length ? docs : null;
 }
 
 export async function getAcademyBySlug(slug: string): Promise<CmsAcademyDoc | null> {
@@ -367,18 +411,17 @@ export async function getAcademyDraftBySlug(
 
 const CHANGELOG_COLLECTION = "changelogs";
 
-export async function getChangelogList(): Promise<CmsChangelogDoc[] | null> {
-  const query = new URLSearchParams({
-    limit: "200",
-    depth: "2",
+export async function getAllChangelogDocs(): Promise<CmsChangelogDoc[]> {
+  return fetchAllCollectionDocs<CmsChangelogDoc>({
+    collection: CHANGELOG_COLLECTION,
+    depth: 2,
     sort: "-publishedAt",
-    "where[_status][equals]": "published",
   });
-  const data = await payloadFetch<PayloadListResponse<CmsChangelogDoc>>(
-    `/${CHANGELOG_COLLECTION}?${query}`,
-  );
-  if (!data?.docs?.length) return null;
-  return data.docs;
+}
+
+export async function getChangelogList(): Promise<CmsChangelogDoc[] | null> {
+  const docs = await getAllChangelogDocs();
+  return docs.length ? docs : null;
 }
 
 export async function getChangelogBySlug(slug: string): Promise<CmsChangelogDoc | null> {
@@ -415,17 +458,18 @@ export async function getChangelogDraftBySlug(
   return data?.docs[0] ?? null;
 }
 
-export async function getAuthors(): Promise<CmsAuthorDoc[] | null> {
-  const query = new URLSearchParams({
-    limit: "100",
-    depth: "1",
+export async function getAllAuthorDocs(): Promise<CmsAuthorDoc[]> {
+  return fetchAllCollectionDocs<CmsAuthorDoc>({
+    collection: AUTHORS_COLLECTION,
+    depth: 1,
     sort: "-sortOrder",
+    publishedOnly: false,
   });
-  const data = await payloadFetch<PayloadListResponse<CmsAuthorDoc>>(
-    `/${AUTHORS_COLLECTION}?${query}`,
-  );
-  if (!data?.docs?.length) return null;
-  return data.docs;
+}
+
+export async function getAuthors(): Promise<CmsAuthorDoc[] | null> {
+  const docs = await getAllAuthorDocs();
+  return docs.length ? docs : null;
 }
 
 export async function getAuthorBySlug(slug: string): Promise<CmsAuthorDoc | null> {

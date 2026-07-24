@@ -1,25 +1,27 @@
 ---
+export const prerender = false;
+
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import ResearchDetailPage from "@/components/research/ResearchDetailPage.astro";
-import { mergeResearchList } from "@/lib/research/cms";
+import { cmsDocToResearchListItem } from "@/lib/research/cms";
 import { buildResearchDetail } from "@/lib/research/detail";
-import { getResearchBySlug, getResearchList } from "@/lib/payload";
+import { getResearchBySlug } from "@/lib/payload";
 import { resolveResearchMediaUrl } from "@/lib/research/media";
 import { mergeResearchDetailSeo } from "@/lib/seo";
 import "@/styles/style.css";
 import "@/styles/research/detail.css";
 
-export async function getStaticPaths() {
-  const reports = mergeResearchList(await getResearchList());
-
-  return reports.map((report) => ({
-    params: { slug: report.slug },
-    props: { report },
-  }));
+const slug = Astro.params.slug?.trim();
+if (!slug) {
+  return new Response(null, { status: 404, statusText: "Not Found" });
 }
 
-const { report } = Astro.props;
-const cmsDoc = await getResearchBySlug(report.slug);
+const cmsDoc = await getResearchBySlug(slug);
+if (!cmsDoc) {
+  return new Response(null, { status: 404, statusText: "Not Found" });
+}
+
+const report = cmsDocToResearchListItem(cmsDoc);
 const detail = buildResearchDetail(report, cmsDoc);
 const seo = mergeResearchDetailSeo(
   {
@@ -27,8 +29,8 @@ const seo = mergeResearchDetailSeo(
     description: report.cardDescription,
     slug: report.slug,
   },
-  cmsDoc?.meta,
-  resolveResearchMediaUrl(cmsDoc?.cover),
+  cmsDoc.meta,
+  resolveResearchMediaUrl(cmsDoc.cover),
 );
 ---
 

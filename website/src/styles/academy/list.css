@@ -471,49 +471,8 @@
   font-size: 0.875rem;
 }
 
+/* Pagination（样式由 SitePagination / shadcn pagination 提供） */
+
 .academy-pagination {
-  width: 100%;
   margin-top: 1rem;
-}
-
-.academy-pagination-list {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.academy-pagination-page,
-.academy-pagination-control {
-  display: inline-flex;
-  min-width: 2.25rem;
-  align-items: center;
-  justify-content: center;
-  padding: 0.375rem 0.75rem;
-  border: 1px solid var(--academy-line);
-  border-radius: 0.375rem;
-  background: #fff;
-  color: var(--color-foreground);
-  font-size: 0.875rem;
-  text-decoration: none;
-}
-
-.academy-pagination-page.is-active {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: #fff;
-}
-
-.academy-pagination-control.is-disabled {
-  opacity: 0.45;
-  pointer-events: none;
-}
-
-.academy-pagination-ellipsis {
-  color: var(--academy-muted);
-  padding-inline: 0.25rem;
 }
