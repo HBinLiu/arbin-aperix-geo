@@ -1,11 +1,11 @@
 import * as React from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { AuthShell } from "@/components/layouts/AuthShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { loginWithOtp, loginWithPassword, sendAuthCode } from "@/api/auth";
+import { loginWithOtp, sendAuthCode } from "@/api/auth";
 import { setStoredToken } from "@/api/client";
 import { sanitizeReturnPath } from "@/lib/auth";
 
@@ -16,7 +16,6 @@ export function LoginPage() {
   const [searchParams] = useSearchParams();
   const [channel, setChannel] = React.useState<Channel>("phone");
   const [email, setEmail] = React.useState("");
-  const [password, setPassword] = React.useState("");
   const [phone, setPhone] = React.useState("");
   const [code, setCode] = React.useState("");
   const [cooldown, setCooldown] = React.useState(0);
@@ -36,14 +35,16 @@ export function LoginPage() {
     setCooldown(0);
   };
 
-  const sendPhoneCode = async () => {
+  const target = channel === "email" ? email.trim() : phone.trim();
+
+  const sendCode = async () => {
     setInfo(null);
     setLoading(true);
     try {
       const data = await sendAuthCode({
         purpose: "login",
-        channel: "phone",
-        target: phone.trim(),
+        channel,
+        target,
       });
       setCooldown(60);
       if (data.dev_code) {
@@ -58,32 +59,14 @@ export function LoginPage() {
     }
   };
 
-  const submitEmail = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setInfo(null);
-    setLoading(true);
-    try {
-      const data = await loginWithPassword({
-        email: email.trim().toLowerCase(),
-        password: password,
-      });
-      setStoredToken(data.access_token);
-      navigate(sanitizeReturnPath(searchParams.get("next")));
-    } catch {
-      /* 错误已由 API 拦截器弹出 Toast */
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const submitPhone = async (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setInfo(null);
     setLoading(true);
     try {
       const data = await loginWithOtp({
-        channel: "phone",
-        target: phone.trim(),
+        channel,
+        target,
         code: code.trim(),
       });
       setStoredToken(data.access_token);
@@ -95,66 +78,23 @@ export function LoginPage() {
     }
   };
 
-  const description =
-    channel === "email" ? (
-      <>
-        使用注册邮箱与密码登录。新用户？{" "}
-        <Link
-          className="text-foreground font-medium underline underline-offset-4 hover:text-primary"
-          to="/auth/register"
-        >
-          注册账号
-        </Link>
-      </>
-    ) : (
-      <>手机号码若未注册，验证通过后将自动完成注册。</>
-    );
-
   return (
-    <AuthShell title="登录 Aperix AI" description={description}>
+    <AuthShell
+      title="登录 Aperix AI"
+      description="使用手机号或邮箱接收验证码登录；若未开通账号，验证通过后将自动完成注册。"
+    >
       <Tabs value={channel} onValueChange={(value) => setChannelAndReset(value as Channel)}>
         <TabsList className="grid h-10 w-full grid-cols-2 gap-1 p-1">
           <TabsTrigger value="phone" className="w-full">
             手机号
           </TabsTrigger>
           <TabsTrigger value="email" className="w-full">
-            邮箱登录
+            邮箱
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="email" className="mt-6">
-          <form className="flex flex-col gap-4" onSubmit={submitEmail}>
-            <div className="space-y-2">
-              <Input
-                id="login-email"
-                className="h-11"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="企业邮箱"
-                autoComplete="email"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Input
-                id="login-password"
-                className="h-11"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="登录密码"
-                autoComplete="current-password"
-                required
-              />
-            </div>
-            <Button type="submit" className="h-11 w-full text-base font-medium" disabled={loading}>
-              登录
-            </Button>
-          </form>
-        </TabsContent>
-
         <TabsContent value="phone" className="mt-6">
-          <form className="flex flex-col gap-4" onSubmit={submitPhone}>
+          <form className="flex flex-col gap-4" onSubmit={submit}>
             <div className="space-y-2">
               <Input
                 id="login-phone"
@@ -169,7 +109,7 @@ export function LoginPage() {
             <div className="space-y-2">
               <div className="flex gap-2">
                 <Input
-                  id="login-code"
+                  id="login-phone-code"
                   className="h-11 min-w-0 flex-1"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
@@ -182,8 +122,51 @@ export function LoginPage() {
                   type="button"
                   variant="background"
                   className="bg-background h-11 w-28 shrink-0 justify-center px-2 font-medium tabular-nums"
-                  disabled={loading || cooldown > 0}
-                  onClick={sendPhoneCode}
+                  disabled={loading || cooldown > 0 || !phone.trim()}
+                  onClick={() => void sendCode()}
+                >
+                  {cooldown > 0 ? `${cooldown}s` : "发送验证码"}
+                </Button>
+              </div>
+            </div>
+            {info ? <p className="text-muted-foreground text-sm">{info}</p> : null}
+            <Button type="submit" className="h-11 w-full text-base font-medium" disabled={loading}>
+              验证并登录
+            </Button>
+          </form>
+        </TabsContent>
+
+        <TabsContent value="email" className="mt-6">
+          <form className="flex flex-col gap-4" onSubmit={submit}>
+            <div className="space-y-2">
+              <Input
+                id="login-email"
+                className="h-11"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="电子邮箱"
+                autoComplete="email"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Input
+                  id="login-email-code"
+                  className="h-11 min-w-0 flex-1"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="验证码"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  required
+                />
+                <Button
+                  type="button"
+                  variant="background"
+                  className="bg-background h-11 w-28 shrink-0 justify-center px-2 font-medium tabular-nums"
+                  disabled={loading || cooldown > 0 || !email.trim()}
+                  onClick={() => void sendCode()}
                 >
                   {cooldown > 0 ? `${cooldown}s` : "发送验证码"}
                 </Button>

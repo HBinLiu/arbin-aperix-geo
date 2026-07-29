@@ -7,7 +7,7 @@ function envUrl(name: "PUBLIC_REGISTER_URL" | "PUBLIC_LOGIN_URL", fallback: stri
 
 /** 构建期解析后的注册 / 登录 URL（来自 PUBLIC_*，缺省为同域相对路径） */
 export const appLinks = {
-  register: envUrl("PUBLIC_REGISTER_URL", "/auth/register"),
+  register: envUrl("PUBLIC_REGISTER_URL", "/auth/login"),
   login: envUrl("PUBLIC_LOGIN_URL", "/auth/login"),
 } as const;
 

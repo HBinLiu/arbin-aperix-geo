@@ -24,6 +24,7 @@ def _to_payload(result: SamplingChatResult) -> dict[str, Any]:
         "source_urls": list(result.source_urls),
         "web_search_mode": result.web_search_mode,
         "search_queries": list(result.search_queries),
+        "share_url": result.share_url,
         "expires_at": expires_at_from_ttl(ttl_s),
     }
 
@@ -38,6 +39,7 @@ def _from_payload(payload: dict[str, Any]) -> SamplingChatResult:
         search_queries=tuple(
             str(q) for q in (payload.get("search_queries") or []) if str(q).strip()
         ),
+        share_url=str(payload.get("share_url") or ""),
     )
 
 

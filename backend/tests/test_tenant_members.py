@@ -18,7 +18,6 @@ def _user(*, tenant_id: uuid.UUID | None = None, role: str = UserRole.admin.valu
         tenant_id=tenant_id or uuid.uuid4(),
         phone="13800138000",
         email="",
-        password="",
         role=role,
     )
 

@@ -1,4 +1,4 @@
-"""SMS / email verification codes stored in Redis; 手机验证码可走阿里云短信。"""
+"""SMS / email verification codes stored in Redis; 手机走阿里云，邮箱走 SMTP。"""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from aperix_geo.utils.contact import normalize_email, normalize_phone_cn
 
 logger = logging.getLogger(__name__)
 
-Purpose = Literal["register", "login", "bind", "invite"]
+Purpose = Literal["login", "bind", "invite"]
 Channel = Literal["email", "phone"]
 
 
@@ -22,6 +22,11 @@ def is_dev_environment(settings: Settings) -> bool:
 
 def sms_use_dev_stub(settings: Settings) -> bool:
     """development / dev / local：手机号不走真实短信网关。"""
+    return is_dev_environment(settings)
+
+
+def email_use_dev_stub(settings: Settings) -> bool:
+    """development / dev / local：邮箱不走真实 SMTP。"""
     return is_dev_environment(settings)
 
 
@@ -48,9 +53,10 @@ def send_code(
     target_raw: str,
 ) -> tuple[bool, str | None]:
     """
-    写入 Redis 验证码。
-    手机通道：开发环境（ENV=development|dev|local）生成随机验证码并回显，不调用阿里云；
-    非开发且 SMS_ALIYUN_ENABLED=true 时调用阿里云 SendSms。
+    写入 Redis 验证码并按通道投递。
+
+    - 开发环境（ENV=development|dev|local）：不发真实短信/邮件，API 可回显 ``dev_code``。
+    - 生产邮箱：需配置 SMTP；生产手机：需配置阿里云短信密钥/签名/模板（配齐即发，无需额外开关）。
     返回 (是否已写入, 可在 JSON 中回显的验证码)。
     """
     if channel == "email":
@@ -68,21 +74,28 @@ def send_code(
     r.setex(otp_key, settings.otp_code_ttl_seconds, code)
     r.setex(cd_key, settings.otp_send_interval_seconds, "1")
 
-    if channel == "email":
-        logger.info("OTP email (stub) to=%s purpose=%s (dev: code=%s)", target, purpose, code)
-    elif channel == "phone" and sms_use_dev_stub(settings):
-        logger.info("OTP SMS dev stub (no Aliyun) to=%s purpose=%s code=%s", target, purpose, code)
-    elif settings.sms_aliyun_enabled:
-        try:
+    try:
+        if channel == "email":
+            if email_use_dev_stub(settings):
+                logger.info("OTP email dev stub to=%s purpose=%s code=%s", target, purpose, code)
+            else:
+                from aperix_geo.services.auth.email import send_verification_email
+
+                send_verification_email(settings, email=target, code=code, purpose=purpose)
+        elif sms_use_dev_stub(settings):
+            logger.info("OTP SMS dev stub (no Aliyun) to=%s purpose=%s code=%s", target, purpose, code)
+        else:
             from aperix_geo.services.auth import sms
 
+            if not sms.sms_aliyun_configured(settings):
+                raise RuntimeError(
+                    "短信未配置（请设置 SMS_ALIYUN_ACCESS_KEY_ID / SECRET、SIGN_NAME、TEMPLATE_CODE）"
+                )
             sms.send_verification_sms(settings, phone_cn11=target, code=code)
-        except Exception:
-            r.delete(otp_key)
-            r.delete(cd_key)
-            raise
-    else:
-        logger.info("OTP SMS (stub, set SMS_ALIYUN_ENABLED=true for Aliyun) to=%s purpose=%s code=%s", target, purpose, code)
+    except Exception:
+        r.delete(otp_key)
+        r.delete(cd_key)
+        raise
 
     # 仅开发环境在 API 响应中回显验证码；生产绝不回显
     exposed = code if is_dev_environment(settings) else None

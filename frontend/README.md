@@ -49,7 +49,7 @@ npm install
 npm run dev
 ```
 
-浏览器默认 **http://127.0.0.1:5173** 打开 **官网**（`/`）；**租户控制台**在 **`/app`**（无 token 会重定向到 **`/auth/login?next=/app`**）。**邮箱**：`/auth/register` 用验证码+密码注册，`/auth/login` 用邮箱+密码登录。**手机号**：仅在 `/auth/login` 选「手机号」发登录验证码，未注册号码验证通过即自动注册。后端默认 **`ENV=development`** 时手机号随机验证码并回显 **`dev_code`**，不发送真实短信；生产请设为 **`ENV=production`**。开发环境下邮箱注册验证码也会在 **`dev_code`** 回显。
+浏览器默认 **http://127.0.0.1:5173** 打开 **官网**（`/`）；**租户控制台**在 **`/app`**（无 token 会重定向到 **`/auth/login?next=/app`**）。登录页支持 **手机号** 或 **邮箱** 验证码登录；未注册账号在验证通过后自动开通。后端默认 **`ENV=development`** 时邮箱/手机均不真实发送，响应回显 **`dev_code`**；生产请设 **`ENV=production`**，并配置 **SMTP_***（邮箱）与 **SMS_ALIYUN_***（手机）。
 
 ---
 

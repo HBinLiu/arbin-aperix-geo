@@ -22,6 +22,7 @@ def test_llm_result_payload_round_trip() -> None:
         latency_ms=1234,
         source_urls=("https://example.com",),
         web_search_mode="deepseek_native",
+        share_url="https://www.doubao.com/share/abc",
     )
     restored = _from_payload(_to_payload(original))
     assert restored == original

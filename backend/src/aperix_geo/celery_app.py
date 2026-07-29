@@ -35,6 +35,7 @@ def make_celery() -> Celery:
     }
     interval = s.sampling_scheduler_interval_minutes
     beat_hours = sampling_beat_cron_hour_range(settings=s)
+    hb_interval = max(5, int(s.doubao_heartbeat_interval_min))
     app.conf.update(
         task_default_queue=s.celery_default_queue,
         task_queues=celery_task_queues(settings=s),
@@ -58,6 +59,11 @@ def make_celery() -> Celery:
                 "task": "aperix_geo.tasks.billing.billing_maintenance",
                 "schedule": crontab(minute=5, hour=0),
             },
+            # Task no-ops when DOUBAO_HEARTBEAT_ENABLED=false
+            "doubao-account-heartbeat": {
+                "task": "aperix_geo.tasks.doubao_accounts.doubao_account_heartbeat",
+                "schedule": crontab(minute=f"*/{hb_interval}"),
+            },
         },
     )
     app.conf.include = [
@@ -67,6 +73,7 @@ def make_celery() -> Celery:
         "aperix_geo.tasks.alert",
         "aperix_geo.tasks.billing",
         "aperix_geo.tasks.knowledge",
+        "aperix_geo.tasks.doubao_accounts",
     ]
     return app
 

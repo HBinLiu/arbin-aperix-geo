@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Copy, UserRound } from "lucide-react";
+import { Check, Copy, ExternalLink, UserRound } from "lucide-react";
 
 import { fetchLlmResponse } from "@/api/responses";
 import { BrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
@@ -60,6 +60,66 @@ function CopyButton({ text, className }: { text: string; className?: string }) {
       {copied ? <Check className="size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
       复制
     </button>
+  );
+}
+
+function QueryLinkControl({
+  shareUrl,
+  loading,
+}: {
+  shareUrl: string;
+  loading?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+  const url = shareUrl.trim();
+
+  if (loading) {
+    return <Skeleton className="h-8 w-[5.5rem] shrink-0 rounded-md" />;
+  }
+
+  if (!url) {
+    return (
+      <span
+        className="text-muted-foreground inline-flex h-8 shrink-0 items-center rounded-md px-2.5 text-xs leading-none"
+        title="API 采样或旧数据无分享链接"
+      >
+        暂无查询链接
+      </span>
+    );
+  }
+
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast.success("查询链接已复制");
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("复制失败");
+    }
+  };
+
+  return (
+    <div className="inline-flex h-8 shrink-0 items-stretch overflow-hidden rounded-md border border-border bg-muted-background">
+      <a
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        className="text-foreground inline-flex items-center gap-1 px-2.5 text-xs leading-none transition-colors hover:bg-muted/60"
+      >
+        <ExternalLink className="size-3.5" aria-hidden />
+        查询链接
+      </a>
+      <button
+        type="button"
+        onClick={() => void onCopy()}
+        className="text-foreground border-border inline-flex items-center border-l px-2 transition-colors hover:bg-muted/60"
+        aria-label="复制查询链接"
+        title="复制查询链接"
+      >
+        {copied ? <Check className="size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
+      </button>
+    </div>
   );
 }
 
@@ -189,6 +249,7 @@ export function PromptDetailResponseDialog({
   const platformMeta = resolvePlatformMeta(row?.platform ?? "", platformCatalog);
   const parsed = detailQuery.data?.parsed ?? null;
   const rawText = detailQuery.data?.raw_text ?? row?.reply_preview ?? "";
+  const shareUrl = detailQuery.data?.share_url ?? "";
 
   const mentionBrands = useMemo(() => responseMentionBrands(parsed), [parsed]);
   const sources = useMemo(() => responseSources(parsed), [parsed]);
@@ -219,6 +280,7 @@ export function PromptDetailResponseDialog({
               {platformMeta.label}
             </p>
             <CopyButton text={rawText} />
+            <QueryLinkControl shareUrl={shareUrl} loading={detailQuery.isLoading} />
           </div>
 
           <DialogClose className="shrink-0" />

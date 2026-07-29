@@ -12,8 +12,10 @@ logger = logging.getLogger(__name__)
 
 
 def send_alert_sms(settings: Settings, *, phone_cn11: str, text: str, provider_id: str) -> None:
-    if not settings.sms_aliyun_enabled:
-        logger.info("Alert SMS (stub) to=%s provider=%s text=%s", phone_cn11, provider_id, text)
+    from aperix_geo.services.auth.sms import sms_aliyun_configured
+
+    if not sms_aliyun_configured(settings):
+        logger.info("Alert SMS (stub, Aliyun not configured) to=%s provider=%s text=%s", phone_cn11, provider_id, text)
         return
     template = settings.provider_alert_sms_template_code.strip() or settings.sms_aliyun_template_code.strip()
     if not template:

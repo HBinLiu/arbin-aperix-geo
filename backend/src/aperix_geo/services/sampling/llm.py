@@ -95,26 +95,88 @@ def _limit(field: str, default: int = 30) -> Callable[[Settings], int]:
     return lambda s: int(getattr(s, field, default) or default)
 
 
+def _normalize_doubao_sampling_mode(raw: str) -> str:
+    mode = (raw or "api_only").strip().lower()
+    if mode in ("api_only", "crawl_first", "crawl_only"):
+        return mode
+    logger.warning("Unknown DOUBAO_SAMPLING_MODE=%r; falling back to api_only", raw)
+    return "api_only"
+
+
+def _doubao_api_chat(messages: list[dict[str, str]], settings: Settings) -> SamplingChatResult:
+    if settings.doubao_web_search_enabled:
+        try:
+            return doubao_responses_chat(
+                messages,
+                api_key=settings.doubao_api_key,
+                base_url=settings.doubao_base_url,
+                model=settings.doubao_model,
+                web_search=True,
+                timeout_s=settings.doubao_responses_timeout_s,
+            )
+        except DoubaoProviderError as exc:
+            logger.warning("Doubao web search failed, fallback to chat/completions: %s", exc)
+    return doubao_chat_fallback(
+        messages,
+        api_key=settings.doubao_api_key,
+        base_url=settings.doubao_base_url,
+        model=settings.doubao_model,
+    )
+
+
+def try_doubao_web_crawl(
+    messages: list[dict[str, str]],
+    *,
+    settings: Settings,
+) -> SamplingChatResult | None:
+    """Attempt Doubao Web crawl. Return None to signal API fallback.
+
+    Soft failures (no credentials, login expired, DOM/share errors) → None.
+    Missing Playwright install → None.
+    """
+    from aperix_geo.db.session import SessionLocal
+    from aperix_geo.services.providers.doubao_web.accounts import crawl_credentials_available
+    from aperix_geo.services.providers.doubao_web.errors import DoubaoCrawlError
+
+    db = SessionLocal()
+    try:
+        available = crawl_credentials_available(settings, db=db)
+    finally:
+        db.close()
+
+    if not available:
+        logger.info("Doubao web crawl skipped: no storage_state file and no fresh pool account")
+        return None
+
+    try:
+        from aperix_geo.services.providers.doubao_web.crawler import crawl_doubao_chat
+
+        return crawl_doubao_chat(messages, settings=settings)
+    except DoubaoCrawlError as exc:
+        logger.warning("Doubao web crawl failed: %s", exc)
+        return None
+    except Exception as exc:
+        logger.warning("Doubao web crawl unexpected error: %s", exc, exc_info=True)
+        return None
+
+
 def _doubao_chat(settings: Settings) -> Callable[[list[dict[str, str]]], SamplingChatResult]:
     def _call(messages: list[dict[str, str]]) -> SamplingChatResult:
-        if settings.doubao_web_search_enabled:
-            try:
-                return doubao_responses_chat(
-                    messages,
-                    api_key=settings.doubao_api_key,
-                    base_url=settings.doubao_base_url,
-                    model=settings.doubao_model,
-                    web_search=True,
-                    timeout_s=settings.doubao_responses_timeout_s,
-                )
-            except DoubaoProviderError as exc:
-                logger.warning("Doubao web search failed, fallback to chat/completions: %s", exc)
-        return doubao_chat_fallback(
-            messages,
-            api_key=settings.doubao_api_key,
-            base_url=settings.doubao_base_url,
-            model=settings.doubao_model,
-        )
+        mode = _normalize_doubao_sampling_mode(settings.doubao_sampling_mode)
+        if mode == "api_only":
+            return _doubao_api_chat(messages, settings)
+
+        crawled = try_doubao_web_crawl(messages, settings=settings)
+        if crawled is not None:
+            return crawled
+        if mode == "crawl_only":
+            raise SamplingLLMError(
+                "Doubao web crawl is not available (crawl_only mode)",
+                retryable=False,
+            )
+        # crawl_first: no crawler / no account → API fallback (existing behavior until P2)
+        logger.info("Doubao sampling mode=%s; web crawl unavailable, using API", mode)
+        return _doubao_api_chat(messages, settings)
 
     return _call
 

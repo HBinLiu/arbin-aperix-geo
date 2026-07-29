@@ -142,6 +142,25 @@ class Settings(BaseSettings):
     doubao_rate_limit_per_minute: int = 30
     doubao_web_search_enabled: bool = True
     doubao_responses_timeout_s: float = Field(default=120.0, ge=10.0, le=600.0)
+    # 豆包采样路径：api_only（默认现网）| crawl_first | crawl_only（见 docs/09）
+    doubao_sampling_mode: str = "api_only"
+    doubao_crawl_timeout_s: float = Field(default=180.0, ge=30.0, le=900.0)
+    doubao_crawl_concurrency: int = Field(default=2, ge=1, le=16)
+    doubao_crawl_headless: bool = True
+    doubao_crawl_require_share_url: bool = True
+    doubao_crawl_storage_state_path: str = ""
+    doubao_chat_base_url: str = "https://www.doubao.com/chat/"
+    doubao_heartbeat_enabled: bool = False
+    doubao_heartbeat_interval_min: int = Field(default=45, ge=5, le=1440)
+    doubao_heartbeat_fresh_s: int = Field(default=21600, ge=300, le=604800)
+    doubao_login_ticket_enabled: bool = False
+    doubao_login_ticket_ttl_min: int = Field(default=15, ge=5, le=120)
+    doubao_login_novnc_base_url: str = ""
+    doubao_login_docker_image: str = ""
+    # Ops API token for /ops/doubao/* (empty ⇒ ops routes return 503). Not a tenant JWT.
+    doubao_ops_api_token: str = ""
+    # Account pool lease TTL while a crawl holds the account (seconds).
+    doubao_account_lease_ttl_s: int = Field(default=300, ge=60, le=3600)
 
     # --- 大模型：阿里云 · 通义千问（DashScope Generation API 采样）---
     qianwen_api_key: str = ""
@@ -213,7 +232,7 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = Field(default=8000, ge=1, le=65535)
 
-    # development / dev / local：手机号验证码随机生成并在 send-code 响应 dev_code 中回显
+    # development / dev / local：验证码不发真实通道，send-code 回显 dev_code
     env: str = Field(default="development", description="运行环境；生产部署请设为 production")
 
     # 验证码（Redis）；开发环境 send-code 回显 dev_code，生产不回显
@@ -221,8 +240,7 @@ class Settings(BaseSettings):
     otp_send_interval_seconds: int = 60
     otp_code_length: int = 6
 
-    # 阿里云短信（国内验证码）；SMS_ALIYUN_ENABLED=true 且 channel=phone 且非开发环境时调用 SendSms
-    sms_aliyun_enabled: bool = False
+    # 阿里云短信（国内验证码）。生产 ENV 下配齐密钥/签名/模板即发送。
     sms_aliyun_access_key_id: str = ""
     sms_aliyun_access_key_secret: str = ""
     sms_aliyun_sign_name: str = ""

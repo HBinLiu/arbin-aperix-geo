@@ -1,0 +1,152 @@
+"""Tests for Doubao login tickets (upload fallback; no Docker)."""
+
+from __future__ import annotations
+
+from datetime import timedelta
+from unittest.mock import MagicMock
+from uuid import uuid4
+
+import pytest
+from fastapi import HTTPException
+
+from aperix_geo.config import Settings
+from aperix_geo.db.base import utc_now
+from aperix_geo.db.models import EPOCH, ZERO_UUID, DoubaoLoginTicket
+from aperix_geo.services.doubao_accounts.tickets import (
+    TICKET_CANCELLED,
+    TICKET_EXPIRED,
+    TICKET_PENDING,
+    TICKET_SUCCEEDED,
+    cancel_ticket,
+    complete_ticket_with_storage_state,
+    create_login_ticket,
+    get_ticket,
+    novnc_configured,
+)
+
+
+def _settings(**kwargs) -> Settings:
+    base = {
+        "doubao_login_ticket_enabled": True,
+        "doubao_login_ticket_ttl_min": 15,
+        "doubao_login_novnc_base_url": "",
+        "doubao_login_docker_image": "",
+        "doubao_ops_api_token": "ops-secret",
+    }
+    base.update(kwargs)
+    return Settings(**base)
+
+
+def _state() -> dict:
+    return {
+        "cookies": [
+            {
+                "name": "sessionid",
+                "value": "x",
+                "domain": ".doubao.com",
+                "path": "/",
+                "expires": -1,
+                "httpOnly": True,
+                "secure": True,
+                "sameSite": "Lax",
+            }
+        ],
+        "origins": [],
+    }
+
+
+def test_novnc_configured_requires_all_flags() -> None:
+    assert not novnc_configured(_settings())
+    assert novnc_configured(
+        _settings(
+            doubao_login_novnc_base_url="https://novnc.example",
+            doubao_login_docker_image="aperix/doubao-login:latest",
+        )
+    )
+
+
+def test_create_ticket_disabled() -> None:
+    db = MagicMock()
+    with pytest.raises(HTTPException) as exc:
+        create_login_ticket(db, label="a", settings=_settings(doubao_login_ticket_enabled=False))
+    assert exc.value.status_code == 503
+
+
+def test_create_ticket_upload_fallback() -> None:
+    db = MagicMock()
+    ticket = create_login_ticket(db, label="staging-1", operator="alice", settings=_settings())
+    assert ticket.status == TICKET_PENDING
+    assert ticket.label == "staging-1"
+    assert ticket.login_url == ""
+    assert "novnc_unavailable" in ticket.error_text
+    db.add.assert_called_once()
+
+
+def test_create_ticket_with_novnc_placeholder() -> None:
+    db = MagicMock()
+    ticket = create_login_ticket(
+        db,
+        label="n1",
+        settings=_settings(
+            doubao_login_novnc_base_url="https://novnc.example",
+            doubao_login_docker_image="img",
+        ),
+    )
+    assert ticket.login_url.startswith("https://novnc.example/?ticket=")
+
+
+def test_get_ticket_expires() -> None:
+    ticket = DoubaoLoginTicket(
+        id=uuid4(),
+        account_id=ZERO_UUID,
+        label="x",
+        token="tok",
+        status=TICKET_PENDING,
+        expires_at=utc_now() - timedelta(minutes=1),
+        completed_at=EPOCH,
+    )
+    db = MagicMock()
+    db.get.return_value = ticket
+    out = get_ticket(db, ticket.id)
+    assert out.status == TICKET_EXPIRED
+
+
+def test_cancel_ticket() -> None:
+    ticket = DoubaoLoginTicket(
+        id=uuid4(),
+        account_id=ZERO_UUID,
+        label="x",
+        token="tok",
+        status=TICKET_PENDING,
+        expires_at=utc_now() + timedelta(minutes=10),
+        completed_at=EPOCH,
+    )
+    db = MagicMock()
+    db.get.return_value = ticket
+    out = cancel_ticket(db, ticket.id)
+    assert out.status == TICKET_CANCELLED
+
+
+def test_complete_ticket_upserts_account() -> None:
+    ticket = DoubaoLoginTicket(
+        id=uuid4(),
+        account_id=ZERO_UUID,
+        label="staging-1",
+        token="tok",
+        status=TICKET_PENDING,
+        expires_at=utc_now() + timedelta(minutes=10),
+        completed_at=EPOCH,
+    )
+    db = MagicMock()
+    db.get.return_value = ticket
+    db.scalars.return_value.first.return_value = None
+
+    out_ticket, account = complete_ticket_with_storage_state(
+        db,
+        ticket.id,
+        storage_state=_state(),
+    )
+    assert out_ticket.status == TICKET_SUCCEEDED
+    assert account.label == "staging-1"
+    assert account.status == "active"
+    db.add.assert_called()

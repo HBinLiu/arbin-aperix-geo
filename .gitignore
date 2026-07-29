@@ -13,6 +13,8 @@ backend/.venv/
 backend/celerybeat.db
 backend/cache/
 backend/data/favicons/
+backend/data/doubao_storage_state.json
+backend/data/doubao_*.json
 frontend/.env
 payload/.env
 website/.env

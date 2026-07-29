@@ -16,18 +16,12 @@ export type User = {
   email: string;
   phone: string;
   role: "admin" | "member" | "readonly";
-  has_password: boolean;
   created_at: string;
   wechat: UserWechat;
   notifications: UserNotificationSettings;
 };
 
 export type UserNotificationSettingsUpdate = Partial<UserNotificationSettings>;
-
-export type ChangePasswordInput = {
-  current_password?: string;
-  new_password: string;
-};
 
 export type BindPhoneInput = {
   target: string;
@@ -37,7 +31,6 @@ export type BindPhoneInput = {
 export type BindEmailInput = {
   target: string;
   code: string;
-  password?: string;
 };
 
 export type WechatBindDevInput = {

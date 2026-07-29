@@ -822,6 +822,8 @@ export type LlmResponseDetail = {
   status: string;
   error_text: string | null;
   raw_text: string;
+  /** Doubao web-crawl share link; empty for API / other platforms. */
+  share_url: string;
   parsed: LlmResponseParsed | null;
   latency_ms: number | null;
   usage: unknown;

@@ -15,11 +15,9 @@ import { updateUserNotifications } from "@/api/auth";
 import { BindEmailDialog } from "@/components/profile/BindEmailDialog";
 import { BindPhoneDialog } from "@/components/profile/BindPhoneDialog";
 import { BindWechatDialog } from "@/components/profile/BindWechatDialog";
-import { ChangePasswordDialog } from "@/components/profile/ChangePasswordDialog";
 import { ProfileSection } from "@/components/profile/ProfileSection";
 import { ActionTooltip } from "@/components/common/ActionTooltip";
 import { UserAvatar } from "@/components/user/UserAvatar";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
 import { formatPromptCreatedAt } from "@/lib/prompt";
@@ -131,7 +129,6 @@ function ProfileToggleRow({
 export function AccountSettingsView() {
   const queryClient = useQueryClient();
   const { user } = useDashboardContext();
-  const [passwordOpen, setPasswordOpen] = useState(false);
   const [phoneOpen, setPhoneOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [wechatOpen, setWechatOpen] = useState(false);
@@ -157,14 +154,7 @@ export function AccountSettingsView() {
   return (
     <>
       <div className="flex flex-col gap-4 px-4 py-10 sm:px-[5%] md:px-[10%] lg:px-[15%] xl:px-[20%] 2xl:px-[25%]">
-        <ProfileSection
-          title="账户信息"
-          headerAction={
-            <Button type="button" variant="outline" size="sm" onClick={() => setPasswordOpen(true)}>
-              {user.has_password ? "更换密码" : "设置密码"}
-            </Button>
-          }
-        >
+        <ProfileSection title="账户信息">
           <ProfileInfoRow className="py-2" icon={UserRound} label="头像">
             <UserAvatar size="md" seed={user.id} />
           </ProfileInfoRow>
@@ -220,7 +210,6 @@ export function AccountSettingsView() {
         </ProfileSection>
       </div>
 
-      <ChangePasswordDialog user={user} open={passwordOpen} onOpenChange={setPasswordOpen} />
       <BindPhoneDialog user={user} open={phoneOpen} onOpenChange={setPhoneOpen} />
       <BindEmailDialog user={user} open={emailOpen} onOpenChange={setEmailOpen} />
       <BindWechatDialog user={user} open={wechatOpen} onOpenChange={setWechatOpen} />

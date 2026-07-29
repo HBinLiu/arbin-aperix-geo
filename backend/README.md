@@ -156,9 +156,16 @@ crawl4ai-setup
 
 可调 `PAGE_CRAWL_*` 环境变量，见 `.env.example`。
 
-## 阿里云短信（可选）
+## 验证码（邮箱 SMTP / 阿里云短信）
 
-`POST /api/v1/auth/send-code` 在 **`ENV` 为 `development` / `dev` / `local`（默认）** 且 `channel=phone` 时，**不调用短信网关**，生成随机验证码写入 Redis，并在响应字段 **`dev_code`** 中回显。生产请设置 **`ENV=production`**；此时若 `SMS_ALIYUN_ENABLED=true` 则调用阿里云 **SendSms**（依赖 `alibabacloud-dysmsapi20170525`）。变量见 `backend/.env.example`：`SMS_ALIYUN_ACCESS_KEY_*`、`SMS_ALIYUN_SIGN_NAME`、`SMS_ALIYUN_TEMPLATE_CODE` 等；模板内验证码变量名须与 `SMS_ALIYUN_TEMPLATE_PARAM_CODE_KEY` 一致。发送失败时接口返回 **503**。开发环境下邮箱/手机验证码均在 **`dev_code`** 回显；邮箱通道生产仍为占位（日志）。
+`POST /api/v1/auth/send-code`：
+
+| 环境 | 邮箱 | 手机 |
+|------|------|------|
+| `ENV=development` / `dev` / `local`（默认） | 不发邮件，响应 **`dev_code`** | 不发短信，响应 **`dev_code`** |
+| `ENV=production` | 需配置 **SMTP_***，真实发信；未配置返回 **503** | 需配置 **SMS_ALIYUN_ACCESS_KEY_*** + 签名 + 模板；未配置返回 **503** |
+
+SMTP 变量见 `.env.example`（`SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` / `SMTP_FROM_NAME` / `SMTP_USE_TLS`）。短信依赖 `alibabacloud-dysmsapi20170525`，模板验证码字段名须与 `SMS_ALIYUN_TEMPLATE_PARAM_CODE_KEY` 一致。
 
 ## 从仓库根目录安装（可选）
 

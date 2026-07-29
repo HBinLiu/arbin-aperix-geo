@@ -153,7 +153,6 @@ class User(Base):
     )
     phone: Mapped[str] = mapped_column(String(20), nullable=False, default="", server_default="")
     email: Mapped[str] = mapped_column(String(320), nullable=False, default="", server_default="")
-    password: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     role: Mapped[str] = mapped_column(
         String(32),
@@ -537,6 +536,8 @@ class LLMResponse(Base):
     )
     error_text: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     raw_text: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    # Doubao web-crawl share evidence; empty for API / other platforms (survives re-parse).
+    share_url: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     parsed: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default=sa_text("'{}'::jsonb")
     )
@@ -1217,6 +1218,94 @@ class KnowledgeChunk(Base):
             "subject_id",
             "content_hash",
             "knowledge_version",
+            postgresql_where=sa_text("deleted = false"),
+        ),
+    )
+
+
+class DoubaoAccount(Base):
+    """Global Doubao Web crawl account (ops pool, not per-tenant)."""
+
+    __tablename__ = "tb_doubao_accounts"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    label: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="active", server_default="active")
+    storage_state: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=sa_text("'{}'::jsonb")
+    )
+    last_ok_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=EPOCH, server_default=sa_text("'1970-01-01T00:00:00+00:00'")
+    )
+    last_error: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    lease_owner: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
+    lease_until: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=EPOCH, server_default=sa_text("'1970-01-01T00:00:00+00:00'")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
+    )
+
+    __table_args__ = (
+        Index(
+            "uq_doubao_accounts_label",
+            "label",
+            unique=True,
+            postgresql_where=sa_text("deleted = false AND label <> ''"),
+        ),
+        Index(
+            "ix_doubao_accounts_status_last_ok",
+            "status",
+            "last_ok_at",
+            postgresql_where=sa_text("deleted = false"),
+        ),
+    )
+
+
+class DoubaoLoginTicket(Base):
+    """Ops login ticket for Doubao Web re-login (noVNC or upload fallback)."""
+
+    __tablename__ = "tb_doubao_login_tickets"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    account_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), nullable=False, default=ZERO_UUID, server_default=sa_text("'00000000-0000-0000-0000-000000000000'")
+    )
+    label: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
+    token: Mapped[str] = mapped_column(String(64), nullable=False, default="", server_default="")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending", server_default="pending")
+    operator: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
+    login_url: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    container_id: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=EPOCH, server_default=sa_text("'1970-01-01T00:00:00+00:00'")
+    )
+    completed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=EPOCH, server_default=sa_text("'1970-01-01T00:00:00+00:00'")
+    )
+    error_text: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
+    )
+
+    __table_args__ = (
+        Index(
+            "uq_doubao_login_tickets_token",
+            "token",
+            unique=True,
+            postgresql_where=sa_text("deleted = false AND token <> ''"),
+        ),
+        Index(
+            "ix_doubao_login_tickets_status_expires",
+            "status",
+            "expires_at",
+            postgresql_where=sa_text("deleted = false"),
+        ),
+        Index(
+            "ix_doubao_login_tickets_account_id",
+            "account_id",
             postgresql_where=sa_text("deleted = false"),
         ),
     )

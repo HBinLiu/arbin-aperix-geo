@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 
 class TokenResponse(BaseModel):
@@ -12,20 +12,8 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
-class RegisterRequest(BaseModel):
-    tenant_name: str = Field(..., min_length=1, max_length=255)
-    email: EmailStr
-    password: str = Field(..., min_length=8, max_length=128)
-
-
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
-    tenant_id: UUID | None = None
-
-
 class SendCodeRequest(BaseModel):
-    purpose: Literal["register", "login", "bind", "invite"]
+    purpose: Literal["login", "bind", "invite"]
     channel: Literal["email", "phone"]
     target: str = Field(..., min_length=3, max_length=320)
 
@@ -57,11 +45,6 @@ class SendBindCodeRequest(BaseModel):
     target: str = Field(..., min_length=3, max_length=320)
 
 
-class ChangePasswordRequest(BaseModel):
-    current_password: str | None = Field(default=None, max_length=128)
-    new_password: str = Field(..., min_length=8, max_length=128)
-
-
 class BindPhoneRequest(BaseModel):
     target: str = Field(..., min_length=3, max_length=320)
     code: str = Field(..., min_length=4, max_length=16)
@@ -70,7 +53,6 @@ class BindPhoneRequest(BaseModel):
 class BindEmailRequest(BaseModel):
     target: str = Field(..., min_length=3, max_length=320)
     code: str = Field(..., min_length=4, max_length=16)
-    password: str | None = Field(default=None, min_length=8, max_length=128)
 
 
 class WechatBindDevRequest(BaseModel):
@@ -91,26 +73,16 @@ class SendCodeResponse(BaseModel):
     )
 
 
-class RegisterWithOtpRequest(BaseModel):
-    """仅邮箱：邮箱验证码 + 登录密码完成注册（手机号请走登录页短信验证码自动注册）。"""
-
-    tenant_name: str = Field(..., min_length=1, max_length=255)
-    channel: Literal["email"] = "email"
-    target: str = Field(..., min_length=3, max_length=320)
-    code: str = Field(..., min_length=4, max_length=16)
-    password: str = Field(..., min_length=8, max_length=128)
-
-
 class LoginWithOtpRequest(BaseModel):
-    """仅手机号：验证码登录；若号码未注册则本次验证通过后自动创建租户与用户。"""
+    """邮箱或手机号验证码登录；若未注册则本次验证通过后自动创建租户与用户。"""
 
-    channel: Literal["phone"] = "phone"
+    channel: Literal["email", "phone"]
     target: str = Field(..., min_length=3, max_length=320)
     code: str = Field(..., min_length=4, max_length=16)
     tenant_name: str | None = Field(
         default=None,
         max_length=255,
-        description="首次短信登录自动注册时的工作区名称；已注册用户可忽略",
+        description="首次登录自动注册时的工作区名称；已注册用户可忽略",
     )
 
 
@@ -138,7 +110,6 @@ class UserOut(BaseModel):
     email: str
     phone: str
     role: str = "admin"
-    has_password: bool = False
     created_at: datetime
     wechat: UserWechatOut
     notifications: UserNotificationSettingsOut

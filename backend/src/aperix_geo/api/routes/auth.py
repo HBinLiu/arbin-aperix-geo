@@ -13,11 +13,7 @@ from aperix_geo.db.models import Tenant, User
 from aperix_geo.schemas.auth import (
     BindEmailRequest,
     BindPhoneRequest,
-    ChangePasswordRequest,
-    LoginRequest,
     LoginWithOtpRequest,
-    RegisterRequest,
-    RegisterWithOtpRequest,
     SendBindCodeRequest,
     InviteTenantMemberRequest,
     SendInviteCodeRequest,
@@ -34,7 +30,6 @@ from aperix_geo.schemas.auth import (
     WechatBindDevRequest,
 )
 from aperix_geo.security.jwt import create_access_token
-from aperix_geo.security.password import hash_password, password_strength_error, verify_password
 from aperix_geo.services.auth import otp as otp_svc
 from aperix_geo.services.auth import tenant_members as member_svc
 from aperix_geo.utils.contact import mask_phone_cn
@@ -49,7 +44,6 @@ def _user_to_out(user: User, *, phone: str | None = None) -> UserOut:
         email=user.email,
         phone=phone if phone is not None else user.phone,
         role=user.role,
-        has_password=bool(user.password),
         created_at=user.created_at,
         wechat=UserWechatOut(
             nick_name=user.nick_name,
@@ -94,100 +88,48 @@ def _send_code_response(
     channel: str,
     exposed: str | None,
 ) -> SendCodeResponse:
+    from aperix_geo.services.auth.sms import sms_aliyun_configured
+
     if channel == "phone" and otp_svc.sms_use_dev_stub(settings):
         msg = "开发环境未发送短信；请使用响应中的验证码"
-    elif channel == "phone" and settings.sms_aliyun_enabled:
-        msg = "验证码已通过阿里云短信发送，请查收手机短信"
+    elif channel == "phone" and sms_aliyun_configured(settings):
+        msg = "验证码已通过短信发送，请查收手机短信"
+    elif channel == "email" and otp_svc.email_use_dev_stub(settings):
+        msg = "开发环境未发送邮件；请使用响应中的验证码"
     elif channel == "email":
-        msg = (
-            "验证码已记录（邮箱通道仍为占位；开发环境见响应 dev_code，生产请查邮件）"
-            if otp_svc.is_dev_environment(settings)
-            else "验证码已记录（邮箱通道仍为占位，请查收邮件）"
-        )
+        msg = "验证码已发送至邮箱，请查收"
     else:
-        msg = "验证码已记录（未开启阿里云短信时见服务端日志；可设置 SMS_ALIYUN_ENABLED=true）"
+        msg = "验证码已发送"
     return SendCodeResponse(ok=True, message=msg, dev_code=exposed)
 
 
-def _contact_taken_register(db: Session, channel: str, target_norm: str) -> bool:
-    if channel == "email":
-        return len(_users_by_email(db, target_norm)) > 0
-    return _user_by_phone(db, target_norm) is not None
-
-
-@router.post("/register", response_model=TokenResponse)
-def register(body: RegisterRequest, db: DbSession) -> TokenResponse:
-    tenant = Tenant(name=body.tenant_name.strip())
-    db.add(tenant)
-    db.flush()
-    user = User(
-        tenant_id=tenant.id,
-        email=str(body.email).lower().strip(),
-        password=hash_password(body.password),
-    )
-    db.add(user)
-    db.commit()
-    token = create_access_token(user_id=user.id, tenant_id=tenant.id)
-    return TokenResponse(access_token=token)
-
-
-@router.post("/login", response_model=TokenResponse)
-def login(body: LoginRequest, db: DbSession) -> TokenResponse:
-    email_norm = str(body.email).lower().strip()
-    q = select(User).where(User.email == email_norm)
-    if body.tenant_id is not None:
-        q = q.where(User.tenant_id == body.tenant_id)
-    users = list(db.execute(q).scalars().all())
-    if not users:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    if len(users) > 1 and body.tenant_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Multiple accounts for this email; pass tenant_id",
-        )
-    user = users[0]
-    if not user.password or not verify_password(body.password, user.password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    token = create_access_token(user_id=user.id, tenant_id=user.tenant_id)
-    return TokenResponse(access_token=token)
+def _default_tenant_name(*, channel: str, target_norm: str, tenant_name: str | None) -> str:
+    custom = (tenant_name or "").strip()
+    if custom:
+        return custom
+    if channel == "phone":
+        return f"手机用户_{target_norm[-4:]}"
+    local = target_norm.split("@", 1)[0][:12] or "user"
+    return f"邮箱用户_{local}"
 
 
 @router.post("/send-code", response_model=SendCodeResponse)
-def send_code(body: SendCodeRequest, db: DbSession) -> SendCodeResponse:
+def send_code(body: SendCodeRequest) -> SendCodeResponse:
     settings = get_settings()
     try:
         if body.channel == "email":
-            target_norm = otp_svc.normalize_email(body.target)
+            otp_svc.normalize_email(body.target)
         else:
-            target_norm = otp_svc.normalize_phone_cn(body.target)
+            otp_svc.normalize_phone_cn(body.target)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
 
-    if body.purpose == "register":
-        if body.channel == "phone":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="手机号无需单独注册，请在登录页使用短信验证码登录，首次验证通过将自动开通账号",
-            )
-        if _contact_taken_register(db, body.channel, target_norm):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="该邮箱已注册",
-            )
-    elif body.purpose == "invite":
+    if body.purpose == "invite":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="请在账户设置成员页进行邀请",
         )
-    else:
-        # 邮箱登录仅支持密码，不提供「登录验证码」
-        if body.channel == "email":
-            return SendCodeResponse(
-                ok=True,
-                message="邮箱请使用密码登录；若尚未注册请先完成邮箱注册（验证码+密码）",
-                dev_code=None,
-            )
-        # 手机号登录：未注册也发验证码，以便「验证即注册」
+    # purpose=login：邮箱/手机未注册也发码，以便「验证即注册」
 
     try:
         _, exposed = otp_svc.send_code(
@@ -204,69 +146,52 @@ def send_code(body: SendCodeRequest, db: DbSession) -> SendCodeResponse:
     return _send_code_response(settings=settings, channel=body.channel, exposed=exposed)
 
 
-@router.post("/register-with-otp", response_model=TokenResponse)
-def register_with_otp(body: RegisterWithOtpRequest, db: DbSession) -> TokenResponse:
-    settings = get_settings()
-    if not otp_svc.verify_code(
-        settings=settings,
-        purpose="register",
-        channel="email",
-        target_raw=body.target,
-        code=body.code,
-    ):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="验证码无效或已过期")
-
-    try:
-        target_norm = otp_svc.normalize_email(body.target)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
-
-    if _contact_taken_register(db, "email", target_norm):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="该邮箱已注册")
-
-    tenant = Tenant(name=body.tenant_name.strip())
-    db.add(tenant)
-    db.flush()
-    user = User(
-        tenant_id=tenant.id,
-        email=target_norm,
-        phone="",
-        password=hash_password(body.password),
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    token = create_access_token(user_id=user.id, tenant_id=tenant.id)
-    return TokenResponse(access_token=token)
-
-
 @router.post("/login-with-otp", response_model=TokenResponse)
 def login_with_otp(body: LoginWithOtpRequest, db: DbSession) -> TokenResponse:
     settings = get_settings()
     if not otp_svc.verify_code(
         settings=settings,
         purpose="login",
-        channel="phone",
+        channel=body.channel,
         target_raw=body.target,
         code=body.code,
     ):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="验证码无效或已过期")
 
     try:
-        target_norm = otp_svc.normalize_phone_cn(body.target)
+        if body.channel == "email":
+            target_norm = otp_svc.normalize_email(body.target)
+        else:
+            target_norm = otp_svc.normalize_phone_cn(body.target)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
 
-    user = _user_by_phone(db, target_norm)
-    if user:
-        token = create_access_token(user_id=user.id, tenant_id=user.tenant_id)
-        return TokenResponse(access_token=token)
+    if body.channel == "email":
+        users = _users_by_email(db, target_norm)
+        if users:
+            user = users[0]
+            token = create_access_token(user_id=user.id, tenant_id=user.tenant_id)
+            return TokenResponse(access_token=token)
+    else:
+        user = _user_by_phone(db, target_norm)
+        if user:
+            token = create_access_token(user_id=user.id, tenant_id=user.tenant_id)
+            return TokenResponse(access_token=token)
 
-    tenant_name = (body.tenant_name or "").strip() or f"手机用户_{target_norm[-4:]}"
-    tenant = Tenant(name=tenant_name)
+    tenant = Tenant(
+        name=_default_tenant_name(
+            channel=body.channel,
+            target_norm=target_norm,
+            tenant_name=body.tenant_name,
+        ),
+    )
     db.add(tenant)
     db.flush()
-    new_user = User(tenant_id=tenant.id, email="", phone=target_norm, password="")
+    new_user = User(
+        tenant_id=tenant.id,
+        email=target_norm if body.channel == "email" else "",
+        phone=target_norm if body.channel == "phone" else "",
+    )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -309,25 +234,6 @@ def send_bind_code(body: SendBindCodeRequest, current: CurrentUser, db: DbSessio
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
 
     return _send_code_response(settings=settings, channel=body.channel, exposed=exposed)
-
-
-@router.patch("/me/password", response_model=UserOut)
-def change_my_password(body: ChangePasswordRequest, current: CurrentUser, db: DbSession) -> UserOut:
-    user = db.get(User, current.id)
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-
-    if user.password:
-        if not body.current_password or not verify_password(body.current_password, user.password):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="当前密码不正确")
-
-    if err := password_strength_error(body.new_password):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err)
-
-    user.password = hash_password(body.new_password)
-    db.commit()
-    db.refresh(user)
-    return _user_to_out(user, phone=mask_phone_cn(user.phone))
 
 
 @router.patch("/me/phone", response_model=UserOut)
@@ -385,8 +291,6 @@ def bind_my_email(body: BindEmailRequest, current: CurrentUser, db: DbSession) -
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="该邮箱已被其他账号使用")
 
     user.email = target_norm
-    if body.password:
-        user.password = hash_password(body.password)
     db.commit()
     db.refresh(user)
     return _user_to_out(user, phone=mask_phone_cn(user.phone))

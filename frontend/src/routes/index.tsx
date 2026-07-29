@@ -3,7 +3,6 @@ import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { RequireAuth } from "@/components/auth/RequireAuth";
 import { InsightOpsGate } from "@/components/dashboard/InsightOpsGate";
 import { LoginPage } from "@/pages/auth/LoginPage";
-import { RegisterPage } from "@/pages/auth/RegisterPage";
 import { DashboardLayout } from "@/pages/dashboard/DashboardLayout";
 import { DashboardRoot } from "@/pages/dashboard/DashboardRoot";
 import {
@@ -95,7 +94,8 @@ export function AppRoutes() {
         </Route>
       </Route>
       <Route path="/auth/login" element={<LoginPage />} />
-      <Route path="/auth/register" element={<RegisterPage />} />
+      <Route path="/auth/register" element={<Navigate to="/auth/login" replace />} />
+      <Route path="/auth/forgot-password" element={<Navigate to="/auth/login" replace />} />
     </Routes>
   );
 }

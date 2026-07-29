@@ -21,13 +21,18 @@ def persist_llm_result(
 ) -> None:
     """Store platform LLM output; parse/citation runs in a follow-up task."""
     queries = list(result.search_queries)
+    sampling_source = (
+        "crawl" if str(result.web_search_mode or "") == "doubao_web_crawl" else "api"
+    )
     row.raw_text = sanitize_text(result.text)
+    row.share_url = sanitize_text(result.share_url)
     row.parsed = sanitize_json_value(
         {
             "source_urls_from_api": list(result.source_urls),
             "web_search_mode": result.web_search_mode,
             "search_queries_from_api": queries,
             "search_query_events": build_search_query_events(queries, platform=str(row.platform or "")),
+            "sampling_source": sampling_source,
         }
     )
     row.usage = sanitize_json_value(result.usage or {})
@@ -59,8 +64,17 @@ def persist_successful_response(
     subject: Subject,
 ) -> None:
     """Write document JSONB and derived citation/signal rows (caller commits)."""
+    prior = row.parsed if isinstance(row.parsed, dict) else {}
+    sampling_source = str(prior.get("sampling_source") or "").strip()
+    if not sampling_source:
+        sampling_source = (
+            "crawl" if str(result.web_search_mode or "") == "doubao_web_crawl" else "api"
+        )
+    # share_url is a first-class column — never clear it on re-parse.
     row.raw_text = sanitize_text(result.text)
-    row.parsed = sanitize_json_value(parsed.to_dict())
+    payload = parsed.to_dict()
+    payload["sampling_source"] = sampling_source
+    row.parsed = sanitize_json_value(payload)
     row.usage = sanitize_json_value(result.usage or {})
     row.latency_ms = result.latency_ms
     row.status = LLMResponseStatus.success

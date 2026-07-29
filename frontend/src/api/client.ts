@@ -57,7 +57,7 @@ let authRedirecting = false;
 
 function isPublicAuthRequest(url: string | undefined): boolean {
   if (!url) return false;
-  return /\/auth\/(login|register|send-code|login-with-otp|register-with-otp)(\/|$|\?)/.test(url);
+  return /\/auth\/(login|send-code|login-with-otp)(\/|$|\?)/.test(url);
 }
 
 function redirectToLogin(): void {

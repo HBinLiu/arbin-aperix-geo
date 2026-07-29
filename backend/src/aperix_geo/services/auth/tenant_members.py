@@ -123,7 +123,6 @@ def invite_tenant_member(
         tenant_id=tenant_id,
         phone=phone_norm,
         email="",
-        password="",
         role=invite_role,
         is_active=True,
     )

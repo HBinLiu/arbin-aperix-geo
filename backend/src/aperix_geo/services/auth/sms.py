@@ -10,15 +10,25 @@ from aperix_geo.config import Settings
 logger = logging.getLogger(__name__)
 
 
+def sms_aliyun_configured(settings: Settings) -> bool:
+    """True when Aliyun SMS credentials + sign + OTP template are present (like SMTP)."""
+    return bool(
+        settings.sms_aliyun_access_key_id.strip()
+        and settings.sms_aliyun_access_key_secret.strip()
+        and settings.sms_aliyun_sign_name.strip()
+        and settings.sms_aliyun_template_code.strip()
+    )
+
+
 def send_verification_sms(settings: Settings, *, phone_cn11: str, code: str) -> None:
     """
     发送国内短信。phone_cn11 为 11 位数字（不含 +86）。
     模板变量默认：`{"code": "<验证码>"}`，可通过 `SMS_ALIYUN_TEMPLATE_PARAM_CODE_KEY` 改键名。
     """
     if not settings.sms_aliyun_access_key_id or not settings.sms_aliyun_access_key_secret:
-        raise RuntimeError("阿里云短信已开启但未配置 ACCESS_KEY_ID / ACCESS_KEY_SECRET")
+        raise RuntimeError("阿里云短信未配置 ACCESS_KEY_ID / ACCESS_KEY_SECRET")
     if not settings.sms_aliyun_sign_name or not settings.sms_aliyun_template_code:
-        raise RuntimeError("阿里云短信已开启但未配置 SIGN_NAME 或 TEMPLATE_CODE")
+        raise RuntimeError("阿里云短信未配置 SIGN_NAME 或 TEMPLATE_CODE")
 
     from alibabacloud_dysmsapi20170525.client import Client as Dysmsapi20170525Client
     from alibabacloud_dysmsapi20170525 import models as dysmsapi_models

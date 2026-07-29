@@ -36,6 +36,7 @@ def get_response(
         "status": row.status.value,
         "error_text": row.error_text,
         "raw_text": raw,
+        "share_url": row.share_url or "",
         "parsed": parsed_api_dict(db, row=row, subject=subject),
         "latency_ms": row.latency_ms,
         "usage": row.usage,
