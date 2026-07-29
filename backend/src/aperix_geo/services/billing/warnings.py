@@ -1,4 +1,4 @@
-"""AI quota threshold warnings (email + dedupe via Redis)."""
+"""AI quota threshold warnings (in-app + email + WeChat template)."""
 
 from __future__ import annotations
 
@@ -14,6 +14,14 @@ from aperix_geo.db.models import TenantSubscription, User
 from aperix_geo.services.alerts.email import send_alert_email
 from aperix_geo.services.billing.quota import get_current_usage_period, get_subscription_snapshot
 from aperix_geo.services.notifications.inbox import create_user_notification
+from aperix_geo.services.wechat.config import wechat_configured
+from aperix_geo.services.wechat.template import (
+    build_template_data,
+    quota_warn_context,
+    resolve_quota_warn_template,
+    send_template_message,
+)
+from aperix_geo.services.wechat.token import WechatError
 from aperix_geo.utils.cache.redis_kv import redis_delete, redis_set_nx
 
 logger = logging.getLogger(__name__)
@@ -23,6 +31,15 @@ _THRESHOLDS: tuple[tuple[str, float], ...] = (
     ("5pct", 0.05),
     ("0pct", 0.0),
 )
+
+# 微信模板 const4「异常原因」枚举（须与公众平台一字不差）
+_WECHAT_REASON_BY_LEVEL: dict[str, str] = {
+    "20pct": "额度不足20%",
+    "5pct": "额度不足5%",
+    "0pct": "额度已用尽",
+}
+
+_ACTION_PATH = "/app/billing/plan"
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,7 +112,7 @@ def _notify_in_app_tenant_users(
     return created
 
 
-def _notify_tenant_users(db: Session, tenant_id, *, subject: str, body: str) -> int:
+def _notify_email_tenant_users(db: Session, tenant_id, *, subject: str, body: str) -> int:
     users = db.execute(
         select(User).where(
             User.tenant_id == tenant_id,
@@ -114,8 +131,69 @@ def _notify_tenant_users(db: Session, tenant_id, *, subject: str, body: str) -> 
     return len(emails)
 
 
+def _notify_wechat_tenant_users(
+    db: Session,
+    tenant_id,
+    *,
+    title: str,
+    body: str,
+    available: int,
+    reason: str = "",
+) -> int:
+    settings = get_settings()
+    if not wechat_configured(settings):
+        return 0
+
+    resolved = resolve_quota_warn_template(settings=settings)
+    if resolved is None:
+        return 0
+    template, jump_url = resolved
+
+    users = db.execute(
+        select(User).where(
+            User.tenant_id == tenant_id,
+            User.deleted.is_(False),
+            User.is_active.is_(True),
+            User.notify_wechat.is_(True),
+            User.open_id != "",
+        )
+    ).scalars().all()
+    if not users:
+        return 0
+
+    sent = 0
+    for user in users:
+        ctx = quota_warn_context(
+            title=title,
+            body=body,
+            available=available,
+            phone=user.phone or "",
+            reason=reason or title,
+        )
+        data = build_template_data(template, context=ctx)
+        try:
+            send_template_message(
+                open_id=user.open_id,
+                template_id=template.template_id,
+                data=data,
+                url=jump_url,
+                settings=settings,
+            )
+            sent += 1
+        except WechatError as exc:
+            logger.warning(
+                "WeChat quota warn failed user=%s openid=%s err=%s",
+                user.id,
+                user.open_id[:8],
+                exc,
+            )
+        except Exception:
+            logger.exception("WeChat quota warn unexpected error user=%s", user.id)
+    return sent
+
+
 def process_quota_warnings(db: Session, *, now: datetime | None = None) -> int:
-    """Scan active tenants and send email alerts at 20% / 5% / 0% thresholds."""
+    """Scan active tenants and notify at 20% / 5% / 0% thresholds."""
     moment = now or datetime.now(UTC)
     subscriptions = db.execute(
         select(TenantSubscription).where(
@@ -171,23 +249,35 @@ def process_quota_warnings(db: Session, *, now: datetime | None = None) -> int:
             )
 
         in_app_body = body.replace("\n", " ")
-        _notify_in_app_tenant_users(
+        in_app_n = _notify_in_app_tenant_users(
             db,
             sub.tenant_id,
             title=in_app_title,
             body=in_app_body,
-            action_url="/app/billing/plan",
+            action_url=_ACTION_PATH,
             dedupe_base=dedupe,
         )
+        email_n = _notify_email_tenant_users(
+            db, sub.tenant_id, subject=email_subject, body=body
+        )
+        wechat_n = _notify_wechat_tenant_users(
+            db,
+            sub.tenant_id,
+            title=in_app_title,
+            body=in_app_body,
+            available=warning.available,
+            reason=_WECHAT_REASON_BY_LEVEL.get(warning.code, "额度不足20%"),
+        )
 
-        count = _notify_tenant_users(db, sub.tenant_id, subject=email_subject, body=body)
-        if count > 0:
+        if in_app_n + email_n + wechat_n > 0:
             sent += 1
             logger.info(
-                "AI 额度预警已发送 tenant=%s level=%s recipients=%d",
+                "AI 额度预警已发送 tenant=%s level=%s in_app=%d email=%d wechat=%d",
                 sub.tenant_id,
                 warning.code,
-                count,
+                in_app_n,
+                email_n,
+                wechat_n,
             )
         else:
             redis_delete(dedupe)

@@ -21,6 +21,7 @@ from fastapi.responses import RedirectResponse, Response
 from aperix_geo.api.routes import analysis, auth, billing, competitors, diagnosis, notifications, opportunity
 from aperix_geo.api.routes import favicon as favicon_routes
 from aperix_geo.api.routes import ops_doubao, prompts, reports, responses, sampling, subjects, topics
+from aperix_geo.api.routes import wechat as wechat_routes
 from aperix_geo.services.favicon import ensure_storage_dir
 
 
@@ -74,5 +75,6 @@ api_v1.include_router(opportunity.router)
 api_v1.include_router(reports.router)
 api_v1.include_router(favicon_routes.router)
 api_v1.include_router(ops_doubao.router)
+api_v1.include_router(wechat_routes.router)
 
 app.include_router(api_v1)

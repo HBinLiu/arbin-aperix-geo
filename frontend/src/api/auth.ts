@@ -56,6 +56,30 @@ export async function unbindUserWechat(): Promise<User> {
   return data;
 }
 
+export type WechatBindQrResult = {
+  ticket_id: string;
+  qrcode_url: string;
+  expires_in: number;
+};
+
+export type WechatBindQrStatus = {
+  ticket_id: string;
+  status: "pending" | "bound" | "failed" | "expired";
+  error?: string;
+};
+
+export async function createWechatBindQr(): Promise<WechatBindQrResult> {
+  const { data } = await api.post<WechatBindQrResult>("/auth/me/wechat/bind");
+  return data;
+}
+
+export async function fetchWechatBindQrStatus(ticketId: string): Promise<WechatBindQrStatus> {
+  const { data } = await api.get<WechatBindQrStatus>(
+    `/auth/me/wechat/bind/${encodeURIComponent(ticketId)}`,
+  );
+  return data;
+}
+
 export async function bindUserWechatDev(input: WechatBindDevInput): Promise<User> {
   const { data } = await api.post<User>("/auth/me/wechat/bind-dev", input);
   return data;

@@ -28,10 +28,15 @@ from aperix_geo.schemas.auth import (
     UserOut,
     UserWechatOut,
     WechatBindDevRequest,
+    WechatBindQrOut,
+    WechatBindQrStatusOut,
 )
 from aperix_geo.security.jwt import create_access_token
 from aperix_geo.services.auth import otp as otp_svc
 from aperix_geo.services.auth import tenant_members as member_svc
+from aperix_geo.services.wechat import bind_ticket as wechat_bind
+from aperix_geo.services.wechat.config import wechat_configured
+from aperix_geo.services.wechat.token import WechatError
 from aperix_geo.utils.contact import mask_phone_cn
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -311,6 +316,39 @@ def unbind_my_wechat(current: CurrentUser, db: DbSession) -> UserOut:
     db.commit()
     db.refresh(user)
     return _user_to_out(user, phone=mask_phone_cn(user.phone))
+
+
+@router.post("/me/wechat/bind", response_model=WechatBindQrOut)
+def create_wechat_bind_qr(current: CurrentUser) -> WechatBindQrOut:
+    settings = get_settings()
+    if not wechat_configured(settings):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="微信公众号未配置（请设置 WECHAT_APP_ID / APP_SECRET / TOKEN）",
+        )
+    try:
+        ticket = wechat_bind.create_bind_ticket(user_id=current.id, settings=settings)
+    except WechatError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
+    return WechatBindQrOut(
+        ticket_id=ticket.ticket_id,
+        qrcode_url=ticket.qrcode_url,
+        expires_in=ticket.expires_in,
+    )
+
+
+@router.get("/me/wechat/bind/{ticket_id}", response_model=WechatBindQrStatusOut)
+def get_wechat_bind_qr_status(ticket_id: str, current: CurrentUser) -> WechatBindQrStatusOut:
+    ticket = wechat_bind.get_bind_ticket(ticket_id)
+    if ticket is None or ticket.status == "expired" or not ticket.user_id:
+        return WechatBindQrStatusOut(ticket_id=ticket_id, status="expired")
+    if ticket.user_id != str(current.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="绑定票据不存在")
+    return WechatBindQrStatusOut(
+        ticket_id=ticket.ticket_id,
+        status=ticket.status,
+        error=ticket.error,
+    )
 
 
 @router.post("/me/wechat/bind-dev", response_model=UserOut)

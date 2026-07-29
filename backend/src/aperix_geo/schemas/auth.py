@@ -61,6 +61,18 @@ class WechatBindDevRequest(BaseModel):
     union_id: str = Field(default="", max_length=128)
 
 
+class WechatBindQrOut(BaseModel):
+    ticket_id: str
+    qrcode_url: str
+    expires_in: int
+
+
+class WechatBindQrStatusOut(BaseModel):
+    ticket_id: str
+    status: Literal["pending", "bound", "failed", "expired"]
+    error: str = ""
+
+
 class SendCodeResponse(BaseModel):
     ok: bool = True
     message: str = Field(

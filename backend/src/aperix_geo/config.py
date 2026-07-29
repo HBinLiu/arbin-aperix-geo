@@ -85,6 +85,19 @@ class Settings(BaseSettings):
     wechat_pay_notify_url: str = ""
     wechat_pay_timeout_s: float = Field(default=15.0, ge=5.0, le=60.0)
 
+    # --- 微信公众号（服务号扫码绑定账号，WECHAT_*；与支付配置分开）---
+    wechat_app_id: str = ""
+    wechat_app_secret: str = ""
+    wechat_token: str = ""
+    # 消息加解密 EncodingAESKey（43 字符）；空则回调走明文模式
+    wechat_aes_key: str = ""
+    wechat_bind_ttl_seconds: int = Field(default=300, ge=60, le=1800)
+    wechat_http_timeout_s: float = Field(default=15.0, ge=5.0, le=60.0)
+    # 模板消息 YAML（列表）；相对 backend/ 或绝对路径
+    wechat_templates_path: str = "config/wechat_templates.yaml"
+    # 覆盖 YAML 内 jump_base_url（可选）
+    wechat_template_jump_base_url: str = ""
+
     # --- 大模型：默认推理 · DeepSeek（见 services/providers/）---
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_api_key: str = ""
