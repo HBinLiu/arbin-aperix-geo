@@ -5,21 +5,25 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
+# --- 0. 先拉代码，再以最新脚本继续 ---
+if [[ "${APERIX_REEXEC:-}" != "1" ]]; then
+  git reset --hard HEAD
+  git pull origin main
+  export APERIX_REEXEC=1
+  exec bash "$ROOT/$(basename "${BASH_SOURCE[0]}")" "$@"
+fi
+
 NAME=aperix-payload
 ENV_FILE="$ROOT/payload/.env.production"
 
-# 1. git pull master
-git reset --hard HEAD
-git pull origin main
-
-# 2. node docker rebuild
+# node docker rebuild
 docker run --rm -it --security-opt seccomp:unconfined \
   -v "$ROOT":/repo -w /repo/payload \
   --env-file "$ENV_FILE" \
   node:22-bookworm \
   bash -lc 'npm ci --registry=https://registry.npmmirror.com && npm run build'
 
-# 3. 已有容器则重启；首次挂载则创建
+# 已有容器则重启；首次挂载则创建
 if docker ps -a --format '{{.Names}}' | grep -qx "$NAME"; then
   echo "容器 $NAME 已存在，执行 restart"
   docker restart "$NAME"

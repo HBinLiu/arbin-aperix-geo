@@ -5,13 +5,17 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
+# --- 0. 先拉代码，再以最新脚本继续 ---
+if [[ "${APERIX_REEXEC:-}" != "1" ]]; then
+  git reset --hard HEAD
+  git pull origin main
+  export APERIX_REEXEC=1
+  exec bash "$ROOT/$(basename "${BASH_SOURCE[0]}")" "$@"
+fi
+
 ENV_FILE="$ROOT/frontend/.env.production"
 
-# 1. git pull master
-git reset --hard HEAD
-git pull origin main
-
-# 2. node docker build → frontend/dist
+# node docker build → frontend/dist
 docker run --rm -it --security-opt seccomp:unconfined \
   -v "$ROOT":/repo -w /repo/frontend \
   --env-file "$ENV_FILE" \

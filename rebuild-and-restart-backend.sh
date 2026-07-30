@@ -3,6 +3,16 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT"
+
+# --- 0. 先拉代码，再以最新脚本继续 ---
+if [[ "${APERIX_REEXEC:-}" != "1" ]]; then
+  git reset --hard HEAD
+  git pull origin main
+  export APERIX_REEXEC=1
+  exec bash "$ROOT/$(basename "${BASH_SOURCE[0]}")" "$@"
+fi
+
 BACKEND="$ROOT/backend"
 UNIT_NAME=aperix-backend.service
 UNIT_DST="${APERIX_SYSTEMD_DIR:-/etc/systemd/system}/$UNIT_NAME"
@@ -98,7 +108,7 @@ ensure_python() {
   exit 1
 }
 
-# --- 0. 前置检查 ---
+# --- 1. 前置检查 ---
 if ! command -v systemctl >/dev/null 2>&1; then
   echo "未找到 systemctl，本脚本仅支持 systemd 主机" >&2
   exit 1
@@ -116,12 +126,6 @@ SERVICE_GROUP="${APERIX_SERVICE_GROUP:-$(id -gn "$SERVICE_USER" 2>/dev/null || i
 
 echo "Python: $("$PYTHON_BIN" --version) ($PYTHON_BIN)  ServiceUser: $SERVICE_USER"
 
-cd "$ROOT"
-
-# --- 1. git pull ---
-git reset --hard HEAD
-git pull origin main
-
 # --- 2. venv + 依赖 ---
 if [[ ! -x "$VENV_BIN/python" ]]; then
   echo "创建虚拟环境 $VENV"
@@ -135,8 +139,22 @@ if ! "$VENV_BIN/python" -c 'import sys; raise SystemExit(0 if sys.version_info >
 fi
 
 echo "安装 backend 依赖..."
-"$VENV_BIN/pip" install -U pip
-"$VENV_BIN/pip" install -e "$BACKEND"
+"$VENV_BIN/pip" install -U pip setuptools wheel
+
+# CentOS 7 等自带 GCC 4.8，编不了现代 numpy（meson/cython）。强制走 wheel，禁止源码编译这些包。
+gcc_major="$(gcc -dumpversion 2>/dev/null | cut -d. -f1 || echo 0)"
+if [[ "${gcc_major:-0}" -lt 9 ]]; then
+  echo "检测到 GCC ${gcc_major}（过旧），pip 对原生扩展仅使用二进制 wheel（不本地编译）"
+  export PIP_PREFER_BINARY=1
+  export PIP_ONLY_BINARY="numpy,scipy,pandas,pillow,cryptography,lxml,pydantic-core,aiohttp,yarl,multidict,frozenlist,greenlet,rpds-py,jiter,numexpr,kiwisolver,contourpy,pyarrow"
+fi
+
+if ! "$VENV_BIN/pip" install -e "$BACKEND"; then
+  echo "依赖安装失败。GCC 过旧时请确保能从 PyPI 拉取 manylinux wheel；或安装新编译器后重试：" >&2
+  echo "  yum install -y centos-release-scl && yum install -y devtoolset-11-gcc devtoolset-11-gcc-c++" >&2
+  echo "  scl enable devtoolset-11 -- ./rebuild-and-restart-backend.sh" >&2
+  exit 1
+fi
 
 # --- 3. 迁移 ---
 echo "alembic upgrade head..."
