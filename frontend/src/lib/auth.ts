@@ -2,7 +2,7 @@ import type { User } from "@/types";
 
 /** 登录后跳转路径：仅允许站内相对路径，避免开放重定向。 */
 export function sanitizeReturnPath(raw: string | null): string {
-  const fallback = "/app";
+  const fallback = "/";
   if (raw == null || typeof raw !== "string") return fallback;
   const t = raw.trim();
   if (!t.startsWith("/") || t.startsWith("//")) return fallback;

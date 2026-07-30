@@ -1,4 +1,4 @@
-import { DASHBOARD_APP_BASE } from "@/lib/dashboard";
+import { dashboardPath } from "@/lib/dashboard";
 import type { BillingTab } from "@/types";
 
 export const BILLING_TABS: { id: BillingTab; label: string }[] = [
@@ -8,7 +8,7 @@ export const BILLING_TABS: { id: BillingTab; label: string }[] = [
 
 export const DEFAULT_BILLING_TAB: BillingTab = "plan";
 
-export const BILLING_BASE_PATH = `${DASHBOARD_APP_BASE}/billing`;
+export const BILLING_BASE_PATH = dashboardPath("billing");
 
 export function parseBillingTab(value: string | null | undefined): BillingTab {
   if (value && BILLING_TABS.some((tab) => tab.id === value)) {

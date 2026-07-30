@@ -1,22 +1,35 @@
 """Application configuration (pydantic-settings)."""
 
+from __future__ import annotations
+
+import os
 from functools import lru_cache
 from pathlib import Path
 
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# backend/.env 优先于 仓库根/.env（与当前工作目录无关）
+# 仅加载 backend/.env.{mode}；mode 由进程 ENV / APP_ENV 决定（默认 development）。
 _BACKEND_DIR = Path(__file__).resolve().parents[2]
-_REPO_ROOT = _BACKEND_DIR.parent
+
+
+def resolve_settings_env_mode() -> str:
+    """Map ENV/APP_ENV to env file suffix: production | development."""
+    raw = (os.environ.get("ENV") or os.environ.get("APP_ENV") or "development").strip().lower()
+    if raw in {"production", "prod"}:
+        return "production"
+    return "development"
+
+
+def settings_env_files() -> tuple[str, ...]:
+    mode = resolve_settings_env_mode()
+    return (str(_BACKEND_DIR / f".env.{mode}"),)
+
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=(
-            str(_REPO_ROOT / ".env"),
-            str(_BACKEND_DIR / ".env"),
-        ),
+        env_file=settings_env_files(),
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -246,6 +259,7 @@ class Settings(BaseSettings):
     api_port: int = Field(default=8000, ge=1, le=65535)
 
     # development / dev / local：验证码不发真实通道，send-code 回显 dev_code
+    # 生产部署：进程 export ENV=production，并配置 .env.production
     env: str = Field(default="development", description="运行环境；生产部署请设为 production")
 
     # 验证码（Redis）；开发环境 send-code 回显 dev_code，生产不回显
@@ -264,15 +278,11 @@ class Settings(BaseSettings):
     )
     sms_aliyun_endpoint: str = "dysmsapi.aliyuncs.com"
 
-    # --- AI 平台欠费/余额告警（运维通知，非租户 OTP）---
+    # --- AI 平台欠费/余额告警（运维邮件）---
     provider_alert_enabled: bool = False
-    provider_alert_env_label: str = ""
-    provider_alert_channels: str = "email"
     provider_alert_email_to: str = ""
-    provider_alert_sms_phones: str = ""
     provider_alert_cooldown_seconds: int = Field(default=21_600, ge=60, le=604_800)
     provider_alert_min_fails: int = Field(default=3, ge=1, le=100)
-    provider_alert_sms_template_code: str = ""
 
     smtp_host: str = ""
     smtp_port: int = Field(default=587, ge=1, le=65535)

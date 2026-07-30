@@ -1,4 +1,4 @@
-import { DASHBOARD_APP_BASE } from "@/lib/dashboard";
+import { dashboardPath } from "@/lib/dashboard";
 import type { ProfileTab } from "@/types";
 
 export const PROFILE_TABS: { id: ProfileTab; label: string }[] = [
@@ -8,7 +8,7 @@ export const PROFILE_TABS: { id: ProfileTab; label: string }[] = [
 
 export const DEFAULT_PROFILE_TAB: ProfileTab = "account";
 
-export const PROFILE_BASE_PATH = `${DASHBOARD_APP_BASE}/profile`;
+export const PROFILE_BASE_PATH = dashboardPath("profile");
 
 export function parseProfileTab(value: string | null | undefined): ProfileTab {
   if (value && PROFILE_TABS.some((tab) => tab.id === value)) {

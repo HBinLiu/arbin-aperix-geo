@@ -1,6 +1,6 @@
-import { DASHBOARD_APP_BASE } from "@/lib/dashboard";
+import { dashboardPath } from "@/lib/dashboard";
 
-export const DIAGNOSIS_BASE_PATH = `${DASHBOARD_APP_BASE}/diagnosis`;
+export const DIAGNOSIS_BASE_PATH = dashboardPath("diagnosis");
 
 const DIAGNOSIS_CONTENT_DETAIL_PREFIX = `${DIAGNOSIS_BASE_PATH}/`;
 

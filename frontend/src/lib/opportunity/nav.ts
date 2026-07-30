@@ -1,4 +1,4 @@
-import { DASHBOARD_APP_BASE } from "@/lib/dashboard";
+import { dashboardPath } from "@/lib/dashboard";
 import type { OpportunityTab } from "@/types";
 
 export const OPPORTUNITY_TABS: { id: OpportunityTab; label: string }[] = [
@@ -9,7 +9,7 @@ export const OPPORTUNITY_TABS: { id: OpportunityTab; label: string }[] = [
 
 export const DEFAULT_OPPORTUNITY_TAB: OpportunityTab = "backlink";
 
-export const OPPORTUNITY_BASE_PATH = `${DASHBOARD_APP_BASE}/opportunity`;
+export const OPPORTUNITY_BASE_PATH = dashboardPath("opportunity");
 
 export function parseOpportunityTab(value: string | null | undefined): OpportunityTab {
   if (value && OPPORTUNITY_TABS.some((tab) => tab.id === value)) {

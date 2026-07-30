@@ -10,7 +10,10 @@ Python 单体：**FastAPI**、**Celery**、**PostgreSQL**、**Redis**。与前�
 | `alembic/` | 数据库迁移 |
 | `alembic.ini` | Alembic 配置 |
 | `pyproject.toml` | 依赖与打包 |
-| `.env.example` | 环境变量模板（复制为 `.env`） |
+| `.env.example` | 环境变量模板（亦可直接参考 `.env.development` / `.env.production`） |
+| `.env.development` / `.env.production` | 开发 / 生产环境变量 |
+
+配置加载：进程 `ENV` / `APP_ENV` 为 `production`（或 `prod`）时读 `.env.production`，否则读 `.env.development`。
 
 ## 本地运行（在 `backend/` 下执行）
 
@@ -22,7 +25,7 @@ pip install -e '.[dev]'
 # 若出现 SSL: CERTIFICATE_VERIFY_FAILED（常见于 macOS 自带 Python.org 安装包未跑证书脚本），任选其一：
 #   1) 运行一次：/Applications/Python\ 3.12/Install\ Certificates.command（版本号与 python3 一致）
 #   2) 在 backend/ 执行：bash scripts/install_deps.sh
-cp .env.example .env   # 编辑 DATABASE_URL、REDIS_*、CELERY_*、DEEPSEEK_*、JWT_SECRET_KEY 等
+cp .env.example .env.development   # 编辑 DATABASE_URL、REDIS_*、CELERY_*、JWT_SECRET_KEY 等
 export PYTHONPATH=src
 python -m alembic upgrade head
 ```
@@ -39,9 +42,10 @@ bash scripts/start_backend.sh
 或分别开终端：
 
 ```bash
-# 使用 .env 中的 API_HOST / API_PORT（默认 0.0.0.0:8000）：
+# 使用 .env.development 中的 API_HOST / API_PORT（默认 0.0.0.0:8000）：
 python -m aperix_geo
 # 开发热重载：uvicorn aperix_geo.main:app --reload --host 0.0.0.0 --port 8000
+# 生产：export ENV=production 后启动（加载 .env.production）
 ```
 
 Worker（另开终端，同样在 `backend/` 且已 `activate`）：
@@ -71,7 +75,7 @@ API 只**创建**采样任务；真正调用 LLM 的是 **Celery Worker**。仅�
 | API | 按需 | 前端 / HTTP 触发 |
 | Celery Beat | 可选 | 每日窗口内扫描到期 subject 并入队 |
 
-`.env` 至少配置 `DATABASE_URL`、`CELERY_BROKER_URL` 与一个采样平台 Key（如 `DOUBAO_API_KEY`）。
+`.env.development`（或生产 `.env.production`）至少配置 `DATABASE_URL`、`CELERY_BROKER_URL` 与一个采样平台 Key（如 `DOUBAO_API_KEY`）。
 
 **手动触发（本地）：**
 
@@ -147,14 +151,14 @@ python3 scripts/sampling_reparse.py --dry-run  # 重算已有回复的 parsed �
 2. **topics**：用户确认竞品 → profile_summary LLM + 监测主题 LLM
 3. **终选竞品**：及格分 Top N（`COMPETITOR_RESULT_MAX`）
 
-环境变量见 `backend/.env.example`：`COMPETITOR_*`、`DOUBAO_*`；`SEARXNG_BASE_URL` 可选，用于采样后开集品牌域名回填（Setup 竞品发现不用 SearXNG）。安装 Crawl4AI 浏览器（正文类抓取兜底）：
+环境变量见 `.env.development` / `.env.production`：`COMPETITOR_*`、`DOUBAO_*`；`SEARXNG_BASE_URL` 可选，用于采样后开集品牌域名回填（Setup 竞品发现不用 SearXNG）。安装 Crawl4AI 浏览器（正文类抓取兜底）：
 
 ```bash
 crawl4ai-setup
 # 或：playwright install chromium
 ```
 
-可调 `PAGE_CRAWL_*` 环境变量，见 `.env.example`。
+可调 `PAGE_CRAWL_*` 环境变量，见 `.env.development` / `.env.production`。
 
 ## 验证码（邮箱 SMTP / 阿里云短信）
 
@@ -165,7 +169,7 @@ crawl4ai-setup
 | `ENV=development` / `dev` / `local`（默认） | 不发邮件，响应 **`dev_code`** | 不发短信，响应 **`dev_code`** |
 | `ENV=production` | 需配置 **SMTP_***，真实发信；未配置返回 **503** | 需配置 **SMS_ALIYUN_ACCESS_KEY_*** + 签名 + 模板；未配置返回 **503** |
 
-SMTP 变量见 `.env.example`（`SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` / `SMTP_FROM_NAME` / `SMTP_USE_TLS`）。短信依赖 `alibabacloud-dysmsapi20170525`，模板验证码字段名须与 `SMS_ALIYUN_TEMPLATE_PARAM_CODE_KEY` 一致。
+SMTP 变量见 `.env.development` / `.env.production`（`SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` / `SMTP_FROM_NAME` / `SMTP_USE_TLS`）。短信依赖 `alibabacloud-dysmsapi20170525`，模板验证码字段名须与 `SMS_ALIYUN_TEMPLATE_PARAM_CODE_KEY` 一致。
 
 ## 从仓库根目录安装（可选）
 
@@ -175,15 +179,35 @@ SMTP 变量见 `.env.example`（`SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_
 pip install -e './backend[dev]'
 ```
 
-迁移与 Alembic **仍建议在 `backend/` 目录执行**（以便读取同目录下的 `alembic.ini` 与 `.env`）：
+迁移与 Alembic **仍建议在 `backend/` 目录执行**（以便读取同目录下的 `alembic.ini` 与 `.env.development` / `.env.production`）：
 
 ```bash
 cd backend && export PYTHONPATH=src && python -m alembic upgrade head
 ```
 
+## 生产部署（systemd）
+
+仓库根目录 [`rebuild-and-restart-backend.sh`](../rebuild-and-restart-backend.sh)：
+
+1. 检查已安装 **Python ≥ 3.12** 与 `systemctl`
+2. `git pull` → `backend/.venv` + `pip install -e .` → `alembic upgrade head`
+3. 生成并安装 **`aperix-backend.service`**（`ExecStart` → [`scripts/start_backend.sh`](scripts/start_backend.sh)），再 `restart` 或首次 `enable --now`
+
+进程 `ENV=production`，自行加载 `.env.production`。
+
+```bash
+bash rebuild-and-restart-backend.sh
+# 可选：APERIX_SERVICE_USER=deploy bash rebuild-and-restart-backend.sh
+
+systemctl status aperix-backend
+journalctl -u aperix-backend -f
+```
+
+Nginx：`app.aperix.cn/api/` → `127.0.0.1:8000`。全栈部署见 [docs/10-部署说明.md](../docs/10-部署说明.md)。
+
 ## 与前端约定
 
 - API 前缀：`/api/v1`
-- 认证：`Authorization: Bearer <access_token>`，或开发用 `X-API-Key`（见 `.env.example`）
+- 认证：`Authorization: Bearer <access_token>`，或开发用 `X-API-Key`（见 `.env.development`）
 
 环境、迁移与 API 说明见本文档上文各节。

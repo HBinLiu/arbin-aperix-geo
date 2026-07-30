@@ -10,7 +10,7 @@ templates:
   # 额度预警：手机号 / 账户余额(剩余次数) / 异常原因（const 枚举）
   - key: quota_warn
     template_id: "1gFxPSQIoX3XaKglXRXMdFAJ6GWff5GtcbWNj-ThNtw"
-    url_path: /app/billing/plan
+    url_path: /billing/plan
     data:
       - keyword: phone_number9
         source: phone

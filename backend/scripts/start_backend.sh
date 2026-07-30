@@ -19,7 +19,8 @@ Usage: bash scripts/start_backend.sh [options]
   同时启动 uvicorn、Celery worker，以及（默认）Celery beat。
   默认 CELERY_SPLIT_WORKERS=1：单机起编排 / LLM / Crawl / Parse 四个 worker 进程。
   Beat 仅在每日采样窗口内（默认北京时间 02:00–05:00）按间隔扫描到期 subject。
-  读取环境变量 API_HOST、API_PORT（或 .env）；Celery 使用 CELERY_BROKER_URL 等。
+  读取 API_HOST、API_PORT 与 .env.development / .env.production（由 ENV 决定）。
+  本地默认 ENV=development；生产请先：export ENV=production
 
   分机部署：本机只起 API+Beat，另用 scripts/start_celery_worker.sh
   并设 CELERY_WORKER_ROLE=orch|llm|crawl|parse。

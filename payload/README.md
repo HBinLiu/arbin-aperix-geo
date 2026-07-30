@@ -22,10 +22,14 @@ Admin 侧边栏 **站点设置**（Payload 默认：Collections 先于 Globals�
 ## 本地开发
 
 ```bash
-cd payload && cp .env.example .env && npm install
+cd payload && cp .env.example .env.development && npm install
 npm run seed          # 首次：自动 push schema + 写入默认内容
 npm run dev
 ```
+
+Next 按 mode 加载：`dev` → `.env.development`；`build` / `start` → `.env.production`。
+
+本地上传的媒体文件落在 **`payload/media/`**（`Media` collection `staticDir`）。该目录**纳入 Git**，发布时随 `git pull` 到服务器；勿再加入 `.gitignore`，否则线上 CMS / 官网图片会缺失。
 
 `seed` 启动时会调用 `getPayload()`，Payload 会自动将 schema push 到 PostgreSQL（空库会建表，已有库会增量对齐）。**不需要单独的 schema 初始化脚本。**
 

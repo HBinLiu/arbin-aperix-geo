@@ -31,7 +31,7 @@ export function useSamplingCompletionToast() {
       toast.success("品牌分析已完成，概述数据已就绪。");
       wasCompleteRef.current = true;
 
-      const onOverview = pathname === "/app" || pathname === "/app/";
+      const onOverview = pathname === "/" || pathname === "";
       if (!onOverview) {
         navigate(dashboardNavToPath("overview"), { replace: true });
       }

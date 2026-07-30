@@ -1,4 +1,4 @@
-import { DASHBOARD_APP_BASE } from "@/lib/dashboard";
+import { dashboardPath } from "@/lib/dashboard";
 import type { AnalysisDimension } from "@/types";
 
 export const ANALYSIS_DIMENSIONS: {
@@ -45,7 +45,7 @@ export const ANALYSIS_DIMENSIONS: {
 
 export const DEFAULT_ANALYSIS_DIMENSION: AnalysisDimension = "visibility";
 
-export const ANALYSIS_BASE_PATH = `${DASHBOARD_APP_BASE}/analysis`;
+export const ANALYSIS_BASE_PATH = dashboardPath("analysis");
 
 export function parseAnalysisDimension(value: string | null | undefined): AnalysisDimension {
   if (value && ANALYSIS_DIMENSIONS.some((d) => d.id === value)) {

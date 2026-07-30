@@ -7,7 +7,7 @@
 | 目录 | 说明 |
 |------|------|
 | [**backend/**](backend/) | Python：**FastAPI** + **Celery** + **PostgreSQL** / **Redis**，详见 [backend/README.md](backend/README.md) |
-| [**frontend/**](frontend/) | 控制台：**Vite + React + TS + Tailwind + shadcn/ui**（`/app`、`/auth`，见 [frontend/README.md](frontend/README.md)） |
+| [**frontend/**](frontend/) | 控制台：**Vite + React + TS + Tailwind + shadcn/ui**（生产域 `app.aperix.cn`，见 [frontend/README.md](frontend/README.md)） |
 | [**website/**](website/) | 官网：**Astro** 静态站（`/`、`/pricing` 等，见 [website/README.md](website/README.md)） |
 | [**payload/**](payload/) | 营销 CMS：**Payload 3** + PostgreSQL（`/cms`、`/cms/api`，见 [payload/README.md](payload/README.md)） |
 | [**docs/**](docs/) | 产品文档（入口 [docs/README.md](docs/README.md)） |
@@ -27,6 +27,7 @@
 | [docs/05-诊断流程.md](docs/05-诊断流程.md) | 诊断四步：Verify / Dispatch / Clean / Analysis |
 | [docs/06-分析指标.md](docs/06-分析指标.md) | 看板六大指标公式与实现说明 |
 | [docs/07-定价方案.md](docs/07-定价方案.md) | 订阅版本、配额与付款周期 |
+| [docs/10-部署说明.md](docs/10-部署说明.md) | **生产部署**：域名、发布脚本、Node 22 离线导入、backend systemd |
 
 ## 技术栈（后端已定）
 
@@ -39,11 +40,12 @@ docker compose up -d
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e '.[dev]'
-cp .env.example .env   # 按需填写
+cp .env.example .env.development   # 按需填写
 export PYTHONPATH=src
 python -m alembic upgrade head
 python -m aperix_geo
 # 另开终端，仍在 backend/：celery -A aperix_geo.celery_app.celery_app worker --loglevel=INFO
+# 生产：cp .env.example .env.production 并填写；export ENV=production 后启动
 ```
 
 也可在**仓库根**使用同一虚拟环境：`pip install -e './backend[dev]'`，迁移与 Alembic 仍建议在 `backend/` 下执行（见 [backend/README.md](backend/README.md)）。
@@ -54,6 +56,7 @@ OpenAPI：`http://localhost:8000/docs`
 
 ```bash
 cd frontend
+cp .env.example .env.development   # 可选
 npm install
 npm run dev
 ```
@@ -66,13 +69,20 @@ npm run dev
 docker compose up -d
 
 # Payload CMS（:3000，/cms）
-cd payload && cp .env.example .env && npm install && npm run dev
+cd payload && cp .env.example .env.development && npm install && npm run dev
 
 # Astro 官网（:4321，/）
-cd website && cp .env.example .env && npm install && npm run dev
+cd website && cp .env.example .env.development && npm install && npm run dev
 ```
 
-生产同域路径：`/` 官网 · `/app` 控制台 · `/auth` 鉴权 · `/api/v1` 产品 API · `/cms` 内容后台。
+环境变量：各包用 `.env.development`（本地）/ `.env.production`（生产），从 `.env.example` 复制；**含密钥的 mode 文件勿提交**（已在 `.gitignore`）；`frontend/.env.*` 无密钥可入库。不使用 `.env` / `.env.local`。Backend 生产须 `export ENV=production`。
+
+生产域名约定：
+
+- 官网 `aperix.cn`（或 www）→ website；`/cms` → payload
+- 控制台 `app.aperix.cn` → frontend 静态 `dist`；同域 `/api` → FastAPI（systemd：`rebuild-and-restart-backend.sh`）
+
+完整步骤、Nginx 与 **Node 22 镜像离线导入**（服务器系统过旧无法直拉时）见 [docs/10-部署说明.md](docs/10-部署说明.md)。
 
 ## 核心产品差异
 

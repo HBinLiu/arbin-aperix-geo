@@ -29,20 +29,21 @@ import {
   BillingRoute,
 } from "@/routes/dashboard";
 import { SetupRoute } from "@/routes/setup";
-import { DASHBOARD_APP_BASE } from "@/lib/dashboard";
 
 /**
- * 应用路由表
+ * 应用路由表（挂在 app.aperix.cn 根路径）
  *
- * 公开：/auth/*（官网 /、/about 由 Astro website/ 提供）
- * 控制台：/app/*（RequireAuth → setup / 控制台子路由）
+ * 公开：/auth/*
+ * 控制台：/、/setup、/analysis…（RequireAuth）
  */
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/auth/login" replace />} />
+      <Route path="/auth/login" element={<LoginPage />} />
+      <Route path="/auth/register" element={<Navigate to="/auth/login" replace />} />
+      <Route path="/auth/forgot-password" element={<Navigate to="/auth/login" replace />} />
+
       <Route
-        path={`${DASHBOARD_APP_BASE}/*`}
         element={
           <RequireAuth>
             <Outlet />
@@ -89,13 +90,10 @@ export function AppRoutes() {
               <Route index element={<Navigate to="plan" replace />} />
               <Route path=":tab" element={<BillingRoute />} />
             </Route>
-            <Route path="*" element={<Navigate to={DASHBOARD_APP_BASE} replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Route>
       </Route>
-      <Route path="/auth/login" element={<LoginPage />} />
-      <Route path="/auth/register" element={<Navigate to="/auth/login" replace />} />
-      <Route path="/auth/forgot-password" element={<Navigate to="/auth/login" replace />} />
     </Routes>
   );
 }

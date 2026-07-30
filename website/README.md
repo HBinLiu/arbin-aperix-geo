@@ -6,15 +6,16 @@
 
 ```bash
 cd website
-cp .env.example .env
+cp .env.example .env.development
 npm install
 npm run dev
 ```
 
-默认 <http://127.0.0.1:4321>。
+默认 <http://127.0.0.1:4321>。Astro 按 mode 加载：`dev` → `.env.development`；`build` → `.env.production`。
 
-- **Payload**：`PAYLOAD_API_URL=/cms/api`（关于页 story、首页 FAQ、SEO）
+- **Payload**：`PAYLOAD_API_URL=/cms/api`（开发时映射到 `:3000`；生产同域）
 - **产品 API**：`BACKEND_API_URL` 直连 FastAPI `:8000`
+- **控制台 CTA**：`PUBLIC_LOGIN_URL` / `PUBLIC_REGISTER_URL` 本地指向 `http://127.0.0.1:5173/auth/login`；生产指向 `https://app.aperix.cn/auth/login`
 
 建议同时启动：
 
@@ -39,7 +40,7 @@ npm run build   # 输出 dist/；需 backend :8000 可访问（见 BACKEND_API_U
 npm run preview
 ```
 
-生产部署时由反向代理将 `/` 指向 `website/dist`，`/app` 与 `/auth` 指向 React SPA，`/api/v1` 指向 FastAPI，`/cms` 指向 Payload。
+生产部署：营销域（如 `aperix.cn`）`/` → website Node；`/cms` → Payload。控制台域 **`app.aperix.cn`** → frontend 静态 `dist`，同域 `/api` → FastAPI。详见 [docs/10-部署说明.md](../docs/10-部署说明.md)。
 
 ## 站点地图（Sitemap）与各搜索引擎提交
 

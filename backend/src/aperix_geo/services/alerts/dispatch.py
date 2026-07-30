@@ -1,4 +1,4 @@
-"""Enqueue provider billing alerts."""
+"""Enqueue provider billing alerts (email only)."""
 
 from __future__ import annotations
 
@@ -18,24 +18,12 @@ from aperix_geo.services.alerts.state import evaluate_alert_gate, mark_alert_sen
 logger = logging.getLogger(__name__)
 
 
-def _env_label(settings: Settings) -> str:
-    return (settings.provider_alert_env_label or settings.env or "unknown").strip()
-
-
-def _alert_enabled(settings: Settings) -> bool:
-    if not settings.provider_alert_enabled:
-        return False
-    if settings.env.strip().lower() in {"development", "dev", "local"}:
-        return settings.provider_alert_enabled
-    return True
-
-
-def _parse_channels(raw: str) -> set[str]:
-    return {part.strip().lower() for part in raw.split(",") if part.strip()}
-
-
 def _parse_recipients(raw: str) -> list[str]:
     return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def _alert_email_to(settings: Settings) -> list[str]:
+    return _parse_recipients(settings.provider_alert_email_to)
 
 
 def maybe_report_provider_billing_alert(
@@ -47,7 +35,10 @@ def maybe_report_provider_billing_alert(
     settings: Settings | None = None,
 ) -> None:
     settings = settings or get_settings()
-    if not _alert_enabled(settings):
+    if not settings.provider_alert_enabled:
+        return
+    email_to = _alert_email_to(settings)
+    if not email_to:
         return
     if not is_billing_provider_error(message, status_code):
         return
@@ -74,14 +65,7 @@ def maybe_report_provider_billing_alert(
         return
 
     mark_alert_sent(resolved_id)
-    _enqueue_alert(
-        event,
-        channels=_parse_channels(settings.provider_alert_channels),
-        email_to=_parse_recipients(settings.provider_alert_email_to),
-        sms_phones=_parse_recipients(settings.provider_alert_sms_phones),
-        env_label=_env_label(settings),
-        kind="billing",
-    )
+    _enqueue_alert(event, email_to=email_to, kind="billing")
 
 
 def maybe_report_provider_success(
@@ -90,7 +74,10 @@ def maybe_report_provider_success(
     settings: Settings | None = None,
 ) -> None:
     settings = settings or get_settings()
-    if not _alert_enabled(settings):
+    if not settings.provider_alert_enabled:
+        return
+    email_to = _alert_email_to(settings)
+    if not email_to:
         return
     if not mark_provider_recovered(provider_id):
         return
@@ -103,10 +90,7 @@ def maybe_report_provider_success(
             message="",
             fail_count=0,
         ),
-        channels=_parse_channels(settings.provider_alert_channels),
-        email_to=_parse_recipients(settings.provider_alert_email_to),
-        sms_phones=_parse_recipients(settings.provider_alert_sms_phones),
-        env_label=_env_label(settings),
+        email_to=email_to,
         kind="recovery",
     )
 
@@ -114,18 +98,12 @@ def maybe_report_provider_success(
 def _enqueue_alert(
     event: ProviderBillingEvent,
     *,
-    channels: set[str],
     email_to: list[str],
-    sms_phones: list[str],
-    env_label: str,
     kind: str,
 ) -> None:
     payload = {
         "event": asdict(event),
-        "channels": sorted(channels),
         "email_to": email_to,
-        "sms_phones": sms_phones,
-        "env_label": env_label,
         "kind": kind,
     }
     try:

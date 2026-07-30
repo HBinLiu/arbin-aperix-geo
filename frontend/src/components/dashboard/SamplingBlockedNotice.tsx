@@ -3,7 +3,6 @@ import { Clock3 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { SAMPLING_BLOCKED_MESSAGE } from "@/lib/dashboard/nav-lock";
-import { DASHBOARD_APP_BASE } from "@/lib/dashboard";
 
 /** 采样未完成时拦截洞察 / 运营页面的提示。 */
 export function SamplingBlockedNotice() {
@@ -19,7 +18,7 @@ export function SamplingBlockedNotice() {
         </p>
       </div>
       <Button variant="outline" size="sm" asChild>
-        <Link to={DASHBOARD_APP_BASE}>返回概述</Link>
+        <Link to="/">返回概述</Link>
       </Button>
     </div>
   );

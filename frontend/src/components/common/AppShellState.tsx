@@ -150,7 +150,7 @@ export function AppShellError({
               </Button>
               {meta.showLogin ? (
                 <Button type="button" variant="outline" className="gap-2" asChild>
-                  <Link to="/auth/login?next=%2Fapp">
+                  <Link to="/auth/login?next=%2F">
                     <LogIn className="size-4" aria-hidden />
                     前往登录
                   </Link>

@@ -7,7 +7,7 @@
 | `apiclient_key.pem` | 商户 API 私钥，发请求签名 | `WECHAT_PAY_PRIVATE_KEY_PATH` |
 | `public_key.pem` | 微信支付公钥，回调验签 | `WECHAT_PAY_PUBLIC_KEY_PATH` |
 
-## 其它必填配置（写在 `backend/.env`）
+## 其它必填配置（写在 `backend/.env.production` 或 `.env.development`）
 
 | 变量 | 说明 |
 |------|------|
@@ -18,7 +18,7 @@
 | `WECHAT_PAY_PUBLIC_KEY_ID` | 微信支付公钥 ID（`PUB_KEY_ID_...`） |
 | `WECHAT_PAY_NOTIFY_URL` | 公网 HTTPS 回调地址 |
 
-## `.env` 路径示例（相对 `backend/`）
+## 路径示例（相对 `backend/`）
 
 ```bash
 WECHAT_PAY_PRIVATE_KEY_PATH=certs/wechat/apiclient_key.pem

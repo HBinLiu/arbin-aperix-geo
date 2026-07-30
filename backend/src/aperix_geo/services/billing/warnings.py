@@ -39,7 +39,7 @@ _WECHAT_REASON_BY_LEVEL: dict[str, str] = {
     "0pct": "额度已用尽",
 }
 
-_ACTION_PATH = "/app/billing/plan"
+_ACTION_PATH = "/billing/plan"
 
 
 @dataclass(frozen=True, slots=True)
