@@ -1,5 +1,3 @@
-import type { SamplingPlatform } from "@/types/brand";
-
 export type AnalysisEntityRef = {
   id: string;
   kind: "own" | "competitor";
@@ -699,6 +697,8 @@ export type LlmResponseDialogRow = {
   response_id: string;
   platform: string;
   reply_preview?: string;
+  search_queries?: string[];
+  fanout_supported?: boolean;
 };
 
 export type PromptDetailResponseRow = LlmResponseDialogRow & {

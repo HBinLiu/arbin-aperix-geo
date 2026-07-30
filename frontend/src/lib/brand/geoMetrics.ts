@@ -25,8 +25,8 @@ export const EMPTY_BRAND_GEO_METRICS: BrandGeoMetrics = {
   sentimentLabel: null,
 };
 
-function normalize(value: string): string {
-  return value.trim().toLowerCase();
+function normalize(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase();
 }
 
 function matchNames(row: CompetitorItem, label: string, item: RankBoardItem): boolean {

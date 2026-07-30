@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { fetchSubjectCompetitors } from "@/api/brand";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
-import { resolveBrandHoverRow, type BrandHoverHints } from "@/lib/brand/hoverRow";
+import { resolveBrandHoverRow } from "@/lib/brand/hoverRow";
 import { queryKeys, sessionCatalogQueryOptions } from "@/lib/queries";
 import type { CompetitorItem } from "@/types";
 

@@ -197,7 +197,7 @@ function shareVoicePieSlices(
 
 export function buildVisibilityMetricBundle(
   data: VisibilityAnalysisData | undefined,
-  entityLabels: string[],
+  _entityLabels: string[],
   entities: AnalysisEntityRef[],
   focusEntityId: string | undefined,
   def: VisibilityMetricDefinition,

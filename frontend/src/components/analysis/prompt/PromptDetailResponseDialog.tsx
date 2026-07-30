@@ -424,7 +424,7 @@ export function PromptDetailResponseDialog({
                   <div className="space-y-2">
                     <p className="text-muted-foreground text-xs">本回复扇出 {queries.length} 条</p>
                     <ul className="space-y-1.5">
-                      {queries.map((query) => (
+                      {queries.map((query: string) => (
                         <li key={query} className="text-sm leading-5">
                           {query}
                         </li>
