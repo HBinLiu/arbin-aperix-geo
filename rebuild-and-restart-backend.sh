@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 拉取代码 → 检查 Python → venv 安装依赖 → alembic → 安装/重启 aperix-backend.service
+# 拉取代码 → 确保 Python>=3.12 → venv 安装依赖 → alembic → 安装/重启 aperix-backend.service
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8,6 +8,8 @@ UNIT_NAME=aperix-backend.service
 UNIT_DST="${APERIX_SYSTEMD_DIR:-/etc/systemd/system}/$UNIT_NAME"
 VENV="$BACKEND/.venv"
 VENV_BIN="$VENV/bin"
+# 可选覆盖：APERIX_PYTHON=/usr/local/bin/python3.12
+PYTHON_BIN=""
 
 run_root() {
   if [[ "$(id -u)" -eq 0 ]]; then
@@ -17,31 +19,102 @@ run_root() {
   fi
 }
 
+python_ok() {
+  local bin="$1"
+  command -v "$bin" >/dev/null 2>&1 || [[ -x "$bin" ]] || return 1
+  "$bin" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 12) else 1)' 2>/dev/null
+}
+
+resolve_python() {
+  local c
+  if [[ -n "${APERIX_PYTHON:-}" ]]; then
+    if python_ok "$APERIX_PYTHON"; then
+      PYTHON_BIN="$APERIX_PYTHON"
+      return 0
+    fi
+    echo "APERIX_PYTHON=$APERIX_PYTHON 不可用或版本 < 3.12" >&2
+  fi
+  for c in python3.13 python3.12 python3; do
+    if command -v "$c" >/dev/null 2>&1 && python_ok "$c"; then
+      PYTHON_BIN="$(command -v "$c")"
+      return 0
+    fi
+  done
+  return 1
+}
+
+install_python_via_pkg() {
+  echo "尝试用系统包管理器安装 Python >= 3.12 ..."
+  if command -v apt-get >/dev/null 2>&1; then
+    run_root apt-get update -y
+    run_root DEBIAN_FRONTEND=noninteractive apt-get install -y \
+      python3.12 python3.12-venv python3.12-dev || return 1
+    return 0
+  fi
+  if command -v dnf >/dev/null 2>&1; then
+    run_root dnf install -y python3.12 python3.12-devel 2>/dev/null \
+      || run_root dnf install -y python3.12 || return 1
+    return 0
+  fi
+  # CentOS/RHEL 7 的 yum 通常没有 3.12，交给 uv
+  return 1
+}
+
+install_python_via_uv() {
+  echo "系统包无 Python 3.12（常见于 CentOS 7），改用 uv 安装独立解释器（不覆盖系统 python）..."
+  export PATH="${HOME}/.local/bin:/usr/local/bin:${PATH}"
+  if ! command -v uv >/dev/null 2>&1; then
+    if ! command -v curl >/dev/null 2>&1; then
+      echo "需要 curl 以安装 uv" >&2
+      return 1
+    fi
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    export PATH="${HOME}/.local/bin:${PATH}"
+  fi
+  if ! command -v uv >/dev/null 2>&1; then
+    echo "uv 安装失败" >&2
+    return 1
+  fi
+  uv python install 3.12
+  PYTHON_BIN="$(uv python find 3.12)"
+  if ! python_ok "$PYTHON_BIN"; then
+    echo "uv 安装的 Python 不可用: $PYTHON_BIN" >&2
+    return 1
+  fi
+}
+
+ensure_python() {
+  if resolve_python; then
+    return 0
+  fi
+  echo "当前无可用 Python >= 3.12（系统 python3: $(python3 --version 2>&1 || echo 未安装)），开始自动安装..."
+  if install_python_via_pkg && resolve_python; then
+    return 0
+  fi
+  if install_python_via_uv; then
+    return 0
+  fi
+  echo "自动安装 Python 3.12 失败。可手动指定：APERIX_PYTHON=/path/to/python3.12 $0" >&2
+  exit 1
+}
+
 # --- 0. 前置检查 ---
 if ! command -v systemctl >/dev/null 2>&1; then
   echo "未找到 systemctl，本脚本仅支持 systemd 主机" >&2
   exit 1
 fi
 
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "未找到 python3，请先安装 Python >= 3.12（如 apt install python3.12 python3.12-venv）" >&2
-  exit 1
-fi
-
-if ! python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 12) else 1)'; then
-  echo "需要 Python >= 3.12，当前: $(python3 --version 2>&1)" >&2
-  exit 1
-fi
+ensure_python
 
 if [[ ! -f "$BACKEND/.env.production" ]]; then
-  echo "缺少 $BACKEND/.env.production" >&2
+  echo "缺少 $BACKEND/.env.production（从 backend/.env.example 复制并填写，勿提交密钥）" >&2
   exit 1
 fi
 
 SERVICE_USER="${APERIX_SERVICE_USER:-${SUDO_USER:-$(id -un)}}"
 SERVICE_GROUP="${APERIX_SERVICE_GROUP:-$(id -gn "$SERVICE_USER" 2>/dev/null || id -gn)}"
 
-echo "Python: $(python3 --version)  ServiceUser: $SERVICE_USER"
+echo "Python: $("$PYTHON_BIN" --version) ($PYTHON_BIN)  ServiceUser: $SERVICE_USER"
 
 cd "$ROOT"
 
@@ -52,13 +125,13 @@ git pull origin main
 # --- 2. venv + 依赖 ---
 if [[ ! -x "$VENV_BIN/python" ]]; then
   echo "创建虚拟环境 $VENV"
-  python3 -m venv "$VENV"
+  "$PYTHON_BIN" -m venv "$VENV"
 fi
 
 if ! "$VENV_BIN/python" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 12) else 1)'; then
-  echo "venv Python 过旧，重建..."
+  echo "venv Python 过旧，用 $PYTHON_BIN 重建..."
   rm -rf "$VENV"
-  python3 -m venv "$VENV"
+  "$PYTHON_BIN" -m venv "$VENV"
 fi
 
 echo "安装 backend 依赖..."

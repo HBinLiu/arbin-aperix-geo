@@ -189,7 +189,7 @@ cd backend && export PYTHONPATH=src && python -m alembic upgrade head
 
 仓库根目录 [`rebuild-and-restart-backend.sh`](../rebuild-and-restart-backend.sh)：
 
-1. 检查已安装 **Python ≥ 3.12** 与 `systemctl`
+1. 检查 `systemctl`；若本机无 **Python ≥ 3.12**，脚本会自动安装（`apt`/`dnf`，失败则用 **uv** 装独立解释器，不覆盖系统自带的 3.6）。可用 `APERIX_PYTHON=/path/to/python3.12` 指定已有解释器。
 2. `git pull` → `backend/.venv` + `pip install -e .` → `alembic upgrade head`
 3. 生成并安装 **`aperix-backend.service`**（`ExecStart` → [`scripts/start_backend.sh`](scripts/start_backend.sh)），再 `restart` 或首次 `enable --now`
 
