@@ -1,6 +1,6 @@
-import type { PlatformId } from "../../platform.ts";
+import type { PlatformId } from "../../platform";
 
-import type { MonitorPageSeoDefault } from "./types.ts";
+import type { MonitorPageSeoDefault } from "./types";
 
 export const MONITOR_PAGE_SEO: Record<PlatformId, MonitorPageSeoDefault> = {
   doubao: {

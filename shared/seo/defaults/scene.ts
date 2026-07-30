@@ -1,4 +1,4 @@
-import type { PageSeoDefault } from "./types.ts";
+import type { PageSeoDefault } from "./types";
 
 export const SCENE_PAGE_SEO = {
   "product-launch": {

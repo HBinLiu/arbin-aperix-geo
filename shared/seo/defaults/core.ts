@@ -1,4 +1,4 @@
-import type { PageSeoDefault } from "./types.ts";
+import type { PageSeoDefault } from "./types";
 
 export const CORE_PAGE_SEO = {
   home: {

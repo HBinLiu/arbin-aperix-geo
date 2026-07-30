@@ -1,4 +1,4 @@
-import type { PlatformId } from "../../platform.ts";
+import type { PlatformId } from "../../platform";
 
 /** 单页默认 SEO（title 为主题，不含 `| 品牌名`；description 可含 {{siteName}}） */
 export type PageSeoDefault = {

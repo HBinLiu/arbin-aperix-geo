@@ -1,4 +1,4 @@
-import type { PageSeoDefault } from "./types.ts";
+import type { PageSeoDefault } from "./types";
 
 export const PLATFORM_PAGE_SEO = {
   answer: {

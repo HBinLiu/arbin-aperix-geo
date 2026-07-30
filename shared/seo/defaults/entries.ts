@@ -1,8 +1,8 @@
-import { CORE_PAGE_SEO } from "./core.ts";
-import { MONITOR_PAGE_SEO } from "./monitor.ts";
-import { PLATFORM_PAGE_SEO } from "./platform.ts";
-import { SOLUTION_TEAM_SEO } from "./solution.ts";
-import { type CmsPageSeoSeedEntry, toCmsPageSeoSeed } from "./types.ts";
+import { CORE_PAGE_SEO } from "./core";
+import { MONITOR_PAGE_SEO } from "./monitor";
+import { PLATFORM_PAGE_SEO } from "./platform";
+import { SOLUTION_TEAM_SEO } from "./solution";
+import { type CmsPageSeoSeedEntry, toCmsPageSeoSeed } from "./types";
 
 /** Payload seed 写入 `page-seo` collection 的全量默认条目 */
 export const defaultPageSeoEntries: CmsPageSeoSeedEntry[] = [
