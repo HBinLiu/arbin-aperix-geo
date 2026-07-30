@@ -47,7 +47,7 @@ cd "$ROOT"
 
 # --- 1. git pull ---
 git reset --hard HEAD
-git pull origin master
+git pull origin main
 
 # --- 2. venv + 依赖 ---
 if [[ ! -x "$VENV_BIN/python" ]]; then

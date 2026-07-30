@@ -10,7 +10,7 @@ ENV_FILE="$ROOT/payload/.env.production"
 
 # 1. git pull master
 git reset --hard HEAD
-git pull origin master
+git pull origin main
 
 # 2. node docker rebuild
 docker run --rm -it --security-opt seccomp:unconfined \
