@@ -74,6 +74,7 @@ function PlatformMegaMenuPanel() {
                         width={PLATFORM_LOGO_RENDER_PX}
                         height={PLATFORM_LOGO_RENDER_PX}
                         className="size-7 object-contain"
+                        loading="eager"
                       />
                     ) : (
                       <LayoutGrid className="text-muted-foreground size-5" aria-hidden />
