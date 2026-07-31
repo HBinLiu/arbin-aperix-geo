@@ -27,7 +27,7 @@ npm run seed          # 首次：自动 push schema + 写入默认内容
 npm run dev
 ```
 
-Next 按 mode 加载：`dev` → `.env.development`；`build` / `start` → `.env.production`。
+Next 按 mode 加载：`dev` → `.env.development`；`build` / `start` → `.env.production`。生产构建使用 `next build --webpack`（避免 Next 16 Turbopack 把 `pino` 编成 `pino-<hash>`，Docker 运行时找不到模块）。
 
 本地上传的媒体文件落在 **`payload/media/`**（`Media` collection `staticDir`）。该目录**纳入 Git**，发布时随 `git pull` 到服务器；勿再加入 `.gitignore`，否则线上 CMS / 官网图片会缺失。
 

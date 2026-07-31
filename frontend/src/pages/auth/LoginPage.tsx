@@ -19,7 +19,6 @@ export function LoginPage() {
   const [phone, setPhone] = React.useState("");
   const [code, setCode] = React.useState("");
   const [cooldown, setCooldown] = React.useState(0);
-  const [info, setInfo] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
 
   React.useEffect(() => {
@@ -30,7 +29,6 @@ export function LoginPage() {
 
   const setChannelAndReset = (c: Channel) => {
     setChannel(c);
-    setInfo(null);
     setCode("");
     setCooldown(0);
   };
@@ -38,7 +36,6 @@ export function LoginPage() {
   const target = channel === "email" ? email.trim() : phone.trim();
 
   const sendCode = async () => {
-    setInfo(null);
     setLoading(true);
     try {
       const data = await sendAuthCode({
@@ -47,10 +44,9 @@ export function LoginPage() {
         target,
       });
       setCooldown(60);
+      // 开发环境后端可能回显 dev_code，仅静默填入，不展示接口 message
       if (data.dev_code) {
         setCode(String(data.dev_code));
-      } else if (data.message) {
-        setInfo(data.message);
       }
     } catch {
       /* 错误已由 API 拦截器弹出 Toast */
@@ -61,7 +57,6 @@ export function LoginPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setInfo(null);
     setLoading(true);
     try {
       const data = await loginWithOtp({
@@ -129,7 +124,6 @@ export function LoginPage() {
                 </Button>
               </div>
             </div>
-            {info ? <p className="text-muted-foreground text-sm">{info}</p> : null}
             <Button type="submit" className="h-11 w-full text-base font-medium" disabled={loading}>
               验证并登录
             </Button>
@@ -172,7 +166,6 @@ export function LoginPage() {
                 </Button>
               </div>
             </div>
-            {info ? <p className="text-muted-foreground text-sm">{info}</p> : null}
             <Button type="submit" className="h-11 w-full text-base font-medium" disabled={loading}>
               验证并登录
             </Button>

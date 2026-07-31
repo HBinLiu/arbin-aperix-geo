@@ -11,6 +11,9 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [],
   },
+  // Next 16 默认 Turbopack 会把 pino/jsdom 编成 pino-<hash> 等外部别名，
+  // Docker 运行时常找不到；生产构建用 --webpack，并声明外部包。
+  serverExternalPackages: ["pino", "pino-pretty", "thread-stream", "jsdom"],
   webpack: (webpackConfig) => {
     webpackConfig.resolve.alias = {
       ...webpackConfig.resolve.alias,
