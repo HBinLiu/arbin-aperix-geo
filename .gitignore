@@ -26,3 +26,5 @@ frontend/node_modules/
 frontend/dist/
 frontend/.next/
 frontend/out/
+# 宝塔站点根防跨站文件，勿入库
+**/.user.ini
