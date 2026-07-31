@@ -11,6 +11,7 @@ type Props = {
   className?: string;
   loading?: "eager" | "lazy";
   decoding?: "async" | "auto" | "sync";
+  fetchPriority?: "high" | "low" | "auto";
 };
 
 export default function StaticImage({
@@ -22,6 +23,7 @@ export default function StaticImage({
   className,
   loading = "lazy",
   decoding = "async",
+  fetchPriority,
 }: Props) {
   const resolvedSrc = src ?? image?.url;
   const resolvedWidth = width ?? image?.width;
@@ -36,6 +38,7 @@ export default function StaticImage({
       className={className}
       loading={loading}
       decoding={decoding}
+      fetchPriority={fetchPriority}
       data-image-component
     />
   );
