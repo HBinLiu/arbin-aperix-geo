@@ -27,6 +27,12 @@ export type FooterSocialLink = FooterLink & {
 
 export const footerTagline = "在 AI 搜索和传统 SEO 中捕捉增长机遇";
 
+/** ICP 备案（页脚底部） */
+export const footerBeian = {
+  label: "鲁ICP备2023030640号-2",
+  href: "https://beian.miit.gov.cn/",
+};
+
 const freeTools = resourcesMenuSections.find((section) => section.title === "免费工具");
 
 const resourcesLinks = resourcesMenuSections
