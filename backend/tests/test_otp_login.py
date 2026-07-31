@@ -13,6 +13,13 @@ from aperix_geo.db.models import User
 from aperix_geo.schemas.auth import LoginWithOtpRequest, SendCodeRequest
 
 
+def _request(*, host: str = "127.0.0.1") -> MagicMock:
+    req = MagicMock()
+    req.headers = {}
+    req.client = MagicMock(host=host)
+    return req
+
+
 def _user(*, email: str = "", phone: str = "") -> User:
     return User(
         id=uuid.uuid4(),
@@ -27,12 +34,13 @@ def _user(*, email: str = "", phone: str = "") -> User:
 def test_send_code_login_email_sends(mock_send: MagicMock, mock_settings: MagicMock) -> None:
     mock_settings.return_value = MagicMock(env="development")
     body = SendCodeRequest(purpose="login", channel="email", target="User@Example.com")
-    resp = auth_routes.send_code(body)
+    resp = auth_routes.send_code(body, _request())
     assert resp.ok is True
     assert resp.dev_code == "123456"
     mock_send.assert_called_once()
     assert mock_send.call_args.kwargs["purpose"] == "login"
     assert mock_send.call_args.kwargs["channel"] == "email"
+    assert mock_send.call_args.kwargs["client_ip"] == "127.0.0.1"
 
 
 @patch("aperix_geo.api.routes.auth.get_settings")
@@ -40,10 +48,11 @@ def test_send_code_login_email_sends(mock_send: MagicMock, mock_settings: MagicM
 def test_send_code_login_phone_sends(mock_send: MagicMock, mock_settings: MagicMock) -> None:
     mock_settings.return_value = MagicMock(env="development")
     body = SendCodeRequest(purpose="login", channel="phone", target="13800138000")
-    resp = auth_routes.send_code(body)
+    resp = auth_routes.send_code(body, _request(host="203.0.113.1"))
     assert resp.ok is True
     assert resp.dev_code == "654321"
     mock_send.assert_called_once()
+    assert mock_send.call_args.kwargs["client_ip"] == "203.0.113.1"
 
 
 @patch("aperix_geo.api.routes.auth.create_access_token", return_value="tok")

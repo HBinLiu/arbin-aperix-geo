@@ -3,7 +3,7 @@
 import secrets
 import uuid
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -37,6 +37,7 @@ from aperix_geo.services.auth import tenant_members as member_svc
 from aperix_geo.services.wechat import bind_ticket as wechat_bind
 from aperix_geo.services.wechat.config import wechat_configured
 from aperix_geo.services.wechat.token import WechatError
+from aperix_geo.utils.client_ip import client_ip_from_request
 from aperix_geo.utils.contact import mask_phone_cn
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -119,7 +120,7 @@ def _default_tenant_name(*, channel: str, target_norm: str, tenant_name: str | N
 
 
 @router.post("/send-code", response_model=SendCodeResponse)
-def send_code(body: SendCodeRequest) -> SendCodeResponse:
+def send_code(body: SendCodeRequest, request: Request) -> SendCodeResponse:
     settings = get_settings()
     try:
         if body.channel == "email":
@@ -142,6 +143,7 @@ def send_code(body: SendCodeRequest) -> SendCodeResponse:
             purpose=body.purpose,
             channel=body.channel,
             target_raw=body.target,
+            client_ip=client_ip_from_request(request),
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(e)) from e
@@ -210,7 +212,12 @@ def me(current: CurrentUser) -> UserOut:
 
 
 @router.post("/me/send-bind-code", response_model=SendCodeResponse)
-def send_bind_code(body: SendBindCodeRequest, current: CurrentUser, db: DbSession) -> SendCodeResponse:
+def send_bind_code(
+    body: SendBindCodeRequest,
+    request: Request,
+    current: CurrentUser,
+    db: DbSession,
+) -> SendCodeResponse:
     settings = get_settings()
     try:
         if body.channel == "email":
@@ -232,6 +239,7 @@ def send_bind_code(body: SendBindCodeRequest, current: CurrentUser, db: DbSessio
             purpose="bind",
             channel=body.channel,
             target_raw=body.target,
+            client_ip=client_ip_from_request(request),
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(e)) from e
@@ -414,6 +422,7 @@ def list_tenant_members(current: CurrentUser, db: DbSession) -> TenantMembersOut
 @router.post("/tenant/members/send-invite-code", response_model=SendCodeResponse)
 def send_tenant_invite_code(
     body: SendInviteCodeRequest,
+    request: Request,
     current: CurrentUser,
     db: DbSession,
 ) -> SendCodeResponse:
@@ -427,6 +436,7 @@ def send_tenant_invite_code(
             purpose="invite",
             channel="phone",
             target_raw=phone_norm,
+            client_ip=client_ip_from_request(request),
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(e)) from e

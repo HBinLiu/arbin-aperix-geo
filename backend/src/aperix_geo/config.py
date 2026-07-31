@@ -266,6 +266,16 @@ class Settings(BaseSettings):
     otp_code_ttl_seconds: int = 300
     otp_send_interval_seconds: int = 60
     otp_code_length: int = 6
+    # 多维限流（发码前检查；投递成功后再计数）。0 = 关闭该维度
+    otp_phone_daily_limit: int = Field(default=8, ge=0, description="同一手机号每日发码上限")
+    otp_email_daily_limit: int = Field(default=20, ge=0, description="同一邮箱每日发码上限")
+    otp_ip_hourly_limit: int = Field(default=20, ge=0, description="同一 IP 每小时发码上限")
+    otp_ip_daily_limit: int = Field(default=50, ge=0, description="同一 IP 每日发码上限")
+    otp_sms_global_daily_limit: int = Field(
+        default=1000,
+        ge=0,
+        description="全站短信日预算（仅 phone）；0 表示不启用",
+    )
 
     # 阿里云短信（国内验证码）。生产 ENV 下配齐密钥/签名/模板即发送。
     sms_aliyun_access_key_id: str = ""

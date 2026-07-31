@@ -18,6 +18,11 @@ def _settings(**kwargs) -> Settings:
         "otp_code_length": 6,
         "otp_code_ttl_seconds": 300,
         "otp_send_interval_seconds": 60,
+        "otp_phone_daily_limit": 8,
+        "otp_email_daily_limit": 20,
+        "otp_ip_hourly_limit": 20,
+        "otp_ip_daily_limit": 50,
+        "otp_sms_global_daily_limit": 1000,
         "sms_aliyun_access_key_id": "",
         "sms_aliyun_access_key_secret": "",
         "sms_aliyun_sign_name": "",
@@ -42,28 +47,33 @@ def test_dev_stubs() -> None:
     assert not email_use_dev_stub(_settings(env="production"))
 
 
-@patch("aperix_geo.services.auth.otp.require_redis_client")
-def test_send_code_email_dev_stub(mock_redis: MagicMock) -> None:
+def _mock_redis() -> MagicMock:
     r = MagicMock()
     r.exists.return_value = 0
-    mock_redis.return_value = r
+    r.get.return_value = None
+    r.incr.side_effect = lambda _key: 1
+    return r
+
+
+@patch("aperix_geo.services.auth.otp.require_redis_client")
+def test_send_code_email_dev_stub(mock_redis: MagicMock) -> None:
+    mock_redis.return_value = _mock_redis()
     ok, exposed = send_code(
         settings=_settings(env="development"),
         purpose="login",
         channel="email",
         target_raw="User@Example.com",
+        client_ip="127.0.0.1",
     )
     assert ok is True
     assert exposed is not None and len(exposed) == 6
-    r.setex.assert_called()
+    mock_redis.return_value.setex.assert_called()
 
 
 @patch("aperix_geo.services.auth.email.send_smtp_email")
 @patch("aperix_geo.services.auth.otp.require_redis_client")
 def test_send_code_email_production_smtp(mock_redis: MagicMock, mock_send: MagicMock) -> None:
-    r = MagicMock()
-    r.exists.return_value = 0
-    mock_redis.return_value = r
+    mock_redis.return_value = _mock_redis()
     settings = _settings(
         env="production",
         smtp_host="smtp.example.com",
@@ -75,6 +85,7 @@ def test_send_code_email_production_smtp(mock_redis: MagicMock, mock_send: Magic
         purpose="login",
         channel="email",
         target_raw="user@example.com",
+        client_ip="127.0.0.1",
     )
     assert ok is True
     assert exposed is None
@@ -86,8 +97,7 @@ def test_send_code_email_production_smtp(mock_redis: MagicMock, mock_send: Magic
 
 @patch("aperix_geo.services.auth.otp.require_redis_client")
 def test_send_code_email_production_without_smtp_fails(mock_redis: MagicMock) -> None:
-    r = MagicMock()
-    r.exists.return_value = 0
+    r = _mock_redis()
     mock_redis.return_value = r
     with pytest.raises(RuntimeError, match="SMTP"):
         send_code(
@@ -95,30 +105,28 @@ def test_send_code_email_production_without_smtp_fails(mock_redis: MagicMock) ->
             purpose="login",
             channel="email",
             target_raw="user@example.com",
+            client_ip="127.0.0.1",
         )
     assert r.delete.call_count >= 1
 
 
 @patch("aperix_geo.services.auth.otp.require_redis_client")
 def test_send_code_phone_production_without_aliyun_fails(mock_redis: MagicMock) -> None:
-    r = MagicMock()
-    r.exists.return_value = 0
-    mock_redis.return_value = r
+    mock_redis.return_value = _mock_redis()
     with pytest.raises(RuntimeError, match="短信未配置"):
         send_code(
             settings=_settings(env="production"),
             purpose="login",
             channel="phone",
             target_raw="13800138000",
+            client_ip="127.0.0.1",
         )
 
 
 @patch("aperix_geo.services.auth.sms.send_verification_sms")
 @patch("aperix_geo.services.auth.otp.require_redis_client")
 def test_send_code_phone_production_when_configured(mock_redis: MagicMock, mock_sms: MagicMock) -> None:
-    r = MagicMock()
-    r.exists.return_value = 0
-    mock_redis.return_value = r
+    mock_redis.return_value = _mock_redis()
     settings = _settings(
         env="production",
         sms_aliyun_access_key_id="id",
@@ -131,6 +139,7 @@ def test_send_code_phone_production_when_configured(mock_redis: MagicMock, mock_
         purpose="login",
         channel="phone",
         target_raw="13800138000",
+        client_ip="127.0.0.1",
     )
     assert ok is True
     assert exposed is None

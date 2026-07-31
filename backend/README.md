@@ -171,6 +171,8 @@ crawl4ai-setup
 
 SMTP 变量见 `.env.development` / `.env.production`（`SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` / `SMTP_FROM_NAME` / `SMTP_USE_TLS`）。短信依赖 `alibabacloud-dysmsapi20170525`，模板验证码字段名须与 `SMS_ALIYUN_TEMPLATE_PARAM_CODE_KEY` 一致。
 
+发码多维限流（Redis，投递前检查、成功后计数；超限 **429**）：同号冷却 `OTP_SEND_INTERVAL_SECONDS`；同号日上限 `OTP_PHONE_DAILY_LIMIT` / `OTP_EMAIL_DAILY_LIMIT`；同 IP 小时/日 `OTP_IP_HOURLY_LIMIT` / `OTP_IP_DAILY_LIMIT`；全站短信日预算 `OTP_SMS_GLOBAL_DAILY_LIMIT`（仅 phone，`0` 关闭该维度）。日界按 Asia/Shanghai。生产 Nginx 需正确设置 `X-Forwarded-For`。建议同步在阿里云短信控制台配置单号日上限与余额告警。
+
 ## 从仓库根目录安装（可选）
 
 不进入 `backend/` 也可安装可编辑包（便于单一虚拟环境）：
