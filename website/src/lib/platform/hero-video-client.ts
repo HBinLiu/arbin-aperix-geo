@@ -1,4 +1,4 @@
-/** 平台页 Hero 视频：桌面优先 WebM，iOS / 微信 / 不支持 WebM 时优先 MP4，进入视口后主动 play */
+/** 平台页 Hero 视频：桌面优先 WebM；iOS / 微信 / 不支持 WebM 时用 MP4；微信失败可点播 */
 
 function isWeChatBrowser(): boolean {
   return /MicroMessenger/i.test(navigator.userAgent);
@@ -7,7 +7,6 @@ function isWeChatBrowser(): boolean {
 function isAppleTouchDevice(): boolean {
   const ua = navigator.userAgent;
   if (/iPhone|iPod|iPad/i.test(ua)) return true;
-  // iPadOS 桌面 UA
   return navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
 }
 
@@ -23,60 +22,73 @@ function canPlayWebm(video: HTMLVideoElement): boolean {
   });
 }
 
-/** 需要优先 MP4：微信内置浏览器、iOS/iPadOS，或明确无法播 WebM */
-function preferMp4(video: HTMLVideoElement): boolean {
-  if (isWeChatBrowser() || isAppleTouchDevice()) return true;
-  return !canPlayWebm(video);
-}
-
-function applyPreferredSources(video: HTMLVideoElement) {
+/** 微信 / iOS：强制 MP4；其它环境能播 WebM 才用 WebM */
+function resolvePreferredSrc(video: HTMLVideoElement): string | null {
   const webm = video.dataset.srcWebm;
   const mp4 = video.dataset.srcMp4;
-  if (!webm || !mp4) return;
+  if (!webm && !mp4) return null;
 
-  const useMp4First = preferMp4(video);
-  const ordered = useMp4First
-    ? [
-        { src: mp4, type: "video/mp4" },
-        { src: webm, type: "video/webm" },
-      ]
-    : [
-        { src: webm, type: "video/webm" },
-        { src: mp4, type: "video/mp4" },
-      ];
-
-  video.replaceChildren();
-  for (const item of ordered) {
-    const source = document.createElement("source");
-    source.src = item.src;
-    source.type = item.type;
-    video.appendChild(source);
-  }
+  if (isWeChatBrowser() || isAppleTouchDevice()) return mp4 || webm || null;
+  if (webm && canPlayWebm(video)) return webm;
+  return mp4 || webm || null;
 }
 
-function tryPlay(video: HTMLVideoElement) {
+function applyWeChatAttributes(video: HTMLVideoElement) {
   video.muted = true;
   video.defaultMuted = true;
   video.playsInline = true;
+  video.setAttribute("muted", "");
   video.setAttribute("playsinline", "");
   video.setAttribute("webkit-playsinline", "");
+  video.setAttribute("x5-playsinline", "true");
+  video.setAttribute("x5-video-player-type", "h5");
+  video.setAttribute("x5-video-player-fullscreen", "true");
+}
 
-  const play = () => {
-    const result = video.play();
-    if (result && typeof result.catch === "function") {
-      result.catch(() => {
-        /* 低电量 / 策略拦截：保留静帧，不抛错 */
-      });
-    }
-  };
+function applyPreferredSource(video: HTMLVideoElement) {
+  const src = resolvePreferredSrc(video);
+  if (!src) return;
 
-  if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-    play();
+  // 微信/部分 WebView 对多 <source> 不稳定，直接设 src 更可靠
+  video.replaceChildren();
+  video.removeAttribute("src");
+  video.src = src;
+}
+
+function showPlayButton(root: HTMLElement, show: boolean) {
+  const btn = root.querySelector<HTMLButtonElement>("[data-aei-hero-play]");
+  if (!btn) return;
+  btn.hidden = !show;
+}
+
+function tryPlay(video: HTMLVideoElement): Promise<boolean> {
+  applyWeChatAttributes(video);
+
+  const result = video.play();
+  if (result && typeof result.then === "function") {
+    return result.then(() => true).catch(() => false);
+  }
+  return Promise.resolve(!video.paused);
+}
+
+function onWeixinReady(callback: () => void) {
+  if (!isWeChatBrowser()) {
+    callback();
     return;
   }
 
-  video.addEventListener("canplay", play, { once: true });
-  video.load();
+  const win = window as Window & {
+    WeixinJSBridge?: { invoke?: (...args: unknown[]) => void };
+  };
+
+  if (win.WeixinJSBridge) {
+    callback();
+    return;
+  }
+
+  document.addEventListener("WeixinJSBridgeReady", callback, { once: true });
+  // 部分场景 Bridge 不触发，超时后仍尝试播放
+  window.setTimeout(callback, 1200);
 }
 
 function initHeroVideo(root: HTMLElement) {
@@ -86,33 +98,69 @@ function initHeroVideo(root: HTMLElement) {
   if (!video) return;
 
   root.dataset.aeiVideoBound = "true";
-  applyPreferredSources(video);
+  applyWeChatAttributes(video);
+  applyPreferredSource(video);
 
   const markReady = () => {
     root.classList.add("is-ready");
     root.removeAttribute("aria-busy");
   };
 
-  root.setAttribute("aria-busy", "true");
-
-  const onError = () => {
+  const markNeedsGesture = () => {
     markReady();
-    root.classList.add("is-error");
+    root.classList.add("is-needs-gesture");
+    showPlayButton(root, true);
   };
 
-  if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+  root.setAttribute("aria-busy", "true");
+  showPlayButton(root, false);
+
+  const playBtn = root.querySelector<HTMLButtonElement>("[data-aei-hero-play]");
+  playBtn?.addEventListener("click", () => {
+    void tryPlay(video).then((ok) => {
+      if (ok) {
+        root.classList.remove("is-needs-gesture");
+        showPlayButton(root, false);
+        markReady();
+      }
+    });
+  });
+
+  video.addEventListener(
+    "error",
+    () => {
+      markReady();
+      root.classList.add("is-error");
+      showPlayButton(root, false);
+    },
+    { once: true },
+  );
+
+  video.addEventListener("playing", () => {
     markReady();
-  } else {
-    video.addEventListener("canplay", markReady, { once: true });
-    video.addEventListener("loadeddata", markReady, { once: true });
-    video.addEventListener("error", onError, { once: true });
-  }
+    root.classList.remove("is-needs-gesture");
+    showPlayButton(root, false);
+  });
+
+  video.addEventListener("loadeddata", markReady, { once: true });
+  video.addEventListener("canplay", markReady, { once: true });
+
+  const attemptAutoplay = () => {
+    void tryPlay(video).then((ok) => {
+      if (ok) {
+        markReady();
+        return;
+      }
+      // 微信常拦截自动播放：露出点击播放
+      markNeedsGesture();
+    });
+  };
 
   const observer = new IntersectionObserver(
     (entries) => {
       for (const entry of entries) {
         if (entry.isIntersecting) {
-          tryPlay(video);
+          onWeixinReady(attemptAutoplay);
           observer.disconnect();
           break;
         }
@@ -122,7 +170,8 @@ function initHeroVideo(root: HTMLElement) {
   );
 
   observer.observe(root);
-  tryPlay(video);
+  video.load();
+  onWeixinReady(attemptAutoplay);
 }
 
 export function initPlatformHeroVideos() {

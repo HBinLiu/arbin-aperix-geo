@@ -15,20 +15,26 @@ const { sources, label = "产品演示视频" } = Astro.props;
     <div class="aei-hero-video-loading" aria-hidden="true">
       <span class="aei-hero-video-spinner"></span>
     </div>
-    {/* 源顺序由客户端按能力决定：桌面 WebM 优先，iOS/不支持 WebM 时 MP4 优先 */}
+    <button type="button" class="aei-hero-video-play" data-aei-hero-play hidden aria-label="播放视频">
+      <span class="aei-hero-video-play-icon" aria-hidden="true"></span>
+    </button>
+    {/* 初始不放 source：由客户端按环境写入，避免微信先试 WebM 失败 */}
     <video
       class="aei-hero-video"
       data-src-webm={sources.webm}
       data-src-mp4={sources.mp4}
-      autoplay
-      loop
       muted
+      loop
       playsinline
       preload="auto"
       aria-label={label}
+      {...{
+        "webkit-playsinline": true,
+        "x5-playsinline": "true",
+        "x5-video-player-type": "h5",
+        "x5-video-player-fullscreen": "true",
+      }}
     >
-      <source src={sources.webm} type="video/webm" />
-      <source src={sources.mp4} type="video/mp4" />
     </video>
   </div>
 </div>
