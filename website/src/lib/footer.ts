@@ -112,7 +112,6 @@ export const footerColumnRows: FooterColumn[][] = [
 export const footerLegalLinks: FooterLink[] = [
   { label: "使用条款", href: "" },
   { label: "隐私政策", href: "" },
-  { label: "退款政策", href: "" },
 ];
 
 /** simple-icons 品牌 path（viewBox 0 0 24 24） */
