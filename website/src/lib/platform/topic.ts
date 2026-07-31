@@ -4,10 +4,15 @@ import type { Faq } from "@/lib/platform/faq";
 import { findTopicsIdeasFaqDefaults } from "@shared/faq/defaults";
 import { mergeFaqs, resolveFaqDefaults } from "@/lib/faqs";
 import type { FaqDoc } from "@shared/faq";
-import findTopicsIdeaVideo from "@shared/assets/videos/website/find-topics-idea.webm";
+import findTopicsIdeaVideoWebm from "@shared/assets/videos/website/find-topics-idea.webm";
+import findTopicsIdeaVideoMp4 from "@shared/assets/videos/website/find-topics-idea.mp4";
 import { appLinks } from "@/lib/app-links";
+import type { HeroVideoSources } from "@/lib/platform/hero-video";
 
-export const FIND_TOPICS_VIDEO_URL = findTopicsIdeaVideo;
+export const FIND_TOPICS_VIDEO: HeroVideoSources = {
+  webm: findTopicsIdeaVideoWebm,
+  mp4: findTopicsIdeaVideoMp4,
+};
 
 export type FindTopicsFeatureIcon = "content" | "social" | "citation" | "commerce";
 

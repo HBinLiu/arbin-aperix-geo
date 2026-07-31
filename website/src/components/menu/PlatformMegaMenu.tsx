@@ -43,15 +43,17 @@ function FeatureCard({
   );
 }
 
-function PlatformMegaMenuPanel() {
+export function PlatformMegaMenuPanel({ hideIntro = false }: { hideIntro?: boolean }) {
   return (
     <div className="nav-mega-panel">
-      <div className="border-border/60 border-b px-6 py-5">
-        <p className="text-base">
-          <span className="font-semibold">{platformMenuIntro.title}</span>
-          <span className="text-muted-foreground ml-2 text-sm">{platformMenuIntro.subtitle}</span>
-        </p>
-      </div>
+      {!hideIntro ? (
+        <div className="border-border/60 border-b px-6 py-5">
+          <p className="text-base">
+            <span className="font-semibold">{platformMenuIntro.title}</span>
+            <span className="text-muted-foreground ml-2 text-sm">{platformMenuIntro.subtitle}</span>
+          </p>
+        </div>
+      ) : null}
 
       <div className="border-border/40 px-6 py-4">
         <ul className="flex flex-wrap items-start gap-4">

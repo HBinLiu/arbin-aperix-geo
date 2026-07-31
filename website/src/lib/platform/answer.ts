@@ -4,10 +4,15 @@ import type { Faq } from "@/lib/platform/faq";
 import { answerEngineInsightsFaqDefaults } from "@shared/faq/defaults";
 import { mergeFaqs, resolveFaqDefaults } from "@/lib/faqs";
 import type { FaqDoc } from "@shared/faq";
-import insightsVideo from "@shared/assets/videos/website/answer-insight.webm";
+import insightsVideoWebm from "@shared/assets/videos/website/answer-insight.webm";
+import insightsVideoMp4 from "@shared/assets/videos/website/answer-insight.mp4";
 import { appLinks } from "@/lib/app-links";
+import type { HeroVideoSources } from "@/lib/platform/hero-video";
 
-export const INSIGHTS_VIDEO_URL = insightsVideo;
+export const INSIGHTS_VIDEO: HeroVideoSources = {
+  webm: insightsVideoWebm,
+  mp4: insightsVideoMp4,
+};
 
 export type InsightsFeatureIcon =
   | "visibility"

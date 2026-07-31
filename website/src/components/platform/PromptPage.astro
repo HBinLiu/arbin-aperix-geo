@@ -3,12 +3,13 @@ import SiteFooter from "@/components/SiteFooter.astro";
 import SiteHeader from "@/components/SiteHeader.astro";
 import StaticImage from "@/components/StaticImage.tsx";
 import PromptFeatureCard from "@/components/platform/PromptFeatureCard.astro";
+import HeroVideo from "@/components/platform/HeroVideo.astro";
 import PlatformFaqSection from "@/components/platform/PlatformFaqSection.astro";
 import CtaSection from "@/components/home/CtaSection.astro";
 import { ArrowRight } from "@lucide/astro";
 import { HERO_GRID } from "@/lib/assets";
 import {
-  PROMPT_VIDEO_URL,
+  PROMPT_VIDEO,
   promptExplorerCta,
   promptExplorerFeatures,
   promptExplorerFeaturesHeader,
@@ -73,16 +74,7 @@ const featureLayout = [
         </div>
       </div>
 
-      <div class="aei-hero-video-frame">
-        <div class="aei-hero-video-inner" data-aei-hero-video>
-          <div class="aei-hero-video-loading" aria-hidden="true">
-            <span class="aei-hero-video-spinner"></span>
-          </div>
-          <video class="aei-hero-video" autoplay loop muted playsinline preload="metadata">
-            <source src={PROMPT_VIDEO_URL} type="video/webm" />
-          </video>
-        </div>
-      </div>
+      <HeroVideo sources={PROMPT_VIDEO} label="Prompt 探索演示" />
     </div>
   </section>
 
@@ -121,36 +113,3 @@ const featureLayout = [
 </main>
 
 <SiteFooter />
-
-<script>
-  function initHeroVideo(root: HTMLElement) {
-    if (root.dataset.aeiVideoBound === "true") return;
-
-    const video = root.querySelector<HTMLVideoElement>(".aei-hero-video");
-    if (!video) return;
-
-    root.dataset.aeiVideoBound = "true";
-
-    const markReady = () => {
-      root.classList.add("is-ready");
-      root.removeAttribute("aria-busy");
-    };
-
-    root.setAttribute("aria-busy", "true");
-
-    if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
-      markReady();
-      return;
-    }
-
-    video.addEventListener("canplay", markReady, { once: true });
-    video.addEventListener("error", markReady, { once: true });
-  }
-
-  function setupHeroVideos() {
-    document.querySelectorAll<HTMLElement>("[data-aei-hero-video]").forEach(initHeroVideo);
-  }
-
-  setupHeroVideos();
-  document.addEventListener("astro:page-load", setupHeroVideos);
-</script>

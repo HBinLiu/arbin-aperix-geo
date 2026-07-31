@@ -9,6 +9,8 @@ const MIME = {
   ".ico": "image/x-icon",
   ".webp": "image/webp",
   ".svg": "image/svg+xml",
+  ".webm": "video/webm",
+  ".mp4": "video/mp4",
 };
 
 function safeFile(root, relative) {

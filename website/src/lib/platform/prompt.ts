@@ -4,10 +4,15 @@ import type { Faq } from "@/lib/platform/faq";
 import { promptExplorerFaqDefaults } from "@shared/faq/defaults";
 import { mergeFaqs, resolveFaqDefaults } from "@/lib/faqs";
 import type { FaqDoc } from "@shared/faq";
-import promptExplorerVideo from "@shared/assets/videos/website/prompt-explorer.webm";
+import promptExplorerVideoWebm from "@shared/assets/videos/website/prompt-explorer.webm";
+import promptExplorerVideoMp4 from "@shared/assets/videos/website/prompt-explorer.mp4";
 import { appLinks } from "@/lib/app-links";
+import type { HeroVideoSources } from "@/lib/platform/hero-video";
 
-export const PROMPT_VIDEO_URL = promptExplorerVideo;
+export const PROMPT_VIDEO: HeroVideoSources = {
+  webm: promptExplorerVideoWebm,
+  mp4: promptExplorerVideoMp4,
+};
 
 export type PromptFeatureIcon = "intent" | "funnel" | "fanout" | "platform-diff" | "trend";
 

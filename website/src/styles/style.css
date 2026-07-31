@@ -701,6 +701,9 @@
 }
 
 .panel-frame {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
   border: 1px solid #ffe2d4;
   background-color: #fff5ef;
   background-position: center;
@@ -709,6 +712,7 @@
   padding: 0.75rem;
   box-shadow: 0 24px 40px -30px rgba(0, 0, 0, 0.2);
   perspective: 1200px;
+  overflow: hidden;
 }
 
 .panel-scroll-spacer {
@@ -793,6 +797,8 @@
   --feature-panel-sticky-top: 6.5rem;
   display: grid;
   gap: 2.5rem;
+  width: 100%;
+  min-width: 0;
 }
 
 @media (min-width: 1024px) {
@@ -804,6 +810,8 @@
 
 .feature-nav {
   align-self: start;
+  min-width: 0;
+  max-width: 100%;
 }
 
 @media (min-width: 1024px) {
@@ -968,7 +976,8 @@
   }
 
   .feature-nav-list {
-    margin-inline: -0.25rem;
+    width: 100%;
+    max-width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
@@ -984,7 +993,7 @@
     gap: 0.5rem;
     width: max-content;
     min-width: 100%;
-    padding-inline: 0.25rem;
+    padding-inline: 0;
   }
 
   .feature-nav-items li {
@@ -1030,9 +1039,12 @@
 
 .feature-panels {
   min-width: 0;
+  max-width: 100%;
 }
 
 .feature-panel {
+  min-width: 0;
+  max-width: 100%;
   transition:
     opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
     transform 0.7s cubic-bezier(0.22, 1, 0.36, 1),
@@ -1143,11 +1155,22 @@
 .feature-card {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   border: 1px solid var(--color-border);
   padding: 1.25rem 1.5rem;
   transition:
     opacity 0.28s ease,
     filter 0.28s ease;
+}
+
+@media (max-width: 767px) {
+  .feature-card {
+    padding: 1.125rem 1rem;
+  }
+
+  .feature-card-body {
+    overflow-wrap: anywhere;
+  }
 }
 
 .feature-cards:hover .feature-card {

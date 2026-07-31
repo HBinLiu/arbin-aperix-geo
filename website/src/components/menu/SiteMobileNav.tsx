@@ -2,13 +2,13 @@ import { ChevronDown } from "lucide-react";
 import React from "react";
 import { createPortal } from "react-dom";
 import { appLinks } from "@/lib/app-links";
+import { PlatformMegaMenuPanel } from "@/components/menu/PlatformMegaMenu";
+import { ResourcesMegaMenuPanel } from "@/components/menu/ResourcesMegaMenu";
 
 import {
   defaultHeaderLinks,
   platformMenuIntro,
-  platformMenuSections,
   resourcesMenuIntro,
-  resourcesMenuSections,
 } from "@/lib/menu";
 
 function getHeaderBottom(): number {
@@ -24,6 +24,7 @@ function MobileAccordion({
   onToggle,
   title,
   subtitle,
+  onNavigate,
   children,
 }: {
   section: AccordionSection;
@@ -31,6 +32,7 @@ function MobileAccordion({
   onToggle: (section: AccordionSection) => void;
   title: string;
   subtitle?: string;
+  onNavigate: () => void;
   children: React.ReactNode;
 }) {
   const open = openSection === section;
@@ -54,7 +56,17 @@ function MobileAccordion({
           aria-hidden
         />
       </button>
-      {open ? <div className="mobile-nav-accordion-panel">{children}</div> : null}
+      {open ? (
+        <div
+          className="mobile-nav-accordion-panel"
+          onClick={(event) => {
+            const target = event.target as HTMLElement | null;
+            if (target?.closest("a")) onNavigate();
+          }}
+        >
+          {children}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -74,22 +86,9 @@ function MobileNavLinks({ onNavigate }: { onNavigate: () => void }) {
         onToggle={handleToggle}
         title={platformMenuIntro.title}
         subtitle={platformMenuIntro.subtitle}
+        onNavigate={onNavigate}
       >
-        {platformMenuSections.map((section) => (
-          <div key={section.title} className="mobile-nav-group">
-            <p className="mobile-nav-group-title">{section.title}</p>
-            <ul className="mobile-nav-list">
-              {section.items.map((item) => (
-                <li key={item.href}>
-                  <a href={item.href} className="mobile-nav-link" onClick={onNavigate}>
-                    <span className="mobile-nav-link-title">{item.title}</span>
-                    <span className="mobile-nav-link-desc">{item.description}</span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+        <PlatformMegaMenuPanel hideIntro />
       </MobileAccordion>
 
       <MobileAccordion
@@ -98,22 +97,9 @@ function MobileNavLinks({ onNavigate }: { onNavigate: () => void }) {
         onToggle={handleToggle}
         title={resourcesMenuIntro.title}
         subtitle={resourcesMenuIntro.subtitle}
+        onNavigate={onNavigate}
       >
-        {resourcesMenuSections.map((section) => (
-          <div key={section.title} className="mobile-nav-group">
-            <p className="mobile-nav-group-title">{section.title}</p>
-            <ul className="mobile-nav-list">
-              {section.items.map((item) => (
-                <li key={item.title}>
-                  <a href={item.href} className="mobile-nav-link" onClick={onNavigate}>
-                    <span className="mobile-nav-link-title">{item.title}</span>
-                    <span className="mobile-nav-link-desc">{item.description}</span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+        <ResourcesMegaMenuPanel hideIntro />
       </MobileAccordion>
 
       {defaultHeaderLinks.map((link) => (

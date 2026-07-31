@@ -21,15 +21,17 @@ function ResourceLink({
   );
 }
 
-function ResourcesMegaMenuPanel() {
+export function ResourcesMegaMenuPanel({ hideIntro = false }: { hideIntro?: boolean }) {
   return (
     <div className="nav-mega-panel">
-      <div className="border-border/60 border-b px-6 py-5">
-        <p className="text-base">
-          <span className="font-semibold">{resourcesMenuIntro.title}</span>
-          <span className="text-muted-foreground ml-2 text-sm">{resourcesMenuIntro.subtitle}</span>
-        </p>
-      </div>
+      {!hideIntro ? (
+        <div className="border-border/60 border-b px-6 py-5">
+          <p className="text-base">
+            <span className="font-semibold">{resourcesMenuIntro.title}</span>
+            <span className="text-muted-foreground ml-2 text-sm">{resourcesMenuIntro.subtitle}</span>
+          </p>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-8 px-6 py-6 sm:grid-cols-3">
         {resourcesMenuSections.map((section) => (
