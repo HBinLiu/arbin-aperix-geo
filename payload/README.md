@@ -27,7 +27,7 @@ npm run seed          # 首次：自动 push schema + 写入默认内容
 npm run dev
 ```
 
-Next 按 mode 加载：`dev` → `.env.development`；`build` / `start` → `.env.production`。生产构建使用 `next build --webpack`（避免 Next 16 Turbopack 把 `pino` 编成 `pino-<hash>`，Docker 运行时找不到模块）。
+Next 按 mode 加载：`dev` → `.env.development`；`build` / `start` → `.env.production`。生产构建使用 `next build --webpack`（避免 Turbopack `pino-<hash>` 问题）。低内存服务器上 `next build` 若被 **SIGKILL**，多为 OOM：[`rebuild-and-restart-payload.sh`](../rebuild-and-restart-payload.sh) 已设 `NEXT_BUILD_CPUS=1` 与 `--max-old-space-size`（可用 `APERIX_NODE_MAX_OLD_SPACE=2048` 等覆盖）。仍失败时加 swap 或到内存更大的机器构建。
 
 本地上传的媒体文件落在 **`payload/media/`**（`Media` collection `staticDir`）。该目录**纳入 Git**，发布时随 `git pull` 到服务器；勿再加入 `.gitignore`，否则线上 CMS / 官网图片会缺失。
 

@@ -15,13 +15,17 @@ fi
 
 NAME=aperix-payload
 ENV_FILE="$ROOT/payload/.env.production"
+# 低内存机（常见 1～2G）next build 易被 OOM SIGKILL；可用 APERIX_NODE_MAX_OLD_SPACE 覆盖
+NODE_MAX_OLD="${APERIX_NODE_MAX_OLD_SPACE:-3072}"
 
-# node docker rebuild
+# node docker rebuild（限制 webpack 并发 + 提高堆上限；勿用 npm run build 里的 cross-env 覆盖 NODE_OPTIONS）
 docker run --rm -it --security-opt seccomp:unconfined \
   -v "$ROOT":/repo -w /repo/payload \
   --env-file "$ENV_FILE" \
+  -e NODE_OPTIONS="--no-deprecation --max-old-space-size=${NODE_MAX_OLD}" \
+  -e NEXT_BUILD_CPUS=1 \
   node:22-bookworm \
-  bash -lc 'npm ci --registry=https://registry.npmmirror.com && npm run build'
+  bash -lc 'npm ci --registry=https://registry.npmmirror.com && npx next build --webpack'
 
 # 已有容器则重启；首次挂载则创建
 if docker ps -a --format '{{.Names}}' | grep -qx "$NAME"; then
