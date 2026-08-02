@@ -537,14 +537,13 @@ def topic_visibility_ranks_for_window(
     topics: dict[UUID, Any],
     limit: int,
 ) -> list[dict[str, Any]]:
-    if overview.topic_visibility_rows:
-        return _topic_visibility_ranks_from_rows(
-            overview.topic_visibility_rows,
-            subject=subject,
-            topics=topics,
-            limit=limit,
-        )
-    return []
+    # 无采样行时仍按 catalog 返回主题（ranks 全 null）
+    return _topic_visibility_ranks_from_rows(
+        overview.topic_visibility_rows,
+        subject=subject,
+        topics=topics,
+        limit=limit,
+    )
 
 
 def query_sentiment_distribution(

@@ -6,8 +6,10 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 from aperix_geo.db.models import LLMResponse, LLMResponseStatus, SamplingJob, Subject, SubjectType
+from aperix_geo.services.billing.exceptions import SubscriptionInactiveError
 from aperix_geo.services.providers.result import SamplingChatResult
 from aperix_geo.services.sampling.parsed import ParsedSamplingResult
+from aperix_geo.services.sampling.workflow.phase_specs import build_llm_phase_spec
 from aperix_geo.tasks.sampling import sampling_crawl, sampling_llm, sampling_parse
 
 
@@ -35,6 +37,7 @@ def _crawl_ready_row() -> LLMResponse:
     return row
 
 
+@patch("aperix_geo.services.sampling.workflow.phase_specs.require_active_subscription")
 @patch("aperix_geo.services.sampling.workflow.phase_specs.ai_usage_available", return_value=1)
 @patch("aperix_geo.services.sampling.workflow.fill.on_task_claim_lost")
 @patch("aperix_geo.services.sampling.workflow.fill.on_task_finished")
@@ -52,6 +55,7 @@ def test_sample_llm_prompt_skips_when_claim_lost(
     mock_on_finished: MagicMock,
     mock_on_claim_lost: MagicMock,
     _mock_ai: MagicMock,
+    _mock_sub: MagicMock,
 ) -> None:
     row = _pending_row()
     job = SamplingJob(id=row.sampling_job_id, tenant_id=uuid4(), subject_id=uuid4())
@@ -79,6 +83,7 @@ def test_sample_llm_prompt_skips_when_claim_lost(
     mock_on_finished.assert_not_called()
 
 
+@patch("aperix_geo.services.sampling.workflow.phase_specs.require_active_subscription")
 @patch("aperix_geo.services.sampling.workflow.phase_specs.ai_usage_available", return_value=1)
 @patch("aperix_geo.services.sampling.workflow.phase.release_response_claim")
 @patch("aperix_geo.services.sampling.workflow.phase.refresh_response_claim")
@@ -100,6 +105,7 @@ def test_sample_llm_prompt_releases_claim_after_success(
     mock_clear: MagicMock,
     mock_release: MagicMock,
     _mock_ai: MagicMock,
+    _mock_sub: MagicMock,
 ) -> None:
     row = _pending_row()
     job = SamplingJob(id=row.sampling_job_id, tenant_id=uuid4(), subject_id=uuid4())
@@ -208,3 +214,33 @@ def test_sample_parse_response_runs_parse_phase(
     mock_parse.assert_called_once()
     mock_persist.assert_called_once()
     mock_release.assert_called_once()
+
+
+@patch(
+    "aperix_geo.services.sampling.workflow.phase_specs.require_active_subscription",
+    side_effect=SubscriptionInactiveError("expired"),
+)
+@patch("aperix_geo.services.sampling.workflow.phase_specs.mark_response_failed")
+@patch("aperix_geo.services.sampling.workflow.phase_specs.load_subject_with_competitors_cached")
+@patch("aperix_geo.services.sampling.workflow.phase_specs.load_prompt_text_cached", return_value="prompt")
+def test_llm_prepare_stops_when_subscription_expired(
+    _mock_prompt: MagicMock,
+    mock_subject: MagicMock,
+    mock_fail: MagicMock,
+    _mock_sub: MagicMock,
+) -> None:
+    mock_subject.return_value = Subject(
+        id=uuid4(),
+        tenant_id=uuid4(),
+        type=SubjectType.brand,
+        brand="Aperix",
+    )
+    row = _pending_row()
+    job = SamplingJob(id=row.sampling_job_id, tenant_id=uuid4(), subject_id=uuid4())
+    spec = build_llm_phase_spec(MagicMock(), str(row.id))
+
+    out = spec.prepare(MagicMock(), row, job)
+
+    assert out == {"ok": False, "error": "subscription expired", "quota_exhausted": True}
+    mock_fail.assert_called_once()
+    assert mock_fail.call_args.kwargs["error_text"] == "订阅已过期，已停止采样"

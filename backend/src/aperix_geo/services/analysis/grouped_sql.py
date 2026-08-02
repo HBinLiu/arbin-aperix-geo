@@ -182,15 +182,17 @@ def query_topic_metrics(
     focus_by_topic = {
         row.topic_id: row for row in entity_rows if str(row.entity_id) == entity_id and row.topic_id is not None
     }
+    topic_filter = set(topic_id) if topic_id else None
     out: list[dict[str, Any]] = []
     for tid, topic in topics.items():
+        if topic_filter is not None and tid not in topic_filter:
+            continue
         metrics = _metrics_dict_from_row(
             focus_by_topic.get(tid),
             subject=subject,
             total_voice=voice_by_topic.get(tid, 0),
         )
-        if int(metrics.get("response_count") or 0) == 0:
-            continue
+        # 无采样窗口也返回 catalog 主题（指标为 null / response_count=0）
         out.append(
             {
                 "topic_id": str(tid),
@@ -448,22 +450,29 @@ def query_prompt_metrics(
         for row in db.execute(_prompt_voice_stmt(**window)).all()
         if row.prompt_id is not None
     }
+    focus_by_prompt = {
+        row.prompt_id: row
+        for row in rows
+        if str(row.entity_id) == entity_id and row.prompt_id is not None
+    }
+    topic_filter = set(topic_id) if topic_id else None
     out: list[dict[str, Any]] = []
-    for row in rows:
-        if str(row.entity_id) != entity_id or row.prompt_id is None:
+    for prompt_id, prompt in prompts.items():
+        if topic_filter is not None and prompt.topic_id not in topic_filter:
             continue
-        prompt = prompts.get(row.prompt_id)
-        if prompt is None:
+        # 无采样时仍展示已启用的 root 提示词；有信号的 fanout / 停用项也保留
+        has_signal = prompt_id in focus_by_prompt
+        if not has_signal and (not prompt.enabled or prompt.kind != "root"):
             continue
         topic = topics.get(prompt.topic_id)
         metrics = _metrics_dict_from_row(
-            row,
+            focus_by_prompt.get(prompt_id),
             subject=subject,
-            total_voice=voice_by_prompt.get(row.prompt_id, 0),
+            total_voice=voice_by_prompt.get(prompt_id, 0),
         )
         out.append(
             {
-                "prompt_id": str(row.prompt_id),
+                "prompt_id": str(prompt_id),
                 "prompt_text": (prompt.text[:200] if prompt.text else ""),
                 "topic_id": str(prompt.topic_id) if prompt.topic_id else None,
                 "topic_name": topic.name if topic else None,

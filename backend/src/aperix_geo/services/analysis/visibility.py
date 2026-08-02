@@ -90,7 +90,8 @@ def build_topic_visibility_ranks(
         topics=topic_map,
         limit=TOPIC_VISIBILITY_RANK_LIMIT,
     )
-    if ranks:
+    # 有 SQL 主题可见度行时直接返回；无行时仍可能带 catalog（ranks 全 null）
+    if overview.topic_visibility_rows:
         return ranks
 
     # Fallback when SQL topic rows are empty (e.g. tests with signal override).

@@ -114,16 +114,6 @@
   }
 }
 
-@keyframes shell-float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-}
-
 @keyframes shell-fade-up {
   from {
     opacity: 0;
@@ -135,94 +125,24 @@
   }
 }
 
-@keyframes shell-pulse-glow {
+@keyframes shell-brand-breathe {
   0%,
   100% {
     opacity: 0.45;
+    transform: scale(0.92);
   }
   50% {
     opacity: 1;
+    transform: scale(1.08);
   }
-}
-
-@keyframes shell-shake {
-  0%,
-  100% {
-    transform: rotate(0deg);
-  }
-  25% {
-    transform: rotate(-6deg);
-  }
-  75% {
-    transform: rotate(6deg);
-  }
-}
-
-@keyframes shell-drift {
-  0%,
-  100% {
-    transform: translateX(0);
-    opacity: 0.7;
-  }
-  50% {
-    transform: translateX(6px);
-    opacity: 1;
-  }
-}
-
-@keyframes shell-bounce-soft {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-4px);
-  }
-}
-
-@keyframes shell-spin-slow {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes shell-spin-reverse {
-  to {
-    transform: rotate(-360deg);
-  }
-}
-
-.shell-float {
-  animation: shell-float 4s ease-in-out infinite;
 }
 
 .shell-fade-up {
   animation: shell-fade-up 0.55s ease-out both;
 }
 
-.shell-pulse-glow {
-  animation: shell-pulse-glow 2.8s ease-in-out infinite;
-}
-
-.shell-shake {
-  transform-origin: center;
-  animation: shell-shake 2.5s ease-in-out infinite;
-}
-
-.shell-drift {
-  animation: shell-drift 3s ease-in-out infinite;
-}
-
-.shell-bounce-soft {
-  animation: shell-bounce-soft 2.2s ease-in-out infinite;
-}
-
-.shell-spin-slow {
-  animation: shell-spin-slow 8s linear infinite;
-}
-
-.shell-spin-reverse {
-  animation: shell-spin-reverse 5s linear infinite;
+.shell-brand-breathe {
+  animation: shell-brand-breathe 2s ease-in-out infinite;
 }
 
 @keyframes auth-panel-bg-pan {

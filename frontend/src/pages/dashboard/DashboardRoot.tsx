@@ -3,9 +3,12 @@ import { Outlet, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
 import { AppShellError, AppShellLoading } from "@/components/common/AppShellState";
+import { SubscriptionRequiredView } from "@/components/billing/SubscriptionRequiredView";
 import { fetchMe } from "@/api/auth";
 import { fetchSubjects } from "@/api/subject";
 import { DashboardProvider } from "@/hooks/useDashboardContext";
+import { useTenantSubscription } from "@/hooks/useTenantSubscription";
+import { isSubscriptionExpired } from "@/lib/billing/subscription";
 import {
   getStoredActiveSubjectId,
   resolveActiveSubject,
@@ -58,6 +61,8 @@ export function DashboardRoot() {
     ...QUERY_RETRY,
   });
 
+  const subscriptionQuery = useTenantSubscription();
+
   if (subjectsQuery.isPending) {
     return <AppShellLoading message="加载工作区…" />;
   }
@@ -65,7 +70,6 @@ export function DashboardRoot() {
   if (subjectsQuery.isError) {
     return (
       <AppShellError
-        variant="workspace"
         title="工作区加载失败"
         error={subjectsQuery.error}
         retrying={subjectsQuery.isFetching}
@@ -85,13 +89,31 @@ export function DashboardRoot() {
   if (userQuery.isError || !userQuery.data) {
     return (
       <AppShellError
-        variant="profile"
         title="用户信息加载失败"
         error={userQuery.error}
         retrying={userQuery.isFetching}
         onRetry={() => void userQuery.refetch()}
       />
     );
+  }
+
+  if (subscriptionQuery.isPending) {
+    return <AppShellLoading message="加载工作区…" />;
+  }
+
+  if (subscriptionQuery.isError) {
+    return (
+      <AppShellError
+        title="订阅信息加载失败"
+        error={subscriptionQuery.error}
+        retrying={subscriptionQuery.isFetching}
+        onRetry={() => void subscriptionQuery.refetch()}
+      />
+    );
+  }
+
+  if (isSubscriptionExpired(subscriptionQuery.data)) {
+    return <SubscriptionRequiredView user={userQuery.data} />;
   }
 
   const subject = resolveActiveSubject(subjects, activeSubjectId);

@@ -16,12 +16,16 @@ from aperix_geo.db.models import (
     SamplingJobStatus,
     Subject,
 )
+from aperix_geo.services.billing.exceptions import SubscriptionInactiveError
+from aperix_geo.services.billing.quota import require_active_subscription
 from aperix_geo.services.sampling.platforms import (
     SamplingPlatformError,
     resolve_platforms_for_sampling as _resolve_platforms_for_sampling,
 )
 from aperix_geo.services.sampling.workflow.schedule import subject_has_active_sampling_job
 from aperix_geo.services.subject.rules import validate_brand_competitors, validate_subject_fields
+
+_SUBSCRIPTION_EXPIRED_MSG = "订阅已过期，无法开始采样"
 
 
 class SamplingJobError(ValueError):
@@ -49,6 +53,11 @@ def create_and_enqueue_sampling_job(
     platforms: list[str] | None = None,
     update_schedule_anchor: bool = False,
 ) -> SamplingJob:
+    try:
+        require_active_subscription(db, tenant_id)
+    except SubscriptionInactiveError as e:
+        raise SamplingJobError(_SUBSCRIPTION_EXPIRED_MSG) from e
+
     resolved_platforms = platforms if platforms is not None else resolve_platforms_for_sampling(subject)
     if not resolved_platforms:
         raise SamplingJobError("No LLM providers configured for sampling")

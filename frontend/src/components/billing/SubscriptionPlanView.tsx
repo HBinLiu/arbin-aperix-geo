@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Boxes,
@@ -20,6 +20,7 @@ import { usePlanCatalog } from "@/hooks/usePlanCatalog";
 import { useTenantSubscription } from "@/hooks/useTenantSubscription";
 import {
   PLAN_LIMIT_ICONS,
+  isMatchingSubscriptionPlan,
   planCardLimits,
   planDisplayPrice,
   planComparisonRows,
@@ -27,6 +28,7 @@ import {
   type BillingCycle,
   type PlanCatalogItem,
 } from "@/lib/billing/plans";
+import { isSubscriptionActive } from "@/lib/billing/subscription";
 import { queryKeys, sessionCatalogQueryOptions } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
@@ -147,32 +149,38 @@ function PlanCard({
   cta,
   onSelect,
   selecting,
+  highlightAsBound,
+  selectLabel = "立即订阅",
 }: {
   plan: PlanCatalogItem;
   cycle: BillingCycle;
   cta: "current" | "select" | "contact";
   onSelect?: (plan: PlanCatalogItem, cycle: BillingCycle) => void;
   selecting?: boolean;
+  /** 仍为租户绑定计划（含已到期，用于高亮与角标）。 */
+  highlightAsBound?: boolean;
+  selectLabel?: string;
 }) {
   const price = planDisplayPrice(plan, cycle);
   const isCustom = price === null;
   const isCurrent = cta === "current";
+  const showBoundBadge = isCurrent || Boolean(highlightAsBound);
 
   return (
     <article
       className={cn(
         "group relative flex h-full min-h-[430px] w-full flex-col rounded-3xl border bg-muted-background p-6 shadow-sm transition-[transform,box-shadow] duration-500 ease-out hover:-translate-y-1.5 hover:shadow-xl hover:shadow-primary/10",
-        isCurrent
+        showBoundBadge
           ? "border-primary shadow-[0_0_0_2px_var(--primary)] hover:border-primary"
           : "border-border hover:border-primary/60",
       )}
     >
-      {isCurrent ? (
+      {showBoundBadge ? (
         <TextBadge
           variant="primary"
           className="absolute -top-3 left-1/2 z-10 -translate-x-1/2 bg-primary px-3 py-1 text-xs font-bold text-primary-foreground"
         >
-          当前订阅
+          {isCurrent ? "当前订阅" : "已到期"}
         </TextBadge>
       ) : null}
 
@@ -220,7 +228,7 @@ function PlanCard({
               disabled={selecting}
               onClick={() => onSelect?.(plan, cycle)}
             >
-              {selecting ? "创建订单…" : "立即订阅"}
+              {selecting ? "创建订单…" : selectLabel}
             </Button>
           )}
         </section>
@@ -307,8 +315,15 @@ function PlanComparisonTable({ plans }: { plans: PlanCatalogItem[] }) {
   );
 }
 
+type SubscriptionPlanViewProps = {
+  /** 覆盖内容区内边距等，供门闸页收紧左右留白 */
+  contentClassName?: string;
+  /** 插入内容区顶部（与定价卡片同列对齐），背景仍铺满整页 */
+  topSlot?: ReactNode;
+};
+
 /** 订阅计划 · 定价卡片 */
-export function SubscriptionPlanView() {
+export function SubscriptionPlanView({ contentClassName, topSlot }: SubscriptionPlanViewProps) {
   const [cycleOverride, setCycleOverride] = useState<BillingCycle | null>(null);
   const [selectingPlan, setSelectingPlan] = useState<string | null>(null);
   const [payOrder, setPayOrder] = useState<{ id: string; amount_cents: number } | null>(null);
@@ -325,6 +340,7 @@ export function SubscriptionPlanView() {
   const cycle = cycleOverride ?? subscription?.billing_cycle ?? billingCycles[0]?.id ?? "monthly";
   const currentPlanCode = subscription?.plan_code ?? null;
   const currentBillingCycle = subscription?.billing_cycle ?? null;
+  const subscriptionActive = isSubscriptionActive(subscription);
 
   async function handleSelectPlan(plan: PlanCatalogItem, selectedCycle: BillingCycle) {
     if (!plan.orderable) return;
@@ -358,7 +374,13 @@ export function SubscriptionPlanView() {
         }}
       />
 
-      <div className="relative flex flex-col items-center gap-8 px-4 py-10 sm:px-6 lg:py-12">
+      <div
+        className={cn(
+          "relative flex flex-col items-center gap-8 px-4 py-10 sm:px-6 lg:py-12",
+          contentClassName,
+        )}
+      >
+        {topSlot ? <div className="relative z-10 w-full max-w-6xl">{topSlot}</div> : null}
         <div className="relative w-full py-2 sm:py-4">
           <div
             aria-hidden
@@ -426,16 +448,28 @@ export function SubscriptionPlanView() {
         <div className="relative z-10 grid w-full max-w-6xl gap-4 md:grid-cols-2 xl:grid-cols-4">
           {isPending
             ? Array.from({ length: 4 }, (_, index) => <PlanCardSkeleton key={index} />)
-            : plans.map((plan) => (
-                <PlanCard
-                  key={plan.code}
-                  plan={plan}
-                  cycle={cycle}
-                  cta={resolvePlanCta(plan, currentPlanCode, currentBillingCycle, cycle)}
-                  onSelect={handleSelectPlan}
-                  selecting={selectingPlan === plan.code}
-                />
-              ))}
+            : plans.map((plan) => {
+                const matching = isMatchingSubscriptionPlan(
+                  plan,
+                  currentPlanCode,
+                  currentBillingCycle,
+                  cycle,
+                );
+                return (
+                  <PlanCard
+                    key={plan.code}
+                    plan={plan}
+                    cycle={cycle}
+                    cta={resolvePlanCta(plan, currentPlanCode, currentBillingCycle, cycle, {
+                      subscriptionActive,
+                    })}
+                    onSelect={handleSelectPlan}
+                    selecting={selectingPlan === plan.code}
+                    highlightAsBound={!subscriptionActive && matching}
+                    selectLabel={!subscriptionActive && matching ? "立即续订" : "立即订阅"}
+                  />
+                );
+              })}
         </div>
 
         {!isPending && plans.length > 0 ? <PlanComparisonTable plans={plans} /> : null}

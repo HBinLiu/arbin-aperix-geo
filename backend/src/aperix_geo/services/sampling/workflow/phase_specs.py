@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import LLMResponse, SamplingJob
 from aperix_geo.services.providers.result import SamplingChatResult
-from aperix_geo.services.billing.exceptions import QuotaExceededError
-from aperix_geo.services.billing.quota import ai_usage_available
+from aperix_geo.services.billing.exceptions import QuotaExceededError, SubscriptionInactiveError
+from aperix_geo.services.billing.quota import ai_usage_available, require_active_subscription
 from aperix_geo.services.sampling.cache import (
     clear_cached_llm_result,
     load_prompt_text_cached,
@@ -64,6 +64,11 @@ def build_llm_phase_spec(task, response_id: str) -> SamplingPhaseSpec:
         if load_subject_with_competitors_cached(db, job.subject_id) is None:
             mark_response_failed(db, row=row, error_text="missing subject")
             return {"ok": False, "error": "missing subject"}
+        try:
+            require_active_subscription(db, job.tenant_id)
+        except SubscriptionInactiveError:
+            mark_response_failed(db, row=row, error_text="订阅已过期，已停止采样")
+            return {"ok": False, "error": "subscription expired", "quota_exhausted": True}
         if ai_usage_available(db, job.tenant_id) <= 0:
             mark_response_failed(db, row=row, error_text="AI 调用额度已用尽")
             return {"ok": False, "error": "ai quota exceeded", "quota_exhausted": True}

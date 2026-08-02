@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import EPOCH, Plan, PlanPack, Tenant, TenantPayOrder, TenantSubscription, TenantUsagePeriod, ZERO_UUID
-from aperix_geo.services.billing.constants import BILLING_CYCLE_MONTHS, SUBSCRIPTION_ORDER_TYPES
+from aperix_geo.services.billing.constants import BILLING_CYCLE_MONTHS, BILLING_CYCLES, SUBSCRIPTION_ORDER_TYPES
 from aperix_geo.services.billing.quota import get_current_usage_period, get_limits_for_tenant, subscription_is_usable
 from aperix_geo.services.billing.quota_ledger import record_pack_purchase, record_subscription_grant
 from aperix_geo.services.billing.rollover import add_months
@@ -178,6 +178,66 @@ def _fulfill_usage_pack_order(db: Session, order: TenantPayOrder) -> None:
         raise ValueError("Usage pack product not found")
 
     tenant.usage_pack_balance += order.quantity
+
+
+def assign_subscription_plan(
+    db: Session,
+    *,
+    tenant_id: uuid.UUID,
+    plan_code: str,
+    billing_cycle: str = "monthly",
+    now: datetime | None = None,
+) -> TenantSubscription:
+    """Admin/dev helper: set tenant to a plan as if a subscription just completed."""
+    cycle = billing_cycle.strip().lower()
+    if cycle not in BILLING_CYCLES:
+        raise ValueError(f"Unsupported billing_cycle: {billing_cycle}")
+
+    plan = db.execute(
+        select(Plan)
+        .where(Plan.code == plan_code.strip().lower(), Plan.is_active.is_(True), Plan.deleted.is_(False))
+        .limit(1)
+    ).scalar_one_or_none()
+    if plan is None:
+        raise ValueError(f"Plan not found: {plan_code}")
+
+    moment = now or utc_now()
+    months = _billing_cycle_months(cycle)
+    period_start = moment
+    period_end = add_months(moment, months)
+
+    subscription = _load_subscription(db, tenant_id)
+    if subscription is None:
+        subscription = TenantSubscription(
+            tenant_id=tenant_id,
+            plan_id=plan.id,
+            billing_cycle=cycle,
+            status="active",
+            current_period_start=period_start,
+            current_period_end=period_end,
+        )
+        db.add(subscription)
+        db.flush()
+    else:
+        subscription.plan_id = plan.id
+        subscription.pending_plan_id = ZERO_UUID
+        subscription.billing_cycle = cycle
+        subscription.status = "active"
+        subscription.canceled_at = EPOCH
+        subscription.current_period_start = period_start
+        subscription.current_period_end = period_end
+
+    _ensure_usage_period(db, subscription=subscription, moment=moment)
+    _refresh_usage_period_limit(db, tenant_id=tenant_id, moment=moment)
+    db.flush()
+    logger.info(
+        "已指派订阅 tenant=%s plan=%s cycle=%s period_end=%s",
+        tenant_id,
+        plan.code,
+        cycle,
+        period_end.isoformat(),
+    )
+    return subscription
 
 
 def fulfill_paid_order(

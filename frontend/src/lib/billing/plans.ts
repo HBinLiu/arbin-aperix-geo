@@ -58,9 +58,13 @@ export function resolvePlanCta(
   currentPlanCode: string | null,
   currentBillingCycle: BillingCycle | null,
   selectedCycle: BillingCycle,
+  options?: { subscriptionActive?: boolean },
 ): "current" | "select" | "contact" {
   if (!plan.orderable) return "contact";
+  const subscriptionActive = options?.subscriptionActive ?? true;
+  // 到期后需可续订同一计划，不能再锁成「当前订阅」
   if (
+    subscriptionActive &&
     currentPlanCode &&
     currentBillingCycle &&
     plan.code === currentPlanCode &&
@@ -69,6 +73,21 @@ export function resolvePlanCta(
     return "current";
   }
   return "select";
+}
+
+/** 是否为租户上一次/当前绑定的计划与账期（含已到期）。 */
+export function isMatchingSubscriptionPlan(
+  plan: PlanCatalogItem,
+  currentPlanCode: string | null,
+  currentBillingCycle: BillingCycle | null,
+  selectedCycle: BillingCycle,
+): boolean {
+  return Boolean(
+    currentPlanCode &&
+      currentBillingCycle &&
+      plan.code === currentPlanCode &&
+      selectedCycle === currentBillingCycle,
+  );
 }
 
 export type { BillingCycle, PlanCatalog, PlanCatalogItem };
