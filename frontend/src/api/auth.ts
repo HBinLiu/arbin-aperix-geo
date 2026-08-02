@@ -21,8 +21,10 @@ type AccessTokenResult = {
   access_token: string;
 };
 
-export async function fetchMe(): Promise<User> {
-  const { data } = await api.get<User>("/auth/me");
+export async function fetchMe(options?: { skipErrorToast?: boolean }): Promise<User> {
+  const { data } = await api.get<User>("/auth/me", {
+    skipErrorToast: options?.skipErrorToast,
+  });
   return data;
 }
 

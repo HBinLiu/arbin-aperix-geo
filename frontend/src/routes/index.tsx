@@ -40,8 +40,6 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route path="/auth/login" element={<LoginPage />} />
-      <Route path="/auth/register" element={<Navigate to="/auth/login" replace />} />
-      <Route path="/auth/forgot-password" element={<Navigate to="/auth/login" replace />} />
 
       <Route
         element={

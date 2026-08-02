@@ -16,9 +16,12 @@ export type AuthShellProps = {
  */
 export function AuthShell({ title, description, children }: AuthShellProps) {
   return (
-    <div className="flex min-h-svh flex-col overflow-y-auto bg-muted-background lg:flex-row">
-      <main className="flex flex-1 flex-col justify-center px-5 py-10 sm:px-8 lg:px-14 xl:px-20">
+    <div className="flex min-h-dvh flex-col overflow-y-auto bg-muted-background lg:flex-row">
+      <main className="flex flex-1 flex-col justify-start px-5 py-10 sm:px-8 lg:justify-center lg:px-14 xl:px-20">
         <div className="mx-auto w-full max-w-[400px]">
+          <a href="/" className="mb-8 inline-flex lg:hidden" aria-label="Aperix AI">
+            <AppLogo width={32} height={32} className="size-8 object-contain" decoding="async" />
+          </a>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-[1.75rem] sm:leading-tight">{title}</h1>
           {description ? <div className="text-muted-foreground mt-2 text-sm leading-relaxed">{description}</div> : null}
 
