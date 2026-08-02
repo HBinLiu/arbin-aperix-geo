@@ -37,7 +37,7 @@ export function AppShell({ children, headerStart }: AppShellProps) {
   const [supportOpen, setSupportOpen] = useState(false);
   const { data: user } = useQuery({
     queryKey: queryKeys.me,
-    queryFn: fetchMe,
+    queryFn: () => fetchMe(),
     retry: false,
   });
 

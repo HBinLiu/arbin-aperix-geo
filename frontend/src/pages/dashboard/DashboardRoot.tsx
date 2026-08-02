@@ -62,7 +62,7 @@ export function DashboardRoot() {
 
   const userQuery = useQuery({
     queryKey: queryKeys.me,
-    queryFn: fetchMe,
+    queryFn: () => fetchMe(),
     enabled: subjects.length > 0,
     ...QUERY_RETRY,
   });
