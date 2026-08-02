@@ -63,7 +63,9 @@ class WechatBindDevRequest(BaseModel):
 
 class WechatBindQrOut(BaseModel):
     ticket_id: str
-    qrcode_url: str
+    authorize_url: str
+    # Alias of authorize_url (legacy clients / QR img src).
+    qrcode_url: str = ""
     expires_in: int
 
 

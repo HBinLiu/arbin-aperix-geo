@@ -98,12 +98,15 @@ class Settings(BaseSettings):
     wechat_pay_notify_url: str = ""
     wechat_pay_timeout_s: float = Field(default=15.0, ge=5.0, le=60.0)
 
-    # --- 微信公众号（服务号扫码绑定账号，WECHAT_*；与支付配置分开）---
+    # --- 微信公众号（服务号网页授权绑定 + 消息推送，WECHAT_*；与支付配置分开）---
     wechat_app_id: str = ""
     wechat_app_secret: str = ""
     wechat_token: str = ""
     # 消息加解密 EncodingAESKey（43 字符）；空则回调走明文模式
     wechat_aes_key: str = ""
+    # 网页授权回调完整 URL（须 HTTPS；域名加入公众号「网页授权域名」）
+    # 例：https://api.example.com/api/v1/wechat/oauth/callback
+    wechat_oauth_redirect_uri: str = ""
     wechat_bind_ttl_seconds: int = Field(default=300, ge=60, le=1800)
     wechat_http_timeout_s: float = Field(default=15.0, ge=5.0, le=60.0)
     # 模板消息 YAML（列表）；相对 backend/ 或绝对路径

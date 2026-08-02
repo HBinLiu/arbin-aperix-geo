@@ -58,7 +58,10 @@ export async function unbindUserWechat(): Promise<User> {
 
 export type WechatBindQrResult = {
   ticket_id: string;
-  qrcode_url: string;
+  /** snsapi_userinfo authorize URL — encode as QR for WeChat scan */
+  authorize_url: string;
+  /** @deprecated alias of authorize_url */
+  qrcode_url?: string;
   expires_in: number;
 };
 

@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
+import { QRCodeSVG } from "qrcode.react";
 
 import {
   bindUserWechatDev,
@@ -34,7 +35,7 @@ const isDevEnv = import.meta.env.DEV;
 
 type QrState = {
   ticketId: string;
-  qrcodeUrl: string;
+  authorizeUrl: string;
   status: "pending" | "bound" | "failed" | "expired";
   error: string;
 };
@@ -66,9 +67,11 @@ export function BindWechatDialog({ user, open, onOpenChange }: BindWechatDialogP
       try {
         const data = await createWechatBindQr();
         if (cancelled) return;
+        const authorizeUrl = data.authorize_url || data.qrcode_url || "";
+        if (!authorizeUrl) throw new Error("missing authorize_url");
         setQr({
           ticketId: data.ticket_id,
-          qrcodeUrl: data.qrcode_url,
+          authorizeUrl,
           status: "pending",
           error: "",
         });
@@ -172,14 +175,11 @@ export function BindWechatDialog({ user, open, onOpenChange }: BindWechatDialogP
 
           {mode === "qr" && qr ? (
             <div className="flex flex-col items-center gap-3 py-2">
-              <img
-                src={qr.qrcodeUrl}
-                alt="微信绑定二维码"
-                className="border-border size-48 border bg-white object-contain"
-              />
+              <div className="border-border flex size-48 items-center justify-center border bg-white p-2">
+                <QRCodeSVG value={qr.authorizeUrl} size={176} level="M" includeMargin={false} />
+              </div>
               <p className="text-muted-foreground text-center text-sm leading-relaxed">
-                请使用微信扫一扫完成绑定
-                {bound ? "（将更换当前绑定）" : ""}。二维码约 5 分钟内有效。
+                请用微信扫码并授权，完成后将显示微信昵称。二维码约 5 分钟内有效。
               </p>
               {qr.status === "failed" ? (
                 <p className="text-destructive text-sm">{qr.error || "绑定失败"}</p>
@@ -201,16 +201,16 @@ export function BindWechatDialog({ user, open, onOpenChange }: BindWechatDialogP
               />
               <p className="text-muted-foreground text-sm">
                 未配置公众号时，开发环境可填写昵称模拟绑定；配置{" "}
-                <code className="text-xs">WECHAT_*</code> 后将改为扫码绑定。
+                <code className="text-xs">WECHAT_*</code> 与网页授权回调后将改为扫码授权绑定。
               </p>
             </form>
           ) : null}
 
           {mode === "unavailable" ? (
             <p className="text-muted-foreground text-sm leading-relaxed">
-              微信扫码绑定尚未配置。请联系管理员配置服务号（
-              <code className="text-xs">WECHAT_*</code>
-              ）与服务器回调后，在此完成绑定与更换。
+              微信绑定尚未配置。请联系管理员配置服务号（
+              <code className="text-xs">WECHAT_APP_ID / SECRET / OAUTH_REDIRECT_URI</code>
+              ）后，在此扫码授权完成绑定与更换。
             </p>
           ) : null}
         </DialogBody>

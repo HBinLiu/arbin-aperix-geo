@@ -35,7 +35,7 @@ from aperix_geo.security.jwt import create_access_token
 from aperix_geo.services.auth import otp as otp_svc
 from aperix_geo.services.auth import tenant_members as member_svc
 from aperix_geo.services.wechat import bind_ticket as wechat_bind
-from aperix_geo.services.wechat.config import wechat_configured
+from aperix_geo.services.wechat.config import wechat_oauth_configured
 from aperix_geo.services.wechat.token import WechatError
 from aperix_geo.utils.client_ip import client_ip_from_request
 from aperix_geo.utils.contact import mask_phone_cn
@@ -329,10 +329,10 @@ def unbind_my_wechat(current: CurrentUser, db: DbSession) -> UserOut:
 @router.post("/me/wechat/bind", response_model=WechatBindQrOut)
 def create_wechat_bind_qr(current: CurrentUser) -> WechatBindQrOut:
     settings = get_settings()
-    if not wechat_configured(settings):
+    if not wechat_oauth_configured(settings):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="微信公众号未配置（请设置 WECHAT_APP_ID / APP_SECRET / TOKEN）",
+            detail="微信网页授权未配置（请设置 WECHAT_APP_ID / APP_SECRET / OAUTH_REDIRECT_URI）",
         )
     try:
         ticket = wechat_bind.create_bind_ticket(user_id=current.id, settings=settings)
@@ -340,7 +340,8 @@ def create_wechat_bind_qr(current: CurrentUser) -> WechatBindQrOut:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
     return WechatBindQrOut(
         ticket_id=ticket.ticket_id,
-        qrcode_url=ticket.qrcode_url,
+        authorize_url=ticket.authorize_url,
+        qrcode_url=ticket.authorize_url,
         expires_in=ticket.expires_in,
     )
 
