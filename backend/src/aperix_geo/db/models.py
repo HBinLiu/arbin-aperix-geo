@@ -63,6 +63,7 @@ class Tenant(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     usage_pack_balance: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    usage_pack_reserved: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW
@@ -460,6 +461,17 @@ class SamplingJob(Base):
     total_items: Mapped[int] = mapped_column(Integer, default=0)
     completed_items: Mapped[int] = mapped_column(Integer, default=0)
     failed_items: Mapped[int] = mapped_column(Integer, default=0)
+    quota_reserved_monthly: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    quota_reserved_pack: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    quota_open_monthly: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    quota_open_pack: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    # Period that received monthly_reserved at create; ZERO_UUID = pack-only reservation.
+    quota_usage_period_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=False,
+        default=ZERO_UUID,
+        server_default=sa_text("'00000000-0000-0000-0000-000000000000'::uuid"),
+    )
     error_message: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now, server_default=_NOW
@@ -534,6 +546,7 @@ class LLMResponse(Base):
         default=LLMResponseStatus.pending,
         server_default=sa_text("'pending'::llm_response_status"),
     )
+    quota_settled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     error_text: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     raw_text: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     # Doubao web-crawl share evidence; empty for API / other platforms (survives re-parse).
@@ -888,6 +901,7 @@ class TenantUsagePeriod(Base):
     period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     monthly_limit: Mapped[int] = mapped_column(Integer, nullable=False)
     monthly_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    monthly_reserved: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW

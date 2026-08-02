@@ -72,6 +72,15 @@ def finalize_sampling_job_db(db: Session, job_id: UUID) -> SamplingJob | None:
         job.error_message = ""
         job.finished_at = datetime.now(UTC)
 
+    if job.status in (
+        SamplingJobStatus.succeed,
+        SamplingJobStatus.failed,
+        SamplingJobStatus.partial,
+    ):
+        from aperix_geo.services.billing.quota import release_remaining_job_quota
+
+        release_remaining_job_quota(db, job=job)
+
     commit_schedule_anchor_if_due(db, job)
     db.commit()
     db.refresh(job)

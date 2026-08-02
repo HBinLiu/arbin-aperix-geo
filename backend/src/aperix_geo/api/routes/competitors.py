@@ -12,8 +12,8 @@ from aperix_geo.schemas.catalog import (
     ConfiguredCompetitorItem,
     PromoteBrandOut,
 )
-from aperix_geo.services.billing.exceptions import QuotaExceededError
-from aperix_geo.services.billing.http import quota_exceeded_http_exception
+from aperix_geo.services.billing.exceptions import QuotaExceededError, SubscriptionInactiveError
+from aperix_geo.services.billing.http import billing_http_exception
 from aperix_geo.services.brand.sync import sync_subject_brands_from_setup
 from aperix_geo.services.catalog import clear_analysis_entities_cache
 from aperix_geo.services.competitor.enrich import enrich_confirmed_competitors
@@ -111,9 +111,9 @@ def post_competitor(
         competitor = add_competitor(db, subject, item=item)
         realign_competitor_signal_entity_ids(db, subject=subject)
         validate_brand_competitors(subject)
-    except QuotaExceededError as exc:
+    except (SubscriptionInactiveError, QuotaExceededError) as exc:
         db.rollback()
-        raise quota_exceeded_http_exception(exc) from exc
+        raise billing_http_exception(exc, inactive_detail="订阅已过期，无法添加竞争对手") from exc
     except DuplicateCompetitorError as exc:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
@@ -178,9 +178,9 @@ def promote_brand_to_competitor(
     subject = get_subject_for_user(db, current, subject_id, with_competitors=True)
     try:
         result = promote_open_brand_to_competitor(db, subject=subject, brand_id=brand_id)
-    except QuotaExceededError as exc:
+    except (SubscriptionInactiveError, QuotaExceededError) as exc:
         db.rollback()
-        raise quota_exceeded_http_exception(exc) from exc
+        raise billing_http_exception(exc, inactive_detail="订阅已过期，无法添加竞争对手") from exc
     except PromoteBrandError as exc:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

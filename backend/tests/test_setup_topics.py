@@ -18,8 +18,8 @@ def test_confirmed_competitors_hash_order_independent() -> None:
     assert confirmed_competitors_hash(a) != confirmed_competitors_hash(b)
 
 
-@patch("aperix_geo.services.setup.topics.consume_ai_usage")
-@patch("aperix_geo.services.setup.topics.assert_ai_usage_available")
+@patch("aperix_geo.services.setup.topics.charge_setup_ai_usage")
+@patch("aperix_geo.services.setup.topics.assert_setup_ai_usage_available")
 @patch("aperix_geo.services.setup.topics.enrich_confirmed_competitors")
 @patch("aperix_geo.services.setup.topics.update_session")
 @patch("aperix_geo.services.setup.topics.run_topic_generation_stage")
@@ -90,8 +90,8 @@ def test_run_setup_topics_step_generates_summary_and_topics(
     assert "topic_clusters" in patch
 
 
-@patch("aperix_geo.services.setup.topics.consume_ai_usage")
-@patch("aperix_geo.services.setup.topics.assert_ai_usage_available")
+@patch("aperix_geo.services.setup.topics.charge_setup_ai_usage")
+@patch("aperix_geo.services.setup.topics.assert_setup_ai_usage_available")
 @patch("aperix_geo.services.setup.topics.enrich_confirmed_competitors")
 @patch("aperix_geo.services.setup.topics.update_session")
 @patch("aperix_geo.services.setup.topics.run_topic_generation_stage")
@@ -140,8 +140,8 @@ def test_run_setup_topics_step_preserves_competitor_aliases(
     assert summary_competitors[0]["aliases"] == ["TransferWise"]
 
 
-@patch("aperix_geo.services.setup.topics.consume_ai_usage")
-@patch("aperix_geo.services.setup.topics.assert_ai_usage_available")
+@patch("aperix_geo.services.setup.topics.charge_setup_ai_usage")
+@patch("aperix_geo.services.setup.topics.assert_setup_ai_usage_available")
 @patch("aperix_geo.services.setup.topics.enrich_confirmed_competitors")
 @patch("aperix_geo.services.setup.topics.update_session")
 @patch("aperix_geo.services.setup.topics.run_topic_generation_stage")
@@ -204,8 +204,8 @@ def test_run_setup_topics_step_regenerates_topics_when_competitors_change(
     assert patch["prompts_cache"] is None
 
 
-@patch("aperix_geo.services.setup.topics.consume_ai_usage")
-@patch("aperix_geo.services.setup.topics.assert_ai_usage_available")
+@patch("aperix_geo.services.setup.topics.charge_setup_ai_usage")
+@patch("aperix_geo.services.setup.topics.assert_setup_ai_usage_available")
 @patch("aperix_geo.services.setup.topics.enrich_confirmed_competitors")
 @patch("aperix_geo.services.setup.topics.update_session")
 @patch("aperix_geo.services.setup.topics.run_profile_summary_stage")

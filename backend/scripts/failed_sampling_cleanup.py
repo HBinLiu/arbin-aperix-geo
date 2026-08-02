@@ -21,11 +21,13 @@ import sys
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 
 from aperix_geo.db.models import LLMResponse, LLMResponseStatus, SamplingJob, Subject
 from aperix_geo.db.session import SessionLocal
+from aperix_geo.services.billing.quota import delete_sampling_jobs_releasing_quota
 
+# Legacy Chinese failures + soft-skip markers (``skipped:*`` from execute.py).
 _ERROR_MARKERS = (
     "AI 调用额度已用尽",
     "订阅已过期",
@@ -34,6 +36,8 @@ _ERROR_MARKERS = (
 
 def _matches_quota_or_expired(error_text: str) -> bool:
     text = (error_text or "").strip()
+    if text.startswith("skipped:"):
+        return True
     return any(marker in text for marker in _ERROR_MARKERS)
 
 
@@ -145,9 +149,9 @@ def main() -> int:
             print("Dry-run only. Re-run with --apply to delete.", file=sys.stderr)
             return 0
 
-        result = db.execute(delete(SamplingJob).where(SamplingJob.id.in_(job_ids)))
+        deleted = delete_sampling_jobs_releasing_quota(db, job_ids)
         db.commit()
-        print(f"Deleted {result.rowcount} sampling job(s).", file=sys.stderr)
+        print(f"Deleted {deleted} sampling job(s).", file=sys.stderr)
         return 0
     finally:
         db.close()

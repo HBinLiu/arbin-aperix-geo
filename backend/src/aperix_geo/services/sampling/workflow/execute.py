@@ -82,9 +82,64 @@ def parse_stored_raw_text(
     )
 
 
+def _release_response_quota(db: Session, *, row: LLMResponse) -> None:
+    if row.quota_settled:
+        return
+    from aperix_geo.db.models import SamplingJob
+    from aperix_geo.services.billing.quota import release_sampling_quota
+
+    job = db.get(SamplingJob, row.sampling_job_id)
+    if job is None:
+        row.quota_settled = True
+        return
+    release_sampling_quota(db, job=job, row=row)
+
+
 def mark_response_failed(db: Session, *, row: LLMResponse, error_text: str) -> None:
     row.status = LLMResponseStatus.failed
     row.error_text = error_text[:4000]
+    _release_response_quota(db, row=row)
+
+
+# Stable markers for ops / retry; not shown as provider failures.
+SOFT_SKIP_SUBSCRIPTION_INACTIVE = "skipped:subscription_inactive"
+SOFT_SKIP_ORPHAN_CLAIM = "skipped:orphan_claim"
+
+
+def soft_skip_pending_llm_responses(
+    db: Session,
+    *,
+    job_id: UUID,
+    reason: str = SOFT_SKIP_SUBSCRIPTION_INACTIVE,
+) -> int:
+    """Terminalize unstarted LLM rows so the job can finalize without provider errors.
+
+    Rows with an active response claim are left alone so in-flight LLM work can finish.
+    ``error_text`` uses a ``skipped:*`` marker so soft-skips are distinguishable from
+    real failures while remaining non-provider messages.
+    """
+    from aperix_geo.services.sampling.workflow.claim import response_claim_active
+
+    rows = list(
+        db.execute(
+            select(LLMResponse).where(
+                LLMResponse.sampling_job_id == job_id,
+                LLMResponse.status == LLMResponseStatus.pending,
+            )
+        )
+        .scalars()
+        .all()
+    )
+    skipped = 0
+    marker = (reason or SOFT_SKIP_SUBSCRIPTION_INACTIVE)[:4000]
+    for row in rows:
+        if response_claim_active(row.id):
+            continue
+        row.status = LLMResponseStatus.failed
+        row.error_text = marker
+        _release_response_quota(db, row=row)
+        skipped += 1
+    return skipped
 
 
 def _with_locked_response(
@@ -144,21 +199,26 @@ def persist_llm_sample(
     subject_id: UUID,
     live_call: bool,
 ) -> bool:
-    """Persist LLM output when the row is still pending; bill on live provider calls."""
+    """Persist LLM output when the row is still pending; settle reserved sampling quota."""
 
     def _mutate(row: LLMResponse) -> None:
-        if live_call:
-            from aperix_geo.services.billing.quota import consume_ai_usage
+        from aperix_geo.db.models import SamplingJob
+        from aperix_geo.services.billing.quota import confirm_sampling_quota, release_sampling_quota
 
-            consume_ai_usage(
-                db,
-                tenant_id=tenant_id,
-                subject_id=subject_id,
-                source="sampling",
-                reference_id=response_id,
-                platform=row.platform,
-                usage=chat_result.usage,
-            )
+        job = db.get(SamplingJob, row.sampling_job_id)
+        if job is not None:
+            if live_call:
+                confirm_sampling_quota(
+                    db,
+                    job=job,
+                    row=row,
+                    subject_id=subject_id,
+                    platform=row.platform,
+                    usage=chat_result.usage,
+                )
+            else:
+                # Cache hit: reserved slot unused.
+                release_sampling_quota(db, job=job, row=row)
         persist_llm_result(db, row=row, result=chat_result)
 
     return _with_locked_response(
@@ -198,17 +258,25 @@ def persist_parsed_sample(
 
     def _mutate(row: LLMResponse) -> None:
         if absa_live_call:
+            from aperix_geo.services.billing.exceptions import (
+                QuotaExceededError,
+                SubscriptionInactiveError,
+            )
             from aperix_geo.services.billing.quota import consume_ai_usage
 
-            consume_ai_usage(
-                db,
-                tenant_id=tenant_id,
-                subject_id=subject.id,
-                source="parse",
-                reference_id=response_id,
-                platform=row.platform,
-                usage=chat_result.usage,
-            )
+            try:
+                consume_ai_usage(
+                    db,
+                    tenant_id=tenant_id,
+                    subject_id=subject.id,
+                    source="parse",
+                    reference_id=response_id,
+                    platform=row.platform,
+                    usage=chat_result.usage,
+                )
+            except (QuotaExceededError, SubscriptionInactiveError):
+                # ABSA already ran; keep parse artifacts even if billing refuses.
+                pass
         persist_successful_response(
             db,
             row=row,

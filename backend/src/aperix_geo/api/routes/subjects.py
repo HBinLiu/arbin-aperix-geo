@@ -11,7 +11,7 @@ from aperix_geo.api.routes import knowledge as knowledge_routes
 from aperix_geo.db.models import Subject, SubjectType
 from aperix_geo.schemas.catalog import SubjectOut, SubjectUpdate
 from aperix_geo.services.billing.exceptions import QuotaExceededError, SubscriptionInactiveError
-from aperix_geo.services.billing.http import quota_exceeded_http_exception
+from aperix_geo.services.billing.http import billing_http_exception, subscription_inactive_http_exception
 from aperix_geo.services.billing.quota import (
     assert_platform_capacity,
     assert_subject_sampling_frequency,
@@ -88,13 +88,8 @@ def update_subject(
         platforms = _validate_sampling_platforms(body.sampling_platforms)
         try:
             assert_platform_capacity(db, current.tenant_id, len(platforms))
-        except SubscriptionInactiveError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                detail="订阅已过期，无法调整平台配置",
-            ) from exc
-        except QuotaExceededError as exc:
-            raise quota_exceeded_http_exception(exc) from exc
+        except (SubscriptionInactiveError, QuotaExceededError) as exc:
+            raise billing_http_exception(exc, inactive_detail="订阅已过期，无法调整平台配置") from exc
         sub.sampling_platforms = platforms
     if body.sampling_frequency is not None:
         try:
@@ -103,21 +98,15 @@ def update_subject(
                 current.tenant_id,
                 body.sampling_frequency,
             )
-        except SubscriptionInactiveError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                detail="订阅已过期，无法调整采样周期",
-            ) from exc
-        except QuotaExceededError as exc:
-            raise quota_exceeded_http_exception(exc) from exc
+        except (SubscriptionInactiveError, QuotaExceededError) as exc:
+            raise billing_http_exception(exc, inactive_detail="订阅已过期，无法调整采样周期") from exc
     if body.sampling_enabled is not None:
         if body.sampling_enabled:
             try:
                 require_active_subscription(db, current.tenant_id)
             except SubscriptionInactiveError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                    detail="订阅已过期，无法开启监控",
+                raise subscription_inactive_http_exception(
+                    exc, detail="订阅已过期，无法开启监控"
                 ) from exc
         sub.sampling_enabled = body.sampling_enabled
     if brand_catalog_dirty:

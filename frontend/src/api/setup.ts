@@ -164,18 +164,18 @@ export async function generateSetupPrompts(input: {
   return promptRowsFromGenerated(input.topics, data.items ?? []);
 }
 
-/** UI Step 3→完成：落库并触发首次采样 */
+/** UI Step 3→完成：落库；有有效订阅时触发首次采样 */
 export async function finalizeSetup(input: FinalizeSetupInput): Promise<{
   subjectId: string;
-  samplingJobId: string;
+  samplingJobId: string | null;
 }> {
   const { topics } = buildFinalizePayload(input);
-  const { data } = await api.post<{ subject_id: string; sampling_job_id: string }>(
+  const { data } = await api.post<{ subject_id: string; sampling_job_id: string | null }>(
     "/subjects/setup/finalize",
     {
       session_id: input.sessionId.trim(),
       topics,
     },
   );
-  return { subjectId: data.subject_id, samplingJobId: data.sampling_job_id };
+  return { subjectId: data.subject_id, samplingJobId: data.sampling_job_id ?? null };
 }

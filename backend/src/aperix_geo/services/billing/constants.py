@@ -26,6 +26,10 @@ API_PAGE_SIZE_MAX = 50
 LEDGER_RECORD_CONSUMPTION = "consumption"
 LEDGER_RECORD_USAGE_PACK_PURCHASE = "usage_pack_purchase"
 LEDGER_RECORD_SUBSCRIPTION_GRANT = "subscription_grant"
+LEDGER_RECORD_PENDING_SETUP = "pending_setup"
+
+# Soft cap for deferred setup AI calls before first subscription.
+SETUP_PENDING_AI_SOFT_CAP = 50
 
 # API-facing record type filters / list items
 API_RECORD_SUBSCRIPTION_CONSUME = "subscription_consume"

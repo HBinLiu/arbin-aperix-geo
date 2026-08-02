@@ -17,8 +17,8 @@ from aperix_geo.schemas.catalog import (
     PromptTaxonomyOut,
     PromptUpdate,
 )
-from aperix_geo.services.billing.exceptions import QuotaExceededError
-from aperix_geo.services.billing.http import quota_exceeded_http_exception
+from aperix_geo.services.billing.exceptions import QuotaExceededError, SubscriptionInactiveError
+from aperix_geo.services.billing.http import billing_http_exception
 from aperix_geo.services.prompts.generate import (
     generate_subject_prompt_candidates_for_topic,
     map_generate_error,
@@ -59,8 +59,8 @@ def _validation_error(exc: PromptValidationError) -> HTTPException:
 
 
 def _prompt_mutation_error(exc: Exception) -> HTTPException:
-    if isinstance(exc, QuotaExceededError):
-        return quota_exceeded_http_exception(exc)
+    if isinstance(exc, (SubscriptionInactiveError, QuotaExceededError)):
+        return billing_http_exception(exc, inactive_detail="订阅已过期，无法管理提示词")
     if isinstance(exc, PromptValidationError):
         return _validation_error(exc)
     raise exc
@@ -103,7 +103,7 @@ def promote_prompt_fanout(
             query=body.query,
             enabled=body.enabled,
         )
-    except (PromptValidationError, QuotaExceededError) as exc:
+    except (PromptValidationError, QuotaExceededError, SubscriptionInactiveError) as exc:
         raise _prompt_mutation_error(exc) from exc
 
 
@@ -126,7 +126,7 @@ def create_prompt(
             decision_type=body.decision_type,
             enabled=body.enabled,
         )
-    except (PromptValidationError, QuotaExceededError) as exc:
+    except (PromptValidationError, QuotaExceededError, SubscriptionInactiveError) as exc:
         raise _prompt_mutation_error(exc) from exc
 
 
@@ -149,7 +149,7 @@ def batch_create_prompts(
             topic_id=body.topic_id,
             items=body.items,
         )
-    except (PromptValidationError, QuotaExceededError) as exc:
+    except (PromptValidationError, QuotaExceededError, SubscriptionInactiveError) as exc:
         raise _prompt_mutation_error(exc) from exc
 
 
@@ -208,8 +208,7 @@ def _generate_candidates(
             decision_type=body.decision_type,
         )
     except Exception as exc:
-        code, detail = map_generate_error(exc)
-        raise HTTPException(status_code=code, detail=detail) from exc
+        raise map_generate_error(exc) from exc
 
 
 @router.post(

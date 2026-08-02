@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import User, UserRole
 from aperix_geo.services.auth import otp as otp_svc
-from aperix_geo.services.billing.exceptions import QuotaExceededError
-from aperix_geo.services.billing.http import quota_exceeded_http_exception
+from aperix_geo.services.billing.exceptions import QuotaExceededError, SubscriptionInactiveError
+from aperix_geo.services.billing.http import billing_http_exception
 from aperix_geo.services.billing.quota import assert_team_member_capacity
 from aperix_geo.utils.contact import mask_phone_cn, normalize_phone_cn
 
@@ -68,8 +68,8 @@ def validate_invite_phone(db: Session, *, tenant_id: uuid.UUID, phone_raw: str) 
         )
     try:
         assert_team_member_capacity(db, tenant_id, adding=1)
-    except QuotaExceededError as exc:
-        raise quota_exceeded_http_exception(exc) from exc
+    except (SubscriptionInactiveError, QuotaExceededError) as exc:
+        raise billing_http_exception(exc, inactive_detail="订阅已过期，无法邀请成员") from exc
     return phone_norm
 
 

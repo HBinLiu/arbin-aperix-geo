@@ -13,7 +13,11 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from aperix_geo.schemas.catalog import CompetitorItem
-from aperix_geo.services.billing.quota import assert_ai_usage_available, consume_ai_usage, usage_reference
+from aperix_geo.services.billing.quota import (
+    assert_setup_ai_usage_available,
+    charge_setup_ai_usage,
+    usage_reference,
+)
 from aperix_geo.services.billing.usage_tokens import SETUP_LLM_PLATFORM
 from aperix_geo.services.competitor.profile import profile_from_dict
 from aperix_geo.services.setup.cache import get_session, update_session
@@ -115,17 +119,16 @@ def run_setup_topics_step(
     if has_clusters and not competitors_changed:
         topic_clusters = existing_clusters
     else:
-        assert_ai_usage_available(db, tenant_id)
+        assert_setup_ai_usage_available(db, tenant_id)
         topic_clusters, usage = run_topic_generation_stage(
             profile=profile,
             subject_type=subject_type,
             entity_key=target,
             competitors=confirmed,
         )
-        consume_ai_usage(
+        charge_setup_ai_usage(
             db,
             tenant_id=tenant_id,
-            source="setup",
             reference_id=usage_reference("monitoring_topics", session_id, confirmed_hash),
             platform=SETUP_LLM_PLATFORM,
             usage=usage,
@@ -134,7 +137,7 @@ def run_setup_topics_step(
 
     profile_summary = str(session.get("profile_summary") or "").strip()
     if competitors_changed or not profile_summary:
-        assert_ai_usage_available(db, tenant_id)
+        assert_setup_ai_usage_available(db, tenant_id)
         profile_summary, usage = run_profile_summary_stage(
             profile=profile,
             subject_type=subject_type,
@@ -144,10 +147,9 @@ def run_setup_topics_step(
             entity_key=target,
             competitors=confirmed,
         )
-        consume_ai_usage(
+        charge_setup_ai_usage(
             db,
             tenant_id=tenant_id,
-            source="setup",
             reference_id=usage_reference("profile_summary", session_id, confirmed_hash),
             platform=SETUP_LLM_PLATFORM,
             usage=usage,

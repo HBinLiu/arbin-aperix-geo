@@ -218,7 +218,7 @@ class SetupFinalizeBody(BaseModel):
 
 class SetupFinalizeResponse(BaseModel):
     subject_id: UUID
-    sampling_job_id: UUID
+    sampling_job_id: UUID | None = None
 
 
 class GenerateSubjectPromptsRequest(BaseModel):

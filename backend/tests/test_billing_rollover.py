@@ -33,12 +33,16 @@ def test_expire_due_subscriptions_marks_expired() -> None:
         current_period_end=now - timedelta(days=1),
     )
     db = MagicMock()
-    db.execute.return_value.scalars.return_value.all.return_value = [sub]
+    exec_result = MagicMock()
+    exec_result.scalars.return_value.all.return_value = [sub]
+    exec_result.rowcount = 1
+    db.execute.return_value = exec_result
 
     count = expire_due_subscriptions(db, now=now)
 
     assert count == 1
     assert sub.status == "expired"
+    assert db.execute.call_count >= 2
 
 
 def test_expire_due_subscriptions_applies_pending_plan() -> None:

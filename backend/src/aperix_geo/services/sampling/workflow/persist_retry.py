@@ -52,6 +52,10 @@ def run_persist_with_db_retry(
                 return on_skipped()
             return success_result()
         except QuotaExceededError as exc:
+            # LLM persist swallows quota races; remaining phases still fail-closed.
+            if phase == "llm":
+                db.rollback()
+                return on_skipped()
             db.rollback()
             fail()
             return {"ok": False, "error": str(exc), "quota_exhausted": True}

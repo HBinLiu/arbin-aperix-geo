@@ -10,7 +10,11 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from aperix_geo.utils.net import registrable_from
-from aperix_geo.services.billing.quota import assert_ai_usage_available, consume_ai_usage, usage_reference
+from aperix_geo.services.billing.quota import (
+    assert_setup_ai_usage_available,
+    charge_setup_ai_usage,
+    usage_reference,
+)
 from aperix_geo.services.billing.usage_tokens import SETUP_LLM_PLATFORM
 from aperix_geo.services.competitor.homepage import fetch_target_homepage
 from aperix_geo.services.competitor.profile import profile_from_dict, profile_to_dict, search_queries_list
@@ -163,7 +167,7 @@ def _load_or_build_profile(
             )
             return profile_dict, research_payload, search_queries, True
 
-    assert_ai_usage_available(db, tenant_id)
+    assert_setup_ai_usage_available(db, tenant_id)
     profile, research_payload, usage = run_niche_profile_stage(
         subject_type=subject_type,
         target=target,
@@ -176,10 +180,9 @@ def _load_or_build_profile(
     )
     if subject_type == "brand":
         assert_niche_profile_sufficient(profile)
-    consume_ai_usage(
+    charge_setup_ai_usage(
         db,
         tenant_id=tenant_id,
-        source="setup",
         reference_id=usage_reference("niche_profile", profile_hash),
         platform=SETUP_LLM_PLATFORM,
         usage=usage,

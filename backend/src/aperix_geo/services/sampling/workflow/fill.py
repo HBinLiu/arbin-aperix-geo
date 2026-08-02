@@ -99,6 +99,35 @@ def reset_all_inflight_slots(job_id: UUID) -> None:
         reset_inflight_slot(job_id, phase)
 
 
+def _soft_fail_orphaned_pending_llm(response_id: UUID) -> None:
+    """Release reserved sampling quota when an LLM worker died holding the claim."""
+    from aperix_geo.services.sampling.workflow.execute import (
+        SOFT_SKIP_ORPHAN_CLAIM,
+        mark_response_failed,
+    )
+
+    db = SessionLocal()
+    try:
+        row = db.execute(
+            select(LLMResponse).where(LLMResponse.id == response_id).with_for_update()
+        ).scalar_one_or_none()
+        if row is None or row.status != LLMResponseStatus.pending:
+            db.commit()
+            return
+        mark_response_failed(db, row=row, error_text=SOFT_SKIP_ORPHAN_CLAIM)
+        db.commit()
+    except Exception:
+        db.rollback()
+        log_sampling(
+            logging.WARNING,
+            "采样 orphan claim 释放预留失败",
+            phase="llm",
+            response_id=response_id,
+        )
+    finally:
+        db.close()
+
+
 def reclaim_stale_response_dispatch(job_id: UUID, phase: str, response_id: UUID) -> None:
     """Drop orphaned dispatch/claim locks (worker died without on_task_finished)."""
     client = shared_redis_client()
@@ -123,6 +152,9 @@ def reclaim_stale_response_dispatch(job_id: UUID, phase: str, response_id: UUID)
         from aperix_geo.services.sampling.workflow.claim import release_response_claim
 
         release_response_claim(response_id)
+        # LLM phase holds reserved quota; dead worker will never confirm — release now.
+        if phase == "llm":
+            _soft_fail_orphaned_pending_llm(response_id)
     release_response_dispatched(phase, response_id)
 
 

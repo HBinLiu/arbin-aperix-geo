@@ -24,6 +24,7 @@ def parse_llm_output(
     sampling_job_id: UUID | None = None,
     db: Session | None = None,
     fetch_pages: bool = True,
+    skip_absa: bool = False,
 ) -> ParsedSamplingResult:
     return run_parse_pipeline(
         raw_text,
@@ -35,4 +36,5 @@ def parse_llm_output(
         sampling_job_id=sampling_job_id,
         db=db,
         fetch_pages=fetch_pages,
+        skip_absa=skip_absa,
     )

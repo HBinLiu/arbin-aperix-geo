@@ -71,7 +71,8 @@ def test_subject_summary_from_session_uses_research_site_data() -> None:
     assert summary == "全球跨境支付平台"
 
 
-@patch("aperix_geo.services.setup.finalize.get_limits_for_tenant")
+@patch("aperix_geo.services.setup.finalize.tenant_has_usable_subscription", return_value=True)
+@patch("aperix_geo.services.setup.finalize.get_limits_for_enforcement")
 @patch("aperix_geo.services.competitor.persist.assert_competitor_capacity")
 @patch("aperix_geo.services.setup.finalize.assert_platform_capacity")
 @patch("aperix_geo.services.setup.finalize.assert_can_add_prompts")
@@ -96,6 +97,7 @@ def test_finalize_setup_writes_aliases_and_deletes_session(
     mock_assert_platforms,
     _mock_assert_competitors,
     mock_get_limits,
+    _mock_subscribed,
 ) -> None:
     profile = normalize_niche_profile({"company": "Airwallex"}, entity="airwallex.com")
     mock_get_session.return_value = {
@@ -151,6 +153,92 @@ def test_finalize_setup_writes_aliases_and_deletes_session(
     assert subject.brand == "Airwallex"
     assert subject.summary == "全球跨境支付"
     assert subject.sampling_frequency == "daily_1"
+    assert subject.sampling_enabled is True
     mock_delete.assert_called_once_with(user_id="user-1", session_id=body.session_id)
     assert job.id == "job-1"
+    assert knowledge_ready is False
+    mock_enqueue.assert_called_once()
+
+
+@patch("aperix_geo.services.setup.finalize.tenant_has_usable_subscription", return_value=False)
+@patch("aperix_geo.services.setup.finalize.get_limits_for_enforcement")
+@patch("aperix_geo.services.competitor.persist.assert_competitor_capacity")
+@patch("aperix_geo.services.setup.finalize.assert_platform_capacity")
+@patch("aperix_geo.services.setup.finalize.assert_can_add_prompts")
+@patch("aperix_geo.services.setup.finalize.assert_can_create_subject")
+@patch("aperix_geo.services.setup.finalize.enrich_subject_aliases", return_value=["Airwallex"])
+@patch("aperix_geo.services.setup.finalize.subject_summary_from_session", return_value="全球跨境支付")
+@patch("aperix_geo.services.competitor.enrich.enrich_confirmed_competitors")
+@patch("aperix_geo.services.setup.finalize.delete_session")
+@patch("aperix_geo.services.setup.finalize.create_and_enqueue_sampling_job")
+@patch("aperix_geo.services.setup.finalize.resolve_subject_sampling_platforms")
+@patch("aperix_geo.services.setup.finalize.get_session")
+def test_finalize_setup_onboarding_skips_sampling_job(
+    mock_get_session,
+    mock_platforms,
+    mock_enqueue,
+    mock_delete,
+    mock_enrich,
+    mock_subject_summary,
+    mock_subject_aliases,
+    mock_assert_subject,
+    mock_assert_prompts,
+    mock_assert_platforms,
+    _mock_assert_competitors,
+    mock_get_limits,
+    _mock_subscribed,
+) -> None:
+    profile = normalize_niche_profile({"company": "Airwallex"}, entity="airwallex.com")
+    mock_get_session.return_value = {
+        "subject_type": "domain",
+        "target": "airwallex.com",
+        "domain": "airwallex.com",
+        "website_url": "https://airwallex.com",
+        "region": "CN",
+        "language": "zh-CN",
+        "profile": profile,
+        "profile_summary": "# Airwallex",
+        "competitors_hash": "discover-hash",
+        "competitors": [
+            {
+                "domain": "wise.com",
+                "website_url": "https://wise.com",
+                "brand": "Wise",
+                "summary": "",
+                "aliases": [],
+            }
+        ],
+        "confirmed_competitors_hash": "confirmed-hash",
+    }
+    mock_platforms.return_value = ["openai"]
+    mock_enrich.side_effect = lambda items, **kwargs: items
+    mock_get_limits.return_value = PlanLimits(
+        max_subjects=1,
+        max_per_platforms=3,
+        max_per_competitors=10,
+        max_prompts_total=50,
+        per_month_usages=2000,
+        max_team_members=3,
+        sampling_frequency="daily_1",
+    )
+
+    db = MagicMock()
+    db.flush = MagicMock()
+    user = MagicMock(tenant_id="tenant-1", id="user-1")
+    body = SetupFinalizeBody(
+        session_id="abc123456789",
+        topics=[
+            SetupTopicItem(
+                name="跨境支付",
+                prompts=[SetupPromptItem(text="哪家跨境支付更好？", funnel_stage="mofu", search_intent="commercial")],
+            )
+        ],
+    )
+
+    subject, job, knowledge_ready = finalize_setup(db, user=user, session_id=body.session_id, body=body)
+
+    assert job is None
+    assert subject.sampling_enabled is False
+    mock_enqueue.assert_not_called()
+    mock_delete.assert_called_once()
     assert knowledge_ready is False

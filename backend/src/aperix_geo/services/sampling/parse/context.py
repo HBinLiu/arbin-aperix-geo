@@ -71,6 +71,7 @@ def extract_parse_context(
     web_search_mode: str,
     sampling_job_id: UUID | None,
     db: Session | None = None,
+    skip_absa: bool = False,
 ) -> ParseContext:
     text = raw_text or ""
     urls, url_hosts = extract_citation_urls(text, source_urls)
@@ -98,7 +99,7 @@ def extract_parse_context(
     settings = get_settings()
     crawl = page_crawl_settings(settings)
     llm_key = settings.deepseek_api_key.strip()
-    absa_needed = response_absa_needed(
+    absa_needed = (not skip_absa) and response_absa_needed(
         llm_configured=bool(llm_key),
         text=text,
         entity_signals=entity_signals,

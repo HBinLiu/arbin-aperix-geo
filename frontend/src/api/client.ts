@@ -103,10 +103,11 @@ export function formatApiError(e: unknown, fallback = "请求失败"): string {
         const message = (detail as { message?: unknown }).message;
         if (typeof message === "string" && message.trim()) return message;
       }
+      // Prefer explicit server detail over the generic 402 fallback.
+      if (typeof detail === "string" && detail.trim()) return detail;
       if (status === 402) {
         return "配额已用尽，请升级计划或购买配额包。";
       }
-      if (typeof detail === "string") return detail;
       if (Array.isArray(detail)) return JSON.stringify(detail);
       return `请求失败（HTTP ${status}）`;
     }

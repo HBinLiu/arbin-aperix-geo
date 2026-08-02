@@ -24,6 +24,7 @@ def run_parse_pipeline(
     sampling_job_id: UUID | None = None,
     db: Session | None = None,
     fetch_pages: bool = True,
+    skip_absa: bool = False,
 ) -> ParsedSamplingResult:
     from aperix_geo.services.sampling.fanout import build_search_query_events
 
@@ -34,6 +35,7 @@ def run_parse_pipeline(
         web_search_mode=web_search_mode,
         sampling_job_id=sampling_job_id,
         db=db,
+        skip_absa=skip_absa,
     )
     enrichment = enrich_parse_context(ctx, fetch_pages=fetch_pages)
     merged = merge_parse_results(ctx, enrichment=enrichment)

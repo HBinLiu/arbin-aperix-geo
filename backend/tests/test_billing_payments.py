@@ -119,6 +119,7 @@ def test_fulfill_subscription_reactivates_expired() -> None:
             "aperix_geo.services.billing.payments.get_limits_for_tenant",
             return_value=MagicMock(per_month_usages=2000),
         ),
+        patch("aperix_geo.services.billing.payments.settle_pending_setup_usage", return_value=0),
     ):
         paid = fulfill_paid_order(db, order.id, payment_id="pay-renew", paid_at=now)
 
@@ -167,6 +168,7 @@ def test_fulfill_plan_change_upgrade_updates_plan_and_limit() -> None:
     with (
         patch("aperix_geo.services.billing.payments.get_current_usage_period", return_value=usage_period),
         patch("aperix_geo.services.billing.payments.get_limits_for_tenant", return_value=limits),
+        patch("aperix_geo.services.billing.payments.settle_pending_setup_usage", return_value=0),
     ):
         fulfill_paid_order(db, order.id, payment_id="pay-upgrade", paid_at=now)
 
@@ -208,6 +210,7 @@ def test_fulfill_plan_change_downgrade_sets_pending_plan() -> None:
             "aperix_geo.services.billing.payments.get_limits_for_tenant",
             return_value=MagicMock(per_month_usages=7000),
         ),
+        patch("aperix_geo.services.billing.payments.settle_pending_setup_usage", return_value=0),
     ):
         fulfill_paid_order(db, order.id, payment_id="pay-downgrade", paid_at=now)
 

@@ -9,10 +9,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import Prompt, Subject, Topic, ZERO_UUID
-from aperix_geo.services.billing.exceptions import QuotaExceededError
 from aperix_geo.services.billing.quota import assert_can_add_prompts, remaining_prompt_slots
-from aperix_geo.services.prompts.taxonomy import normalize_funnel_stage, normalize_search_intent
-from aperix_geo.services.prompts.taxonomy import normalize_decision_type
+from aperix_geo.services.prompts.taxonomy import (
+    normalize_decision_type,
+    normalize_funnel_stage,
+    normalize_search_intent,
+)
 from aperix_geo.utils.text import prompt_text_hash
 
 PROMPT_KIND_ROOT = "root"
@@ -20,7 +22,7 @@ PROMPT_KIND_FANOUT = "fanout"
 
 
 class PromptValidationError(ValueError):
-    """Invalid prompt input or quota exceeded."""
+    """Invalid prompt input."""
 
 
 class _PromptInput(Protocol):
@@ -68,10 +70,7 @@ def remaining_prompt_slots_for_subject(db: Session, subject_id: UUID) -> int:
 
 def _assert_can_add(db: Session, subject_id: UUID, *, count: int) -> None:
     tenant_id = _tenant_id_for_subject(db, subject_id)
-    try:
-        assert_can_add_prompts(db, tenant_id, count=count)
-    except QuotaExceededError as exc:
-        raise PromptValidationError(str(exc)) from exc
+    assert_can_add_prompts(db, tenant_id, count=count)
 
 
 def _text_hash_exists(db: Session, subject_id: UUID, text_hash: str) -> bool:

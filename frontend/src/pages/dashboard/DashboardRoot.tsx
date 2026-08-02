@@ -8,7 +8,10 @@ import { fetchMe } from "@/api/auth";
 import { fetchSubjects } from "@/api/subject";
 import { DashboardProvider } from "@/hooks/useDashboardContext";
 import { useTenantSubscription } from "@/hooks/useTenantSubscription";
-import { isSubscriptionExpired } from "@/lib/billing/subscription";
+import {
+  isSubscriptionExpired,
+  msUntilSubscriptionPeriodEnd,
+} from "@/lib/billing/subscription";
 import {
   getStoredActiveSubjectId,
   resolveActiveSubject,
@@ -18,11 +21,14 @@ import { DASHBOARD_SETUP_PATH } from "@/lib/dashboard";
 import { queryKeys } from "@/lib/queries";
 
 const QUERY_RETRY = { retry: 1 } as const;
+/** setTimeout 上限（约 24.8 天），避免超大 delay 被截断。 */
+const MAX_TIMEOUT_MS = 2_147_483_647;
 
 /** 控制台布局门控：无 subject 时跳转 setup，否则注入 DashboardProvider。 */
 export function DashboardRoot() {
   const navigate = useNavigate();
   const [activeSubjectId, setActiveSubjectIdState] = useState(getStoredActiveSubjectId);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const setActiveSubjectId = useCallback((id: string) => {
     setStoredActiveSubjectId(id);
@@ -62,6 +68,17 @@ export function DashboardRoot() {
   });
 
   const subscriptionQuery = useTenantSubscription();
+
+  // 本地时钟越过 period_end 时立刻卡门闸，不依赖下一次订阅 refetch。
+  useEffect(() => {
+    const remaining = msUntilSubscriptionPeriodEnd(subscriptionQuery.data, nowMs);
+    if (remaining == null) return;
+    const timer = window.setTimeout(() => {
+      setNowMs(Date.now());
+      void subscriptionQuery.refetch();
+    }, Math.min(remaining + 50, MAX_TIMEOUT_MS));
+    return () => window.clearTimeout(timer);
+  }, [subscriptionQuery.data, subscriptionQuery.refetch, nowMs]);
 
   if (subjectsQuery.isPending) {
     return <AppShellLoading message="加载工作区…" />;
@@ -112,7 +129,7 @@ export function DashboardRoot() {
     );
   }
 
-  if (isSubscriptionExpired(subscriptionQuery.data)) {
+  if (isSubscriptionExpired(subscriptionQuery.data, nowMs)) {
     return <SubscriptionRequiredView user={userQuery.data} />;
   }
 

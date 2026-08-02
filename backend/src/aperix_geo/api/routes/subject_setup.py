@@ -27,8 +27,8 @@ from aperix_geo.schemas.catalog import (
     TopicPromptsOut,
 )
 from aperix_geo.services.providers import LLMProviderError
-from aperix_geo.services.billing.exceptions import QuotaExceededError
-from aperix_geo.services.billing.http import quota_exceeded_http_exception
+from aperix_geo.services.billing.exceptions import QuotaExceededError, SubscriptionInactiveError
+from aperix_geo.services.billing.http import billing_http_exception
 from aperix_geo.services.setup.prompts import generate_setup_prompts_for_session
 from aperix_geo.services.setup.discover import discover_setup
 from aperix_geo.services.setup.exceptions import MaterialsInsufficientError, SubjectDuplicateError
@@ -135,8 +135,8 @@ def discover_setup_endpoint(
             region=body.region,
             language=body.language,
         )
-    except QuotaExceededError as e:
-        raise quota_exceeded_http_exception(e) from e
+    except (QuotaExceededError, SubscriptionInactiveError) as e:
+        raise billing_http_exception(e, inactive_detail="订阅已过期，无法继续设置") from e
     except MaterialsInsufficientError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -171,8 +171,8 @@ def generate_setup_topics_endpoint(
             session_id=body.session_id.strip(),
             competitors=body.competitors,
         )
-    except QuotaExceededError as e:
-        raise quota_exceeded_http_exception(e) from e
+    except (QuotaExceededError, SubscriptionInactiveError) as e:
+        raise billing_http_exception(e, inactive_detail="订阅已过期，无法继续设置") from e
     except ValueError as e:
         status_code = status.HTTP_404_NOT_FOUND if "not found" in str(e) else status.HTTP_400_BAD_REQUEST
         raise HTTPException(status_code=status_code, detail=str(e)) from e
@@ -201,8 +201,8 @@ def generate_setup_prompts_endpoint(
             topics=body.topics,
             exclude_prompts=body.exclude_prompts,
         )
-    except QuotaExceededError as e:
-        raise quota_exceeded_http_exception(e) from e
+    except (QuotaExceededError, SubscriptionInactiveError) as e:
+        raise billing_http_exception(e, inactive_detail="订阅已过期，无法继续设置") from e
     except ValueError as e:
         status_code = status.HTTP_404_NOT_FOUND if "not found" in str(e) else status.HTTP_400_BAD_REQUEST
         raise HTTPException(status_code=status_code, detail=str(e)) from e
@@ -231,4 +231,7 @@ def setup_finalize_endpoint(
         from aperix_geo.services.knowledge.persist import enqueue_knowledge_index
 
         enqueue_knowledge_index(subject.id)
-    return SetupFinalizeResponse(subject_id=subject.id, sampling_job_id=job.id)
+    return SetupFinalizeResponse(
+        subject_id=subject.id,
+        sampling_job_id=job.id if job is not None else None,
+    )

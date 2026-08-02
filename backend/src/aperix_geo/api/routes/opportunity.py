@@ -16,8 +16,8 @@ from aperix_geo.api.schemas.analysis_query import (
     PromptFanoutPromoteParams,
 )
 from aperix_geo.services import analysis as analysis_svc
-from aperix_geo.services.billing.exceptions import QuotaExceededError
-from aperix_geo.services.billing.http import quota_exceeded_http_exception
+from aperix_geo.services.billing.exceptions import QuotaExceededError, SubscriptionInactiveError
+from aperix_geo.services.billing.http import billing_http_exception
 from aperix_geo.services.opportunity import (
     build_prompt_fanouts_page,
     dismiss_opportunity_prompt_fanout,
@@ -36,8 +36,8 @@ def _parse_window(params: OpportunityWindowParams):
 
 
 def _prompt_fanout_mutation_error(exc: Exception) -> HTTPException:
-    if isinstance(exc, QuotaExceededError):
-        return quota_exceeded_http_exception(exc)
+    if isinstance(exc, (SubscriptionInactiveError, QuotaExceededError)):
+        return billing_http_exception(exc, inactive_detail="订阅已过期，无法管理提示词")
     return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
@@ -195,7 +195,7 @@ def prompt_fanout_opportunity_promote(
             fanout_id=fanout_id,
             enabled=params.enabled,
         )
-    except (PromptValidationError, QuotaExceededError) as exc:
+    except (PromptValidationError, QuotaExceededError, SubscriptionInactiveError) as exc:
         raise _prompt_fanout_mutation_error(exc) from exc
 
 

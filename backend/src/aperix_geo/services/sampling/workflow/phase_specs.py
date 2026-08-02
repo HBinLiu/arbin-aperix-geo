@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import LLMResponse, SamplingJob
 from aperix_geo.services.providers.result import SamplingChatResult
-from aperix_geo.services.billing.exceptions import QuotaExceededError, SubscriptionInactiveError
-from aperix_geo.services.billing.quota import ai_usage_available, require_active_subscription
+from aperix_geo.services.billing.exceptions import SubscriptionInactiveError
+from aperix_geo.services.billing.quota import require_active_subscription
 from aperix_geo.services.sampling.cache import (
     clear_cached_llm_result,
     load_prompt_text_cached,
@@ -21,6 +21,7 @@ from aperix_geo.services.sampling.parse import parse_llm_output
 from aperix_geo.services.sampling.retry_policy import is_llm_timeout_error
 from aperix_geo.services.sampling.workflow.crawl import crawl_response_citations
 from aperix_geo.services.sampling.workflow.execute import (
+    SOFT_SKIP_SUBSCRIPTION_INACTIVE,
     chat_result_from_row,
     mark_response_failed,
     mark_response_failed_if_crawl_ready,
@@ -30,6 +31,7 @@ from aperix_geo.services.sampling.workflow.execute import (
     persist_llm_sample,
     persist_parsed_sample,
     prepare_sample_chat_result,
+    soft_skip_pending_llm_responses,
 )
 from aperix_geo.services.sampling.workflow.phase import SamplingPhaseSpec
 from aperix_geo.services.sampling.workflow.phases import phase_expected_status
@@ -67,11 +69,14 @@ def build_llm_phase_spec(task, response_id: str) -> SamplingPhaseSpec:
         try:
             require_active_subscription(db, job.tenant_id)
         except SubscriptionInactiveError:
-            mark_response_failed(db, row=row, error_text="订阅已过期，已停止采样")
-            return {"ok": False, "error": "subscription expired", "quota_exhausted": True}
-        if ai_usage_available(db, job.tenant_id) <= 0:
-            mark_response_failed(db, row=row, error_text="AI 调用额度已用尽")
-            return {"ok": False, "error": "ai quota exceeded", "quota_exhausted": True}
+            soft_skip_pending_llm_responses(
+                db, job_id=job.id, reason=SOFT_SKIP_SUBSCRIPTION_INACTIVE
+            )
+            return {
+                "ok": True,
+                "skipped": True,
+                "reason": SOFT_SKIP_SUBSCRIPTION_INACTIVE,
+            }
         ctx["platform"] = row.platform
         ctx["prompt_text"] = prompt_text
         ctx["tenant_id"] = job.tenant_id
@@ -162,10 +167,17 @@ def build_parse_phase_spec(_task, response_id: str) -> SamplingPhaseSpec:
         if not subject:
             mark_response_failed(db, row=row, error_text="missing subject")
             return {"ok": False, "error": "missing subject"}
+        skip_absa = False
+        try:
+            require_active_subscription(db, job.tenant_id)
+        except SubscriptionInactiveError:
+            # Allow parse/crawl finish after expiry, but do not open a new ABSA LLM call.
+            skip_absa = True
         ctx["chat_result"] = chat_result_from_row(row)
         ctx["subject"] = subject
         ctx["sampling_job_id"] = row.sampling_job_id
         ctx["tenant_id"] = job.tenant_id
+        ctx["skip_absa"] = skip_absa
         return None
 
     def work():
@@ -180,6 +192,7 @@ def build_parse_phase_spec(_task, response_id: str) -> SamplingPhaseSpec:
             sampling_job_id=ctx["sampling_job_id"],
             db=None,
             fetch_pages=False,
+            skip_absa=bool(ctx.get("skip_absa")),
         )
         return chat_result, parsed
 

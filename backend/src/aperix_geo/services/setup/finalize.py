@@ -17,20 +17,24 @@ from aperix_geo.db.models import (
     User,
 )
 from aperix_geo.schemas.catalog import CompetitorItem, SetupFinalizeBody
-from aperix_geo.services.billing.exceptions import QuotaExceededError
-from aperix_geo.services.billing.http import quota_exceeded_http_exception
+from aperix_geo.services.billing.exceptions import QuotaExceededError, SubscriptionInactiveError
+from aperix_geo.services.billing.http import billing_http_exception
 from aperix_geo.services.billing.quota import (
     assert_can_add_prompts,
     assert_can_create_subject,
     assert_platform_capacity,
-    get_limits_for_tenant,
+    get_limits_for_enforcement,
+    tenant_has_usable_subscription,
 )
 from aperix_geo.services.competitor.enrich import enrich_confirmed_competitors
 from aperix_geo.services.competitor.types import SiteHead
 from aperix_geo.services.competitor.persist import apply_competitors
-from aperix_geo.services.prompts.taxonomy import normalize_decision_type
+from aperix_geo.services.prompts.taxonomy import (
+    normalize_decision_type,
+    normalize_funnel_stage,
+    normalize_search_intent,
+)
 from aperix_geo.services.setup.topic_items import topic_name_key
-from aperix_geo.services.prompts.taxonomy import normalize_funnel_stage, normalize_search_intent
 from aperix_geo.services.brand.sync import sync_subject_brands_from_setup
 from aperix_geo.services.sampling.platforms import resolve_subject_sampling_platforms
 from aperix_geo.services.sampling.workflow.jobs import create_and_enqueue_sampling_job
@@ -58,7 +62,7 @@ def finalize_setup(
     user: User,
     session_id: str,
     body: SetupFinalizeBody,
-) -> tuple[Subject, SamplingJob, bool]:
+) -> tuple[Subject, SamplingJob | None, bool]:
     t0 = time.perf_counter()
     setup_session_id = session_id.strip()
     setup_session = get_session(user_id=str(user.id), session_id=setup_session_id)
@@ -102,8 +106,10 @@ def finalize_setup(
     try:
         assert_can_create_subject(db, user.tenant_id)
         assert_can_add_prompts(db, user.tenant_id, count=prompt_count)
-    except QuotaExceededError as exc:
-        raise quota_exceeded_http_exception(exc) from exc
+    except (SubscriptionInactiveError, QuotaExceededError) as exc:
+        raise billing_http_exception(exc, inactive_detail="订阅已过期，无法完成设置") from exc
+
+    subscribed = tenant_has_usable_subscription(db, user.tenant_id)
 
     try:
         session_competitors = confirmed_competitors_from_session(setup_session)
@@ -155,7 +161,7 @@ def finalize_setup(
         heads=heads_cache,
     )
     niche_profile_data = dict(setup_session.get("profile") or {})
-    plan_limits = get_limits_for_tenant(db, user.tenant_id)
+    plan_limits = get_limits_for_enforcement(db, user.tenant_id)
 
     subject = Subject(
         tenant_id=user.tenant_id,
@@ -168,12 +174,14 @@ def finalize_setup(
         summary=subject_summary_from_session(setup_session),
         niche_profile=niche_profile_data,
         sampling_frequency=plan_limits.sampling_frequency,
+        # Defer auto-sampling until a subscription is active.
+        sampling_enabled=subscribed,
     )
     validate_subject_fields(subject)
     try:
         apply_competitors(db, subject, competitors=competitors_for_persist)
-    except QuotaExceededError as exc:
-        raise quota_exceeded_http_exception(exc) from exc
+    except (SubscriptionInactiveError, QuotaExceededError) as exc:
+        raise billing_http_exception(exc, inactive_detail="订阅已过期，无法完成设置") from exc
     validate_brand_competitors(subject)
 
     db.add(subject)
@@ -198,9 +206,9 @@ def finalize_setup(
         )
     try:
         assert_platform_capacity(db, user.tenant_id, len(platforms))
-    except QuotaExceededError as exc:
+    except (SubscriptionInactiveError, QuotaExceededError) as exc:
         db.rollback()
-        raise quota_exceeded_http_exception(exc) from exc
+        raise billing_http_exception(exc, inactive_detail="订阅已过期，无法完成设置") from exc
 
     topics: list[Topic] = []
     for item in topic_items:
@@ -246,22 +254,25 @@ def finalize_setup(
 
     db.flush()
 
-    job = create_and_enqueue_sampling_job(
-        db,
-        subject=subject,
-        tenant_id=user.tenant_id,
-        platforms=platforms,
-        update_schedule_anchor=True,
-    )
+    job: SamplingJob | None = None
+    if subscribed:
+        job = create_and_enqueue_sampling_job(
+            db,
+            subject=subject,
+            tenant_id=user.tenant_id,
+            platforms=platforms,
+            update_schedule_anchor=True,
+        )
     db.refresh(subject)
     delete_session(user_id=str(user.id), session_id=setup_session_id)
     logger.info(
-        "设置向导·落库 完成 session=%s 耗时=%.1fs subject=%s 主题=%d 问句=%d 别名=%d",
+        "设置向导·落库 完成 session=%s 耗时=%.1fs subject=%s 主题=%d 问句=%d 别名=%d job=%s",
         setup_session_id[:8],
         time.perf_counter() - t0,
         subject.id,
         len(topics),
         len(prompts),
         len(aliases),
+        job.id if job else None,
     )
     return subject, job, knowledge_ready

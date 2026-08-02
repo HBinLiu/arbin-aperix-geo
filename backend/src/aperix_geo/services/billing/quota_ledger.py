@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from aperix_geo.db.models import TenantPayOrder, TenantQuotaLedger, TenantUsagePeriod, ZERO_UUID
 from aperix_geo.services.billing.constants import (
     LEDGER_RECORD_CONSUMPTION,
+    LEDGER_RECORD_PENDING_SETUP,
     LEDGER_RECORD_SUBSCRIPTION_GRANT,
     LEDGER_RECORD_USAGE_PACK_PURCHASE,
 )
@@ -20,6 +21,7 @@ from aperix_geo.services.billing.constants import (
 RECORD_TYPE_CONSUMPTION = LEDGER_RECORD_CONSUMPTION
 RECORD_TYPE_USAGE_PACK_PURCHASE = LEDGER_RECORD_USAGE_PACK_PURCHASE
 RECORD_TYPE_SUBSCRIPTION_GRANT = LEDGER_RECORD_SUBSCRIPTION_GRANT
+RECORD_TYPE_PENDING_SETUP = LEDGER_RECORD_PENDING_SETUP
 
 
 def _find_existing_ledger_row(
@@ -182,3 +184,79 @@ def existing_consumption_pool(
             TenantQuotaLedger.deleted.is_(False),
         ).limit(1)
     ).scalar_one_or_none()
+
+
+def record_pending_setup_usage(
+    db: Session,
+    *,
+    tenant_id: uuid.UUID,
+    reference_id: uuid.UUID,
+    source: str = "setup",
+    platform: str = "",
+    input_tokens: int = 0,
+    output_tokens: int = 0,
+    total_tokens: int = 0,
+) -> TenantQuotaLedger | None:
+    """Record a deferred setup AI call (settled when subscription is fulfilled)."""
+    return append_quota_ledger_entry(
+        db,
+        tenant_id=tenant_id,
+        record_type=LEDGER_RECORD_PENDING_SETUP,
+        amount_delta=-1,
+        source=source,
+        reference_id=reference_id,
+        consumed_from="",
+        platform=platform.strip(),
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        total_tokens=total_tokens,
+    )
+
+
+def list_pending_setup_usage(db: Session, tenant_id: uuid.UUID) -> list[TenantQuotaLedger]:
+    return list(
+        db.execute(
+            select(TenantQuotaLedger)
+            .where(
+                TenantQuotaLedger.tenant_id == tenant_id,
+                TenantQuotaLedger.record_type == LEDGER_RECORD_PENDING_SETUP,
+                TenantQuotaLedger.deleted.is_(False),
+            )
+            .order_by(TenantQuotaLedger.created_at.asc())
+        )
+        .scalars()
+        .all()
+    )
+
+
+def count_pending_setup_usage(db: Session, tenant_id: uuid.UUID) -> int:
+    from sqlalchemy import func
+
+    return int(
+        db.scalar(
+            select(func.count())
+            .select_from(TenantQuotaLedger)
+            .where(
+                TenantQuotaLedger.tenant_id == tenant_id,
+                TenantQuotaLedger.record_type == LEDGER_RECORD_PENDING_SETUP,
+                TenantQuotaLedger.deleted.is_(False),
+            )
+        )
+        or 0
+    )
+
+
+def existing_pending_setup_usage(
+    db: Session,
+    *,
+    tenant_id: uuid.UUID,
+    reference_id: uuid.UUID,
+    source: str = "setup",
+) -> TenantQuotaLedger | None:
+    return _find_existing_ledger_row(
+        db,
+        tenant_id=tenant_id,
+        record_type=LEDGER_RECORD_PENDING_SETUP,
+        reference_id=reference_id,
+        source=source,
+    )

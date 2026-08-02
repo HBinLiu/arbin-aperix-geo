@@ -11,7 +11,12 @@ from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import EPOCH, Plan, PlanPack, Tenant, TenantPayOrder, TenantSubscription, TenantUsagePeriod, ZERO_UUID
 from aperix_geo.services.billing.constants import BILLING_CYCLE_MONTHS, BILLING_CYCLES, SUBSCRIPTION_ORDER_TYPES
-from aperix_geo.services.billing.quota import get_current_usage_period, get_limits_for_tenant, subscription_is_usable
+from aperix_geo.services.billing.quota import (
+    get_current_usage_period,
+    get_limits_for_tenant,
+    settle_pending_setup_usage,
+    subscription_is_usable,
+)
 from aperix_geo.services.billing.quota_ledger import record_pack_purchase, record_subscription_grant
 from aperix_geo.services.billing.rollover import add_months
 
@@ -156,6 +161,13 @@ def _fulfill_subscription_order(
     order.period_start = subscription.current_period_start
     order.period_end = subscription.current_period_end
     _ensure_usage_period(db, subscription=subscription, moment=moment)
+    settled = settle_pending_setup_usage(db, order.tenant_id, now=moment)
+    if settled:
+        logger.info(
+            "已结算 setup pending AI tenant=%s count=%s",
+            order.tenant_id,
+            settled,
+        )
 
 
 def _fulfill_usage_pack_order(db: Session, order: TenantPayOrder) -> None:
@@ -229,13 +241,15 @@ def assign_subscription_plan(
 
     _ensure_usage_period(db, subscription=subscription, moment=moment)
     _refresh_usage_period_limit(db, tenant_id=tenant_id, moment=moment)
+    settled = settle_pending_setup_usage(db, tenant_id, now=moment)
     db.flush()
     logger.info(
-        "已指派订阅 tenant=%s plan=%s cycle=%s period_end=%s",
+        "已指派订阅 tenant=%s plan=%s cycle=%s period_end=%s setup_pending_settled=%s",
         tenant_id,
         plan.code,
         cycle,
         period_end.isoformat(),
+        settled,
     )
     return subscription
 

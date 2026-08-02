@@ -9,6 +9,8 @@ from uuid import UUID
 from aperix_geo.celery_app import celery_app
 from aperix_geo.config import get_settings
 from aperix_geo.db.session import SessionLocal
+from aperix_geo.services.billing.quota import tenant_has_usable_subscription
+from aperix_geo.services.billing.rollover import disable_tenant_sampling
 from aperix_geo.services.sampling.workflow.active_job import run_active_job
 from aperix_geo.services.sampling.workflow.jobs import SamplingJobError, enqueue_subject_sampling
 from aperix_geo.services.sampling.workflow.phase import run_sampling_phase
@@ -118,6 +120,13 @@ def sampling_tick() -> dict:
         errors: list[str] = []
         for subject in due_subjects:
             try:
+                if not tenant_has_usable_subscription(db, subject.tenant_id, now=now):
+                    # Mirror expire_due_subscriptions: close the gap before status flips.
+                    if subject.sampling_enabled:
+                        disable_tenant_sampling(db, subject.tenant_id)
+                        db.commit()
+                    skipped += 1
+                    continue
                 enqueue_subject_sampling(
                     db,
                     subject=subject,

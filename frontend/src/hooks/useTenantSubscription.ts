@@ -7,7 +7,9 @@ export function useTenantSubscription() {
   return useQuery({
     queryKey: queryKeys.tenantSubscription,
     queryFn: fetchTenantSubscription,
-    staleTime: 60_000,
+    // Gate / quota UI：比全局默认更短，并在切回窗口时刷新
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
     retry: false,
   });
 }

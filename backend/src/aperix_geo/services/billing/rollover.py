@@ -7,10 +7,10 @@ import logging
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from aperix_geo.db.models import TenantSubscription, TenantUsagePeriod, ZERO_UUID
+from aperix_geo.db.models import Subject, TenantSubscription, TenantUsagePeriod, ZERO_UUID
 from aperix_geo.services.billing.quota import get_current_usage_period, get_limits_for_tenant, subscription_is_usable
 from aperix_geo.services.billing.quota_ledger import record_subscription_grant
 
@@ -44,8 +44,27 @@ def _latest_usage_period(db: Session, tenant_id: uuid.UUID) -> TenantUsagePeriod
     ).scalar_one_or_none()
 
 
+def disable_tenant_sampling(db: Session, tenant_id: uuid.UUID) -> int:
+    """Turn off sampling_enabled for all subjects of a tenant. Returns rows updated."""
+    result = db.execute(
+        update(Subject)
+        .where(
+            Subject.tenant_id == tenant_id,
+            Subject.deleted.is_(False),
+            Subject.sampling_enabled.is_(True),
+        )
+        .values(sampling_enabled=False)
+    )
+    return int(result.rowcount or 0)
+
+
 def expire_due_subscriptions(db: Session, *, now: datetime | None = None) -> int:
-    """Mark active/canceled subscriptions expired when billing period ends."""
+    """Mark active/canceled subscriptions expired when billing period ends.
+
+    ``pending_plan_id`` is applied onto ``plan_id`` for bookkeeping (next renew /
+    display), then status becomes ``expired`` — the tenant is not kept active on
+    the pending plan until they pay/renew.
+    """
     moment = now or utc_now()
     rows = db.execute(
         select(TenantSubscription)
@@ -68,11 +87,13 @@ def expire_due_subscriptions(db: Session, *, now: datetime | None = None) -> int
                 sub.plan_id,
             )
         sub.status = "expired"
+        disabled = disable_tenant_sampling(db, sub.tenant_id)
         logger.info(
-            "订阅已过期 tenant=%s subscription=%s ended=%s",
+            "订阅已过期 tenant=%s subscription=%s ended=%s sampling_disabled=%s",
             sub.tenant_id,
             sub.id,
             sub.current_period_end.isoformat(),
+            disabled,
         )
     return len(rows)
 

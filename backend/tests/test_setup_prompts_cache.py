@@ -35,7 +35,7 @@ def test_prompts_generation_hash_stable_for_topic_order() -> None:
     assert hash1 == hash2
 
 
-@patch("aperix_geo.services.setup.prompts.assert_ai_usage_available")
+@patch("aperix_geo.services.setup.prompts.assert_setup_ai_usage_available")
 @patch("aperix_geo.services.setup.prompts.update_session")
 @patch("aperix_geo.services.setup.prompts.generate_setup_prompts")
 @patch("aperix_geo.services.setup.prompts.get_session")
@@ -99,7 +99,7 @@ def test_generate_setup_prompts_for_session_uses_cache(
     assert items == cached_items
 
 
-@patch("aperix_geo.services.setup.prompts.assert_ai_usage_available")
+@patch("aperix_geo.services.setup.prompts.assert_setup_ai_usage_available")
 @patch("aperix_geo.services.setup.prompts.update_session")
 @patch("aperix_geo.services.setup.prompts.generate_setup_prompts")
 @patch("aperix_geo.services.setup.prompts.get_session")

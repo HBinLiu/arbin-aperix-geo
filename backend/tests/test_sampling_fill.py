@@ -200,6 +200,36 @@ def test_reclaim_orphan_dispatch_clears_claim_when_inflight_zero(
     mock_send.assert_not_called()
 
 
+@patch("aperix_geo.services.sampling.workflow.fill._soft_fail_orphaned_pending_llm")
+@patch("aperix_geo.services.sampling.workflow.fill._send_phase_task")
+@patch("aperix_geo.services.sampling.workflow.fill.release_response_dispatched")
+@patch("aperix_geo.services.sampling.workflow.claim.release_response_claim")
+@patch("aperix_geo.services.sampling.workflow.fill.response_claim_active", return_value=True)
+@patch("aperix_geo.services.sampling.workflow.fill.shared_redis_client")
+def test_reclaim_orphan_llm_claim_releases_quota(
+    mock_redis_fn: MagicMock,
+    _mock_claim_active: MagicMock,
+    mock_release_claim: MagicMock,
+    mock_release_dispatch: MagicMock,
+    mock_send: MagicMock,
+    mock_soft_fail: MagicMock,
+) -> None:
+    from aperix_geo.services.sampling.workflow.fill import reclaim_stale_response_dispatch
+
+    client = MagicMock()
+    client.exists.return_value = True
+    client.get.return_value = "0"
+    mock_redis_fn.return_value = client
+
+    response_id = uuid4()
+    reclaim_stale_response_dispatch(uuid4(), "llm", response_id)
+
+    mock_release_claim.assert_called_once_with(response_id)
+    mock_soft_fail.assert_called_once_with(response_id)
+    mock_release_dispatch.assert_called_once_with("llm", response_id)
+    mock_send.assert_not_called()
+
+
 @patch("aperix_geo.services.sampling.workflow.active_job.dispatch_phases", return_value=True)
 def test_run_active_job_dispatches_fill(mock_fill: MagicMock) -> None:
     from aperix_geo.services.sampling.workflow.active_job import run_active_job

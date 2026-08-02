@@ -11,7 +11,11 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from aperix_geo.services.competitor.profile import profile_from_dict
-from aperix_geo.services.billing.quota import assert_ai_usage_available, consume_ai_usage, usage_reference
+from aperix_geo.services.billing.quota import (
+    assert_setup_ai_usage_available,
+    charge_setup_ai_usage,
+    usage_reference,
+)
 from aperix_geo.services.billing.usage_tokens import SETUP_LLM_PLATFORM
 from aperix_geo.services.prompts.context import entity_aliases
 from aperix_geo.services.prompts.setup import PROMPT_PER_TOPIC, generate_setup_prompts
@@ -78,7 +82,7 @@ def generate_setup_prompts_for_session(
 ) -> list[dict[str, Any]]:
     """按 session 生成初始提示词；同时写入用户确认后的 monitoring_topics。"""
     require_deepseek_api_key()
-    assert_ai_usage_available(db, tenant_id)
+    assert_setup_ai_usage_available(db, tenant_id)
     t0 = time.perf_counter()
 
     session = get_session(user_id=user_id, session_id=session_id)
@@ -125,10 +129,9 @@ def generate_setup_prompts_for_session(
         return cached
 
     def _bill(stage: str, usage: dict) -> None:
-        consume_ai_usage(
+        charge_setup_ai_usage(
             db,
             tenant_id=tenant_id,
-            source="setup",
             reference_id=usage_reference("setup_prompts", session_id, prompts_hash, stage),
             platform=SETUP_LLM_PLATFORM,
             usage=usage,

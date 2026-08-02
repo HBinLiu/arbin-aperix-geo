@@ -4,10 +4,18 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import Prompt, Subject, Topic
+from aperix_geo.services.billing.exceptions import QuotaExceededError, SubscriptionInactiveError
+from aperix_geo.services.billing.http import (
+    quota_exceeded_http_exception,
+    subscription_inactive_http_exception,
+)
+from aperix_geo.services.billing.quota import assert_ai_usage_available, consume_ai_usage, usage_reference
+from aperix_geo.services.billing.usage_tokens import SETUP_LLM_PLATFORM
 from aperix_geo.services.competitor.types import NicheProfile
 from aperix_geo.services.prompts.context import prompt_context_from_subject
 from aperix_geo.services.prompts.persist import (
@@ -15,11 +23,8 @@ from aperix_geo.services.prompts.persist import (
     get_topic_for_subject,
     remaining_prompt_slots_for_subject,
 )
-from aperix_geo.services.billing.exceptions import QuotaExceededError
-from aperix_geo.services.billing.quota import assert_ai_usage_available, consume_ai_usage, usage_reference
-from aperix_geo.services.billing.usage_tokens import SETUP_LLM_PLATFORM
-from aperix_geo.services.providers import LLMProviderError
 from aperix_geo.services.prompts.taxonomy import PromptTaxonomyLock, prompt_taxonomy_lock
+from aperix_geo.services.providers import LLMProviderError
 
 
 def generate_subject_prompt_candidates(
@@ -123,13 +128,18 @@ def generate_subject_prompt_candidates_for_topic(
     )
 
 
-def map_generate_error(exc: Exception) -> tuple[int, str]:
+def map_generate_error(exc: Exception) -> HTTPException:
     if isinstance(exc, LLMProviderError):
-        return 502, f"提示词生成失败：{exc}"
+        return HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"提示词生成失败：{exc}",
+        )
+    if isinstance(exc, SubscriptionInactiveError):
+        return subscription_inactive_http_exception(exc, detail="订阅已过期，无法生成提示词")
     if isinstance(exc, QuotaExceededError):
-        return 402, str(exc)
+        return quota_exceeded_http_exception(exc)
     if isinstance(exc, PromptValidationError):
-        return 400, str(exc)
+        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     if isinstance(exc, ValueError):
-        return 400, str(exc)
+        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     raise exc
