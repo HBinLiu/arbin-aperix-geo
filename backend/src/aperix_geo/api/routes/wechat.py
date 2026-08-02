@@ -80,7 +80,7 @@ def _page_shell(*, title: str, body_inner: str) -> str:
       height: 72px;
       object-fit: contain;
       display: block;
-      margin: 0 auto 28px;
+      margin: 0 auto 12px;
       background: transparent;
       border: none;
     }}
