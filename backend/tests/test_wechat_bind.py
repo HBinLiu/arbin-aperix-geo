@@ -184,5 +184,7 @@ def test_oauth_callback_success(
         error_description="",
     )
     assert resp.status_code == 200
-    assert "绑定成功" in resp.body.decode()
-    assert "阿宾" in resp.body.decode()
+    body = resp.body.decode()
+    assert "绑定成功" in body
+    assert "昵称：阿宾" in body
+    assert "title-ok" in body

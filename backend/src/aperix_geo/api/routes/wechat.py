@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import base64
 import html
 import logging
+from functools import lru_cache
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from fastapi.responses import HTMLResponse
@@ -25,11 +28,25 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/wechat", tags=["wechat"])
 
+# repo/shared/assets/aperix — dark logo for light page background
+_LOGO_PATH = (
+    Path(__file__).resolve().parents[5] / "shared" / "assets" / "aperix" / "logo_dark.webp"
+)
 
-def _oauth_result_html(*, title: str, message: str, ok: bool) -> str:
-    color = "#1677ff" if ok else "#cf1322"
+
+@lru_cache(maxsize=1)
+def _logo_data_uri() -> str:
+    try:
+        raw = _LOGO_PATH.read_bytes()
+    except OSError:
+        logger.warning("Aperix logo missing for OAuth page: %s", _LOGO_PATH)
+        return ""
+    b64 = base64.b64encode(raw).decode("ascii")
+    return f"data:image/webp;base64,{b64}"
+
+
+def _page_shell(*, title: str, body_inner: str) -> str:
     safe_title = html.escape(title)
-    safe_msg = html.escape(message)
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -37,21 +54,108 @@ def _oauth_result_html(*, title: str, message: str, ok: bool) -> str:
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>{safe_title}</title>
   <style>
-    body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-           margin: 0; padding: 48px 24px; text-align: center; color: #1f1f1f; background: #f5f5f5; }}
-    .card {{ max-width: 360px; margin: 0 auto; background: #fff; border-radius: 12px;
-             padding: 32px 24px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }}
-    h1 {{ font-size: 20px; margin: 0 0 12px; color: {color}; }}
-    p {{ font-size: 15px; line-height: 1.6; margin: 0; color: #595959; }}
+    * {{ box-sizing: border-box; }}
+    html, body {{ height: 100%; margin: 0; }}
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      background: #fff;
+      color: #1f1f1f;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }}
+    .panel {{
+      width: 100%;
+      max-width: 320px;
+      text-align: center;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      padding: 0;
+    }}
+    .logo {{
+      width: 72px;
+      height: 72px;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto 28px;
+      background: transparent;
+      border: none;
+    }}
+    .title-ok {{
+      font-size: 22px;
+      font-weight: 600;
+      line-height: 1.3;
+      margin: 0 0 12px;
+      color: #16a34a;
+    }}
+    .title-err {{
+      font-size: 22px;
+      font-weight: 600;
+      line-height: 1.3;
+      margin: 0 0 12px;
+      color: #cf1322;
+    }}
+    .nick {{
+      font-size: 16px;
+      line-height: 1.5;
+      margin: 0;
+      color: #595959;
+    }}
+    .msg {{
+      font-size: 15px;
+      line-height: 1.6;
+      margin: 0;
+      color: #595959;
+    }}
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>{safe_title}</h1>
-    <p>{safe_msg}</p>
+  <div class="panel">
+    {body_inner}
   </div>
 </body>
 </html>"""
+
+
+def _oauth_success_html(*, nick_name: str) -> str:
+    nick = html.escape(nick_name.strip() or "微信用户")
+    logo = _logo_data_uri()
+    logo_html = (
+        f'<img class="logo" src="{logo}" alt="Aperix" width="72" height="72"/>'
+        if logo
+        else ""
+    )
+    return _page_shell(
+        title="绑定成功",
+        body_inner=(
+            f"{logo_html}"
+            f'<h1 class="title-ok">绑定成功</h1>'
+            f'<p class="nick">昵称：{nick}</p>'
+        ),
+    )
+
+
+def _oauth_result_html(*, title: str, message: str, ok: bool = False) -> str:
+    safe_title = html.escape(title)
+    safe_msg = html.escape(message)
+    logo = _logo_data_uri()
+    logo_html = (
+        f'<img class="logo" src="{logo}" alt="Aperix" width="72" height="72"/>'
+        if logo
+        else ""
+    )
+    title_class = "title-ok" if ok else "title-err"
+    return _page_shell(
+        title=title,
+        body_inner=(
+            f"{logo_html}"
+            f'<h1 class="{title_class}">{safe_title}</h1>'
+            f'<p class="msg">{safe_msg}</p>'
+        ),
+    )
 
 
 @router.get("/oauth/callback", response_class=HTMLResponse)
@@ -132,13 +236,7 @@ def wechat_oauth_callback(
         )
     if ticket.status == "bound":
         nick = (info.nick_name or "微信用户").strip()
-        return HTMLResponse(
-            content=_oauth_result_html(
-                title="绑定成功",
-                message=f"已绑定为「{nick}」。可返回控制台继续操作。",
-                ok=True,
-            ),
-        )
+        return HTMLResponse(content=_oauth_success_html(nick_name=nick))
 
     return HTMLResponse(
         content=_oauth_result_html(title="绑定未完成", message="请返回控制台查看状态。", ok=False),

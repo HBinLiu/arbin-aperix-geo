@@ -38,6 +38,7 @@ type QrState = {
   authorizeUrl: string;
   status: "pending" | "bound" | "failed" | "expired";
   error: string;
+  expiresAt: number;
 };
 
 export function BindWechatDialog({ user, open, onOpenChange }: BindWechatDialogProps) {
@@ -45,6 +46,7 @@ export function BindWechatDialog({ user, open, onOpenChange }: BindWechatDialogP
   const [nickName, setNickName] = React.useState("");
   const [mode, setMode] = React.useState<"loading" | "qr" | "dev" | "unavailable">("loading");
   const [qr, setQr] = React.useState<QrState | null>(null);
+  const [refreshing, setRefreshing] = React.useState(false);
 
   const bound = Boolean(user.wechat.open_id.trim());
   const displayName = user.wechat.nick_name.trim() || (bound ? "已绑定" : "");
@@ -53,6 +55,22 @@ export function BindWechatDialog({ user, open, onOpenChange }: BindWechatDialogP
     setNickName("");
     setQr(null);
     setMode("loading");
+    setRefreshing(false);
+  }, []);
+
+  const loadQr = React.useCallback(async () => {
+    const data = await createWechatBindQr();
+    const authorizeUrl = data.authorize_url || data.qrcode_url || "";
+    if (!authorizeUrl) throw new Error("missing authorize_url");
+    const expiresIn = Math.max(30, Number(data.expires_in) || 300);
+    setQr({
+      ticketId: data.ticket_id,
+      authorizeUrl,
+      status: "pending",
+      error: "",
+      expiresAt: Date.now() + expiresIn * 1000,
+    });
+    setMode("qr");
   }, []);
 
   React.useEffect(() => {
@@ -65,17 +83,7 @@ export function BindWechatDialog({ user, open, onOpenChange }: BindWechatDialogP
     const start = async () => {
       setMode("loading");
       try {
-        const data = await createWechatBindQr();
-        if (cancelled) return;
-        const authorizeUrl = data.authorize_url || data.qrcode_url || "";
-        if (!authorizeUrl) throw new Error("missing authorize_url");
-        setQr({
-          ticketId: data.ticket_id,
-          authorizeUrl,
-          status: "pending",
-          error: "",
-        });
-        setMode("qr");
+        await loadQr();
       } catch (error) {
         if (cancelled) return;
         const status = isAxiosError(error) ? error.response?.status : undefined;
@@ -90,7 +98,21 @@ export function BindWechatDialog({ user, open, onOpenChange }: BindWechatDialogP
     return () => {
       cancelled = true;
     };
-  }, [open, isDevEnv, resetLocal]);
+  }, [open, isDevEnv, resetLocal, loadQr]);
+
+  // Local expiry timer (align with ticket TTL).
+  React.useEffect(() => {
+    if (!open || mode !== "qr" || !qr || qr.status !== "pending") return;
+    const remaining = qr.expiresAt - Date.now();
+    if (remaining <= 0) {
+      setQr((prev) => (prev && prev.status === "pending" ? { ...prev, status: "expired" } : prev));
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setQr((prev) => (prev && prev.status === "pending" ? { ...prev, status: "expired" } : prev));
+    }, remaining);
+    return () => window.clearTimeout(timer);
+  }, [open, mode, qr]);
 
   React.useEffect(() => {
     if (!open || mode !== "qr" || !qr || qr.status !== "pending") return;
@@ -114,8 +136,6 @@ export function BindWechatDialog({ user, open, onOpenChange }: BindWechatDialogP
             onOpenChange(false);
           } else if (status.status === "failed") {
             toast.error(status.error || "绑定失败");
-          } else if (status.status === "expired") {
-            toast.error("二维码已过期，请关闭后重试");
           }
         } catch {
           /* 轮询失败忽略，下一拍重试 */
@@ -124,6 +144,18 @@ export function BindWechatDialog({ user, open, onOpenChange }: BindWechatDialogP
     }, 2000);
     return () => clearInterval(timer);
   }, [open, mode, qr, bound, queryClient, onOpenChange]);
+
+  const refreshQr = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await loadQr();
+    } catch {
+      toast.error("刷新二维码失败，请稍后重试");
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const bindMutation = useMutation({
     mutationFn: bindUserWechatDev,
@@ -154,6 +186,7 @@ export function BindWechatDialog({ user, open, onOpenChange }: BindWechatDialogP
   };
 
   const pending = bindMutation.isPending || unbindMutation.isPending || mode === "loading";
+  const qrExpired = qr?.status === "expired";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} closeDisabled={pending && mode === "dev"}>
@@ -175,17 +208,33 @@ export function BindWechatDialog({ user, open, onOpenChange }: BindWechatDialogP
 
           {mode === "qr" && qr ? (
             <div className="flex flex-col items-center gap-3 py-2">
-              <div className="border-border flex size-48 items-center justify-center border bg-white p-2">
-                <QRCodeSVG value={qr.authorizeUrl} size={176} level="M" includeMargin={false} />
+              <div className="border-border relative flex size-48 items-center justify-center border bg-white p-2">
+                <QRCodeSVG
+                  value={qr.authorizeUrl}
+                  size={176}
+                  level="M"
+                  includeMargin={false}
+                  className={qrExpired ? "opacity-40" : undefined}
+                />
+                {qrExpired ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/80 px-3 backdrop-blur-[1px]">
+                    <p className="text-foreground text-sm font-medium">二维码已过期</p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={refreshing}
+                      onClick={() => void refreshQr()}
+                    >
+                      {refreshing ? "刷新中…" : "点击刷新"}
+                    </Button>
+                  </div>
+                ) : null}
               </div>
               <p className="text-muted-foreground text-center text-sm leading-relaxed">
                 请用微信扫码并完成授权。二维码约 5 分钟内有效。
               </p>
               {qr.status === "failed" ? (
                 <p className="text-destructive text-sm">{qr.error || "绑定失败"}</p>
-              ) : null}
-              {qr.status === "expired" ? (
-                <p className="text-destructive text-sm">二维码已过期，请关闭后重新打开</p>
               ) : null}
             </div>
           ) : null}
@@ -230,7 +279,7 @@ export function BindWechatDialog({ user, open, onOpenChange }: BindWechatDialogP
             type="button"
             variant="outline"
             onClick={() => onOpenChange(false)}
-            disabled={unbindMutation.isPending || bindMutation.isPending}
+            disabled={unbindMutation.isPending || bindMutation.isPending || refreshing}
           >
             取消
           </Button>
