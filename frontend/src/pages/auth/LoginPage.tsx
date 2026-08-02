@@ -187,8 +187,8 @@ export function LoginPage() {
                 />
                 <Button
                   type="button"
-                  variant="outline"
-                  className="h-11 w-28 shrink-0 touch-manipulation justify-center px-2 font-medium tabular-nums"
+                  variant="background"
+                  className="bg-background h-11 w-28 shrink-0 justify-center px-2 font-medium tabular-nums"
                   disabled={sendDisabled}
                   onClick={() => void sendCode()}
                 >
@@ -198,7 +198,7 @@ export function LoginPage() {
             </div>
             <Button
               type="submit"
-              className="h-11 w-full touch-manipulation text-base font-medium"
+              className="h-11 w-full text-base font-medium"
               disabled={submitting || sendingCode}
             >
               {submitting ? "登录中…" : "验证并登录"}
@@ -236,8 +236,8 @@ export function LoginPage() {
                 />
                 <Button
                   type="button"
-                  variant="outline"
-                  className="h-11 w-28 shrink-0 touch-manipulation justify-center px-2 font-medium tabular-nums"
+                  variant="background"
+                  className="bg-background h-11 w-28 shrink-0 justify-center px-2 font-medium tabular-nums"
                   disabled={sendDisabled}
                   onClick={() => void sendCode()}
                 >
@@ -247,7 +247,7 @@ export function LoginPage() {
             </div>
             <Button
               type="submit"
-              className="h-11 w-full touch-manipulation text-base font-medium"
+              className="h-11 w-full text-base font-medium"
               disabled={submitting || sendingCode}
             >
               {submitting ? "登录中…" : "验证并登录"}
