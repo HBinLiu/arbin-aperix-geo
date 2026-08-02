@@ -179,7 +179,7 @@ export function BindWechatDialog({ user, open, onOpenChange }: BindWechatDialogP
                 <QRCodeSVG value={qr.authorizeUrl} size={176} level="M" includeMargin={false} />
               </div>
               <p className="text-muted-foreground text-center text-sm leading-relaxed">
-                请用微信扫码并授权，完成后将显示微信昵称。二维码约 5 分钟内有效。
+                请用微信扫码并完成授权。二维码约 5 分钟内有效。
               </p>
               {qr.status === "failed" ? (
                 <p className="text-destructive text-sm">{qr.error || "绑定失败"}</p>
