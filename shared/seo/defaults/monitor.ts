@@ -9,6 +9,7 @@ export const MONITOR_PAGE_SEO: Record<PlatformId, MonitorPageSeoDefault> = {
     path: "/platform/we-monitor-doubao/",
     titleTopic: "豆包优化 - 监控 AI 搜索排名",
     description: "掌握豆包对中文内容与字节生态的引用偏好，监测并优化品牌在豆包中的 AI 可见性。",
+    keywords: "豆包监测,豆包GEO,AI搜索排名,字节AI,{{siteName}},艾佩睿思",
   },
   deepseek: {
     platformId: "deepseek",
@@ -17,6 +18,7 @@ export const MONITOR_PAGE_SEO: Record<PlatformId, MonitorPageSeoDefault> = {
     titleTopic: "DeepSeek 优化 - 监控 AI 搜索排名",
     description:
       "掌握 DeepSeek 对技术与学术内容的引用偏好，监测并优化品牌在 DeepSeek 中的 AI 可见性。",
+    keywords: "DeepSeek监测,DeepSeek GEO,AI搜索排名,{{siteName}},艾佩睿思",
   },
   qianwen: {
     platformId: "qianwen",
@@ -24,6 +26,7 @@ export const MONITOR_PAGE_SEO: Record<PlatformId, MonitorPageSeoDefault> = {
     path: "/platform/we-monitor-qwen/",
     titleTopic: "通义千问优化 - 监控 AI 搜索排名",
     description: "掌握通义千问对中文内容的引用偏好，优化品牌在阿里 AI 生态中的可见性。",
+    keywords: "通义千问监测,千问GEO,AI搜索排名,阿里AI,{{siteName}},艾佩睿思",
   },
   yuanbao: {
     platformId: "yuanbao",
@@ -32,6 +35,7 @@ export const MONITOR_PAGE_SEO: Record<PlatformId, MonitorPageSeoDefault> = {
     titleTopic: "腾讯元宝优化 - 监控 AI 搜索排名",
     description:
       "掌握腾讯元宝对中文内容与微信生态的引用偏好，监测并优化品牌在元宝中的 AI 可见性。",
+    keywords: "元宝监测,腾讯元宝GEO,AI搜索排名,微信生态,{{siteName}},艾佩睿思",
   },
   kimi: {
     platformId: "kimi",
@@ -39,6 +43,7 @@ export const MONITOR_PAGE_SEO: Record<PlatformId, MonitorPageSeoDefault> = {
     path: "/platform/we-monitor-kimi/",
     titleTopic: "Kimi 优化 - 监控 AI 搜索排名",
     description: "掌握 Kimi 对长文本与专业内容的引用偏好，监测并优化品牌在 Kimi 中的 AI 可见性。",
+    keywords: "Kimi监测,Kimi GEO,AI搜索排名,{{siteName}},艾佩睿思",
   },
   ernie: {
     platformId: "ernie",
@@ -47,5 +52,6 @@ export const MONITOR_PAGE_SEO: Record<PlatformId, MonitorPageSeoDefault> = {
     titleTopic: "文心一言优化 - 监控 AI 搜索排名",
     description:
       "掌握文心一言对中文内容与百度搜索生态的引用偏好，监测并优化品牌在文心一言中的 AI 可见性。",
+    keywords: "文心一言监测,文心GEO,AI搜索排名,百度AI,{{siteName}},艾佩睿思",
   },
 };

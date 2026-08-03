@@ -5,8 +5,10 @@ import BaseLayout from "@/layouts/BaseLayout.astro";
 import AuthorDetailPage from "@/components/authors/AuthorDetailPage.astro";
 import { cmsDocToAuthor } from "@/lib/authors/cms";
 import { mergeBlogList } from "@/lib/blog/cms";
+import { buildBreadcrumbJsonLd } from "@/lib/json-ld";
 import { getAuthorBySlug, getBlogList } from "@/lib/payload";
 import { mergeAuthorDetailSeo } from "@/lib/seo";
+import { siteConfig } from "@site";
 import "@/styles/style.css";
 import "@/styles/authors/detail.css";
 
@@ -24,8 +26,31 @@ const author = cmsDocToAuthor(cmsDoc);
 const allPosts = mergeBlogList(await getBlogList());
 const posts = allPosts.filter((post) => post.author?.slug === author.slug);
 const seo = mergeAuthorDetailSeo(author, cmsDoc.meta);
+const path = `/authors/${author.slug}/`;
+const site = Astro.site ?? Astro.url;
+const jsonLd = [
+  buildBreadcrumbJsonLd(site, [
+    { name: "首页", path: "/" },
+    { name: "博客", path: "/blog/" },
+    { name: author.name, path },
+  ]),
+  {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    name: author.name,
+    description: author.bio || undefined,
+    url: new URL(path, site).href,
+    ...(author.avatarUrl
+      ? { image: author.avatarUrl.startsWith("http") ? author.avatarUrl : new URL(author.avatarUrl, site).href }
+      : {}),
+    worksFor: {
+      "@type": "Organization",
+      name: siteConfig.name,
+    },
+  },
+];
 ---
 
-<BaseLayout seo={seo}>
+<BaseLayout seo={seo} jsonLd={jsonLd}>
   <AuthorDetailPage author={author} posts={posts} />
 </BaseLayout>

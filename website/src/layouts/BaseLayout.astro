@@ -3,6 +3,7 @@ import "../styles/global.css";
 import { APERIX_FAVICON_ICO } from "@shared/aperix";
 import { cmsMetaToPageSeo, mergePageSeo, resolvePageMeta, type PageSeo } from "@/lib/seo";
 import { getPageSeoByPath } from "@/lib/payload";
+import { getSiteVerificationMetas } from "@/lib/site-verification";
 import { siteConfig } from "@site";
 
 type Props = {
@@ -25,6 +26,7 @@ if (cmsPageSeo?.noindex) {
 }
 const site = Astro.site ?? Astro.url;
 const meta = resolvePageMeta(effectiveSeo, site, Astro.url.pathname);
+const siteVerifications = getSiteVerificationMetas();
 ---
 
 <!doctype html>
@@ -35,8 +37,15 @@ const meta = resolvePageMeta(effectiveSeo, site, Astro.url.pathname);
     <link rel="icon" href={APERIX_FAVICON_ICO} type="image/x-icon" sizes="any" />
     <title>{meta.title}</title>
     <meta name="description" content={meta.description} />
+    <meta name="keywords" content={meta.keywords} />
+    <meta name="application-name" content={meta.siteName} />
+    <meta name="robots" content={meta.robots} />
+    {
+      siteVerifications.map((item) => (
+        <meta name={item.name} content={item.content} />
+      ))
+    }
     <link rel="canonical" href={meta.canonical} />
-    {meta.noindex && <meta name="robots" content="noindex" />}
     <meta property="og:type" content={meta.type} />
     <meta property="og:url" content={meta.canonical} />
     <meta property="og:title" content={meta.title} />
@@ -44,10 +53,36 @@ const meta = resolvePageMeta(effectiveSeo, site, Astro.url.pathname);
     <meta property="og:site_name" content={meta.siteName} />
     <meta property="og:locale" content="zh_CN" />
     <meta property="og:image" content={meta.image} />
+    <meta property="og:image:alt" content={meta.imageAlt} />
+    <meta property="og:image:width" content={String(meta.imageWidth)} />
+    <meta property="og:image:height" content={String(meta.imageHeight)} />
+    <meta property="og:image:type" content={meta.imageType} />
+    {
+      meta.type === "article" && meta.publishedTime && (
+        <meta property="article:published_time" content={meta.publishedTime} />
+      )
+    }
+    {
+      meta.type === "article" && meta.modifiedTime && (
+        <meta property="article:modified_time" content={meta.modifiedTime} />
+      )
+    }
+    {
+      meta.type === "article" && meta.authorName && (
+        <meta property="article:author" content={meta.authorName} />
+      )
+    }
+    {
+      meta.type === "article" && meta.section && (
+        <meta property="article:section" content={meta.section} />
+      )
+    }
+    <meta name="apple-mobile-web-app-title" content={meta.siteName} />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={meta.title} />
     <meta name="twitter:description" content={meta.description} />
     <meta name="twitter:image" content={meta.image} />
+    <meta name="twitter:image:alt" content={meta.imageAlt} />
     {
       jsonLd.map((item) => (
         <script type="application/ld+json" set:html={JSON.stringify(item)} />

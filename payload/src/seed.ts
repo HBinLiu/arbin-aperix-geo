@@ -2,7 +2,7 @@ import { getPayload } from "payload";
 import config from "@payload-config";
 import { ABOUT_STORY_PARAGRAPHS, ABOUT_STORY_TITLE } from "@shared/about";
 import { faqP } from "@shared/faq/defaults";
-import { defaultPageSeoEntries } from "@shared/seo/defaults/entries";
+import { defaultPageSeoEntries } from "@shared/seo/defaults/entries.ts";
 
 import { htmlToLexical } from "./seed/rich-text";
 import { faqSeedGroups } from "./seed/faqs";
@@ -55,6 +55,7 @@ async function seedAboutPage(payload: Awaited<ReturnType<typeof getPayload>>) {
 async function seedPageSeo(payload: Awaited<ReturnType<typeof getPayload>>) {
   let created = 0;
   let updated = 0;
+  let filledKeywords = 0;
   let skipped = 0;
 
   for (const entry of defaultPageSeoEntries) {
@@ -80,7 +81,27 @@ async function seedPageSeo(payload: Awaited<ReturnType<typeof getPayload>>) {
         });
         updated += 1;
       } else {
-        skipped += 1;
+        const meta =
+          doc.meta && typeof doc.meta === "object"
+            ? (doc.meta as Record<string, unknown>)
+            : {};
+        const hasKeywords =
+          typeof meta.keywords === "string" && meta.keywords.trim().length > 0;
+        if (!hasKeywords && entry.meta.keywords) {
+          await payload.update({
+            collection: PAGE_SEO_COLLECTION,
+            id: doc.id,
+            data: {
+              meta: {
+                ...meta,
+                keywords: entry.meta.keywords,
+              },
+            },
+          });
+          filledKeywords += 1;
+        } else {
+          skipped += 1;
+        }
       }
       continue;
     }
@@ -97,13 +118,15 @@ async function seedPageSeo(payload: Awaited<ReturnType<typeof getPayload>>) {
     created += 1;
   }
 
-  if (created === 0 && updated === 0) {
+  if (created === 0 && updated === 0 && filledKeywords === 0) {
     log(`⏭  SEO设置 seed 已存在（${skipped} 条），跳过。使用 --force 仅同步默认 path 条目。`);
     return;
   }
 
-  const parts = [`新增 ${created} 条`];
+  const parts: string[] = [];
+  if (created > 0) parts.push(`新增 ${created} 条`);
   if (updated > 0) parts.push(`更新 ${updated} 条`);
+  if (filledKeywords > 0) parts.push(`补全 keywords ${filledKeywords} 条`);
   log(`✅ SEO设置已写入（${parts.join("，")}；不删除手动添加的页面）`);
 }
 

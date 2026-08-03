@@ -16,6 +16,7 @@ npm run dev
 - **Payload**：`PAYLOAD_API_URL=/cms/api`（开发时映射到 `:3000`；生产同域）
 - **产品 API**：`BACKEND_API_URL` 直连 FastAPI `:8000`
 - **控制台 CTA**：`PUBLIC_LOGIN_URL` / `PUBLIC_REGISTER_URL` 本地指向 `http://127.0.0.1:5173/auth/login`；生产指向 `https://app.aperix.cn/auth/login`
+- **国内站长验证**（可选）：在站长后台选「HTML 标签验证」后，把 code 写入 `.env`（如 `PUBLIC_BAIDU_SITE_VERIFICATION`）或 `site.config.mjs` 的 `siteVerification`；空值不输出
 
 建议同时启动：
 

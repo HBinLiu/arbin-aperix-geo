@@ -7,7 +7,8 @@ import { cmsDocToResearchListItem } from "@/lib/research/cms";
 import { buildResearchDetail } from "@/lib/research/detail";
 import { getResearchBySlug } from "@/lib/payload";
 import { resolveResearchMediaUrl } from "@/lib/research/media";
-import { mergeResearchDetailSeo } from "@/lib/seo";
+import { buildArticleJsonLd, buildBreadcrumbJsonLd } from "@/lib/json-ld";
+import { mergeResearchDetailSeo, withArticleMeta } from "@/lib/seo";
 import "@/styles/style.css";
 import "@/styles/research/detail.css";
 
@@ -23,17 +24,45 @@ if (!cmsDoc) {
 
 const report = cmsDocToResearchListItem(cmsDoc);
 const detail = buildResearchDetail(report, cmsDoc);
-const seo = mergeResearchDetailSeo(
+const coverUrl = resolveResearchMediaUrl(cmsDoc.cover);
+const path = `/research/${report.slug}/`;
+const seo = withArticleMeta(
+  mergeResearchDetailSeo(
+    {
+      title: report.cardTitle,
+      description: report.cardDescription,
+      slug: report.slug,
+    },
+    cmsDoc.meta,
+    coverUrl,
+  ),
   {
+    publishedTime: report.publishedAt,
+    modifiedTime: report.publishedAt,
+    section: report.categorySlug,
+  },
+);
+
+const site = Astro.site ?? Astro.url;
+const jsonLd = [
+  buildBreadcrumbJsonLd(site, [
+    { name: "首页", path: "/" },
+    { name: "研究", path: "/research/" },
+    { name: report.cardTitle, path },
+  ]),
+  buildArticleJsonLd(site, {
+    type: "Article",
     title: report.cardTitle,
     description: report.cardDescription,
-    slug: report.slug,
-  },
-  cmsDoc.meta,
-  resolveResearchMediaUrl(cmsDoc.cover),
-);
+    path,
+    image: seo.image || coverUrl,
+    datePublished: seo.publishedTime,
+    dateModified: seo.modifiedTime,
+    section: seo.section,
+  }),
+];
 ---
 
-<BaseLayout seo={seo}>
+<BaseLayout seo={seo} jsonLd={jsonLd}>
   <ResearchDetailPage detail={detail} />
 </BaseLayout>

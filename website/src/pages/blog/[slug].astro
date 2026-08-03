@@ -6,8 +6,10 @@ import BlogDetailPage from "@/components/blog/BlogDetailPage.astro";
 import { cmsDocToAuthor, mergeAuthors } from "@/lib/authors/cms";
 import { cmsDocToBlogListItem, mergeBlogList } from "@/lib/blog/cms";
 import { buildBlogDetail, pickRelatedBlogPosts } from "@/lib/blog/detail";
+import { authorHref } from "@/lib/blog";
+import { buildArticleJsonLd, buildBreadcrumbJsonLd } from "@/lib/json-ld";
 import { getAuthorBySlug, getAuthors, getBlogBySlug, getBlogList } from "@/lib/payload";
-import { mergeBlogDetailSeo } from "@/lib/seo";
+import { mergeBlogDetailSeo, withArticleMeta } from "@/lib/seo";
 import "@/styles/style.css";
 import "@/styles/blog/detail.css";
 
@@ -39,17 +41,48 @@ const detail = buildBlogDetail(item, cmsDoc, {
   relatedPosts: pickRelatedBlogPosts(item, allPosts),
 });
 
-const seo = mergeBlogDetailSeo(
+const path = `/blog/${item.slug}/`;
+const authorName = author?.name || item.author?.name;
+const seo = withArticleMeta(
+  mergeBlogDetailSeo(
+    {
+      title: item.cardTitle,
+      description: item.cardDescription,
+      slug: item.slug,
+    },
+    cmsDoc.meta,
+    item.coverUrl,
+  ),
   {
+    publishedTime: item.publishedAt,
+    modifiedTime: item.updatedAt || item.publishedAt,
+    authorName,
+    section: item.categoryLabel,
+  },
+);
+
+const site = Astro.site ?? Astro.url;
+const jsonLd = [
+  buildBreadcrumbJsonLd(site, [
+    { name: "首页", path: "/" },
+    { name: "博客", path: "/blog/" },
+    { name: item.cardTitle, path },
+  ]),
+  buildArticleJsonLd(site, {
+    type: "BlogPosting",
     title: item.cardTitle,
     description: item.cardDescription,
-    slug: item.slug,
-  },
-  cmsDoc.meta,
-  item.coverUrl,
-);
+    path,
+    image: seo.image || item.coverUrl,
+    datePublished: seo.publishedTime,
+    dateModified: seo.modifiedTime,
+    authorName,
+    authorUrl: authorSlug ? authorHref(authorSlug) : undefined,
+    section: item.categoryLabel,
+  }),
+];
 ---
 
-<BaseLayout seo={seo}>
+<BaseLayout seo={seo} jsonLd={jsonLd}>
   <BlogDetailPage detail={detail} />
 </BaseLayout>

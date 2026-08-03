@@ -8,6 +8,16 @@ interface ImportMetaEnv {
   readonly PUBLIC_REGISTER_URL?: string;
   /** 登录入口（CTA）；缺省 /auth/login */
   readonly PUBLIC_LOGIN_URL?: string;
+  /** 百度站长验证码 */
+  readonly PUBLIC_BAIDU_SITE_VERIFICATION?: string;
+  /** 搜狗站长验证码 */
+  readonly PUBLIC_SOGOU_SITE_VERIFICATION?: string;
+  /** 360 站长验证码 */
+  readonly PUBLIC_360_SITE_VERIFICATION?: string;
+  /** 神马搜索验证码 */
+  readonly PUBLIC_SHENMA_SITE_VERIFICATION?: string;
+  /** 头条/抖音搜索验证码 */
+  readonly PUBLIC_BYTEDANCE_SITE_VERIFICATION?: string;
 }
 
 interface ImportMeta {

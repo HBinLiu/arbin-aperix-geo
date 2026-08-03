@@ -29,6 +29,92 @@ export function buildOrganizationJsonLd(site: URL) {
   };
 }
 
+/** schema.org WebSite */
+export function buildWebSiteJsonLd(site: URL) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: siteConfig.name,
+    url: toAbsoluteUrl(site, "/"),
+    description: siteConfig.description,
+    publisher: {
+      "@type": "Organization",
+      name: siteConfig.name,
+      logo: toAbsoluteUrl(site, siteConfig.logo),
+    },
+  };
+}
+
+/** schema.org BreadcrumbList */
+export function buildBreadcrumbJsonLd(
+  site: URL,
+  items: Array<{ name: string; path: string }>,
+) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.name,
+      item: toAbsoluteUrl(site, item.path),
+    })),
+  };
+}
+
+export type ArticleJsonLdInput = {
+  type?: "Article" | "BlogPosting" | "NewsArticle" | "TechArticle";
+  title: string;
+  description: string;
+  path: string;
+  image?: string;
+  datePublished?: string;
+  dateModified?: string;
+  authorName?: string;
+  authorUrl?: string;
+  section?: string;
+};
+
+/** schema.org Article / BlogPosting / NewsArticle */
+export function buildArticleJsonLd(site: URL, input: ArticleJsonLdInput) {
+  const url = toAbsoluteUrl(site, input.path);
+  const image = input.image ? toAbsoluteUrl(site, input.image) : toAbsoluteUrl(site, siteConfig.ogImage);
+
+  return {
+    "@context": "https://schema.org",
+    "@type": input.type ?? "Article",
+    headline: input.title,
+    description: input.description,
+    url,
+    mainEntityOfPage: url,
+    image: [image],
+    ...(input.datePublished ? { datePublished: input.datePublished } : {}),
+    ...(input.dateModified || input.datePublished
+      ? { dateModified: input.dateModified || input.datePublished }
+      : {}),
+    ...(input.section ? { articleSection: input.section } : {}),
+    author: input.authorName
+      ? {
+          "@type": "Person",
+          name: input.authorName,
+          ...(input.authorUrl ? { url: toAbsoluteUrl(site, input.authorUrl) } : {}),
+        }
+      : {
+          "@type": "Organization",
+          name: siteConfig.name,
+          url: toAbsoluteUrl(site, "/"),
+        },
+    publisher: {
+      "@type": "Organization",
+      name: siteConfig.name,
+      logo: {
+        "@type": "ImageObject",
+        url: toAbsoluteUrl(site, siteConfig.logo),
+      },
+    },
+  };
+}
+
 /** schema.org FAQPage */
 export function buildFaqPageJsonLd(faqs: Faq[]) {
   return {
@@ -45,9 +131,9 @@ export function buildFaqPageJsonLd(faqs: Faq[]) {
   };
 }
 
-/** 首页：Organization + FAQPage */
+/** 首页：Organization + WebSite + FAQPage */
 export function buildHomeJsonLd(site: URL, faqs: Faq[]) {
-  return [buildOrganizationJsonLd(site), buildFaqPageJsonLd(faqs)];
+  return [buildOrganizationJsonLd(site), buildWebSiteJsonLd(site), buildFaqPageJsonLd(faqs)];
 }
 
 /** 平台功能页 / 定价页：FAQPage */

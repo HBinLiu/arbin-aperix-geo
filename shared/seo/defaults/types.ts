@@ -1,11 +1,13 @@
 import type { PlatformId } from "../../platform";
 
-/** 单页默认 SEO（title 为主题，不含 `| 品牌名`；description 可含 {{siteName}}） */
+/** 单页默认 SEO（title 为主题，不含 `| 品牌名`；description / keywords 可含 {{siteName}}） */
 export type PageSeoDefault = {
   label: string;
   path: string;
   titleTopic: string;
   description: string;
+  /** 逗号分隔；缺省时官网回退 site.config keywords */
+  keywords?: string;
   noindex?: boolean;
 };
 
@@ -26,6 +28,7 @@ export type CmsPageSeoSeedEntry = {
   meta: {
     title: string;
     description: string;
+    keywords?: string;
   };
   noindex?: boolean;
 };
@@ -37,6 +40,7 @@ export function toCmsPageSeoSeed(defaults: PageSeoDefault): CmsPageSeoSeedEntry 
     meta: {
       title: cmsPageSeoTitle(defaults.titleTopic),
       description: defaults.description,
+      ...(defaults.keywords ? { keywords: defaults.keywords } : {}),
     },
     noindex: defaults.noindex,
   };

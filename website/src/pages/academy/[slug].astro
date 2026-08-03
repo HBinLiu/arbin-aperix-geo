@@ -5,8 +5,9 @@ import BaseLayout from "@/layouts/BaseLayout.astro";
 import AcademyDetailPage from "@/components/academy/AcademyDetailPage.astro";
 import { cmsDocToAcademyListItem, mergeAcademyList } from "@/lib/academy/cms";
 import { buildAcademyDetail, pickRelatedAcademyPosts } from "@/lib/academy/detail";
+import { buildArticleJsonLd, buildBreadcrumbJsonLd } from "@/lib/json-ld";
 import { getAcademyBySlug, getAcademyList } from "@/lib/payload";
-import { mergeAcademyDetailSeo } from "@/lib/seo";
+import { mergeAcademyDetailSeo, withArticleMeta } from "@/lib/seo";
 import "@/styles/style.css";
 import "@/styles/academy/detail.css";
 
@@ -27,17 +28,44 @@ const detail = buildAcademyDetail(item, cmsDoc, {
   relatedPosts: pickRelatedAcademyPosts(item, allPosts),
 });
 
-const seo = mergeAcademyDetailSeo(
+const path = `/academy/${item.slug}/`;
+const seo = withArticleMeta(
+  mergeAcademyDetailSeo(
+    {
+      title: item.cardTitle,
+      description: item.cardDescription,
+      slug: item.slug,
+    },
+    cmsDoc.meta,
+    item.coverUrl,
+  ),
   {
+    publishedTime: item.publishedAt,
+    modifiedTime: item.updatedAt || item.publishedAt,
+    section: item.categoryLabel || item.tag,
+  },
+);
+
+const site = Astro.site ?? Astro.url;
+const jsonLd = [
+  buildBreadcrumbJsonLd(site, [
+    { name: "首页", path: "/" },
+    { name: "学院", path: "/academy/" },
+    { name: item.cardTitle, path },
+  ]),
+  buildArticleJsonLd(site, {
+    type: "TechArticle",
     title: item.cardTitle,
     description: item.cardDescription,
-    slug: item.slug,
-  },
-  cmsDoc.meta,
-  item.coverUrl,
-);
+    path,
+    image: seo.image || item.coverUrl,
+    datePublished: seo.publishedTime,
+    dateModified: seo.modifiedTime,
+    section: seo.section,
+  }),
+];
 ---
 
-<BaseLayout seo={seo}>
+<BaseLayout seo={seo} jsonLd={jsonLd}>
   <AcademyDetailPage detail={detail} />
 </BaseLayout>

@@ -1,3 +1,4 @@
+import type { Field } from "payload";
 import { seoPlugin } from "@payloadcms/plugin-seo";
 import type { GenerateDescription, GenerateTitle, GenerateURL } from "@payloadcms/plugin-seo/types";
 
@@ -57,6 +58,15 @@ const generateURL: GenerateURL = ({ doc, collectionConfig }) => {
   return `${site}${normalizedPath.endsWith("/") ? normalizedPath : `${normalizedPath}/`}`;
 };
 
+const keywordsField: Field = {
+  name: "keywords",
+  type: "textarea",
+  label: "关键词",
+  admin: {
+    description: "逗号分隔，如：GEO,AI可见性,{{siteName}}。官网输出为 meta keywords。",
+  },
+};
+
 export const seo = seoPlugin({
   uploadsCollection: "media",
   collections: ["page-seo", "researches", "news", "blogs", "academies", "changelogs", "authors"],
@@ -65,6 +75,8 @@ export const seo = seoPlugin({
   generateTitle,
   generateDescription,
   generateURL,
-  fields: ({ defaultFields }) =>
-    defaultFields.filter((field) => !("name" in field && field.name === "preview")),
+  fields: ({ defaultFields }) => [
+    ...defaultFields.filter((field) => !("name" in field && field.name === "preview")),
+    keywordsField,
+  ],
 });

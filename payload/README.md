@@ -15,7 +15,7 @@ Admin 侧边栏 **站点设置**（Payload 默认：Collections 先于 Globals�
 
 | 能力 | 实现 |
 |------|------|
-| SEO | `@payloadcms/plugin-seo` 挂在 `page-seo`；官网 BaseLayout 按 path 合并 |
+| SEO | `@payloadcms/plugin-seo` 挂在 `page-seo`（含 keywords）与内容集合；官网 BaseLayout 按 path 合并 |
 | 草稿 / 发布 | FAQ、关于我们支持 draft；**Publish 后**官网按请求 SSR 拉取已发布内容（`/about` 已关闭静态预渲染） |
 | FAQ 默认内容 | `shared/faq/defaults.ts`；`npm run seed` 写入 CMS；留空时官网 `mergeFaqs` 回退 |
 

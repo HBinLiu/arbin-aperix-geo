@@ -5,8 +5,9 @@ import BaseLayout from "@/layouts/BaseLayout.astro";
 import NewsDetailPage from "@/components/news/NewsDetailPage.astro";
 import { cmsDocToNewsListItem } from "@/lib/news/cms";
 import { buildNewsDetail } from "@/lib/news/detail";
+import { buildArticleJsonLd, buildBreadcrumbJsonLd } from "@/lib/json-ld";
 import { getNewsBySlug } from "@/lib/payload";
-import { mergeNewsDetailSeo } from "@/lib/seo";
+import { mergeNewsDetailSeo, withArticleMeta } from "@/lib/seo";
 import "@/styles/style.css";
 import "@/styles/news/detail.css";
 
@@ -22,16 +23,45 @@ if (!cmsDoc) {
 
 const item = cmsDocToNewsListItem(cmsDoc);
 const detail = buildNewsDetail(item, cmsDoc);
-const seo = mergeNewsDetailSeo(
+const path = `/news/${item.slug}/`;
+const seo = withArticleMeta(
+  mergeNewsDetailSeo(
+    {
+      title: item.cardTitle,
+      description: item.cardDescription,
+      slug: item.slug,
+    },
+    cmsDoc.meta,
+  ),
   {
+    publishedTime: item.publishedAt,
+    modifiedTime: item.publishedAt,
+    authorName: cmsDoc.sourceAuthor,
+    section: cmsDoc.tag,
+  },
+);
+
+const site = Astro.site ?? Astro.url;
+const jsonLd = [
+  buildBreadcrumbJsonLd(site, [
+    { name: "首页", path: "/" },
+    { name: "新闻", path: "/news/" },
+    { name: item.cardTitle, path },
+  ]),
+  buildArticleJsonLd(site, {
+    type: "NewsArticle",
     title: item.cardTitle,
     description: item.cardDescription,
-    slug: item.slug,
-  },
-  cmsDoc.meta,
-);
+    path,
+    image: seo.image,
+    datePublished: seo.publishedTime,
+    dateModified: seo.modifiedTime,
+    authorName: seo.authorName,
+    section: seo.section,
+  }),
+];
 ---
 
-<BaseLayout seo={seo}>
+<BaseLayout seo={seo} jsonLd={jsonLd}>
   <NewsDetailPage detail={detail} />
 </BaseLayout>

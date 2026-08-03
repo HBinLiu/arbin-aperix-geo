@@ -6,8 +6,11 @@ import ChangelogDetailPage from "@/components/changelog/ChangelogDetailPage.astr
 import { cmsDocToAuthor, mergeAuthors } from "@/lib/authors/cms";
 import { cmsDocToChangelogListItem } from "@/lib/changelog/cms";
 import { buildChangelogDetail } from "@/lib/changelog/detail";
+import { authorHref } from "@/lib/changelog";
+import { buildArticleJsonLd, buildBreadcrumbJsonLd } from "@/lib/json-ld";
 import { getAuthorBySlug, getAuthors, getChangelogBySlug } from "@/lib/payload";
-import { mergeChangelogDetailSeo } from "@/lib/seo";
+import { mergeChangelogDetailSeo, withArticleMeta } from "@/lib/seo";
+import { CHANGELOG_RELEASE_TYPE_LABELS } from "@shared/changelog";
 import "@/styles/style.css";
 import "@/styles/changelog/detail.css";
 
@@ -33,16 +36,48 @@ const author =
 
 const detail = buildChangelogDetail(item, cmsDoc, { author });
 
-const seo = mergeChangelogDetailSeo(
+const path = `/changelogs/${item.slug}/`;
+const authorName = author?.name || item.author?.name;
+const section = CHANGELOG_RELEASE_TYPE_LABELS[item.releaseType] || item.releaseType;
+const seo = withArticleMeta(
+  mergeChangelogDetailSeo(
+    {
+      title: item.cardTitle,
+      description: item.cardDescription,
+      slug: item.slug,
+    },
+    cmsDoc.meta,
+  ),
   {
+    publishedTime: item.publishedAt,
+    modifiedTime: item.updatedAt || item.publishedAt,
+    authorName,
+    section,
+  },
+);
+
+const site = Astro.site ?? Astro.url;
+const jsonLd = [
+  buildBreadcrumbJsonLd(site, [
+    { name: "首页", path: "/" },
+    { name: "更新日志", path: "/changelogs/" },
+    { name: item.cardTitle, path },
+  ]),
+  buildArticleJsonLd(site, {
+    type: "Article",
     title: item.cardTitle,
     description: item.cardDescription,
-    slug: item.slug,
-  },
-  cmsDoc.meta,
-);
+    path,
+    image: seo.image,
+    datePublished: seo.publishedTime,
+    dateModified: seo.modifiedTime,
+    authorName,
+    authorUrl: authorSlug ? authorHref(authorSlug) : undefined,
+    section,
+  }),
+];
 ---
 
-<BaseLayout seo={seo}>
+<BaseLayout seo={seo} jsonLd={jsonLd}>
   <ChangelogDetailPage detail={detail} />
 </BaseLayout>

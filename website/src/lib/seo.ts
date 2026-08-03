@@ -6,34 +6,70 @@ import type { PageSeoDefault } from "@shared/seo/defaults/types";
 import { siteConfig } from "@site";
 import { resolveSiteCopy, sitePageTitle } from "@/lib/site";
 
+/** 默认 OG 图尺寸（与 shared/assets/images/website/og-default.webp 一致） */
+export const DEFAULT_OG_IMAGE = {
+  width: 1200,
+  height: 630,
+  type: "image/webp",
+} as const;
+
 export type PageSeo = {
   title: string;
   description: string;
+  keywords?: string;
   canonicalPath?: string;
   image?: string;
+  /** OG / Twitter 分享图替代文本；缺省回退为页面 title */
+  imageAlt?: string;
+  imageWidth?: number;
+  imageHeight?: number;
+  imageType?: string;
   type?: "website" | "article";
   noindex?: boolean;
+  /** article:published_time（ISO） */
+  publishedTime?: string;
+  /** article:modified_time（ISO） */
+  modifiedTime?: string;
+  /** article:author */
+  authorName?: string;
+  /** article:section */
+  section?: string;
 };
 
 export type CmsMedia = {
   url?: string | null;
+  alt?: string | null;
+  width?: number | null;
+  height?: number | null;
+  mimeType?: string | null;
 };
 
 /** Payload SEO 插件 meta 字段 */
 export type CmsSeoMeta = {
   title?: string | null;
   description?: string | null;
+  keywords?: string | null;
   image?: CmsMedia | string | null;
 };
 
 export type ResolvedPageMeta = {
   title: string;
   description: string;
+  keywords: string;
   canonical: string;
   image: string;
+  imageAlt: string;
+  imageWidth: number;
+  imageHeight: number;
+  imageType: string;
   type: "website" | "article";
   siteName: string;
   noindex: boolean;
+  robots: string;
+  publishedTime?: string;
+  modifiedTime?: string;
+  authorName?: string;
+  section?: string;
 };
 
 function normalizePathname(pathname: string): string {
@@ -48,10 +84,43 @@ function toAbsoluteUrl(pathOrUrl: string, base: URL): string {
   return new URL(pathOrUrl, base).href;
 }
 
+/** 解析为 ISO 8601；无效则返回 undefined */
+export function toIsoDate(value: string | null | undefined): string | undefined {
+  if (!value?.trim()) return undefined;
+  const ms = Date.parse(value);
+  if (Number.isNaN(ms)) return undefined;
+  return new Date(ms).toISOString();
+}
+
+/** 给详情 SEO 附上 article 元数据 */
+export function withArticleMeta(
+  seo: PageSeo,
+  fields: {
+    publishedTime?: string | null;
+    modifiedTime?: string | null;
+    authorName?: string | null;
+    section?: string | null;
+  },
+): PageSeo {
+  const publishedTime = toIsoDate(fields.publishedTime);
+  const modifiedTime = toIsoDate(fields.modifiedTime) || publishedTime;
+  const authorName = fields.authorName?.trim() || undefined;
+  const section = fields.section?.trim() || undefined;
+
+  return {
+    ...seo,
+    ...(publishedTime ? { publishedTime } : {}),
+    ...(modifiedTime ? { modifiedTime } : {}),
+    ...(authorName ? { authorName } : {}),
+    ...(section ? { section } : {}),
+  };
+}
+
 export function toPageSeo(defaults: PageSeoDefault): PageSeo {
   return {
     title: sitePageTitle(defaults.titleTopic),
     description: resolveSiteCopy(defaults.description),
+    ...(defaults.keywords ? { keywords: resolveSiteCopy(defaults.keywords) } : {}),
   };
 }
 
@@ -63,6 +132,15 @@ export function mergePageSeo(base: PageSeo, override?: Partial<PageSeo> | null):
     ...override,
     title: resolveSiteCopy(override.title?.trim() || base.title),
     description: resolveSiteCopy(override.description?.trim() || base.description),
+    keywords: override.keywords?.trim() || base.keywords,
+    imageAlt: override.imageAlt?.trim() || base.imageAlt,
+    publishedTime: override.publishedTime || base.publishedTime,
+    modifiedTime: override.modifiedTime || base.modifiedTime,
+    authorName: override.authorName?.trim() || base.authorName,
+    section: override.section?.trim() || base.section,
+    imageWidth: override.imageWidth ?? base.imageWidth,
+    imageHeight: override.imageHeight ?? base.imageHeight,
+    imageType: override.imageType?.trim() || base.imageType,
   };
 }
 
@@ -86,35 +164,71 @@ export function resolveCmsMediaUrl(image: CmsSeoMeta["image"]): string | undefin
   return url.startsWith("http") ? url : cmsAssetUrl(url);
 }
 
+function resolveCmsMediaAlt(image: CmsSeoMeta["image"]): string | undefined {
+  if (!image || typeof image === "string") return undefined;
+  const alt = image.alt?.trim();
+  return alt || undefined;
+}
+
+function resolveCmsMediaDimensions(image: CmsSeoMeta["image"]): {
+  imageWidth?: number;
+  imageHeight?: number;
+  imageType?: string;
+} {
+  if (!image || typeof image === "string") return {};
+  return {
+    ...(typeof image.width === "number" && image.width > 0 ? { imageWidth: image.width } : {}),
+    ...(typeof image.height === "number" && image.height > 0 ? { imageHeight: image.height } : {}),
+    ...(image.mimeType?.trim() ? { imageType: image.mimeType.trim() } : {}),
+  };
+}
+
 /** 将 Payload SEO 插件 `meta` 转为 PageSeo 局部覆盖（未设 OG 图时回退 site.config 默认图） */
 export function cmsMetaToPageSeo(meta?: CmsSeoMeta | null): Partial<PageSeo> | null {
   if (!meta) return null;
 
   const title = meta.title?.trim();
   const description = meta.description?.trim();
+  const keywords = meta.keywords?.trim();
   const image = resolveCmsMediaUrl(meta.image);
+  const imageAlt = resolveCmsMediaAlt(meta.image);
+  const dims = resolveCmsMediaDimensions(meta.image);
 
-  if (!title && !description && !image) return null;
+  if (!title && !description && !keywords && !image && !imageAlt) return null;
 
   return {
     ...(title ? { title: resolveSiteCopy(title) } : {}),
     ...(description ? { description: resolveSiteCopy(description) } : {}),
+    ...(keywords ? { keywords: resolveSiteCopy(keywords) } : {}),
     ...(image ? { image } : {}),
+    ...(imageAlt ? { imageAlt } : {}),
+    ...dims,
   };
 }
 
 /** 将 PageSeo 解析为 head 所需的 canonical / OG / Twitter 字段；site 来自 Astro.site（astro.config site） */
 export function resolvePageMeta(seo: PageSeo, site: URL, pathname: string): ResolvedPageMeta {
   const canonical = toAbsoluteUrl(normalizePathname(seo.canonicalPath ?? pathname), site);
+  const usingDefaultImage = !seo.image?.trim();
 
   return {
     title: seo.title,
     description: seo.description,
+    keywords: seo.keywords?.trim() || siteConfig.keywords,
     canonical,
     image: toAbsoluteUrl(seo.image ?? siteConfig.ogImage, site),
+    imageAlt: seo.imageAlt?.trim() || seo.title,
+    imageWidth: seo.imageWidth ?? DEFAULT_OG_IMAGE.width,
+    imageHeight: seo.imageHeight ?? DEFAULT_OG_IMAGE.height,
+    imageType: seo.imageType?.trim() || (usingDefaultImage ? DEFAULT_OG_IMAGE.type : "image/jpeg"),
     type: seo.type ?? "website",
     siteName: siteConfig.name,
     noindex: seo.noindex ?? false,
+    robots: seo.noindex ? "noindex, follow" : "index, follow",
+    publishedTime: seo.publishedTime,
+    modifiedTime: seo.modifiedTime,
+    authorName: seo.authorName,
+    section: seo.section,
   };
 }
 
