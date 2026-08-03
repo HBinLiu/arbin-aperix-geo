@@ -65,16 +65,22 @@ curl -s 'http://127.0.0.1:3000/cms/api/page-seo?limit=20' | jq .
 
 ## 百度普通收录 API 推送
 
-配置 `BAIDU_PUSH_SITE`（已验证主机名，如 `www.aperix.cn`）与 `BAIDU_PUSH_TOKEN`（站长平台 → 普通收录 → API）后：
+配置 `BAIDU_PUSH_SITE` / `BAIDU_PUSH_TOKEN`（从站长平台 → 普通收录 → API 的示例 curl **原样复制** `site` 与 `token`；你站若示例为 `site=https://www.aperix.cn` 则配置也带 `https://`）后：
 
 1. **CMS 内容自动**：博客 / 新闻 / 学院 / 研究 / 更新日志 / 作者在**首次发布**或**改 slug** 时异步推送（需 `PUBLIC_WEBSITE_URL` 为 `https://`；本地 `http` 跳过）。
-2. **官网营销页**：不走 CMS hook；部署后从线上 `/sitemap.xml` 拉取并推送：
+2. **官网营销页**：不走 CMS hook；部署后从线上 `/sitemap.xml` 拉取并推送。
+   脚本会自行读取 `.env.production`（`payload run` 默认不加载该文件；仅改文件不会进已创建容器的 `--env-file`）。
 
 ```bash
-cd payload
+# 生产（容器内；工作目录需能读到挂载的 .env.production）
+docker exec -it aperix-payload npm run baidu:push-static -- --all
+
+# 或本地 payload 目录
 npm run baidu:push-static          # 仅营销页（排除 CMS 路径）
 npm run baidu:push-static -- --all # 全站 sitemap.xml（首次回填）
 ```
+
+CMS **发布时自动推送**依赖 Next 进程环境：改完 `.env.production` 后需 `docker restart aperix-payload`（或重建容器）。
 
 或已登录 CMS 后：
 

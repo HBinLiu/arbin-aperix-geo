@@ -22,14 +22,13 @@ export function isBaiduPushEnabled(): boolean {
 }
 
 export function getBaiduPushEndpoint(): string | null {
-  const site = trimEnv("BAIDU_PUSH_SITE");
+  const site = trimEnv("BAIDU_PUSH_SITE").replace(/\/$/, "");
   const token = trimEnv("BAIDU_PUSH_TOKEN");
   if (!site || !token) return null;
 
-  // site 必须是已验证站点主机名，勿带 https://
-  const host = site.replace(/^https?:\/\//i, "").replace(/\/$/, "");
-  const params = new URLSearchParams({ site: host, token });
-  return `http://data.zz.baidu.com/urls?${params}`;
+  // site 须与站长平台「API 提交」示例完全一致（有的站是 https://www.xxx.cn，有的是 www.xxx.cn）
+  const params = new URLSearchParams({ site, token });
+  return `http://data.zz.baidu.com/urls?${params.toString()}`;
 }
 
 /**

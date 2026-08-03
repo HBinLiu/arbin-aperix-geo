@@ -4,7 +4,10 @@
  * 用法（在 payload 目录，需已配置 BAIDU_PUSH_* 与 PUBLIC_WEBSITE_URL=https://…）：
  *   npm run baidu:push-static          # 仅营销页（排除 /blog /academy 等 CMS 路径）
  *   npm run baidu:push-static -- --all # 全站 sitemap.xml
+ *
+ * 会显式加载 `.env` / `.env.production`（`payload run` 默认不读 production 文件）。
  */
+import { loadEnvFiles } from "../lib/loadEnvFiles";
 import {
   collectAllSitemapUrls,
   collectStaticSitemapUrls,
@@ -13,11 +16,15 @@ import {
 import { isBaiduPushEnabled } from "../lib/baiduPush";
 import { getWebsiteUrl } from "../lib/urls";
 
+loadEnvFiles();
+
 const includeAll = process.argv.includes("--all");
 
 async function main() {
   if (!isBaiduPushEnabled()) {
-    console.error("未配置 BAIDU_PUSH_SITE / BAIDU_PUSH_TOKEN，退出。");
+    console.error(
+      "未配置 BAIDU_PUSH_SITE / BAIDU_PUSH_TOKEN（请写入 .env.production 或注入容器环境后重试）。",
+    );
     process.exit(1);
   }
 
