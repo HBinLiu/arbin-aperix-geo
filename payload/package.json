@@ -11,6 +11,7 @@
     "seed": "cross-env NODE_OPTIONS=--no-deprecation payload run src/seed.ts",
     "seed:force": "cross-env NODE_OPTIONS=--no-deprecation payload run src/seed.ts -- --force",
     "baidu:push-static": "cross-env NODE_OPTIONS=--no-deprecation payload run src/scripts/baidu-push-static.ts",
+    "baidu:push-all": "cross-env NODE_OPTIONS=--no-deprecation BAIDU_PUSH_ALL=1 payload run src/scripts/baidu-push-static.ts",
     "payload": "cross-env NODE_OPTIONS=--no-deprecation payload",
     "start": "cross-env NODE_OPTIONS=--no-deprecation next start --port 3000"
   },

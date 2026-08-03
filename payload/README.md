@@ -72,12 +72,13 @@ curl -s 'http://127.0.0.1:3000/cms/api/page-seo?limit=20' | jq .
    脚本会自行读取 `.env.production`（`payload run` 默认不加载该文件；仅改文件不会进已创建容器的 `--env-file`）。
 
 ```bash
-# 生产（容器内；工作目录需能读到挂载的 .env.production）
-docker exec -it aperix-payload npm run baidu:push-static -- --all
+# 生产（容器内）
+docker exec -it aperix-payload npm run baidu:push-static
+docker exec -it aperix-payload npm run baidu:push-all
 
-# 或本地 payload 目录
-npm run baidu:push-static          # 仅营销页（排除 CMS 路径）
-npm run baidu:push-static -- --all # 全站 sitemap.xml（首次回填）
+# 本地
+npm run baidu:push-static   # 仅营销页（排除 CMS 路径）
+npm run baidu:push-all      # 全站 sitemap.xml（首次回填）
 ```
 
 CMS **发布时自动推送**依赖 Next 进程环境：改完 `.env.production` 后需 `docker restart aperix-payload`（或重建容器）。
