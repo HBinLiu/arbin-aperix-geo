@@ -48,6 +48,9 @@ export const pricingHero = {
   subtitle: "覆盖国内主流 AI 平台，实时监控分析品牌在 AI 中的竞争表现。",
 };
 
+/** 可下单计划卡片 CTA → 注册/登录 */
+export const pricingRegisterHref = appLinks.register;
+
 export async function getPlanCatalog(): Promise<PlanCatalog> {
   const url = `${backendApiBase()}/billing/plans`;
 
