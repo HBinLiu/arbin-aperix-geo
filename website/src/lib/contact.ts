@@ -99,8 +99,10 @@ export const contactPage = resolveSiteCopyDeep({
       description: "查看您当前的 AI 可见性评分。",
     },
   ] satisfies ContactBenefit[],
-  includesTitle: "演示包含内容",
-  includesTags: ["实时演示", "品牌分析", "定制策略", "GEO 专家", "定价"],
+  qr: {
+    title: "微信扫码联系",
+    description: "添加顾问，快速沟通演示安排。",
+  },
   form: {
     title: "预约您的演示",
     nameLabel: "姓名",

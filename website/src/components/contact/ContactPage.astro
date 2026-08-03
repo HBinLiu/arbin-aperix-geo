@@ -3,7 +3,7 @@ import SiteFooter from "@/components/SiteFooter.astro";
 import SiteHeader from "@/components/SiteHeader.astro";
 import ContactForm from "@/components/contact/ContactForm.tsx";
 import StaticImage from "@/components/StaticImage.tsx";
-import { HERO_GRID } from "@/lib/assets";
+import { CONTACT_QR_IMAGE, HERO_GRID } from "@/lib/assets";
 import { contactPage, type ContactBenefitIcon } from "@/lib/contact";
 import { Clock, MessageSquare, ScanSearch } from "@lucide/astro";
 
@@ -61,19 +61,20 @@ const benefitIcons: Record<ContactBenefitIcon, typeof Clock> = {
             }
           </div>
 
-          <div class="contact-includes">
-            <h2 class="contact-includes-title">{contactPage.includesTitle}</h2>
-            <div class="contact-tags">
-              {
-                contactPage.includesTags.map((tag) => (
-                  <span class="contact-tag">
-                    <span class="contact-tag-dot" aria-hidden="true"></span>
-                    {tag}
-                  </span>
-                ))
-              }
+          <aside class="contact-wechat" aria-label={contactPage.qr.title}>
+            <StaticImage
+              src={CONTACT_QR_IMAGE}
+              alt={`${contactPage.qr.title}二维码`}
+              width={112}
+              height={112}
+              className="contact-wechat-img"
+              loading="eager"
+            />
+            <div class="contact-wechat-copy">
+              <p class="contact-wechat-title">{contactPage.qr.title}</p>
+              <p class="contact-wechat-text">{contactPage.qr.description}</p>
             </div>
-          </div>
+          </aside>
         </div>
 
         <div class="contact-form-card">

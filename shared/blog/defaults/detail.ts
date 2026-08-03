@@ -12,7 +12,7 @@ export const blogSidebarDefault: BlogSidebarCta = {
   ],
   description:
     "即时了解 AI 搜索引擎如何解析、排名和引用您的内容 —— 并针对真正影响 AI 回答的因素进行优化。",
-  primaryLabel: "开始免费试用",
+  primaryLabel: "开始注册试用",
   primaryHref: APP_LINK_KEYS.register,
   note: "",
 };

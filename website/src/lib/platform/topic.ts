@@ -94,8 +94,8 @@ export const findTopicsIdeasCta: CtaContent = resolveSiteCopyDeep({
   titleAfter: "吗？",
   description: "加入 {{siteName}}，共同追踪 AI 搜索可见度。基于数据洞察，告别盲目优化。",
   codeLines: ["// 停止猜测。", "// 开始掌控。"],
-  secondaryCtaLabel: "登录",
-  secondaryCtaHref: appLinks.login,
-  primaryCtaLabel: "开始试用",
+  secondaryCtaLabel: "联系我们",
+  secondaryCtaHref: "/contact/",
+  primaryCtaLabel: "注册试用",
   primaryCtaHref: appLinks.register,
 });

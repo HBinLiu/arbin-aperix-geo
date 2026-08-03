@@ -196,7 +196,7 @@ export const inlineCtaBlockFields: Field[] = [
     type: "text",
     required: true,
     label: "按钮文案",
-    defaultValue: "开始免费试用",
+    defaultValue: "开始注册试用",
   },
   {
     name: "buttonHref",

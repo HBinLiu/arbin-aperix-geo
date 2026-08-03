@@ -4,6 +4,7 @@ import SiteHeader from "@/components/SiteHeader.astro";
 import PlatformFaqSection from "@/components/platform/PlatformFaqSection.astro";
 import CtaSection from "@/components/home/CtaSection.astro";
 import StaticImage from "@/components/StaticImage.tsx";
+import { ContactQrButton } from "@/components/contact/ContactQrDialog.tsx";
 import { PRICING_PLATFORM_LOGO_RENDER_PX } from "@/lib/assets";
 import {
   Boxes,
@@ -142,9 +143,21 @@ function renderPrice(plan: PlanCatalogItem, cycle: BillingCycle) {
                   </div>
 
                   <div class="pricing-card-cta">
-                    <a href={pricingRegisterHref} class="pricing-card-btn">
-                      {ctaLabel}
-                    </a>
+                    {
+                      plan.orderable ? (
+                        <a href={pricingRegisterHref} class="pricing-card-btn">
+                          {ctaLabel}
+                        </a>
+                      ) : (
+                        <ContactQrButton
+                          client:load
+                          label={ctaLabel}
+                          title="联系销售"
+                          description="微信扫码添加销售顾问"
+                          className="pricing-card-btn"
+                        />
+                      )
+                    }
                   </div>
 
                   <section class="pricing-card-limits" aria-label="计划限制">

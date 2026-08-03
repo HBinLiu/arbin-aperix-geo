@@ -2,8 +2,12 @@ import heroGrid from "@shared/assets/images/website/hero-grid.svg";
 import panel1 from "@shared/assets/images/website/panel-1.webp";
 import panel2 from "@shared/assets/images/website/panel-2.webp";
 import panel3 from "@shared/assets/images/website/panel-3.webp";
+import { APERIX_CONTACT_QR } from "@shared/aperix";
 
 const WEBSITE_IMAGES = "/assets/images/website";
+
+/** 联系销售 / 联系我们二维码（与控制台共用） */
+export const CONTACT_QR_IMAGE = APERIX_CONTACT_QR;
 
 export const DIAGNOSTIC_BACKGROUND_URL = `${WEBSITE_IMAGES}/diagnostic.webp`;
 

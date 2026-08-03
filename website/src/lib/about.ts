@@ -1,6 +1,6 @@
 import type { CmsAboutPage } from "@/lib/payload";
 import { richTextToHtml } from "@/lib/lexical";
-import { resolveSiteCopyDeep } from "@/lib/site";
+import { resolveSiteCopy, resolveSiteCopyDeep } from "@/lib/site";
 import { ABOUT_STORY_PARAGRAPHS, ABOUT_STORY_TITLE } from "@shared/about";
 import { faqP } from "@shared/faq/html";
 
@@ -24,7 +24,7 @@ export function mergeAboutStory(cms: CmsAboutPage | null | undefined): AboutStor
   const cmsHtml = richTextToHtml(cms?.story?.content);
 
   return {
-    title: cms?.story?.title?.trim() || ABOUT_STORY_TITLE,
+    title: resolveSiteCopy(cms?.story?.title?.trim() || ABOUT_STORY_TITLE),
     bodyHtml: cmsHtml.trim() ? cmsHtml : aboutStoryFallbackHtml,
   };
 }

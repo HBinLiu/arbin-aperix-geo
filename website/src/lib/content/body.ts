@@ -238,7 +238,7 @@ export function createContentHtmlConverters({
       const fields = node.fields as InlineCtaBlockFields;
       const title = fields.title?.trim();
       const description = fields.description?.trim();
-      const buttonLabel = fields.buttonLabel?.trim() || "开始免费试用";
+      const buttonLabel = fields.buttonLabel?.trim() || "开始注册试用";
       const buttonHref = resolveAppLink(fields.buttonHref);
       if (!title || !description) return "";
 

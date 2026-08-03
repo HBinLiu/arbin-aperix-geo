@@ -12,7 +12,7 @@ export function createSolutionCta(description: string): CtaContent {
     codeLines: ["// 停止猜测。", "// 开始掌控。"],
     secondaryCtaLabel: "获取演示",
     secondaryCtaHref: appLinks.register,
-    primaryCtaLabel: "开始免费试用",
+    primaryCtaLabel: "开始注册试用",
     primaryCtaHref: appLinks.register,
   });
 }

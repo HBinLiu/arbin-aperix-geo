@@ -74,7 +74,7 @@ export const homeDiagnostic: DiagnosticContent = {
   titleLine1: "想知道你在",
   titleLine2Suffix: "中的表现吗？",
   rotatingHighlights: ["豆包", "DeepSeek", "千问", "元宝", "Kimi", "文心一言"],
-  ctaLabel: "生成诊断报告",
+  ctaLabel: "获取诊断报告",
   ctaHref: appLinks.register,
 };
 
@@ -189,9 +189,9 @@ export const homeCta: CtaContent = resolveSiteCopyDeep({
   titleAfter: "了吗？",
   description: "加入 {{siteName}}，追踪 AI 可见性。获得基于实战的深度洞察，告别盲目猜测。",
   codeLines: ["// 停止猜测。", "// 开始掌控。"],
-  secondaryCtaLabel: "登录",
-  secondaryCtaHref: appLinks.login,
-  primaryCtaLabel: "开始试用",
+  secondaryCtaLabel: "联系我们",
+  secondaryCtaHref: "/contact/",
+  primaryCtaLabel: "注册试用",
   primaryCtaHref: appLinks.register,
 });
 

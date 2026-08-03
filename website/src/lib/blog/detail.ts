@@ -83,7 +83,7 @@ function buildBlogHero(
     readMinutes,
     readTimeLabel: `${readMinutes} 分钟阅读`,
     primaryHref: appLinks.register,
-    primaryLabel: "开始免费试用",
+    primaryLabel: "开始注册试用",
   });
 }
 

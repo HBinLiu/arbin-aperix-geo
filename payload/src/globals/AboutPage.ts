@@ -1,5 +1,5 @@
 import type { GlobalConfig } from "payload";
-import { authenticatedWrite, publishedOrAuthenticatedGlobalRead } from "../access";
+import { authenticatedWrite, publicRead } from "../access";
 import { SITE_ADMIN_GROUP } from "../lib/admin";
 
 export const AboutPage: GlobalConfig = {
@@ -10,7 +10,8 @@ export const AboutPage: GlobalConfig = {
     description: "管理 /about 的「我们的故事」。",
   },
   access: {
-    read: publishedOrAuthenticatedGlobalRead,
+    // Global 不支持 Collection 式 Where；公开读由草稿机制只返回已发布版本。
+    read: publicRead,
     update: authenticatedWrite,
   },
   versions: {

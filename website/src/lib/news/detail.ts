@@ -53,7 +53,7 @@ function buildNewsHero(listItem: NewsListItem, cmsDoc: CmsNewsDoc | null | undef
     readTimeLabel: `${readMinutes} 分钟`,
     editorNote: cmsDoc?.editorNote?.trim() || "",
     primaryHref: appLinks.register,
-    primaryLabel: "开始免费试用",
+    primaryLabel: "开始注册试用",
   });
 }
 

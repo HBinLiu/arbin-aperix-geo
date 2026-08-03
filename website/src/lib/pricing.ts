@@ -100,8 +100,6 @@ export function planDisplayPrice(plan: PlanCatalogItem, cycle: BillingCycle): st
   return Math.round(price.monthly_cents / 100).toLocaleString("zh-CN");
 }
 
-export const pricingRegisterHref = appLinks.register;
-
 export const pricingCta: CtaContent = {
   badge: "准备就绪",
   titleBefore: "准备好提升",
@@ -110,9 +108,9 @@ export const pricingCta: CtaContent = {
   description: "从免费注册开始，选择适合团队的订阅方案。",
   codeLines: ["// 停止猜测。", "// 开始掌控。"],
   secondaryCtaLabel: "获取演示",
-  secondaryCtaHref: pricingRegisterHref,
-  primaryCtaLabel: "开始免费试用",
-  primaryCtaHref: pricingRegisterHref,
+  secondaryCtaHref: "/contact/",
+  primaryCtaLabel: "注册试用",
+  primaryCtaHref: appLinks.register,
 };
 
 export const pricingFaqSection = {
