@@ -10,7 +10,7 @@ import hashlib
 import json
 import re
 from collections import OrderedDict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Any
 from urllib.parse import urljoin
@@ -19,6 +19,22 @@ from bs4 import BeautifulSoup, SoupStrainer
 
 from aperix_geo.utils.html import _meta_content, _normalize_text
 from aperix_geo.utils.text import is_template_title
+
+# Generic chrome labels that are not a publishable site name.
+_SITE_NAME_NOISE = frozenset(
+    {
+        "home",
+        "homepage",
+        "home page",
+        "index",
+        "main",
+        "website",
+        "官网",
+        "首页",
+        "主页",
+        "网站",
+    },
+)
 
 _HEAD_SEO_STRAINER = SoupStrainer(["title", "meta", "link"])
 _JSON_LD_TYPE = re.compile(r"application/ld\+json", re.I)
@@ -135,6 +151,7 @@ _PROFILE_CITATION = frozenset(
         "faq_items",
         "speakable_text",
         "content_type",
+        "site_name",
         "canonical_url",
         "publisher",
         "authors",
@@ -226,6 +243,70 @@ def _first_meta(soup: BeautifulSoup, *keys: str) -> str:
         if value:
             return value
     return ""
+
+
+def usable_site_name(raw: str) -> str:
+    """Normalize a candidate site name; empty if noise / URL / handle."""
+    text = _normalize_text(raw, limit=255)
+    if len(text) < 2:
+        return ""
+    folded = text.casefold()
+    if folded in _SITE_NAME_NOISE:
+        return ""
+    if folded.startswith(("http://", "https://", "//")):
+        return ""
+    if text.startswith("@"):
+        return ""
+    return text
+
+
+def coalesce_site_name(
+    *,
+    site_name: str = "",
+    publisher: str = "",
+    breadcrumbs: tuple[str, ...] | list[str] = (),
+    title: str = "",
+    domain: str = "",
+) -> str:
+    """Pick a display site name from SEO signals (meta → publisher → crumb → title).
+
+    Does not fall back to the bare domain — callers/UI already show domain when empty.
+    """
+    for candidate in (site_name, publisher):
+        cleaned = usable_site_name(candidate)
+        if cleaned:
+            return cleaned
+
+    for crumb in breadcrumbs[:3]:
+        cleaned = usable_site_name(str(crumb or ""))
+        if cleaned:
+            return cleaned
+
+    host = (domain or "").strip().lower()
+    if title.strip() and host:
+        from aperix_geo.utils.domains import brand_fallback, normalize_host, site_name_from_title
+
+        derived = usable_site_name(site_name_from_title(title, domain=host))
+        if not derived:
+            return ""
+        domain_like = {
+            normalize_host(host).casefold(),
+            (brand_fallback(host) or "").casefold(),
+        }
+        if derived.casefold() in domain_like:
+            return ""
+        return derived
+
+    return ""
+
+
+def _json_ld_website_name(obj: dict[str, Any]) -> str:
+    types = {t.casefold() for t in _type_names(obj.get("@type"))}
+    if "website" not in types:
+        return ""
+    return usable_site_name(
+        _text_value(obj.get("name") or obj.get("alternateName"), limit=200),
+    )
 
 
 def _canonical_url(soup: BeautifulSoup, *, base_url: str = "") -> str:
@@ -431,6 +512,7 @@ def _extract_json_ld(html: str) -> SeoMetadata:
     speakable: list[str] = []
     breadcrumbs: list[str] = []
     publisher = ""
+    site_name = ""
 
     for script in soup.find_all("script", type=_JSON_LD_TYPE):
         raw = (script.string or script.get_text() or "").strip()
@@ -484,9 +566,22 @@ def _extract_json_ld(html: str) -> SeoMetadata:
 
             for key in ("author", "creator"):
                 authors.extend(_name_from_thing(obj.get(key)))
-            pub = _text_value(obj.get("publisher"), limit=200)
+            pub = usable_site_name(_text_value(obj.get("publisher"), limit=200))
             if pub:
                 publisher = pub
+
+            if not site_name:
+                site_name = _json_ld_website_name(obj)
+            if not site_name:
+                part_of = obj.get("isPartOf")
+                if isinstance(part_of, dict):
+                    site_name = _json_ld_website_name(part_of)
+                elif isinstance(part_of, list):
+                    for part in part_of:
+                        if isinstance(part, dict):
+                            site_name = _json_ld_website_name(part)
+                            if site_name:
+                                break
 
             org_names, brands, org_categories = _extract_product_org(obj)
             mentioned.extend(org_names)
@@ -500,6 +595,7 @@ def _extract_json_ld(html: str) -> SeoMetadata:
         tags=_dedupe(tags),
         schema_types=_dedupe(schema_types),
         mentioned_names=_dedupe(mentioned),
+        site_name=site_name,
         publisher=publisher,
         authors=_dedupe(authors),
         brand_names=_dedupe(brand_names),
@@ -616,6 +712,12 @@ def _merge_seo(*parts: SeoMetadata) -> SeoMetadata:
         speakable.extend(part.speakable_text)
         breadcrumbs.extend(part.breadcrumbs)
 
+    site_name = coalesce_site_name(
+        site_name=site_name,
+        publisher=publisher,
+        breadcrumbs=breadcrumbs,
+    )
+
     return SeoMetadata(
         title=title,
         description=description,
@@ -717,7 +819,12 @@ def parse_seo_from_html(
         keywords=_dedupe(keywords),
         tags=_dedupe(tags),
         content_type=_first_meta(soup, "og:type"),
-        site_name=_first_meta(soup, "og:site_name"),
+        site_name=_first_meta(
+            soup,
+            "og:site_name",
+            "application-name",
+            "apple-mobile-web-app-title",
+        ),
         canonical_url=_canonical_url(soup, base_url=base_url),
         authors=_dedupe(authors),
         categories=_dedupe(categories),
@@ -726,6 +833,22 @@ def parse_seo_from_html(
     ld = _extract_json_ld(html)
     micro = _extract_microdata(html) if include_microdata else SeoMetadata()
     result = _merge_seo(head, ld, micro)
+
+    # Title-derived name when meta/JSON-LD are empty (needs host from base_url).
+    if not result.site_name and base_url:
+        from aperix_geo.utils.net import registrable_from
+
+        host = registrable_from(base_url) or ""
+        if host:
+            filled = coalesce_site_name(
+                site_name=result.site_name,
+                publisher=result.publisher,
+                breadcrumbs=result.breadcrumbs,
+                title=result.title,
+                domain=host,
+            )
+            if filled and filled != result.site_name:
+                result = replace(result, site_name=filled)
 
     _PARSE_CACHE[key] = result
     if len(_PARSE_CACHE) > _PARSE_CACHE_MAX:

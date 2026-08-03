@@ -160,6 +160,7 @@ def build_citation_document(
                 "domain": page.domain,
                 "http_status": page.http_status,
                 "page_title": page.title,
+                "site_name": page.site_name,
                 "description": page.description,
                 "headings": page.headings,
                 "has_table": page.has_table,

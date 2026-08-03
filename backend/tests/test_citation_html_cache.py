@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from aperix_geo.services.crawl import page_crawl_settings
 from aperix_geo.services.crawl._cache import clear_page_cache, set_cached_page
 from aperix_geo.services.crawl.types import PageFetchResult
@@ -24,8 +26,35 @@ def _sample_html(title: str = "Cached Title") -> str:
     )
 
 
+@pytest.fixture
+def memory_page_redis():
+    """In-process stand-in for page crawl Redis (positive bodies are Redis-only)."""
+    store: dict[str, dict] = {}
+
+    def _set(key: str, value: dict, *, expires_at: int) -> None:
+        store[key] = dict(value)
+
+    def _get(key: str):
+        payload = store.get(key)
+        if payload is None:
+            return None
+        return payload, 3600
+
+    with (
+        patch("aperix_geo.services.crawl._cache.redis_set_json_exat", side_effect=_set),
+        patch(
+            "aperix_geo.services.crawl._cache.redis_get_json_with_remaining_ttl",
+            side_effect=_get,
+        ),
+    ):
+        yield store
+
+
 @patch("aperix_geo.services.sampling.citation.page.fetch_page")
-def test_fetch_citation_page_meta_builds_from_html_cache_without_fetch(mock_fetch: MagicMock) -> None:
+def test_fetch_citation_page_meta_builds_from_html_cache_without_fetch(
+    mock_fetch: MagicMock,
+    memory_page_redis: dict,
+) -> None:
     clear_page_cache()
     clear_job_citation_page_cache()
     clear_url_citation_page_cache()
@@ -46,6 +75,7 @@ def test_fetch_citation_page_meta_builds_from_html_cache_without_fetch(mock_fetc
         crawl_fallback=crawl.crawl_fallback,
         ttl_s=crawl.cache_ttl_s,
     )
+    assert memory_page_redis
 
     meta = fetch_citation_page_meta(url, crawl=crawl)
 
@@ -56,7 +86,10 @@ def test_fetch_citation_page_meta_builds_from_html_cache_without_fetch(mock_fetc
 
 
 @patch("aperix_geo.services.sampling.citation.page.fetch_page")
-def test_fetch_citation_page_meta_html_cache_matches_utm_variant(mock_fetch: MagicMock) -> None:
+def test_fetch_citation_page_meta_html_cache_matches_utm_variant(
+    mock_fetch: MagicMock,
+    memory_page_redis: dict,
+) -> None:
     clear_page_cache()
     clear_url_citation_page_cache()
 

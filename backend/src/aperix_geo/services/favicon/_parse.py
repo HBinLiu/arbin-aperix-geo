@@ -170,10 +170,3 @@ def _related_subdomain_hosts(html: str, root_domain: str) -> list[str]:
 def subdomain_favicon_candidates_from_html(html: str, root_domain: str) -> list[str]:
     """Probe ``/favicon.ico`` on non-www subdomains referenced in HTML (low priority)."""
     return favicon_urls_for_hosts(_related_subdomain_hosts(html, root_domain))
-
-
-def icon_candidates_from_html(html: str, page_url: str, domain: str) -> list[str]:
-    return dedupe_urls(
-        page_icon_candidates_from_html(html, page_url)
-        + subdomain_favicon_candidates_from_html(html, domain),
-    )

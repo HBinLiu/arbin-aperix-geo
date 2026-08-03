@@ -15,12 +15,30 @@ from aperix_geo.services.crawl.page import fetch_page
 
 @pytest.fixture(autouse=True)
 def _isolate_page_cache_from_redis() -> None:
+    store: dict[str, dict] = {}
+
+    def _set(key: str, value: dict, *, expires_at: int) -> None:
+        store[key] = dict(value)
+
+    def _get(key: str):
+        payload = store.get(key)
+        if payload is None:
+            return None
+        return payload, 3600
+
+    from contextlib import contextmanager
+
+    @contextmanager
+    def _slot(_host: str):
+        yield "example.com"
+
     with (
         patch(
             "aperix_geo.services.crawl._cache.redis_get_json_with_remaining_ttl",
-            return_value=None,
+            side_effect=_get,
         ),
-        patch("aperix_geo.services.crawl._cache.redis_set_json_exat"),
+        patch("aperix_geo.services.crawl._cache.redis_set_json_exat", side_effect=_set),
+        patch("aperix_geo.services.crawl.page.page_crawl_slot", side_effect=_slot),
         patch("aperix_geo.services.crawl.page.host_resolves", return_value=True),
         patch("aperix_geo.services.crawl.page.host_resolves_public", return_value=True),
     ):
@@ -32,6 +50,8 @@ class _Response:
         self.status_code = status
         self.text = text
         self.url = url
+        self.content = text.encode("utf-8")
+        self.charset_encoding = "utf-8"
 
 
 def test_fetch_page_httpx_success() -> None:

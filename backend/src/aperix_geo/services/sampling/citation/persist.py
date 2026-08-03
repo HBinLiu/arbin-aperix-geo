@@ -48,6 +48,7 @@ def citations_from_parsed(parsed: dict[str, Any] | ParsedSamplingResult) -> list
         seen.add(key)
         src = source_map.get(key, {})
         page_title = str(src.get("page_title") or "").strip()
+        site_name = str(src.get("site_name") or "").strip()
         llm_analysis = src.get("llm_analysis") if isinstance(src.get("llm_analysis"), dict) else {}
         raw_type = str(src.get("url_type") or "").strip()
         url_type = normalize_url_type(raw_type) if raw_type else classify_url(key)
@@ -57,6 +58,7 @@ def citations_from_parsed(parsed: dict[str, Any] | ParsedSamplingResult) -> list
                 "url": key,
                 "url_type": url_type[:64],
                 "page_title": page_title[:500],
+                "site_name": site_name[:255],
                 "http_status": safe_int(src, "http_status", 0),
                 "description": str(src.get("description") or "")[:8000],
                 "headings": _headings_text(src.get("headings"))[:4000],
@@ -135,10 +137,29 @@ def replace_citations_for_response(
         from aperix_geo.services.domain.classify import (
             ensure_domain_profiles,
             maybe_enqueue_domain_type_classify,
+            remember_domain_site_names,
         )
 
         pending = ensure_domain_profiles(db, domain_counts.keys())
         if pending:
             maybe_enqueue_domain_type_classify(pending)
+
+        site_names: dict[str, str] = {}
+        for row in url_rows:
+            domain = str(row.get("domain") or "").strip()
+            if not domain or domain in site_names:
+                continue
+            name = str(row.get("site_name") or "").strip()
+            if not name:
+                from aperix_geo.services.crawl.seo import coalesce_site_name
+
+                name = coalesce_site_name(
+                    title=str(row.get("page_title") or ""),
+                    domain=domain,
+                )
+            if name:
+                site_names[domain] = name
+        if site_names:
+            remember_domain_site_names(db, site_names)
 
     return len(url_rows)

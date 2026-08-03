@@ -133,6 +133,7 @@ def _empty_backlink_detail(domain: str) -> dict[str, Any]:
     return {
         "domain": domain,
         "domain_type": normalize_domain_type(""),
+        "site_name": "",
         "priority": "low",
         "platforms": [],
         "citation_count": 0,
@@ -180,16 +181,19 @@ def build_backlink_opportunity_detail(
         prompt_id=None,
     )
 
-    profile_type = db.scalar(
-        select(DomainProfile.domain_type).where(
+    profile = db.execute(
+        select(DomainProfile.domain_type, DomainProfile.site_name).where(
             DomainProfile.domain == domain,
             DomainProfile.deleted.is_(False),
         )
-    )
+    ).one_or_none()
+    profile_type = profile.domain_type if profile else ""
+    site_name = str(profile.site_name or "").strip() if profile else ""
 
     return {
         "domain": domain,
         "domain_type": normalize_domain_type(str(profile_type or "")),
+        "site_name": site_name,
         "priority": backlink_priority(prompt_count, ctx.chat_count),
         "platforms": ctx.platforms,
         "citation_count": ctx.citation_count,

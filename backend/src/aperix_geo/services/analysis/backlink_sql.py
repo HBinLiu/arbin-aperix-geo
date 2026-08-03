@@ -161,6 +161,7 @@ def _backlink_row_from_sql(
     chat_count,
     prompt_count,
     domain_type: str = "",
+    site_name: str = "",
 ) -> dict[str, Any] | None:
     domain_key = str(domain or "").strip().lower()
     if not domain_key:
@@ -173,6 +174,7 @@ def _backlink_row_from_sql(
         "id": domain_key,
         "domain": domain_key,
         "domain_type": normalize_domain_type(str(domain_type or "")),
+        "site_name": str(site_name or "").strip(),
         "platforms": [],
         "priority": backlink_priority(prompts, chat),
         "citation_count": int(citation_count or 0),
@@ -364,6 +366,7 @@ class _BacklinkDomainPageQuery:
                 filtered.c.chat_count,
                 filtered.c.prompt_count,
                 func.coalesce(DomainProfile.domain_type, "").label("domain_type"),
+                func.coalesce(DomainProfile.site_name, "").label("site_name"),
                 func.count().over().label("_total"),
             )
             .select_from(filtered)
@@ -382,9 +385,14 @@ class _BacklinkDomainPageQuery:
         total = int(rows[0]._total)
 
         items: list[dict[str, Any]] = []
-        for domain, citation_count, chat_count, prompt_count, domain_type, _row_total in rows:
+        for domain, citation_count, chat_count, prompt_count, domain_type, site_name, _row_total in rows:
             row = _backlink_row_from_sql(
-                domain, citation_count, chat_count, prompt_count, domain_type=str(domain_type or "")
+                domain,
+                citation_count,
+                chat_count,
+                prompt_count,
+                domain_type=str(domain_type or ""),
+                site_name=str(site_name or ""),
             )
             if row is not None:
                 items.append(row)
@@ -402,15 +410,18 @@ def _attach_backlink_domain_types(db: Session, *, items: list[dict[str, Any]]) -
     if not domains:
         return
     rows = db.execute(
-        select(DomainProfile.domain, DomainProfile.domain_type).where(
+        select(DomainProfile.domain, DomainProfile.domain_type, DomainProfile.site_name).where(
             DomainProfile.domain.in_(domains),
             DomainProfile.deleted.is_(False),
         )
     ).all()
-    type_map = {str(domain): normalize_domain_type(str(domain_type or "")) for domain, domain_type in rows}
+    type_map = {str(domain): normalize_domain_type(str(domain_type or "")) for domain, domain_type, _ in rows}
+    name_map = {str(domain): str(site_name or "").strip() for domain, _, site_name in rows}
     for item in items:
         domain = str(item.get("domain") or "").strip().lower()
         item["domain_type"] = type_map.get(domain, normalize_domain_type(""))
+        if not item.get("site_name"):
+            item["site_name"] = name_map.get(domain, "")
 
 
 def _attach_backlink_platforms(

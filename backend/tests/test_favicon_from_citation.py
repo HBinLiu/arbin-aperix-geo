@@ -91,3 +91,53 @@ def test_fetch_citation_page_meta_caches_favicon(mock_fetch: MagicMock, tmp_path
 
     assert meta.fetch_ok is True
     mock_fetch.assert_called_once()
+
+
+def test_promote_related_favicon_reuses_subdomain_without_network(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("FAVICON_STORAGE_DIR", str(tmp_path))
+    from aperix_geo.config import get_settings
+    from aperix_geo.services.favicon import _storage as storage_mod
+    from aperix_geo.services.favicon._storage import (
+        ensure_apex_alias,
+        promote_related_favicon,
+        read_cached_favicon,
+    )
+
+    get_settings.cache_clear()
+    storage_mod._cache.clear()
+    storage_mod._negative_cache.clear()
+
+    # Orphan subdomain on disk (no auto-mirror) — simulate legacy / race.
+    storage_mod._persist_favicon_bytes(
+        "news.wise.com",
+        url="https://news.wise.com/favicon.png",
+        body=b"png-bytes",
+        media_type="image/png",
+    )
+    assert read_cached_favicon("wise.com") is None
+
+    promoted = promote_related_favicon("wise.com")
+    assert promoted == (b"png-bytes", "image/png")
+    assert read_cached_favicon("wise.com") == (b"png-bytes", "image/png")
+    # Alias is idempotent.
+    assert ensure_apex_alias("wise.com") == (b"png-bytes", "image/png")
+
+
+def test_persist_favicon_mirrors_subdomain_to_apex(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("FAVICON_STORAGE_DIR", str(tmp_path))
+    from aperix_geo.config import get_settings
+    from aperix_geo.services.favicon import _storage as storage_mod
+    from aperix_geo.services.favicon._storage import persist_favicon, read_cached_favicon
+
+    get_settings.cache_clear()
+    storage_mod._cache.clear()
+    storage_mod._negative_cache.clear()
+
+    persist_favicon(
+        "blog.wise.com",
+        url="https://blog.wise.com/favicon.ico",
+        body=b"ico-bytes",
+        media_type="image/x-icon",
+    )
+    assert read_cached_favicon("blog.wise.com") == (b"ico-bytes", "image/x-icon")
+    assert read_cached_favicon("wise.com") == (b"ico-bytes", "image/x-icon")

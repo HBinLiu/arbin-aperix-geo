@@ -23,6 +23,7 @@ from aperix_geo.services.analysis.entity import (
     resolve_analysis_entity,
 )
 from aperix_geo.utils.net import citation_registrable_key
+from aperix_geo.services.domain.taxonomy import normalize_domain_type
 from aperix_geo.services.sampling.citation.aggregate import (
     domain_cite_stats,
     domain_daily_citation_series,
@@ -32,6 +33,22 @@ from aperix_geo.services.sampling.citation.aggregate import (
     paginate_citation_domains,
     paginate_citation_urls,
 )
+
+
+def _domain_profile_fields(db: Session, domain: str) -> tuple[str, str]:
+    from sqlalchemy import select
+
+    from aperix_geo.db.models import DomainProfile
+
+    row = db.execute(
+        select(DomainProfile.site_name, DomainProfile.domain_type).where(
+            DomainProfile.domain == domain,
+            DomainProfile.deleted.is_(False),
+        )
+    ).one_or_none()
+    if row is None:
+        return "", normalize_domain_type("")
+    return str(row.site_name or "").strip(), normalize_domain_type(str(row.domain_type or ""))
 
 
 def build_citation_analysis(
@@ -226,6 +243,8 @@ def build_citation_domain_analysis(
         db, dt_from=prev_from, dt_to=prev_to, domain=domain, **window
     )
 
+    site_name, domain_type = _domain_profile_fields(db, domain)
+
     return {
         "domain": domain,
         "count": count,
@@ -255,6 +274,8 @@ def build_citation_domain_analysis(
             response_total=response_total,
             **window,
         ),
+        "site_name": site_name,
+        "domain_type": domain_type,
     }
 
 

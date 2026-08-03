@@ -1,16 +1,17 @@
 import {
   coalesceWebsiteUrl,
-  externalHref,
   faviconDomainKey,
   registrableDomain,
 } from "@/lib/domain";
 
 export type FaviconInput = {
+  /** Disk/API cache key (meaningful subdomain kept). */
   host: string;
+  /** URL passed to the favicon API (drives HOME vs PAGE discovery). */
   pageUrl: string;
 };
 
-/** 将用户输入或站点 URL 解析为 favicon 请求参数（后端按 domain 缓存，按 url 抓取）。 */
+/** 将用户输入或站点 URL 解析为 favicon 请求参数（后端按 host 缓存，按 pageUrl 抓取）。 */
 export function resolveFaviconInput(raw: string): FaviconInput | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
@@ -23,20 +24,24 @@ export function resolveFaviconInput(raw: string): FaviconInput | null {
   return { host, pageUrl };
 }
 
-/** 仅有 host/domain 时构造页面 URL（裸 host 补 http://）。 */
+/** 仅有 host/domain 时构造首页 URL（favicon 探测优先 https）。 */
 export function faviconUrlFromHost(host: string): string {
-  return externalHref(host.trim());
+  const s = host.trim();
+  if (!s) return "";
+  if (/^https?:\/\//i.test(s)) return s;
+  return `https://${s.replace(/^\/+/, "")}`;
 }
 
 export type FaviconClientStatus = "ok" | "miss";
 
 const faviconClientCache = new Map<string, FaviconClientStatus>();
 
+/** Client-side status key aligns with backend cache_key (host), not full pageUrl. */
 export function faviconCacheKey(url: string): string {
-  return resolveFaviconInput(url)?.pageUrl ?? "";
+  return resolveFaviconInput(url)?.host ?? "";
 }
 
-/** 会话内 favicon 状态，避免同页重复请求已知 miss。 */
+/** 会话内 favicon 状态，避免同 host 重复请求已知 miss。 */
 export function getFaviconClientStatus(url: string): FaviconClientStatus | undefined {
   const key = faviconCacheKey(url);
   if (!key) return undefined;

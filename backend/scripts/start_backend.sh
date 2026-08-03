@@ -49,9 +49,20 @@ API_HOST="${API_HOST:-0.0.0.0}"
 API_PORT="${API_PORT:-8000}"
 ORCH_CONCURRENCY="${CELERY_ORCH_WORKER_CONCURRENCY:-4}"
 LLM_CONCURRENCY="${CELERY_LLM_WORKER_CONCURRENCY:-16}"
-CRAWL_CONCURRENCY="${CELERY_CRAWL_WORKER_CONCURRENCY:-16}"
 PARSE_CONCURRENCY="${CELERY_PARSE_WORKER_CONCURRENCY:-16}"
 UNIFIED_CONCURRENCY="${CELERY_WORKER_CONCURRENCY:-8}"
+
+eval "$(python3 - <<'PY'
+from aperix_geo.config import get_settings
+s = get_settings()
+print(f'DEFAULT_CRAWL_CONCURRENCY={s.celery_crawl_worker_concurrency}')
+print(f'DEFAULT_CRAWL_MAX_TASKS={s.celery_crawl_max_tasks_per_child}')
+print(f'DEFAULT_CRAWL_MAX_MEMORY_KB={s.celery_crawl_max_memory_per_child_kb}')
+PY
+)"
+CRAWL_CONCURRENCY="${CELERY_CRAWL_WORKER_CONCURRENCY:-$DEFAULT_CRAWL_CONCURRENCY}"
+CRAWL_MAX_TASKS_PER_CHILD="${CELERY_CRAWL_MAX_TASKS_PER_CHILD:-$DEFAULT_CRAWL_MAX_TASKS}"
+CRAWL_MAX_MEMORY_PER_CHILD="${CELERY_CRAWL_MAX_MEMORY_PER_CHILD:-$DEFAULT_CRAWL_MAX_MEMORY_KB}"
 
 ALL_QUEUES="$(python3 - <<'PY'
 from aperix_geo.celery_queues import celery_worker_queues_for_role
@@ -103,24 +114,29 @@ start_worker() {
   local role="$1"
   local queues="$2"
   local concurrency="$3"
-  echo "Starting Celery worker role=$role queues=$queues concurrency=$concurrency..."
+  shift 3
+  echo "Starting Celery worker role=$role queues=$queues concurrency=$concurrency $*..."
   env CELERY_WORKER_ROLE="$role" \
     celery -A aperix_geo.celery_app.celery_app worker \
     --loglevel="$LOGLEVEL" \
     -Q "$queues" \
-    --concurrency="$concurrency" &
+    --concurrency="$concurrency" \
+    "$@" &
   PIDS+=($!)
 }
 
 if [[ "$CELERY_SPLIT_WORKERS" == "1" ]]; then
   start_worker orch "$ORCH_QUEUE" "$ORCH_CONCURRENCY"
   start_worker llm "$LLM_QUEUE" "$LLM_CONCURRENCY"
-  start_worker crawl "$CRAWL_QUEUE" "$CRAWL_CONCURRENCY"
+  start_worker crawl "$CRAWL_QUEUE" "$CRAWL_CONCURRENCY" \
+    --max-tasks-per-child="$CRAWL_MAX_TASKS_PER_CHILD" \
+    --max-memory-per-child="$CRAWL_MAX_MEMORY_PER_CHILD"
   start_worker parse "$PARSE_QUEUE" "$PARSE_CONCURRENCY"
 else
-  start_worker all "$ALL_QUEUES" "$UNIFIED_CONCURRENCY"
+  start_worker all "$ALL_QUEUES" "$UNIFIED_CONCURRENCY" \
+    --max-tasks-per-child="$CRAWL_MAX_TASKS_PER_CHILD" \
+    --max-memory-per-child="$CRAWL_MAX_MEMORY_PER_CHILD"
 fi
-
 if [[ "$WITH_BEAT" -eq 1 ]]; then
   echo "Starting Celery beat (sampling window only)..."
   celery -A aperix_geo.celery_app.celery_app beat --loglevel="$LOGLEVEL" &

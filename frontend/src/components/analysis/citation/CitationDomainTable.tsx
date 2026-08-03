@@ -184,12 +184,19 @@ export function CitationDomainTable({
                   <td className="max-w-0 pl-5">
                     <div className="flex min-w-0 items-center gap-2">
                       <FaviconImage url={faviconUrlFromHost(row.domain)} size={20} className="size-5 shrink-0 rounded-sm" />
-                      <span
-                        className="truncate font-medium hover:text-primary hover:underline"
-                        title={row.domain}
-                      >
-                        {row.domain}
-                      </span>
+                      <div className="min-w-0">
+                        <span
+                          className="block truncate font-medium hover:text-primary hover:underline"
+                          title={row.site_name?.trim() || row.domain}
+                        >
+                          {row.site_name?.trim() || row.domain}
+                        </span>
+                        {row.site_name?.trim() ? (
+                          <span className="text-muted-foreground block truncate text-xs" title={row.domain}>
+                            {row.domain}
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
                   </td>
                   <td className="px-4">

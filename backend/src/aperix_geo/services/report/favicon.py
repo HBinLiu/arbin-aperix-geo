@@ -17,6 +17,7 @@ def favicon_data_url(domain: str | None, *, timeout_s: float = 4.0) -> str | Non
 
     cached = read_cached_favicon(key)
     if cached is None:
+        # Homepage URL → HOME mode (wide discovery + negative cache + apex promote).
         cached = resolve_favicon_coalesced(
             key,
             page_url=f"https://{key}/",

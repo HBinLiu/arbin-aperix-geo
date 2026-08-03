@@ -264,6 +264,7 @@ def paginate_citation_domains(
             grouped.c.domain,
             grouped.c.count,
             func.coalesce(DomainProfile.domain_type, "").label("domain_type"),
+            func.coalesce(DomainProfile.site_name, "").label("site_name"),
         )
         .select_from(grouped)
         .outerjoin(
@@ -281,8 +282,9 @@ def paginate_citation_domains(
             "count": int(count or 0),
             "citation_rate": round(int(count or 0) / response_total, 4),
             "domain_type": normalize_domain_type(str(domain_type or "")),
+            "site_name": str(site_name or "").strip(),
         }
-        for domain, count, domain_type in rows
+        for domain, count, domain_type, site_name in rows
         if domain
     ]
     page_domains = [item["domain"] for item in items]

@@ -253,9 +253,19 @@ export function OpportunityBacklinkTable({
                 <td className="overflow-hidden pl-5" style={backlinkOpportunityDomainCellStyle()}>
                   <div className="flex min-w-0 items-center gap-2">
                     <FaviconImage url={faviconUrlFromHost(row.domain)} size={20} className="size-5 shrink-0 rounded-sm" />
-                    <span className="block min-w-0 truncate font-medium hover:text-primary hover:underline">
-                      {row.domain}
-                    </span>
+                    <div className="min-w-0">
+                      <span
+                        className="block min-w-0 truncate font-medium hover:text-primary hover:underline"
+                        title={row.siteName || row.domain}
+                      >
+                        {row.siteName || row.domain}
+                      </span>
+                      {row.siteName ? (
+                        <span className="text-muted-foreground block truncate text-xs" title={row.domain}>
+                          {row.domain}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 </td>
                 <td>

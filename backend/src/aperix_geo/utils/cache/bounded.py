@@ -43,3 +43,13 @@ class BoundedTTLCache:
     def clear(self) -> None:
         with self._lock:
             self._data.clear()
+
+    def clear_prefix(self, prefix: str) -> int:
+        """Drop L1 entries whose key starts with ``prefix``. Returns removed count."""
+        if not prefix:
+            return 0
+        with self._lock:
+            keys = [key for key in self._data if key.startswith(prefix)]
+            for key in keys:
+                del self._data[key]
+            return len(keys)

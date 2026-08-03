@@ -57,3 +57,8 @@ def set_job_citation_page(
 
 def clear_job_citation_page_cache() -> None:
     _STORE.clear()
+
+
+def clear_job_citation_pages_for_job(job_id: UUID) -> int:
+    """Drop process-local L1 entries for one sampling job (Redis keys kept)."""
+    return _STORE.clear_l1_prefix(f"{job_id}:")

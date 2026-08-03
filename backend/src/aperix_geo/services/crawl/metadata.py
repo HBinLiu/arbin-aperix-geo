@@ -246,7 +246,11 @@ def _build_page_metadata(
 
     include_microdata = profile_include_microdata(seo_profile)
     seo_raw = (
-        parse_seo_from_html(html_slice, include_microdata=include_microdata)
+        parse_seo_from_html(
+            html_slice,
+            base_url=page_url,
+            include_microdata=include_microdata,
+        )
         if html_slice.strip()
         else SeoMetadata()
     )

@@ -2,15 +2,23 @@ import { ChevronRight, ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { FaviconImage } from "@/components/common/FaviconImage";
+import { useAnalysisFiltersState } from "@/hooks/useAnalysisFiltersState";
+import { useCitationDomainAnalysis } from "@/hooks/useCitationDomainAnalysis";
+import { useDashboardContext } from "@/hooks/useDashboardContext";
+import { analysisDimensionPath } from "@/lib/analysis";
 import { externalHref } from "@/lib/domain";
 import { faviconUrlFromHost } from "@/lib/favicon";
-import { analysisDimensionPath } from "@/lib/analysis";
 
 type CitationDomainHeaderProps = {
   domain: string;
 };
 
 export function CitationDomainHeader({ domain }: CitationDomainHeaderProps) {
+  const { subject } = useDashboardContext();
+  const { filters } = useAnalysisFiltersState();
+  const { data } = useCitationDomainAnalysis(subject.id, domain, filters);
+  const siteName = data?.site_name?.trim() || "";
+  const displayName = siteName || domain;
   const externalUrl = externalHref(domain);
 
   return (
@@ -23,8 +31,9 @@ export function CitationDomainHeader({ domain }: CitationDomainHeaderProps) {
       </Link>
       <ChevronRight className="text-muted-foreground size-4 shrink-0" aria-hidden />
       <FaviconImage url={faviconUrlFromHost(domain)} size={20} className="size-5 shrink-0 rounded-sm" />
-      <span className="truncate font-semibold" title={domain}>
-        {domain}
+      <span className="min-w-0 truncate font-semibold" title={siteName ? `${siteName} (${domain})` : domain}>
+        {displayName}
+        {siteName ? <span className="text-muted-foreground ml-1.5 font-normal">{domain}</span> : null}
       </span>
       <a
         href={externalUrl}

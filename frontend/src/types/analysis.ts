@@ -330,6 +330,7 @@ export type CitationUrlSortField = "count" | "citation_rate";
 
 export type CitationDomainRow = {
   domain: string;
+  site_name?: string;
   count: number;
   platforms?: string[];
   citation_rate: number;
@@ -381,6 +382,8 @@ export type CitationDomainSeriesPoint = {
 
 export type CitationDomainAnalysisData = {
   domain: string;
+  site_name?: string;
+  domain_type?: string;
   count: number;
   citation_rate: number;
   prev_count: number;
@@ -575,6 +578,7 @@ export type ContentOpportunityDetailTab = "brand" | "source" | "chat";
 export type BacklinkOpportunityItem = {
   id: string;
   domain: string;
+  site_name?: string;
   domain_type?: string;
   platforms: string[];
   priority: OpportunityPriority;
@@ -625,6 +629,7 @@ export type BrandSortField =
 
 export type BacklinkOpportunityDetailData = {
   domain: string;
+  site_name?: string;
   domain_type?: string;
   priority: OpportunityPriority;
   platforms: string[];

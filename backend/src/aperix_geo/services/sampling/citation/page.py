@@ -23,6 +23,7 @@ class CitationPageMeta:
     domain: str
     http_status: int | None = None
     title: str = ""
+    site_name: str = ""
     description: str = ""
     headings: list[str] = field(default_factory=list)
     has_table: bool = False
@@ -44,6 +45,7 @@ class CitationPageMeta:
             "domain": self.domain,
             "http_status": self.http_status,
             "title": self.title,
+            "site_name": self.site_name,
             "description": self.description,
             "headings": list(self.headings),
             "has_table": self.has_table,
@@ -63,6 +65,7 @@ class CitationPageMeta:
             domain=str(data.get("domain") or ""),
             http_status=data.get("http_status"),
             title=str(data.get("title") or ""),
+            site_name=str(data.get("site_name") or ""),
             description=str(data.get("description") or ""),
             headings=list(data.get("headings") or []),
             has_table=bool(data.get("has_table")),
@@ -147,6 +150,18 @@ def _citation_meta_from_fetch(
         seo_profile=SeoProfile.CITATION,
     )
     meta.title = parsed.title
+    meta.site_name = str(parsed.site_name or "").strip()
+    # Belt-and-suspenders: profile/cache may omit coalesced name; re-resolve cheaply.
+    if not meta.site_name:
+        from aperix_geo.services.crawl.seo import coalesce_site_name
+
+        meta.site_name = coalesce_site_name(
+            site_name=parsed.site_name,
+            publisher=parsed.publisher,
+            breadcrumbs=parsed.breadcrumbs,
+            title=parsed.title,
+            domain=domain,
+        )
     meta.description = parsed.description
     meta.headings = list(parsed.headings)
     meta.has_table = parsed.has_table

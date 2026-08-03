@@ -6,19 +6,23 @@ __all__ = [
     "DEFAULT_DOMAIN_TYPE",
     "DOMAIN_TYPES",
     "classify_domains",
+    "domain_site_names_for",
     "domain_types_for",
     "ensure_domain_profiles",
     "maybe_enqueue_domain_type_classify",
     "normalize_domain_type",
+    "remember_domain_site_names",
 ]
 
 
 def __getattr__(name: str):
     if name in {
         "classify_domains",
+        "domain_site_names_for",
         "domain_types_for",
         "ensure_domain_profiles",
         "maybe_enqueue_domain_type_classify",
+        "remember_domain_site_names",
     }:
         from aperix_geo.services.domain import classify as _classify
 

@@ -38,6 +38,26 @@ def _response_status_counts(db: Session, job_id: UUID) -> dict[LLMResponseStatus
     return {status: int(count) for status, count in rows}
 
 
+def release_sampling_local_caches(*, job_id: UUID | None = None) -> None:
+    """Drop process-local crawl/citation L1 caches after a job becomes terminal.
+
+    Prefork crawl/parse children keep their own L1; those rely on gzip packing and
+    ``--max-tasks-per-child``. This clears the finalize worker's L1 and any shared
+    job-scoped keys in the current process.
+    """
+    from aperix_geo.services.crawl._cache import clear_page_cache
+    from aperix_geo.services.sampling.citation.cache.page_meta import (
+        clear_job_citation_page_cache,
+        clear_job_citation_pages_for_job,
+    )
+
+    clear_page_cache()
+    if job_id is not None:
+        clear_job_citation_pages_for_job(job_id)
+    else:
+        clear_job_citation_page_cache()
+
+
 def finalize_sampling_job_db(db: Session, job_id: UUID) -> SamplingJob | None:
     """Set job counters and terminal status from response rows. Returns the job."""
     job = db.execute(
@@ -72,11 +92,12 @@ def finalize_sampling_job_db(db: Session, job_id: UUID) -> SamplingJob | None:
         job.error_message = ""
         job.finished_at = datetime.now(UTC)
 
-    if job.status in (
+    terminal = job.status in (
         SamplingJobStatus.succeed,
         SamplingJobStatus.failed,
         SamplingJobStatus.partial,
-    ):
+    )
+    if terminal:
         from aperix_geo.services.billing.quota import release_remaining_job_quota
 
         release_remaining_job_quota(db, job=job)
@@ -84,4 +105,6 @@ def finalize_sampling_job_db(db: Session, job_id: UUID) -> SamplingJob | None:
     commit_schedule_anchor_if_due(db, job)
     db.commit()
     db.refresh(job)
+    if terminal:
+        release_sampling_local_caches(job_id=job_id)
     return job

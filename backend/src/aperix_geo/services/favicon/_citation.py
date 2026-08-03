@@ -7,10 +7,13 @@ import threading
 
 from aperix_geo.config import get_settings
 from aperix_geo.services.crawl._httpx import get_icon_httpx_client
-from aperix_geo.utils.net import favicon_from
 from aperix_geo.services.favicon._fetch import fetch_first_icon
 from aperix_geo.services.favicon._parse import page_icon_candidates_from_html
-from aperix_geo.services.favicon._storage import read_cached_favicon, static_favicon_path
+from aperix_geo.services.favicon._storage import (
+    read_cached_favicon,
+    static_favicon_path,
+)
+from aperix_geo.utils.net import favicon_from
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +33,18 @@ def maybe_cache_favicon_from_page_html(
     html: str,
     timeout_s: float = _DEFAULT_TIMEOUT_S,
 ) -> bool:
-    """Try to persist domain favicon using HTML already fetched for citation metadata."""
+    """Try to persist domain favicon using HTML already fetched for citation metadata.
+
+    ``persist_favicon`` (via ``fetch_first_icon``) mirrors onto apex when needed.
+    """
     page_url = page_url.strip()
     if not page_url or not html.strip():
         return False
 
     domain = favicon_from(page_url)
-    if not domain or favicon_cached_for_domain(domain):
+    if not domain:
+        return False
+    if favicon_cached_for_domain(domain):
         return False
 
     candidates = page_icon_candidates_from_html(html[:_MAX_HTML_CHARS], page_url)

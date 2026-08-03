@@ -88,6 +88,77 @@ def test_parse_seo_canonical_and_og_type() -> None:
     assert "张三" in seo.authors
 
 
+def test_parse_seo_site_name_application_name_fallback() -> None:
+    html = """
+    <head>
+    <meta name="application-name" content="万里汇" />
+    <title>跨境支付指南</title>
+    </head>
+    """
+    seo = parse_seo_from_html(html)
+    assert seo.site_name == "万里汇"
+
+
+def test_parse_seo_site_name_from_json_ld_website() -> None:
+    html = """
+    <head><title>Some Article</title></head>
+    <script type="application/ld+json">
+    {
+      "@type": "WebSite",
+      "name": "36氪",
+      "url": "https://36kr.com/"
+    }
+    </script>
+    """
+    seo = parse_seo_from_html(html)
+    assert seo.site_name == "36氪"
+
+
+def test_parse_seo_site_name_from_publisher() -> None:
+    html = """
+    <script type="application/ld+json">
+    {
+      "@type": "NewsArticle",
+      "headline": "市场观察",
+      "publisher": {"@type": "Organization", "name": "第一财经"}
+    }
+    </script>
+    """
+    seo = parse_seo_from_html(html)
+    assert seo.publisher == "第一财经"
+    assert seo.site_name == "第一财经"
+
+
+def test_parse_seo_site_name_from_is_part_of_website() -> None:
+    html = """
+    <script type="application/ld+json">
+    {
+      "@type": "Article",
+      "headline": "深度报道",
+      "isPartOf": {"@type": "WebSite", "name": "财新"}
+    }
+    </script>
+    """
+    seo = parse_seo_from_html(html)
+    assert seo.site_name == "财新"
+
+
+def test_parse_seo_site_name_from_title_with_base_url() -> None:
+    html = """
+    <head><title>万里汇 | 跨境支付平台</title></head>
+    """
+    seo = parse_seo_from_html(html, base_url="https://www.wise.com/zh-cn/")
+    assert seo.site_name == "万里汇"
+
+
+def test_coalesce_site_name_skips_domain_and_noise() -> None:
+    from aperix_geo.services.crawl.seo import coalesce_site_name
+
+    assert coalesce_site_name(site_name="首页", publisher="Acme") == "Acme"
+    assert coalesce_site_name(title="wise.com", domain="wise.com") == ""
+    assert coalesce_site_name(breadcrumbs=["Home", "Products", "Pay"]) == "Products"
+
+
 def test_parse_seo_faq_page() -> None:
     html = """
     <script type="application/ld+json">

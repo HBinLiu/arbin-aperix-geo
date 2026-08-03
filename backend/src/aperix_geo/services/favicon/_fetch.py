@@ -9,11 +9,9 @@ import httpx
 
 from aperix_geo.services.crawl._httpx import get_icon_httpx_client
 from aperix_geo.services.favicon._candidates import discover_icon_url_batches
-from aperix_geo.services.favicon._domain import favicon_homepage_urls
+from aperix_geo.services.favicon._domain import FaviconMode
 from aperix_geo.services.favicon._parse import dedupe_urls
 from aperix_geo.services.favicon._storage import persist_favicon
-from aperix_geo.utils.http import HTML_PAGE_FETCH_HEADERS
-from aperix_geo.utils.net import explicit_http_url
 
 _MAX_ICON_BYTES = 512_000
 _MAX_ICON_SIDE_PX = 512
@@ -170,25 +168,6 @@ def fetch_icon_bytes(
     return body, _guess_media_type(url, resp.headers.get("content-type"), body)
 
 
-def _warm_homepage_cookies(
-    client: httpx.Client,
-    domain: str,
-    *,
-    timeout_s: float,
-    page_url: str | None = None,
-) -> None:
-    explicit = explicit_http_url(page_url.strip()) if page_url and page_url.strip() else ""
-    homes = [explicit] if explicit else favicon_homepage_urls(domain)
-    for home in homes:
-        if _client_get(
-            client,
-            home,
-            timeout=_request_timeout(timeout_s),
-            headers=HTML_PAGE_FETCH_HEADERS,
-        ):
-            return
-
-
 def fetch_first_icon(
     client: httpx.Client,
     host: str,
@@ -211,11 +190,17 @@ def resolve_favicon_network(
     *,
     timeout_s: float,
     page_url: str | None = None,
+    mode: FaviconMode = FaviconMode.HOME,
 ) -> tuple[bytes, str] | None:
+    """Try candidate batches until one icon downloads. Cookie warm is unnecessary —
+    HTML discovery (fetch_page) already hits the homepage when needed."""
     client = get_icon_httpx_client()
-    _warm_homepage_cookies(client, host, timeout_s=timeout_s, page_url=page_url)
-
-    for batch in discover_icon_url_batches(host, timeout_s=timeout_s, page_url=page_url):
+    for batch in discover_icon_url_batches(
+        host,
+        timeout_s=timeout_s,
+        page_url=page_url,
+        mode=mode,
+    ):
         if not batch:
             continue
         if result := fetch_first_icon(client, host, batch, timeout_s=timeout_s):

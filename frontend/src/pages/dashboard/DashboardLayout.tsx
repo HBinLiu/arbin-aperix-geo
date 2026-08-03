@@ -89,45 +89,45 @@ function DashboardLayoutContent() {
         </aside>
 
         <main className="bg-muted-background border-border shadow-[8px_10px_24px_-10px_rgba(15,23,42,0.12)] flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border">
-          <div className="border-border flex h-[48px] min-w-0 shrink-0 items-stretch border-b px-4">
-            <div className="flex shrink-0 items-center pr-2">
-              <button
-                type="button"
-                aria-label={sidebarCollapsed ? "展开侧栏" : "收起侧栏"}
-                aria-expanded={!sidebarCollapsed}
-                onClick={toggleSidebar}
-                className="text-foreground hover:bg-background/80 -ml-1 flex size-7 items-center justify-center rounded-md transition-colors"
-              >
-                <SidebarToggleIcon className="size-4" aria-hidden />
-              </button>
-            </div>
-            {isAnalysisPage && citationDomain ? (
-              <CitationDomainHeader domain={citationDomain} />
-            ) : isAnalysisPage && promptDetailId ? (
-              <PromptAnalysisHeader promptId={promptDetailId} />
-            ) : isAnalysisPage ? (
-              <AnalysisDimensionTabs embedded value={analysisDimension} />
-            ) : isOpportunityPage && backlinkOpportunityDomain ? (
-              <OpportunityBacklinkHeader domain={backlinkOpportunityDomain} />
-            ) : isOpportunityPage ? (
-              <OpportunityTabs embedded value={opportunityTab} />
-            ) : isBillingPage ? (
-              <BillingTabs embedded value={billingTab} />
-            ) : isProfilePage ? (
-              <ProfileTabs embedded value={profileTab} />
-            ) : isDiagnosisPage && diagnosisContentPromptId ? (
-              <DiagnosisContentHeader promptId={diagnosisContentPromptId} />
-            ) : (
-              <div className="flex min-w-0 flex-1 items-center">
-                <h1 className="text-base font-semibold">{activeNav.label}</h1>
+          <AnalysisFiltersProvider>
+            <div className="border-border flex h-[48px] min-w-0 shrink-0 items-stretch border-b px-4">
+              <div className="flex shrink-0 items-center pr-2">
+                <button
+                  type="button"
+                  aria-label={sidebarCollapsed ? "展开侧栏" : "收起侧栏"}
+                  aria-expanded={!sidebarCollapsed}
+                  onClick={toggleSidebar}
+                  className="text-foreground hover:bg-background/80 -ml-1 flex size-7 items-center justify-center rounded-md transition-colors"
+                >
+                  <SidebarToggleIcon className="size-4" aria-hidden />
+                </button>
               </div>
-            )}
-          </div>
-          <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto">
-            <AnalysisFiltersProvider>
+              {isAnalysisPage && citationDomain ? (
+                <CitationDomainHeader domain={citationDomain} />
+              ) : isAnalysisPage && promptDetailId ? (
+                <PromptAnalysisHeader promptId={promptDetailId} />
+              ) : isAnalysisPage ? (
+                <AnalysisDimensionTabs embedded value={analysisDimension} />
+              ) : isOpportunityPage && backlinkOpportunityDomain ? (
+                <OpportunityBacklinkHeader domain={backlinkOpportunityDomain} />
+              ) : isOpportunityPage ? (
+                <OpportunityTabs embedded value={opportunityTab} />
+              ) : isBillingPage ? (
+                <BillingTabs embedded value={billingTab} />
+              ) : isProfilePage ? (
+                <ProfileTabs embedded value={profileTab} />
+              ) : isDiagnosisPage && diagnosisContentPromptId ? (
+                <DiagnosisContentHeader promptId={diagnosisContentPromptId} />
+              ) : (
+                <div className="flex min-w-0 flex-1 items-center">
+                  <h1 className="text-base font-semibold">{activeNav.label}</h1>
+                </div>
+              )}
+            </div>
+            <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto">
               <Outlet />
-            </AnalysisFiltersProvider>
-          </div>
+            </div>
+          </AnalysisFiltersProvider>
         </main>
       </div>
     </AppShell>

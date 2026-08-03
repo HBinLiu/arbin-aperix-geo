@@ -8,6 +8,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from aperix_geo.config import get_settings
+from aperix_geo.utils.net import registrable_from
 
 _CACHE_TTL_S = 86_400
 _CACHE_MAX = 500
@@ -50,7 +51,7 @@ def _storage_root() -> Path:
 
 
 def ensure_storage_dir() -> Path:
-    """启动时创建 favicon 持久化根目录（懒写入，首次抓取后才有域名子目录）。"""
+    """Create favicon storage root (domain dirs appear on first persist)."""
     return _storage_root()
 
 
@@ -116,17 +117,6 @@ def read_disk_favicon(domain: str) -> tuple[bytes, str] | None:
     return path.read_bytes(), media_type
 
 
-def read_cached_favicon(host: str) -> tuple[bytes, str] | None:
-    """Memory cache, then on-disk favicon (promotes disk hit into memory)."""
-    if row := cache_get(host):
-        return row
-    if stored := read_disk_favicon(host):
-        body, media = stored
-        cache_set(host, body, media)
-        return stored
-    return None
-
-
 def cache_get(domain: str) -> tuple[bytes, str] | None:
     row = _cache.get(domain)
     if not row:
@@ -145,14 +135,43 @@ def cache_set(domain: str, body: bytes, media_type: str) -> None:
     _cache[domain] = (time.monotonic() + _CACHE_TTL_S, body, media_type)
 
 
-def persist_favicon(
+def read_cached_favicon(host: str) -> tuple[bytes, str] | None:
+    """Memory cache, then on-disk favicon (promotes disk hit into memory)."""
+    if row := cache_get(host):
+        return row
+    if stored := read_disk_favicon(host):
+        body, media = stored
+        cache_set(host, body, media)
+        return stored
+    return None
+
+
+def related_favicon_hosts(apex: str) -> list[str]:
+    """Disk hosts under ``apex`` (e.g. ``blog.example.com`` for ``example.com``)."""
+    apex = apex.strip().lower()
+    if not apex:
+        return []
+    root = _storage_root()
+    if not root.is_dir():
+        return []
+    suffix = f".{apex}"
+    hosts: list[str] = []
+    for path in root.iterdir():
+        if not path.is_dir():
+            continue
+        host = path.name.strip().lower()
+        if host and host != apex and host.endswith(suffix):
+            hosts.append(host)
+    return sorted(hosts)
+
+
+def _persist_favicon_bytes(
     domain: str,
     *,
     url: str,
     body: bytes,
     media_type: str,
 ) -> None:
-    """Write ``{storage_root}/{domain}/favicon.{ext}``; ``url`` is only the source icon URL."""
     store = _domain_store_dir(domain)
     store.mkdir(parents=True, exist_ok=True)
     static_name = _static_filename(media_type, url)
@@ -170,3 +189,58 @@ def persist_favicon(
     )
     _negative_cache.pop(domain, None)
     cache_set(domain, body, media_type)
+
+
+def mirror_host_to_apex(host: str) -> None:
+    """If *host* is a subdomain with a cached icon, copy onto eTLD+1 when missing."""
+    host = host.strip().lower()
+    if not host:
+        return
+    apex = registrable_from(host) or host
+    if apex == host or read_cached_favicon(apex):
+        return
+    cached = read_cached_favicon(host)
+    if not cached:
+        return
+    body, media = cached
+    index = load_index(host)
+    source_url = str(index.get("url") or f"https://{host}/favicon.ico")
+    _persist_favicon_bytes(apex, url=source_url, body=body, media_type=media)
+
+
+def ensure_apex_alias(apex: str) -> tuple[bytes, str] | None:
+    """HOME lookup helper: return apex icon, promoting any subdomain cache if needed."""
+    key = apex.strip().lower()
+    if not key:
+        return None
+    root = registrable_from(key) or key
+    if key != root:
+        return None
+    if hit := read_cached_favicon(root):
+        return hit
+    for host in related_favicon_hosts(root):
+        cached = read_cached_favicon(host)
+        if not cached:
+            continue
+        body, media = cached
+        index = load_index(host)
+        source_url = str(index.get("url") or f"https://{host}/favicon.ico")
+        _persist_favicon_bytes(root, url=source_url, body=body, media_type=media)
+        return body, media
+    return None
+
+
+# Backward-compatible name used by tests / older call sites.
+promote_related_favicon = ensure_apex_alias
+
+
+def persist_favicon(
+    domain: str,
+    *,
+    url: str,
+    body: bytes,
+    media_type: str,
+) -> None:
+    """Write ``{storage_root}/{domain}/favicon.{ext}`` and mirror to apex when needed."""
+    _persist_favicon_bytes(domain, url=url, body=body, media_type=media_type)
+    mirror_host_to_apex(domain)

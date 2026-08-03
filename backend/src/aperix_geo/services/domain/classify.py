@@ -79,6 +79,37 @@ def domain_types_for(db: Session, domains: Iterable[str]) -> dict[str, str]:
     return {row.domain: normalize_domain_type(row.domain_type) for row in rows}
 
 
+def domain_site_names_for(db: Session, domains: Iterable[str]) -> dict[str, str]:
+    keys = sorted({_normalize_domain(d) for d in domains if _normalize_domain(d)})
+    if not keys:
+        return {}
+    rows = db.execute(select(DomainProfile).where(DomainProfile.domain.in_(keys))).scalars().all()
+    return {row.domain: str(row.site_name or "").strip() for row in rows if str(row.site_name or "").strip()}
+
+
+def remember_domain_site_names(db: Session, names: dict[str, str]) -> None:
+    """Fill empty DomainProfile.site_name from citation page signals (no overwrite)."""
+    cleaned: dict[str, str] = {}
+    for raw_domain, raw_name in names.items():
+        domain = _normalize_domain(raw_domain)
+        name = str(raw_name or "").strip()[:255]
+        if domain and name:
+            cleaned[domain] = name
+    if not cleaned:
+        return
+
+    ensure_domain_profiles(db, cleaned.keys())
+    rows = {
+        row.domain: row
+        for row in db.execute(select(DomainProfile).where(DomainProfile.domain.in_(list(cleaned)))).scalars().all()
+    }
+    for domain, name in cleaned.items():
+        row = rows.get(domain)
+        if row is None or str(row.site_name or "").strip():
+            continue
+        row.site_name = name
+
+
 def classify_domains(db: Session, domains: Iterable[str]) -> dict[str, str]:
     """Classify domains via seed map + TLD heuristics; unresolved → ``other``."""
     pending = ensure_domain_profiles(db, domains)

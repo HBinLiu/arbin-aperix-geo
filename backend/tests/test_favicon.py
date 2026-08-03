@@ -159,13 +159,18 @@ def test_persist_favicon_writes_static_file(tmp_path, monkeypatch) -> None:
 
 
 def test_icon_candidates_from_html() -> None:
-    from aperix_geo.services.favicon._parse import icon_candidates_from_html
+    from aperix_geo.services.favicon._parse import (
+        page_icon_candidates_from_html,
+        subdomain_favicon_candidates_from_html,
+    )
 
     html = """
     <link rel="icon" href="/favicon.ico">
     <link rel="stylesheet" href="https://static.example.com/app.css">
     """
-    urls = icon_candidates_from_html(html, "https://www.example.com/", "example.com")
+    page = page_icon_candidates_from_html(html, "https://www.example.com/")
+    sub = subdomain_favicon_candidates_from_html(html, "example.com")
+    urls = page + sub
     assert urls.index("https://www.example.com/favicon.ico") < urls.index(
         "https://static.example.com/favicon.ico",
     )
@@ -203,6 +208,7 @@ def test_subdomain_candidates_skip_www_and_apex() -> None:
 
 def test_discover_icon_url_batches_with_page_url(monkeypatch) -> None:
     from aperix_geo.services.favicon._candidates import discover_icon_url_batches
+    from aperix_geo.services.favicon._domain import FaviconMode
 
     monkeypatch.setattr(
         "aperix_geo.services.favicon._candidates.icons_from_page_url",
@@ -217,6 +223,7 @@ def test_discover_icon_url_batches_with_page_url(monkeypatch) -> None:
         "m.example.com",
         timeout_s=5.0,
         page_url="https://m.example.com/article",
+        mode=FaviconMode.PAGE,
     )
     assert batches == [
         ["https://staticfile.example.com/icon.ico"],
@@ -224,22 +231,61 @@ def test_discover_icon_url_batches_with_page_url(monkeypatch) -> None:
     ]
 
 
+def test_discover_icon_url_batches_homepage_uses_wide_path(monkeypatch) -> None:
+    from aperix_geo.services.favicon._candidates import discover_icon_url_batches
+
+    class FakeSources:
+        def page_icons_from_fetch(self):
+            return ["https://www.example.com/icon.png"]
+
+        def page_icons_from_crawl4ai(self):
+            return []
+
+        def subdomain_icons_from_fetch(self):
+            return []
+
+        def subdomain_icons_from_crawl4ai(self):
+            return []
+
+    monkeypatch.setattr(
+        "aperix_geo.services.favicon._candidates._HomepageHtmlSources",
+        lambda domain, *, timeout_s: FakeSources(),
+    )
+    monkeypatch.setattr(
+        "aperix_geo.services.favicon._candidates.main_standard_path_urls",
+        lambda _d: ["https://example.com/favicon.ico"],
+    )
+    monkeypatch.setattr(
+        "aperix_geo.services.favicon._candidates.cdn_prefix_standard_path_urls",
+        lambda _d: [],
+    )
+    monkeypatch.setattr(
+        "aperix_geo.services.favicon._candidates.icons_from_page_url",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("narrow path")),
+    )
+
+    batches = discover_icon_url_batches(
+        "example.com",
+        timeout_s=5.0,
+        page_url="http://example.com/",
+    )
+    assert batches[0] == ["https://www.example.com/icon.png"]
+    assert batches[2] == ["https://example.com/favicon.ico"]
+
+
 def test_resolve_favicon_network_with_page_url(monkeypatch) -> None:
+    from aperix_geo.services.favicon._domain import FaviconMode
     from aperix_geo.services.favicon._fetch import resolve_favicon_network
 
-    calls: list[str | None] = []
+    calls: list[tuple[str | None, FaviconMode]] = []
 
-    def fake_batches(domain, *, timeout_s, page_url=None):
-        calls.append(page_url)
+    def fake_batches(domain, *, timeout_s, page_url=None, mode=FaviconMode.HOME):
+        calls.append((page_url, mode))
         return [["https://staticfile.example.com/icon.ico"]]
 
     monkeypatch.setattr(
         "aperix_geo.services.favicon._fetch.discover_icon_url_batches",
         fake_batches,
-    )
-    monkeypatch.setattr(
-        "aperix_geo.services.favicon._fetch._warm_homepage_cookies",
-        lambda *args, **kwargs: None,
     )
     monkeypatch.setattr(
         "aperix_geo.services.favicon._fetch.fetch_first_icon",
@@ -254,9 +300,10 @@ def test_resolve_favicon_network_with_page_url(monkeypatch) -> None:
         "m.iefans.net",
         timeout_s=5.0,
         page_url="https://m.iefans.net/android/1728638.html",
+        mode=FaviconMode.PAGE,
     )
     assert result == (b"icon", "image/x-icon")
-    assert calls == ["https://m.iefans.net/android/1728638.html"]
+    assert calls == [("https://m.iefans.net/android/1728638.html", FaviconMode.PAGE)]
 
 
 def test_discover_icon_url_batches_order(monkeypatch) -> None:
@@ -408,7 +455,7 @@ def test_coalesced_resolve_hits_memory_cache_on_repeat(monkeypatch) -> None:
     storage_mod._negative_cache.clear()
     calls = {"n": 0}
 
-    def fake_network(host: str, *, timeout_s: float, page_url: str | None = None):
+    def fake_network(host: str, *, timeout_s: float, page_url: str | None = None, mode=None):
         calls["n"] += 1
         return b"\x89PNG\r\n\x1a\n" + b"x" * 20, "image/png"
 

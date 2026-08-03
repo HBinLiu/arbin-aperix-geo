@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from urllib.parse import urljoin, urlparse
 
-from aperix_geo.services.favicon._domain import favicon_homepage_urls
+from aperix_geo.services.favicon._domain import FaviconMode, favicon_homepage_urls
 from aperix_geo.services.favicon._parse import (
     dedupe_urls,
     page_icon_candidates_from_html,
@@ -162,11 +162,17 @@ def discover_icon_url_batches(
     *,
     timeout_s: float,
     page_url: str | None = None,
+    mode: FaviconMode = FaviconMode.HOME,
 ) -> list[list[str]]:
-    """Return icon URL batches in fetch priority order."""
+    """Return icon URL batches in fetch priority order.
+
+    PAGE: narrow — parse the given page + same-origin standard paths.
+    HOME: wide — homepage HTML / Crawl4AI / static / CDN probes.
+    """
     wait_s = max(timeout_s, _HEADLESS_MIN_TIMEOUT_S)
     explicit = explicit_http_url(page_url.strip()) if page_url and page_url.strip() else ""
-    if explicit:
+
+    if mode is FaviconMode.PAGE and explicit:
         return [
             icons_from_page_url(explicit, timeout_s=wait_s),
             standard_path_urls_for_page(explicit),

@@ -74,7 +74,10 @@ class Settings(BaseSettings):
     celery_sampling_parse_queue: str = "sampling.parse"
     celery_orch_worker_concurrency: int = Field(default=4, ge=1, le=64)
     celery_llm_worker_concurrency: int = Field(default=16, ge=1, le=128)
-    celery_crawl_worker_concurrency: int = Field(default=16, ge=1, le=128)
+    celery_crawl_worker_concurrency: int = Field(default=8, ge=1, le=128)
+    celery_crawl_max_tasks_per_child: int = Field(default=80, ge=1, le=10_000)
+    # Celery --max-memory-per-child 单位为 KiB；子进程 RSS 超限后回收（释放 Crawl4AI 等残留）
+    celery_crawl_max_memory_per_child_kb: int = Field(default=400_000, ge=64_000, le=4_000_000)
     celery_parse_worker_concurrency: int = Field(default=16, ge=1, le=128)
     celery_redis_socket_timeout_s: float = Field(default=30.0, ge=5.0, le=120.0)
     celery_redis_connect_timeout_s: float = Field(default=10.0, ge=1.0, le=60.0)

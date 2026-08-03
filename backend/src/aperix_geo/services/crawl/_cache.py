@@ -23,7 +23,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # --- Page fetch cache ---
-
+# Successful page bodies live only in Redis (gzip). Process L1 keeps negative
+# markers only, so crawl prefork children do not retain multi-MB HTML.
 _PAGE_L1_MAX = 256
 _COMPRESS_MIN_CHARS = 4096
 _page_memory = BoundedTTLCache(_PAGE_L1_MAX)
@@ -46,13 +47,22 @@ def _decompress_text(value: Any) -> str:
     return str(value or "")
 
 
+def _already_packed(value: Any) -> bool:
+    return isinstance(value, dict) and isinstance(value.get("__gz__"), str)
+
+
 def _pack_redis_fields(payload: dict[str, Any]) -> dict[str, Any]:
+    """Compress html/markdown for Redis. Idempotent."""
     out = dict(payload)
-    html = str(out.get("html") or "")
-    if html:
+    html = out.get("html")
+    if _already_packed(html):
+        pass
+    elif isinstance(html, str) and html:
         out["html"] = _compress_text(html)
-    markdown = str(out.get("markdown") or "")
-    if markdown:
+    markdown = out.get("markdown")
+    if _already_packed(markdown):
+        pass
+    elif isinstance(markdown, str) and markdown:
         out["markdown"] = _compress_text(markdown)
     return out
 
@@ -118,17 +128,9 @@ def _negative_result(url: str) -> PageFetchResult:
     return PageFetchResult(url=url.strip(), source="none")
 
 
-def _load_page_payload(payload: dict[str, Any]) -> PageFetchResult | str:
-    if payload.get("negative"):
-        return "negative"
-    return _page_from_dict(_strip_meta(payload))
-
-
-def _page_memory_get(logical: str) -> PageFetchResult | None | str:
+def _page_memory_get_negative(logical: str) -> bool:
     payload = _page_memory.get(logical)
-    if payload is None:
-        return None
-    return _load_page_payload(payload)
+    return bool(isinstance(payload, dict) and payload.get("negative"))
 
 
 def _hydrate_page_payload(logical: str, data: dict[str, Any], *, remaining: int) -> PageFetchResult | str:
@@ -140,12 +142,8 @@ def _hydrate_page_payload(logical: str, data: dict[str, Any], *, remaining: int)
             expires_at=expires_at,
         )
         return "negative"
-    plain = _unpack_redis_fields(_strip_meta(data))
-    result = _page_from_dict(plain)
-    payload = _page_to_dict(result)
-    payload["expires_at"] = expires_at
-    _page_memory.set(logical, payload, expires_at=expires_at)
-    return result
+    # Do not backfill successful bodies into process L1.
+    return _page_from_dict(_unpack_redis_fields(_strip_meta(data)))
 
 
 def _hydrate_page_from_redis(logical: str) -> PageFetchResult | None | str:
@@ -169,11 +167,8 @@ def get_cached_page(
 
     logical = _logical_key(url, max_chars=max_chars, crawl_fallback=crawl_fallback)
 
-    mem = _page_memory_get(logical)
-    if mem == "negative":
+    if _page_memory_get_negative(logical):
         return _negative_result(url)
-    if mem is not None:
-        return mem
 
     redis_hit = _hydrate_page_from_redis(logical)
     if redis_hit == "negative":
@@ -198,7 +193,6 @@ def set_cached_page(
     expires_at = expires_at_from_ttl(ttl_s)
     payload = _page_to_dict(result)
     payload["expires_at"] = expires_at
-    _page_memory.set(logical, payload, expires_at=expires_at)
     redis_set_json_exat(_page_redis_key(logical), _pack_redis_fields(payload), expires_at=expires_at)
     logger.debug("页面抓取缓存写入 %s", crawl_cache_url(url.strip()))
 
