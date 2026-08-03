@@ -2,6 +2,7 @@ import type { CollectionConfig } from "payload";
 
 import { authenticatedWrite, publishedOrAuthenticatedRead } from "../access";
 import { RESOURCE_EXPLORATION_ADMIN_GROUP, adminDayOnlyDate } from "../lib/admin";
+import { createBaiduPushAfterChangeHook } from "../lib/baiduPushHook";
 import { buildCollectionPreviewPath, buildPreviewUrl } from "../lib/preview";
 import { contentLexicalEditor } from "../lib/lexical/content";
 
@@ -41,6 +42,9 @@ export const Academies: CollectionConfig = {
     },
   },
   defaultSort: "-publishedAt",
+  hooks: {
+    afterChange: [createBaiduPushAfterChangeHook("academies")],
+  },
   fields: [
     {
       type: "tabs",

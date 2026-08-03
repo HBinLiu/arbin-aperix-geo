@@ -21,10 +21,10 @@ Astro 静态营销站 `website/` 的搜索引擎与 AI 爬虫优化约定。运�
 
 ## 基础 SEO（P0）
 
-- **Sitemap**：`@astrojs/sitemap` 构建生成 `sitemap-index.xml` + `sitemap-0.xml`
-- **robots.txt**：`src/pages/robots.txt.ts` → 声明 `Sitemap: {origin}/sitemap-index.xml`，注释 `# LLM site summary: {origin}/llms.txt`
+- **Sitemap**：SSR 单一 urlset `src/pages/sitemap.xml.ts`（营销路径清单 + CMS 已发布详情）；`Cache-Control: max-age=300`
+- **robots.txt**：`src/pages/robots.txt.ts` → 仅声明 `Sitemap: {origin}/sitemap.xml`，注释 `# LLM site summary: {origin}/llms.txt`
 - **Canonical / OG / Twitter**：`BaseLayout.astro` + `resolvePageMeta()`；默认 OG 图 `siteConfig.ogImage`（`shared/assets/images/website/og-default.webp`）
-- **国内 sitemap 提交**：Google/Bing 交 index；百度 / 头条 / 神马交 `sitemap-0.xml`（勿交 index）
+- **站长提交**：百度 / Google / Bing 等均交 `{origin}/sitemap.xml`
 
 ## JSON-LD（`src/lib/json-ld.ts` + 各页 `jsonLd` prop）
 
@@ -55,7 +55,7 @@ Astro 静态营销站 `website/` 的搜索引擎与 AI 爬虫优化约定。运�
 
 1. 在 `seo.ts` 增加 `PageSeo`（`pageTitle()` + description）
 2. 页面 `<BaseLayout seo={...}>`；有 FAQ 则加 `jsonLd`
-3. 若进 sitemap：Astro 静态页自动收录；动态路由已在 `getStaticPaths` 的会收录
+3. 若进 sitemap：营销页加入 `getMarketingSitemapPaths()`（`src/lib/sitemap.ts`）；CMS 详情由 `getAll*Docs` 自动收录
 4. 更新 `llms.ts` 链接列表（若为核心页或带 FAQ 的重要页）
 5. 文案含品牌名时用 `{{siteName}}` + 导出时 `resolveSiteCopyDeep`
 
@@ -63,4 +63,4 @@ Astro 静态营销站 `website/` 的搜索引擎与 AI 爬虫优化约定。运�
 
 - 各 monitor 页专属 OG 图
 - 页面级 `.md` 镜像（llmstxt.org 扩展）
-- `/sitemap.xml` → index 的重定向（按需 CDN 配置）
+- 按栏目拆分的多 sitemap（已统一为单一 SSR urlset）

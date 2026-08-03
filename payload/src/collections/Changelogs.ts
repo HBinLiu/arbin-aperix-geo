@@ -6,6 +6,7 @@ import {
 
 import { authenticatedWrite, publishedOrAuthenticatedRead } from "../access";
 import { RESOURCE_EXPLORATION_ADMIN_GROUP, adminDayOnlyDate } from "../lib/admin";
+import { createBaiduPushAfterChangeHook } from "../lib/baiduPushHook";
 import { buildCollectionPreviewPath, buildPreviewUrl } from "../lib/preview";
 import { contentLexicalEditor } from "../lib/lexical/content";
 
@@ -51,6 +52,9 @@ export const Changelogs: CollectionConfig = {
     },
   },
   defaultSort: "-publishedAt",
+  hooks: {
+    afterChange: [createBaiduPushAfterChangeHook("changelogs")],
+  },
   fields: [
     {
       type: "tabs",

@@ -170,6 +170,6 @@ export function buildLlmsTxt(site: URL, faqs: Faq[] = homeFaqs): string {
     "## 可选",
     "",
     `- [控制台](${pageHref(site, appLinks.register)}): 注册并开始 GEO 监测`,
-    `- [Sitemap](${pageHref(site, "/sitemap-index.xml")}): 全站 URL 索引`,
+    `- [Sitemap](${pageHref(site, "/sitemap.xml")}): 全站 URL 清单`,
   ].join("\n");
 }

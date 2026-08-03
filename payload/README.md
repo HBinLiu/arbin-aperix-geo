@@ -62,3 +62,34 @@ curl -s 'http://127.0.0.1:3000/cms/api/faqs?where[page][equals]=pricing&limit=1'
 curl -s 'http://127.0.0.1:3000/cms/api/faqs?where[page][equals]=platform/answer-engine-insights&limit=1' | jq '.docs[0].items'
 curl -s 'http://127.0.0.1:3000/cms/api/page-seo?limit=20' | jq .
 ```
+
+## 百度普通收录 API 推送
+
+配置 `BAIDU_PUSH_SITE`（已验证主机名，如 `www.aperix.cn`）与 `BAIDU_PUSH_TOKEN`（站长平台 → 普通收录 → API）后：
+
+1. **CMS 内容自动**：博客 / 新闻 / 学院 / 研究 / 更新日志 / 作者在**首次发布**或**改 slug** 时异步推送（需 `PUBLIC_WEBSITE_URL` 为 `https://`；本地 `http` 跳过）。
+2. **官网营销页**：不走 CMS hook；部署后从线上 `/sitemap.xml` 拉取并推送：
+
+```bash
+cd payload
+npm run baidu:push-static          # 仅营销页（排除 CMS 路径）
+npm run baidu:push-static -- --all # 全站 sitemap.xml（首次回填）
+```
+
+或已登录 CMS 后：
+
+```bash
+# 推送营销页
+curl -X POST 'https://www.aperix.cn/cms/api/baidu-push' \
+  -H 'Content-Type: application/json' \
+  -H 'Cookie: <admin-session>' \
+  -d '{"sitemap":"static"}'
+
+# 指定 URL
+curl -X POST 'https://www.aperix.cn/cms/api/baidu-push' \
+  -H 'Content-Type: application/json' \
+  -H 'Cookie: <admin-session>' \
+  -d '{"urls":["https://www.aperix.cn/pricing/"]}'
+```
+
+日志前缀 `[baidu-push]`；日配额以站长平台「剩余额度」为准。站长后台提交 `{origin}/sitemap.xml` 即可。

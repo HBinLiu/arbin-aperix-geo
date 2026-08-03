@@ -3,6 +3,7 @@ import { SOCIAL_PLATFORM_OPTIONS } from "@shared/social";
 
 import { authenticatedWrite, publicRead } from "../access";
 import { RESOURCE_EXPLORATION_ADMIN_GROUP } from "../lib/admin";
+import { createBaiduPushAfterChangeHook } from "../lib/baiduPushHook";
 
 export const Authors: CollectionConfig = {
   slug: "authors",
@@ -25,6 +26,7 @@ export const Authors: CollectionConfig = {
   },
   defaultSort: "-sortOrder",
   hooks: {
+    afterChange: [createBaiduPushAfterChangeHook("authors")],
     beforeDelete: [
       async ({ id, req }) => {
         const linkedBlog = await req.payload.find({
