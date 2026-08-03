@@ -13,4 +13,7 @@ export const APERIX_LOGO_SRC = {
 export const APERIX_FAVICON_ICO = `${APERIX_ASSETS}/favicon.ico`;
 export const APERIX_FAVICON_PNG = `${APERIX_ASSETS}/favicon.png`;
 
+/** 客服 / 联系我们 / 联系销售共用二维码 */
+export const APERIX_CONTACT_QR = `${APERIX_ASSETS}/contact_us.png`;
+
 export type AperixLogoVariant = keyof typeof APERIX_LOGO_SRC;

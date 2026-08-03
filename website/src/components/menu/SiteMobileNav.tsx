@@ -198,8 +198,8 @@ export default function SiteMobileNav() {
                 <a href={appLinks.login} className="btn btn-ghost mobile-nav-action" onClick={closeMenu}>
                   登录
                 </a>
-                <a href={appLinks.register} className="btn btn-primary mobile-nav-action" onClick={closeMenu}>
-                  开始试用
+                <a href="/contact" className="btn btn-primary mobile-nav-action" onClick={closeMenu}>
+                  联系我们
                 </a>
               </div>
             </div>

@@ -2,6 +2,7 @@ import * as React from "react";
 
 import { AUTH_LIGHT_BG } from "@/lib/assets/shell";
 import { AppLogo } from "@/components/common/AppLogo";
+import { ContactQrDialog } from "@/components/common/ContactQrDialog";
 
 export type AuthShellProps = {
   /** 右侧主标题，如「登录 Aperix AI」 */
@@ -15,6 +16,8 @@ export type AuthShellProps = {
  * 鉴权页外壳：大屏左侧品牌区（背景图 + 标语），右侧表单。
  */
 export function AuthShell({ title, description, children }: AuthShellProps) {
+  const [contactOpen, setContactOpen] = React.useState(false);
+
   return (
     <div className="flex min-h-dvh flex-col overflow-y-auto bg-muted-background lg:flex-row">
       <main className="flex flex-1 flex-col justify-start px-5 py-10 sm:px-8 lg:justify-center lg:px-14 xl:px-20">
@@ -71,15 +74,26 @@ export function AuthShell({ title, description, children }: AuthShellProps) {
                     <AppLogo width={24} height={24} className="size-6 object-contain" decoding="async" />
                     <span className="text-foreground text-sm font-semibold">Aperix AI</span>
                   </a>
-                  <a href="/about" className="text-muted-foreground shrink-0 text-sm hover:underline">
+                  <button
+                    type="button"
+                    className="text-muted-foreground shrink-0 text-sm hover:underline"
+                    onClick={() => setContactOpen(true)}
+                  >
                     联系我们
-                  </a>
+                  </button>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </aside>
+
+      <ContactQrDialog
+        open={contactOpen}
+        onOpenChange={setContactOpen}
+        title="联系我们"
+        description="微信扫码添加，我们会尽快与你联系"
+      />
     </div>
   );
 }

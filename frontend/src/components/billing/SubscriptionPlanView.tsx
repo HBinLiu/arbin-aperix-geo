@@ -11,22 +11,31 @@ import { createSubscriptionOrder } from "@/api/billing";
 import { fetchSamplingPlatforms } from "@/api/brand";
 import { formatApiError } from "@/api/client";
 import { ActionTooltip } from "@/components/common/ActionTooltip";
+import { PlanChangeConfirmDialog } from "@/components/billing/PlanChangeConfirmDialog";
 import { PayOrderDialog } from "@/components/billing/PayOrderDialog";
+import { ContactQrDialog } from "@/components/common/ContactQrDialog";
 import { PlatformLogo } from "@/components/brand/PlatformLogo";
 import { Button } from "@/components/ui/button";
 import { TextBadge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePlanCatalog } from "@/hooks/usePlanCatalog";
 import { useTenantSubscription } from "@/hooks/useTenantSubscription";
+import { formatBillingDate } from "@/lib/billing/format";
 import {
   PLAN_LIMIT_ICONS,
   isMatchingSubscriptionPlan,
   planCardLimits,
+  planChangeConfirmCopy,
+  planChangePayDescription,
   planDisplayPrice,
   planComparisonRows,
+  planSelectLabel,
+  resolvePlanChangeKind,
   resolvePlanCta,
   type BillingCycle,
   type PlanCatalogItem,
+  type PlanChangeConfirmCopy,
+  type PlanChangeKind,
 } from "@/lib/billing/plans";
 import { isSubscriptionActive } from "@/lib/billing/subscription";
 import { queryKeys, sessionCatalogQueryOptions } from "@/lib/queries";
@@ -148,6 +157,7 @@ function PlanCard({
   cycle,
   cta,
   onSelect,
+  onContact,
   selecting,
   highlightAsBound,
   selectLabel = "立即订阅",
@@ -156,6 +166,7 @@ function PlanCard({
   cycle: BillingCycle;
   cta: "current" | "select" | "contact";
   onSelect?: (plan: PlanCatalogItem, cycle: BillingCycle) => void;
+  onContact?: () => void;
   selecting?: boolean;
   /** 仍为租户绑定计划（含已到期，用于高亮与角标）。 */
   highlightAsBound?: boolean;
@@ -218,7 +229,11 @@ function PlanCard({
               当前订阅
             </Button>
           ) : cta === "contact" ? (
-            <Button type="button" className="h-11 w-full rounded-xl shadow-md shadow-primary/20 transition-shadow font-bold">
+            <Button
+              type="button"
+              className="h-11 w-full rounded-xl shadow-md shadow-primary/20 transition-shadow font-bold"
+              onClick={() => onContact?.()}
+            >
               联系销售
             </Button>
           ) : (
@@ -326,7 +341,18 @@ type SubscriptionPlanViewProps = {
 export function SubscriptionPlanView({ contentClassName, topSlot }: SubscriptionPlanViewProps) {
   const [cycleOverride, setCycleOverride] = useState<BillingCycle | null>(null);
   const [selectingPlan, setSelectingPlan] = useState<string | null>(null);
-  const [payOrder, setPayOrder] = useState<{ id: string; amount_cents: number } | null>(null);
+  const [pendingChange, setPendingChange] = useState<{
+    plan: PlanCatalogItem;
+    cycle: BillingCycle;
+    kind: "upgrade" | "downgrade";
+    copy: PlanChangeConfirmCopy;
+  } | null>(null);
+  const [payOrder, setPayOrder] = useState<{
+    id: string;
+    amount_cents: number;
+    changeKind: PlanChangeKind;
+  } | null>(null);
+  const [contactOpen, setContactOpen] = useState(false);
   const { data: catalog, isPending: catalogPending } = usePlanCatalog();
   const { data: subscription, isPending: subscriptionPending } = useTenantSubscription();
   const { data: platformCatalog = [], isPending: platformCatalogPending } = useQuery({
@@ -342,20 +368,56 @@ export function SubscriptionPlanView({ contentClassName, topSlot }: Subscription
   const currentBillingCycle = subscription?.billing_cycle ?? null;
   const subscriptionActive = isSubscriptionActive(subscription);
 
-  async function handleSelectPlan(plan: PlanCatalogItem, selectedCycle: BillingCycle) {
-    if (!plan.orderable) return;
+  async function createAndPay(plan: PlanCatalogItem, selectedCycle: BillingCycle, changeKind: PlanChangeKind) {
+    if (!plan.orderable) return false;
     setSelectingPlan(plan.code);
     try {
       const order = await createSubscriptionOrder({
         plan_code: plan.code,
         billing_cycle: selectedCycle,
       });
-      setPayOrder({ id: order.id, amount_cents: order.amount_cents });
+      setPayOrder({ id: order.id, amount_cents: order.amount_cents, changeKind });
+      return true;
     } catch (error) {
       toast.error(formatApiError(error, "创建订单失败"));
+      return false;
     } finally {
       setSelectingPlan(null);
     }
+  }
+
+  function handleSelectPlan(plan: PlanCatalogItem, selectedCycle: BillingCycle) {
+    if (!plan.orderable) return;
+    const kind = resolvePlanChangeKind(plans, currentPlanCode, plan.code, { subscriptionActive });
+    if (kind === "upgrade" || kind === "downgrade") {
+      const currentPlanName =
+        plans.find((item) => item.code === currentPlanCode)?.name ||
+        subscription?.plan_name ||
+        "当前计划";
+      const periodEndLabel = subscription?.current_period_end
+        ? formatBillingDate(subscription.current_period_end)
+        : "当前账期末";
+      setPendingChange({
+        plan,
+        cycle: selectedCycle,
+        kind,
+        copy: planChangeConfirmCopy({
+          kind,
+          targetPlanName: plan.name,
+          currentPlanName,
+          periodEndLabel,
+        }),
+      });
+      return;
+    }
+    void createAndPay(plan, selectedCycle, kind);
+  }
+
+  async function handleConfirmPlanChange() {
+    if (!pendingChange) return;
+    const { plan, cycle: selectedCycle, kind } = pendingChange;
+    const ok = await createAndPay(plan, selectedCycle, kind);
+    if (ok) setPendingChange(null);
   }
 
   return (
@@ -455,6 +517,9 @@ export function SubscriptionPlanView({ contentClassName, topSlot }: Subscription
                   currentBillingCycle,
                   cycle,
                 );
+                const changeKind = resolvePlanChangeKind(plans, currentPlanCode, plan.code, {
+                  subscriptionActive,
+                });
                 return (
                   <PlanCard
                     key={plan.code}
@@ -464,9 +529,12 @@ export function SubscriptionPlanView({ contentClassName, topSlot }: Subscription
                       subscriptionActive,
                     })}
                     onSelect={handleSelectPlan}
+                    onContact={() => setContactOpen(true)}
                     selecting={selectingPlan === plan.code}
                     highlightAsBound={!subscriptionActive && matching}
-                    selectLabel={!subscriptionActive && matching ? "立即续订" : "立即订阅"}
+                    selectLabel={planSelectLabel(changeKind, {
+                      matchingExpired: !subscriptionActive && matching,
+                    })}
                   />
                 );
               })}
@@ -474,6 +542,25 @@ export function SubscriptionPlanView({ contentClassName, topSlot }: Subscription
 
         {!isPending && plans.length > 0 ? <PlanComparisonTable plans={plans} /> : null}
       </div>
+
+      <PlanChangeConfirmDialog
+        open={pendingChange !== null}
+        copy={pendingChange?.copy ?? null}
+        submitting={selectingPlan !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingChange(null);
+        }}
+        onConfirm={() => {
+          void handleConfirmPlanChange();
+        }}
+      />
+
+      <ContactQrDialog
+        open={contactOpen}
+        onOpenChange={setContactOpen}
+        title="联系销售"
+        description="微信扫码添加销售顾问"
+      />
 
       <PayOrderDialog
         orderId={payOrder?.id ?? null}
@@ -483,7 +570,7 @@ export function SubscriptionPlanView({ contentClassName, topSlot }: Subscription
           if (!open) setPayOrder(null);
         }}
         title="订阅支付"
-        description="请使用微信扫一扫完成订阅支付，支付成功后计划将立即生效。"
+        description={planChangePayDescription(payOrder?.changeKind ?? "new")}
       />
     </div>
   );

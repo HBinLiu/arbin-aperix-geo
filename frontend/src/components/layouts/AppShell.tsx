@@ -4,21 +4,12 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Gem, QrCode } from "lucide-react";
 
-import { CUSTOMER_IMAGE } from "@/lib/assets/shell";
 import { fetchMe } from "@/api/auth";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogBody,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { AppLogo } from "@/components/common/AppLogo";
+import { ContactQrDialog } from "@/components/common/ContactQrDialog";
 import { Notification } from "@/components/layouts/Notification";
 import { UserMenu } from "@/components/layouts/UserMenu";
-import { AppLogo } from "@/components/common/AppLogo";
+import { Button } from "@/components/ui/button";
 import { dashboardNavToPath } from "@/lib/dashboard";
 import { queryKeys } from "@/lib/queries";
 
@@ -82,29 +73,12 @@ export function AppShell({ children, headerStart }: AppShellProps) {
         </div>
       </header>
 
-      <Dialog open={supportOpen} onOpenChange={setSupportOpen}>
-        <DialogContent className="max-w-xs">
-          <DialogBody className="space-y-4 pb-5">
-            <DialogHeader>
-              <div>
-                <DialogTitle>联系客服</DialogTitle>
-              </div>
-              <DialogClose />
-            </DialogHeader>
-            <div className="flex flex-col items-center gap-3">
-              <img
-                src={CUSTOMER_IMAGE}
-                alt="客服微信二维码"
-                width={220}
-                height={220}
-                className="size-[220px] rounded-lg object-contain"
-                decoding="async"
-              />
-              <DialogDescription className="mt-0 text-center">扫码添加客服微信</DialogDescription>
-            </div>
-          </DialogBody>
-        </DialogContent>
-      </Dialog>
+      <ContactQrDialog
+        open={supportOpen}
+        onOpenChange={setSupportOpen}
+        title="联系客服"
+        description="扫码添加客服微信"
+      />
 
       <main className="flex min-h-0 min-w-0 w-full flex-1 bg-sidebar px-2.5 pb-2.5 pt-0">{children}</main>
     </div>

@@ -75,6 +75,88 @@ export function resolvePlanCta(
   return "select";
 }
 
+/** Catalog is ordered by sort_order; use index to compare tiers. */
+export type PlanChangeKind = "upgrade" | "downgrade" | "renewal" | "new";
+
+export function resolvePlanChangeKind(
+  plans: PlanCatalogItem[],
+  currentPlanCode: string | null,
+  targetPlanCode: string,
+  options?: { subscriptionActive?: boolean },
+): PlanChangeKind {
+  if (!options?.subscriptionActive || !currentPlanCode) return "new";
+  if (currentPlanCode === targetPlanCode) return "renewal";
+  const currentIndex = plans.findIndex((item) => item.code === currentPlanCode);
+  const targetIndex = plans.findIndex((item) => item.code === targetPlanCode);
+  if (currentIndex < 0 || targetIndex < 0) return "new";
+  if (targetIndex > currentIndex) return "upgrade";
+  if (targetIndex < currentIndex) return "downgrade";
+  return "renewal";
+}
+
+export function planSelectLabel(
+  kind: PlanChangeKind,
+  options?: { matchingExpired?: boolean },
+): string {
+  if (options?.matchingExpired) return "立即续订";
+  switch (kind) {
+    case "upgrade":
+    case "downgrade":
+    case "renewal":
+      // 有效订阅下：换档位或同档换周期，统一「更换计划」
+      return "更换计划";
+    default:
+      return "立即订阅";
+  }
+}
+
+export type PlanChangeConfirmCopy = {
+  title: string;
+  points: string[];
+  confirmLabel: string;
+};
+
+export function planChangeConfirmCopy(input: {
+  kind: "upgrade" | "downgrade";
+  targetPlanName: string;
+  currentPlanName: string;
+  periodEndLabel: string;
+}): PlanChangeConfirmCopy {
+  if (input.kind === "upgrade") {
+    return {
+      title: `确认升级到${input.targetPlanName}？`,
+      points: [
+        `按${input.targetPlanName}价格全额支付，不退还当前计划剩余费用。`,
+        "支付成功后立即升级：额度上限按新版本生效，本周期已用次数保留。",
+        "当前账期将按本次购买的计费周期顺延。",
+      ],
+      confirmLabel: "确认升级",
+    };
+  }
+  return {
+    title: `确认降级到${input.targetPlanName}？`,
+    points: [
+      `按${input.targetPlanName}价格全额支付。`,
+      `支付后当期仍使用${input.currentPlanName}至 ${input.periodEndLabel}。`,
+      `${input.targetPlanName}将在账期结束后生效。`,
+    ],
+    confirmLabel: "确认降级",
+  };
+}
+
+export function planChangePayDescription(kind: PlanChangeKind): string {
+  switch (kind) {
+    case "upgrade":
+      return "请使用微信扫一扫完成支付。支付成功后将立即升级，额度上限按新版本生效。";
+    case "downgrade":
+      return "请使用微信扫一扫完成支付。支付后当期仍使用当前版本，新版本在账期结束后生效。";
+    case "renewal":
+      return "请使用微信扫一扫完成续订支付，支付成功后账期将顺延。";
+    default:
+      return "请使用微信扫一扫完成订阅支付，支付成功后计划将立即生效。";
+  }
+}
+
 /** 是否为租户上一次/当前绑定的计划与账期（含已到期）。 */
 export function isMatchingSubscriptionPlan(
   plan: PlanCatalogItem,

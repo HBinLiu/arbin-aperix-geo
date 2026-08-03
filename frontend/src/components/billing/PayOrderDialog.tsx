@@ -12,7 +12,6 @@ import {
   DialogClose,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -138,41 +137,44 @@ export function PayOrderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} closeDisabled={loading || simulating}>
-      <DialogContent className="max-w-sm" aria-labelledby="pay-order-dialog-title">
-        <DialogHeader>
-          <DialogTitle id="pay-order-dialog-title">{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
+      <DialogContent className="max-w-md" aria-labelledby="pay-order-dialog-title">
+        <DialogBody className="space-y-4 pb-5">
+          <DialogHeader>
+            <div className="min-w-0 flex-1 pr-2">
+              <DialogTitle id="pay-order-dialog-title">{title}</DialogTitle>
+              <DialogDescription>{description}</DialogDescription>
+            </div>
+            <DialogClose disabled={loading || simulating} />
+          </DialogHeader>
 
-        <DialogBody className="flex flex-col items-center gap-4 py-2">
-          <p className="text-2xl font-semibold tabular-nums">¥{yuan}</p>
+          <div className="flex flex-col items-center gap-5">
+            {loading ? (
+              <div className="flex h-64 items-center justify-center">
+                <Loader2 className="text-muted-foreground size-8 animate-spin" aria-hidden />
+                <span className="sr-only">正在生成支付二维码</span>
+              </div>
+            ) : error ? (
+              <p className="text-destructive text-center text-sm">{error}</p>
+            ) : devMode ? (
+              <div className="flex flex-col items-center gap-3 text-center">
+                <p className="text-muted-foreground text-sm">
+                  开发环境未配置微信支付，可使用模拟支付完成联调。
+                </p>
+                <Button type="button" disabled={simulating} onClick={handleSimulatePay}>
+                  {simulating ? "处理中…" : "模拟支付成功"}
+                </Button>
+              </div>
+            ) : codeUrl ? (
+              <div className="rounded-xl border bg-white p-4">
+                <QRCodeSVG value={codeUrl} size={240} level="M" includeMargin={false} />
+              </div>
+            ) : null}
 
-          {loading ? (
-            <div className="flex h-48 items-center justify-center">
-              <Loader2 className="text-muted-foreground size-8 animate-spin" aria-hidden />
-              <span className="sr-only">正在生成支付二维码</span>
-            </div>
-          ) : error ? (
-            <p className="text-destructive text-center text-sm">{error}</p>
-          ) : devMode ? (
-            <div className="flex flex-col items-center gap-3 text-center">
-              <p className="text-muted-foreground text-sm">
-                开发环境未配置微信支付，可使用模拟支付完成联调。
-              </p>
-              <Button type="button" disabled={simulating} onClick={handleSimulatePay}>
-                {simulating ? "处理中…" : "模拟支付成功"}
-              </Button>
-            </div>
-          ) : codeUrl ? (
-            <div className="rounded-xl border bg-white p-3">
-              <QRCodeSVG value={codeUrl} size={192} level="M" includeMargin={false} />
-            </div>
-          ) : null}
+            {!loading && !error ? (
+              <p className="text-3xl font-semibold tabular-nums">¥{yuan}</p>
+            ) : null}
+          </div>
         </DialogBody>
-
-        <DialogFooter>
-          <DialogClose disabled={loading || simulating} />
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
