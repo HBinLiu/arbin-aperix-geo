@@ -32,7 +32,7 @@ export const siteConfig = {
   siteVerification: {
     baidu: "codeva-gKYs7LQKFy",
     bytedance: "bYnnji8tNYRfDtWnJhM/",
-    sogou: "",
+    sogou: "4VJ7NXguYf",
     qihoo360: "",
     shenma: "",
   },
