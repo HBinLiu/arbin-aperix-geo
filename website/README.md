@@ -80,7 +80,7 @@ Sitemap 仅帮助爬虫发现 URL，不保证收录或排名。
 
 **头条/抖音自动收录：** 配置 `bytedancePushToken` 后，用户浏览页面时由官方 `ttzz/push.js` 提交当前 URL；与后台 Sitemap 提交互不冲突。站长后台仍需提交 `{origin}/sitemap.xml`。
 
-**搜狗：** 配置 `siteVerification.sogou`（或 `PUBLIC_SOGOU_SITE_VERIFICATION`）后输出验证 meta。无自动收录 JS、无公开服务端推送 API（不做 Payload hook）。站长后台完成验证后，有权限则提交 `{origin}/sitemap.xml`；新 URL 可用后台「链接提交」补推（日配额有限，常需验证码）。
+**搜狗：** 配置 `siteVerification.sogou`（或 `PUBLIC_SOGOU_SITE_VERIFICATION`）后输出验证 meta。也可将站长后台下载的 `sogousiteverification.txt` 放到 `website/public/`，部署后访问 `{origin}/sogousiteverification.txt`。无自动收录 JS、无公开服务端推送 API（不做 Payload hook）。有权限则提交 `{origin}/sitemap.xml`；新 URL 可用后台「链接提交」补推。
 
 ## 环境变量
 
