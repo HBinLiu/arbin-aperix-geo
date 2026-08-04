@@ -117,6 +117,7 @@ _PROFILE_SUBJECT_HOMEPAGE = frozenset(
         "brand_names",
         "content_type",
         "site_name",
+        "publisher",
         "speakable_text",
         "schema_types",
     },

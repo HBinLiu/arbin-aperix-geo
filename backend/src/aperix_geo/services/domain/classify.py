@@ -1,19 +1,33 @@
-"""Domain content-type classification (Shallalist codes via seed + heuristics)."""
+"""Domain content-type classification: seed → homepage SEO rules → DeepSeek."""
 
 from __future__ import annotations
 
+import logging
+from concurrent.futures import ThreadPoolExecutor
 from typing import Iterable
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from aperix_geo.db.models import DomainProfile
+from aperix_geo.services.crawl import page_crawl_settings
+from aperix_geo.services.crawl.seo import SeoMetadata, SeoProfile, seo_prose_text
+from aperix_geo.services.domain.type_rules import domain_type_from_homepage_seo
 from aperix_geo.services.domain.seeds import seed_domain_type
-from aperix_geo.services.domain.taxonomy import DEFAULT_DOMAIN_TYPE, normalize_domain_type
+from aperix_geo.services.domain.site_name import HomepageProfile, fetch_homepage_profile
+from aperix_geo.services.domain.taxonomy import DEFAULT_DOMAIN_TYPE, DOMAIN_TYPES, normalize_domain_type
+from aperix_geo.services.providers import LLMProviderError, chat_completion
+from aperix_geo.services.providers.prompts import (
+    domain_type_classify_system_prompt,
+    domain_type_classify_user_content,
+)
+from aperix_geo.utils.json import extract_json_object
 from aperix_geo.utils.net import registrable_from
 
-# Seed/heuristic hits are final. Pending rows use source=""; unresolved end as other.
-_RESOLVED_SOURCES = frozenset({"seed"})
+logger = logging.getLogger(__name__)
+
+# Final sources — do not re-enqueue for type classify
+_RESOLVED_SOURCES = frozenset({"seed", "homepage", "llm", "other"})
 
 
 def _normalize_domain(domain: str) -> str:
@@ -116,11 +130,61 @@ def remember_domain_site_names(db: Session, names: dict[str, str]) -> None:
             row.site_name = name
 
 
+def classify_domain_type_with_llm(*, domain: str, meta: SeoMetadata | None) -> str:
+    """DeepSeek closed-set classify; return normalized type or empty on failure."""
+    prose = ""
+    if meta is not None:
+        prose = seo_prose_text(meta, profile=SeoProfile.SUBJECT_HOMEPAGE, max_chars=1500)
+    messages = [
+        {"role": "system", "content": domain_type_classify_system_prompt(DOMAIN_TYPES)},
+        {
+            "role": "user",
+            "content": domain_type_classify_user_content(domain=domain, seo_prose=prose),
+        },
+    ]
+    try:
+        text, _, _ = chat_completion(messages, temperature=0.0, json_mode=True)
+        data = extract_json_object(text)
+        if not isinstance(data, dict):
+            return ""
+        raw = str(data.get("domain_type") or "").strip().lower()
+        if not raw:
+            return ""
+        normalized = normalize_domain_type(raw)
+        # Reject inventing codes that collapse to other unless model said other
+        if normalized == DEFAULT_DOMAIN_TYPE and raw != DEFAULT_DOMAIN_TYPE:
+            return ""
+        return normalized
+    except (LLMProviderError, TypeError, ValueError, KeyError) as exc:
+        logger.warning("domain_type LLM classify failed domain=%s err=%s", domain, exc)
+        return ""
+
+
 def classify_domains(db: Session, domains: Iterable[str]) -> dict[str, str]:
-    """Classify domains via seed map + TLD heuristics; unresolved → ``other``."""
+    """Classify via seed → homepage SEO rules → DeepSeek; unresolved → ``other``."""
     pending = ensure_domain_profiles(db, domains)
     if not pending:
         return domain_types_for(db, domains)
+
+    crawl = page_crawl_settings()
+    workers = max(1, min(len(pending), crawl.concurrency))
+
+    def run_one(host: str) -> HomepageProfile:
+        return fetch_homepage_profile(host)
+
+    profiles: dict[str, HomepageProfile] = {}
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for profile in pool.map(run_one, pending):
+            if profile.domain:
+                profiles[profile.domain] = profile
+
+    site_names = {
+        host: profile.site_name
+        for host, profile in profiles.items()
+        if profile.site_name
+    }
+    if site_names:
+        remember_domain_site_names(db, site_names)
 
     rows = {
         row.domain: row
@@ -130,6 +194,21 @@ def classify_domains(db: Session, domains: Iterable[str]) -> dict[str, str]:
         row = rows.get(domain)
         if row is None or _is_resolved(row):
             continue
+        profile = profiles.get(domain)
+        meta = profile.meta if profile else None
+
+        ruled = domain_type_from_homepage_seo(domain, meta)
+        if ruled:
+            row.domain_type = ruled
+            row.source = "homepage"
+            continue
+
+        llm_type = classify_domain_type_with_llm(domain=domain, meta=meta)
+        if llm_type:
+            row.domain_type = llm_type
+            row.source = "llm"
+            continue
+
         row.domain_type = DEFAULT_DOMAIN_TYPE
         row.source = "other"
 

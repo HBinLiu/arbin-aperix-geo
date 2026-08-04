@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from typing import Iterable
 
 from sqlalchemy import select
@@ -12,11 +13,20 @@ from sqlalchemy.orm import Session
 from aperix_geo.db.models import DomainProfile
 from aperix_geo.services.crawl import fetch_page, page_crawl_settings
 from aperix_geo.services.crawl.metadata import SeoProfile, extract_metadata_from_fetch
-from aperix_geo.services.crawl.seo import coalesce_site_name
+from aperix_geo.services.crawl.seo import SeoMetadata, coalesce_site_name
 from aperix_geo.services.crawl.settings import seo_fetch_max_chars
 from aperix_geo.utils.net import homepage_url_candidates, registrable_from
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class HomepageProfile:
+    """One homepage fetch: brand name + SEO signals for domain_type rules/LLM."""
+
+    domain: str
+    site_name: str
+    meta: SeoMetadata | None
 
 
 def _normalize_domain(domain: str) -> str:
@@ -26,15 +36,15 @@ def _normalize_domain(domain: str) -> str:
     return registrable_from(raw) or raw
 
 
-def fetch_site_name_from_homepage(domain: str) -> str:
-    """Visit ``https://www.{domain}/`` (and apex / http fallbacks); return site brand name."""
+def fetch_homepage_profile(domain: str) -> HomepageProfile:
+    """Visit homepage candidates; return site_name + SEO metadata from first successful fetch."""
     root = _normalize_domain(domain)
     if not root:
-        return ""
+        return HomepageProfile(domain="", site_name="", meta=None)
 
     urls = homepage_url_candidates(root, prefer_www=True, include_http=True)
     if not urls:
-        return ""
+        return HomepageProfile(domain=root, site_name="", meta=None)
 
     crawl = page_crawl_settings()
     max_chars = seo_fetch_max_chars(crawl)
@@ -67,8 +77,13 @@ def fetch_site_name_from_homepage(domain: str) -> str:
                 result.final_url or url,
                 name,
             )
-            return name[:255]
-    return ""
+        return HomepageProfile(domain=root, site_name=(name[:255] if name else ""), meta=parsed)
+    return HomepageProfile(domain=root, site_name="", meta=None)
+
+
+def fetch_site_name_from_homepage(domain: str) -> str:
+    """Visit ``https://www.{domain}/`` (and apex / http fallbacks); return site brand name."""
+    return fetch_homepage_profile(domain).site_name
 
 
 def domains_needing_homepage_site_name(db: Session, domains: Iterable[str]) -> list[str]:

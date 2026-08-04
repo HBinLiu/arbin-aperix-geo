@@ -692,7 +692,7 @@ class CitationDomain(Base):
 
 
 class DomainProfile(Base):
-    """Registrable domain content type (Shallalist code via seed/heuristic)."""
+    """Registrable domain content type (seed / homepage rules / LLM) + site_name."""
 
     __tablename__ = "tb_domain_profiles"
 

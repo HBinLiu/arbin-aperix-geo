@@ -10,7 +10,7 @@ from aperix_geo.services.domain.site_name import fill_domain_site_names_from_hom
 
 @celery_app.task(name="aperix_geo.tasks.domain.classify_domain_types", ignore_result=True)
 def classify_domain_types(domains: list[str]) -> dict[str, int]:
-    """Classify citation domains into Shallalist content types."""
+    """Classify citation domains (seed → homepage rules → LLM); also fills site_name when fetched."""
     db = SessionLocal()
     try:
         result = classify_domains(db, domains)
@@ -23,7 +23,7 @@ def classify_domain_types(domains: list[str]) -> dict[str, int]:
 
 @celery_app.task(name="aperix_geo.tasks.domain.resolve_domain_site_names", ignore_result=True)
 def resolve_domain_site_names(domains: list[str]) -> dict[str, int]:
-    """Fetch registrable-domain homepage and fill DomainProfile.site_name."""
+    """Fetch registrable-domain homepage and fill DomainProfile.site_name (type already resolved)."""
     db = SessionLocal()
     try:
         found = fill_domain_site_names_from_homepage(db, domains)

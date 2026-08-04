@@ -731,3 +731,41 @@ offers | serves | solves | differentiates_by | competes_with | used_in | part_of
 }"""
 
 KNOWLEDGE_GRAPH_EXTRACT_USER_SUFFIX = "请仅输出 JSON（nodes + edges）。"
+
+
+# =============================================================================
+# Domain · homepage domain_type（Shallalist 闭集；seed/规则未命中时 DeepSeek 兜底）
+# =============================================================================
+
+DOMAIN_TYPE_CLASSIFY_SYSTEM = """你是网站内容分类专家。根据给定域名与首页 SEO 摘要，判断该站点所属内容类型。
+
+# 约束
+1. 必须且仅输出合法 JSON：{{"domain_type":"<code>"}}
+2. domain_type 必须是下列英文 code 之一（小写），禁止其它值、禁止解释文字：
+{allowed_types}
+3. 依据首页定位判断「整个站点」类型，不要被单篇标题误导。
+4. 无法判断时输出 {{"domain_type":"other"}}。
+
+# 常见对照（辅助，仍须落在上表 code）
+- 新闻媒体/资讯门户 → news
+- 社交网络/内容社区 → socialnet
+- 论坛/贴吧 → forum
+- 电商购物 → shopping
+- 金融证券银行 → finance
+- 医疗健康医院 → hospitals
+- 政府政务 → government
+- 教育高校 → education
+- 求职招聘 → jobsearch
+- 搜索引擎 → searchengines
+- 科学/技术产品官网（偏研发工具）→ science
+"""
+
+
+def domain_type_classify_system_prompt(allowed_types: list[str] | tuple[str, ...] | frozenset[str]) -> str:
+    codes = ", ".join(sorted(allowed_types))
+    return DOMAIN_TYPE_CLASSIFY_SYSTEM.format(allowed_types=codes)
+
+
+def domain_type_classify_user_content(*, domain: str, seo_prose: str) -> str:
+    body = (seo_prose or "").strip() or "(无首页 SEO 摘要)"
+    return f"domain: {domain}\n\n{body}\n\n请输出 JSON：{{\"domain_type\":\"<code>\"}}"
