@@ -32,8 +32,8 @@ export const siteConfig = {
   siteVerification: {
     baidu: "codeva-gKYs7LQKFy",
     bytedance: "bYnnji8tNYRfDtWnJhM/",
-    sogou: "Y4AUPg7kDo",
     qihoo360: "c8daf2f7eaaf25291bf990f1ef2f7e22",
+    sogou: "Y4AUPg7kDo",
     shenma: "1c9f3523e3bfabe7db4fd8beba28ba76_1785849402",
   },
   /** 头条搜索站长 → 数据提交 → 自动收录；空则不注入脚本 */
