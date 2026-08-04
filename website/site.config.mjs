@@ -30,9 +30,9 @@ export const siteConfig = {
   /** 国内站长验证码；也可由 PUBLIC_*_SITE_VERIFICATION 环境变量覆盖 */
   siteVerification: {
     baidu: "codeva-gKYs7LQKFy",
+    bytedance: "bYnnji8tNYRfDtWnJhM/",
     sogou: "",
     qihoo360: "",
     shenma: "",
-    bytedance: "",
   },
 };
