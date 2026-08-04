@@ -16,6 +16,7 @@
  * @property {string} logo
  * @property {string} ogImage
  * @property {SiteVerification} [siteVerification]
+ * @property {string} [bytedancePushToken] 头条站长「自动收录」push.js? 后的 token；可由 PUBLIC_BYTEDANCE_PUSH_TOKEN 覆盖
  */
 
 /** 官网站点配置唯一来源（astro.config / src 均从此读取；品牌名占位符 `{{siteName}}` 见 src/lib/site.ts） */
@@ -35,4 +36,7 @@ export const siteConfig = {
     qihoo360: "",
     shenma: "",
   },
+  /** 头条搜索站长 → 数据提交 → 自动收录；空则不注入脚本 */
+  bytedancePushToken:
+    "1d3b4bb5953ca6e18e819105f6d6cc372f0d07542236f0ffeb20d5c8fc57a2fc3d72cd14f8a76432df3935ab77ec54f830517b3cb210f7fd334f50ccb772134a",
 };

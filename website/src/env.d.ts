@@ -18,6 +18,8 @@ interface ImportMetaEnv {
   readonly PUBLIC_SHENMA_SITE_VERIFICATION?: string;
   /** 头条/抖音搜索验证码 */
   readonly PUBLIC_BYTEDANCE_SITE_VERIFICATION?: string;
+  /** 头条站长「自动收录」push.js token（查询串或完整 URL） */
+  readonly PUBLIC_BYTEDANCE_PUSH_TOKEN?: string;
 }
 
 interface ImportMeta {

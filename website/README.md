@@ -17,6 +17,7 @@ npm run dev
 - **产品 API**：`BACKEND_API_URL` 直连 FastAPI `:8000`
 - **控制台 CTA**：`PUBLIC_LOGIN_URL` / `PUBLIC_REGISTER_URL` 本地指向 `http://127.0.0.1:5173/auth/login`；生产指向 `https://app.aperix.cn/auth/login`
 - **国内站长验证**（可选）：在站长后台选「HTML 标签验证」后，把 code 写入 `.env`（如 `PUBLIC_BAIDU_SITE_VERIFICATION`）或 `site.config.mjs` 的 `siteVerification`；空值不输出
+- **头条自动收录**（可选）：站长后台「数据提交 → 自动收录」的 `push.js?` token，写入 `site.config.mjs` 的 `bytedancePushToken` 或 `PUBLIC_BYTEDANCE_PUSH_TOKEN`；注入全站 `<head>`（`noindex` 页除外）
 
 建议同时启动：
 
@@ -76,6 +77,8 @@ Sitemap: {origin}/sitemap.xml
 Sitemap 仅帮助爬虫发现 URL，不保证收录或排名。
 
 **百度 API 主动推送：** CMS 详情在 Payload 发布时自动推；营销页在官网部署后于 `payload` 执行 `npm run baidu:push-static`（读线上 `/sitemap.xml`）。详见 `payload/README.md`。
+
+**头条/抖音自动收录：** 配置 `bytedancePushToken` 后，用户浏览页面时由官方 `ttzz/push.js` 提交当前 URL；与后台 Sitemap 提交互不冲突。站长后台仍需提交 `{origin}/sitemap.xml`。
 
 ## 环境变量
 

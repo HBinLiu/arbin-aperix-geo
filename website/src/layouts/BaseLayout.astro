@@ -3,7 +3,10 @@ import "../styles/global.css";
 import { APERIX_FAVICON_ICO } from "@shared/aperix";
 import { cmsMetaToPageSeo, mergePageSeo, resolvePageMeta, type PageSeo } from "@/lib/seo";
 import { getPageSeoByPath } from "@/lib/payload";
-import { getSiteVerificationMetas } from "@/lib/site-verification";
+import {
+  getBytedanceAutoIncludeSrc,
+  getSiteVerificationMetas,
+} from "@/lib/site-verification";
 import { siteConfig } from "@site";
 
 type Props = {
@@ -27,6 +30,11 @@ if (cmsPageSeo?.noindex) {
 const site = Astro.site ?? Astro.url;
 const meta = resolvePageMeta(effectiveSeo, site, Astro.url.pathname);
 const siteVerifications = getSiteVerificationMetas();
+/** noindex 页不推头条自动收录 */
+const bytedancePushSrc = effectiveSeo.noindex ? null : getBytedanceAutoIncludeSrc();
+const bytedancePushInline = bytedancePushSrc
+  ? `(function(){var el=document.createElement("script");el.src=${JSON.stringify(bytedancePushSrc)};el.id="ttzz";var s=document.getElementsByTagName("script")[0];s.parentNode.insertBefore(el,s);})(window)`
+  : "";
 ---
 
 <!doctype html>
@@ -88,6 +96,7 @@ const siteVerifications = getSiteVerificationMetas();
         <script type="application/ld+json" set:html={JSON.stringify(item)} />
       ))
     }
+    {bytedancePushSrc && <script is:inline set:html={bytedancePushInline} />}
   </head>
   <body class="bg-background text-foreground flex min-h-svh flex-col">
     <slot />
