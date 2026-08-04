@@ -9,7 +9,11 @@ from publicsuffix2 import PublicSuffixList
 from validators import domain as validators_domain
 
 _TITLE_SEP_RE = re.compile(r"[\s|｜\-—_/·]+")
+# 站点名推导用「强分隔符」，避免把 "Aperix AI" 拆成单词
+_SITE_TITLE_SEP_RE = re.compile(r"\s*[|｜_/·]+\s*|\s+[—\-]\s+")
 _CJK_RE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]")
+# 与 crawl.seo.MAX_SITE_NAME_LEN 对齐：标题分段里可接受的品牌侧长度
+_SITE_NAME_PART_MAX = 20
 _TITLE_ALIAS_SEP_RE = re.compile(r"[\s|｜\-—_/·+:：]+")
 _LATIN_ALIAS_BLOCKLIST = frozenset(
     {
@@ -220,24 +224,63 @@ def title_alias_candidates(title: str, *, domain: str, brand: str) -> list[str]:
 
 
 def site_name_from_title(title: str, *, domain: str) -> str:
+    """Derive a brand-like site name from a document title.
+
+    Prefer the shorter brand side of ``文章标题 | 站点名`` / ``站点名 | 副标题``.
+    """
     text = title.strip()
     if text:
-        parts = _TITLE_SEP_RE.split(text)
-        for part in parts:
-            part = part.strip()
-            if not part:
-                continue
+        raw_parts = [p.strip() for p in _SITE_TITLE_SEP_RE.split(text) if p.strip()]
+
+        def _clean_part(part: str) -> str:
+            cleaned = part
+            for noise in _TITLE_NOISE:
+                cleaned = cleaned.replace(noise, "").strip()
+            return cleaned.strip(":：;；,.，。").strip()
+
+        parts = [_clean_part(p) for p in raw_parts]
+        parts = [p for p in parts if p]
+
+        if len(parts) >= 2:
+            first, last = parts[0], parts[-1]
+            # 「长文章标题 | 品牌」→ 较短尾部；「品牌 | 副标题」→ 较短头部
+            if len(last) <= _SITE_NAME_PART_MAX and len(last) < len(first):
+                return last[:_SITE_NAME_PART_MAX]
+            # 中文长标题 + 英文品牌（长度接近时）
+            if (
+                len(last) <= _SITE_NAME_PART_MAX
+                and len(first) >= 8
+                and _CJK_RE.search(first)
+                and not _CJK_RE.search(last)
+            ):
+                return last[:_SITE_NAME_PART_MAX]
+            if len(first) <= _SITE_NAME_PART_MAX:
+                return first[:_SITE_NAME_PART_MAX]
+            shorter = last if len(last) <= len(first) else first
+            if len(shorter) <= _SITE_NAME_PART_MAX:
+                return shorter[:_SITE_NAME_PART_MAX]
+
+        if len(parts) == 1:
+            part = parts[0]
+            for sep in (":", "："):
+                if sep in part:
+                    left = _clean_part(part.split(sep, 1)[0])
+                    if left and len(left) <= _SITE_NAME_PART_MAX:
+                        part = left
+                        break
             if _CJK_RE.search(part):
-                cleaned = part
-                for noise in _TITLE_NOISE:
-                    cleaned = cleaned.replace(noise, "").strip()
-                if cleaned:
-                    return cleaned[:60]
-        text = parts[0].strip() if parts else text
-        for noise in _TITLE_NOISE:
-            text = text.replace(noise, "").strip()
-        if text and len(text) <= 60:
-            return text
+                return part[:_SITE_NAME_PART_MAX] if len(part) <= _SITE_NAME_PART_MAX else ""
+            # 多词英文更像描述，不当作站点名
+            if " " in part and len(part) > 16:
+                pass
+            elif part and len(part) <= _SITE_NAME_PART_MAX:
+                return part
+
+        for part in parts:
+            if _CJK_RE.search(part) and len(part) <= _SITE_NAME_PART_MAX:
+                return part
+        if parts and len(parts[0]) <= _SITE_NAME_PART_MAX and " " not in parts[0]:
+            return parts[0]
 
     fallback = brand_fallback(domain)
     return fallback or normalize_host(domain)

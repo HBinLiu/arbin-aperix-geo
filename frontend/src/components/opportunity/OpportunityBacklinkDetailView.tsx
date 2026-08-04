@@ -87,14 +87,9 @@ export function OpportunityBacklinkDetailView({
           {isLoading ? (
             <Skeleton className="h-5 w-32" />
           ) : (
-            <div className="min-w-0">
-              <span className="block truncate font-semibold">
-                {data?.site_name?.trim() || domain}
-              </span>
-              {data?.site_name?.trim() ? (
-                <span className="text-muted-foreground block truncate text-xs">{domain}</span>
-              ) : null}
-            </div>
+            <span className="block truncate font-semibold">
+              {data?.site_name?.trim() || domain}
+            </span>
           )}
         </InfoField>
         <InfoField label="类型">

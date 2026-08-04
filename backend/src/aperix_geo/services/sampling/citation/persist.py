@@ -137,29 +137,15 @@ def replace_citations_for_response(
         from aperix_geo.services.domain.classify import (
             ensure_domain_profiles,
             maybe_enqueue_domain_type_classify,
-            remember_domain_site_names,
         )
 
         pending = ensure_domain_profiles(db, domain_counts.keys())
         if pending:
             maybe_enqueue_domain_type_classify(pending)
 
-        site_names: dict[str, str] = {}
-        for row in url_rows:
-            domain = str(row.get("domain") or "").strip()
-            if not domain or domain in site_names:
-                continue
-            name = str(row.get("site_name") or "").strip()
-            if not name:
-                from aperix_geo.services.crawl.seo import coalesce_site_name
+        # site_name 必须来自主域首页，不用文章页 meta（易变成页面标题）
+        from aperix_geo.services.domain.site_name import maybe_enqueue_domain_site_name
 
-                name = coalesce_site_name(
-                    title=str(row.get("page_title") or ""),
-                    domain=domain,
-                )
-            if name:
-                site_names[domain] = name
-        if site_names:
-            remember_domain_site_names(db, site_names)
+        maybe_enqueue_domain_site_name(domain_counts.keys())
 
     return len(url_rows)

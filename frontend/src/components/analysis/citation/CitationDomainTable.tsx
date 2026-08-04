@@ -191,11 +191,6 @@ export function CitationDomainTable({
                         >
                           {row.site_name?.trim() || row.domain}
                         </span>
-                        {row.site_name?.trim() ? (
-                          <span className="text-muted-foreground block truncate text-xs" title={row.domain}>
-                            {row.domain}
-                          </span>
-                        ) : null}
                       </div>
                     </div>
                   </td>

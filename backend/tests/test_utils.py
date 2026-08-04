@@ -250,6 +250,15 @@ def test_site_name_from_title_chinese() -> None:
     assert site_name_from_title("万里汇 | 跨境支付平台", domain="wise.com") == "万里汇"
 
 
+def test_site_name_from_title_prefers_trailing_brand() -> None:
+    assert site_name_from_title("如何做好跨境支付选型指南 | 万里汇", domain="wise.com") == "万里汇"
+    assert site_name_from_title("GEO 实践手册 - Aperix AI", domain="aperix.cn") == "Aperix AI"
+    assert (
+        site_name_from_title("乌龙散装-乌龙散装促销价格、乌龙散装品牌 - 淘宝", domain="taobao.com")
+        == "淘宝"
+    )
+
+
 def test_site_name_from_title_empty_falls_back_to_domain() -> None:
     assert site_name_from_title("", domain="wise.com") == "wise.com"
     assert site_name_from_title("", domain="business.wise.com") == "wise.com"

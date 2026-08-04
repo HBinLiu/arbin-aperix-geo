@@ -36,6 +36,9 @@ _SITE_NAME_NOISE = frozenset(
     },
 )
 
+# 站点品牌名上限；更长几乎都是页面标题而非 site_name
+MAX_SITE_NAME_LEN = 20
+
 _HEAD_SEO_STRAINER = SoupStrainer(["title", "meta", "link"])
 _JSON_LD_TYPE = re.compile(r"application/ld\+json", re.I)
 _SCRIPT_STRAINER = SoupStrainer("script")
@@ -257,7 +260,27 @@ def usable_site_name(raw: str) -> str:
         return ""
     if text.startswith("@"):
         return ""
+    # 过长更像文章标题，不像站点品牌
+    if len(text) > MAX_SITE_NAME_LEN:
+        return ""
     return text
+
+
+def _looks_like_page_title(candidate: str, title: str) -> bool:
+    """True when candidate is the page headline rather than the site brand."""
+    c = candidate.strip()
+    t = title.strip()
+    if not c or not t:
+        return False
+    if c.casefold() == t.casefold():
+        return True
+    # 「候选 == 标题去掉品牌后缀后的主体」
+    for sep in ("|", "｜", "-", "—", "_", "/"):
+        if sep in t:
+            head = t.split(sep, 1)[0].strip()
+            if head and c.casefold() == head.casefold() and len(c) >= 8:
+                return True
+    return False
 
 
 def coalesce_site_name(
@@ -271,15 +294,16 @@ def coalesce_site_name(
     """Pick a display site name from SEO signals (meta → publisher → crumb → title).
 
     Does not fall back to the bare domain — callers/UI already show domain when empty.
+    Rejects candidates that duplicate the page title (common on article pages).
     """
     for candidate in (site_name, publisher):
         cleaned = usable_site_name(candidate)
-        if cleaned:
+        if cleaned and not _looks_like_page_title(cleaned, title):
             return cleaned
 
     for crumb in breadcrumbs[:3]:
         cleaned = usable_site_name(str(crumb or ""))
-        if cleaned:
+        if cleaned and not _looks_like_page_title(cleaned, title):
             return cleaned
 
     host = (domain or "").strip().lower()
@@ -288,6 +312,8 @@ def coalesce_site_name(
 
         derived = usable_site_name(site_name_from_title(title, domain=host))
         if not derived:
+            return ""
+        if _looks_like_page_title(derived, title):
             return ""
         domain_like = {
             normalize_host(host).casefold(),
@@ -716,6 +742,7 @@ def _merge_seo(*parts: SeoMetadata) -> SeoMetadata:
         site_name=site_name,
         publisher=publisher,
         breadcrumbs=breadcrumbs,
+        title=title,
     )
 
     return SeoMetadata(
@@ -834,21 +861,20 @@ def parse_seo_from_html(
     micro = _extract_microdata(html) if include_microdata else SeoMetadata()
     result = _merge_seo(head, ld, micro)
 
-    # Title-derived name when meta/JSON-LD are empty (needs host from base_url).
-    if not result.site_name and base_url:
+    # 用 title/domain 再聚合一次：丢掉「等于文章标题」的假 site_name，并补标题推导的品牌名
+    if base_url or result.title:
         from aperix_geo.utils.net import registrable_from
 
-        host = registrable_from(base_url) or ""
-        if host:
-            filled = coalesce_site_name(
-                site_name=result.site_name,
-                publisher=result.publisher,
-                breadcrumbs=result.breadcrumbs,
-                title=result.title,
-                domain=host,
-            )
-            if filled and filled != result.site_name:
-                result = replace(result, site_name=filled)
+        host = registrable_from(base_url) if base_url else ""
+        filled = coalesce_site_name(
+            site_name=result.site_name,
+            publisher=result.publisher,
+            breadcrumbs=result.breadcrumbs,
+            title=result.title,
+            domain=host or "",
+        )
+        if filled != result.site_name:
+            result = replace(result, site_name=filled)
 
     _PARSE_CACHE[key] = result
     if len(_PARSE_CACHE) > _PARSE_CACHE_MAX:

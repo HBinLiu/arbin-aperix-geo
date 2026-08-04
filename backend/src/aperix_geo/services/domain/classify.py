@@ -88,7 +88,7 @@ def domain_site_names_for(db: Session, domains: Iterable[str]) -> dict[str, str]
 
 
 def remember_domain_site_names(db: Session, names: dict[str, str]) -> None:
-    """Fill empty DomainProfile.site_name from citation page signals (no overwrite)."""
+    """Write DomainProfile.site_name (fill empty; allow correcting headline-like values)."""
     cleaned: dict[str, str] = {}
     for raw_domain, raw_name in names.items():
         domain = _normalize_domain(raw_domain)
@@ -105,9 +105,15 @@ def remember_domain_site_names(db: Session, names: dict[str, str]) -> None:
     }
     for domain, name in cleaned.items():
         row = rows.get(domain)
-        if row is None or str(row.site_name or "").strip():
+        if row is None:
             continue
-        row.site_name = name
+        existing = str(row.site_name or "").strip()
+        if not existing:
+            row.site_name = name
+            continue
+        # 已有值像文章标题（偏长），首页品牌名更短时允许纠正
+        if len(existing) > 20 and len(name) <= 20 and len(name) < len(existing):
+            row.site_name = name
 
 
 def classify_domains(db: Session, domains: Iterable[str]) -> dict[str, str]:

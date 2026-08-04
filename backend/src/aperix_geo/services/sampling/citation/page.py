@@ -150,18 +150,16 @@ def _citation_meta_from_fetch(
         seo_profile=SeoProfile.CITATION,
     )
     meta.title = parsed.title
-    meta.site_name = str(parsed.site_name or "").strip()
-    # Belt-and-suspenders: profile/cache may omit coalesced name; re-resolve cheaply.
-    if not meta.site_name:
-        from aperix_geo.services.crawl.seo import coalesce_site_name
+    # 始终用 title 再聚合：文章页常把 og:site_name / application-name 写成页面标题
+    from aperix_geo.services.crawl.seo import coalesce_site_name
 
-        meta.site_name = coalesce_site_name(
-            site_name=parsed.site_name,
-            publisher=parsed.publisher,
-            breadcrumbs=parsed.breadcrumbs,
-            title=parsed.title,
-            domain=domain,
-        )
+    meta.site_name = coalesce_site_name(
+        site_name=str(parsed.site_name or "").strip(),
+        publisher=str(parsed.publisher or "").strip(),
+        breadcrumbs=list(parsed.breadcrumbs or []),
+        title=parsed.title,
+        domain=domain,
+    )
     meta.description = parsed.description
     meta.headings = list(parsed.headings)
     meta.has_table = parsed.has_table

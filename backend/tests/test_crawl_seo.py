@@ -151,12 +151,59 @@ def test_parse_seo_site_name_from_title_with_base_url() -> None:
     assert seo.site_name == "万里汇"
 
 
-def test_coalesce_site_name_skips_domain_and_noise() -> None:
+def test_usable_site_name_rejects_long_strings() -> None:
+    from aperix_geo.services.crawl.seo import MAX_SITE_NAME_LEN, usable_site_name
+
+    assert usable_site_name("万里汇") == "万里汇"
+    assert usable_site_name("Aperix AI") == "Aperix AI"
+    assert usable_site_name("x" * (MAX_SITE_NAME_LEN + 1)) == ""
     from aperix_geo.services.crawl.seo import coalesce_site_name
 
     assert coalesce_site_name(site_name="首页", publisher="Acme") == "Acme"
     assert coalesce_site_name(title="wise.com", domain="wise.com") == ""
     assert coalesce_site_name(breadcrumbs=["Home", "Products", "Pay"]) == "Products"
+
+
+def test_coalesce_site_name_rejects_page_title_as_site_name() -> None:
+    from aperix_geo.services.crawl.seo import coalesce_site_name
+
+    title = "如何做好跨境支付选型指南"
+    assert (
+        coalesce_site_name(
+            site_name=title,
+            publisher="万里汇",
+            title=title,
+            domain="wise.com",
+        )
+        == "万里汇"
+    )
+    assert (
+        coalesce_site_name(
+            site_name=title,
+            title=f"{title} | 万里汇",
+            domain="wise.com",
+        )
+        == "万里汇"
+    )
+
+
+def test_parse_seo_rejects_og_site_name_equal_to_title() -> None:
+    html = """
+    <head>
+    <title>深度报道：市场观察</title>
+    <meta property="og:site_name" content="深度报道：市场观察" />
+    <meta property="og:type" content="article" />
+    </head>
+    <script type="application/ld+json">
+    {
+      "@type": "NewsArticle",
+      "headline": "深度报道：市场观察",
+      "publisher": {"@type": "Organization", "name": "第一财经"}
+    }
+    </script>
+    """
+    seo = parse_seo_from_html(html, base_url="https://www.yicai.com/news/1.html")
+    assert seo.site_name == "第一财经"
 
 
 def test_parse_seo_faq_page() -> None:

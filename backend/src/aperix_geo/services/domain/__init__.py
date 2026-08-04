@@ -9,6 +9,8 @@ __all__ = [
     "domain_site_names_for",
     "domain_types_for",
     "ensure_domain_profiles",
+    "fill_domain_site_names_from_homepage",
+    "maybe_enqueue_domain_site_name",
     "maybe_enqueue_domain_type_classify",
     "normalize_domain_type",
     "remember_domain_site_names",
@@ -27,4 +29,11 @@ def __getattr__(name: str):
         from aperix_geo.services.domain import classify as _classify
 
         return getattr(_classify, name)
+    if name in {
+        "fill_domain_site_names_from_homepage",
+        "maybe_enqueue_domain_site_name",
+    }:
+        from aperix_geo.services.domain import site_name as _site_name
+
+        return getattr(_site_name, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

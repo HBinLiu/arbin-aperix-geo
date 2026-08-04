@@ -31,9 +31,8 @@ export function OpportunityBacklinkHeader({ domain }: OpportunityBacklinkHeaderP
       </Link>
       <ChevronRight className="text-muted-foreground size-4 shrink-0" aria-hidden />
       <FaviconImage url={faviconUrlFromHost(domain)} size={20} className="size-5 shrink-0 rounded-sm" />
-      <span className="min-w-0 truncate font-semibold" title={siteName ? `${siteName} (${domain})` : domain}>
+      <span className="min-w-0 truncate font-semibold" title={displayName}>
         {displayName}
-        {siteName ? <span className="text-muted-foreground ml-1.5 font-normal">{domain}</span> : null}
       </span>
       <a
         href={externalUrl}

@@ -260,11 +260,6 @@ export function OpportunityBacklinkTable({
                       >
                         {row.siteName || row.domain}
                       </span>
-                      {row.siteName ? (
-                        <span className="text-muted-foreground block truncate text-xs" title={row.domain}>
-                          {row.domain}
-                        </span>
-                      ) : null}
                     </div>
                   </div>
                 </td>
