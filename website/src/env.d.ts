@@ -16,8 +16,6 @@ interface ImportMetaEnv {
   readonly PUBLIC_BYTEDANCE_SITE_VERIFICATION?: string;
   /** Bing Webmaster 验证码 */
   readonly PUBLIC_BING_SITE_VERIFICATION?: string;
-  /** Google Search Console 验证码 */
-  readonly PUBLIC_GOOGLE_SITE_VERIFICATION?: string;
   /** 头条站长「自动收录」push.js token（查询串或完整 URL） */
   readonly PUBLIC_BYTEDANCE_PUSH_TOKEN?: string;
 }

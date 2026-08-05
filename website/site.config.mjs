@@ -4,7 +4,6 @@
  * @property {string} [qihoo360] 360 站长 `360-site-verification`
  * @property {string} [bytedance] 头条/抖音搜索 `bytedance-verification-code`
  * @property {string} [bing] Bing Webmaster `msvalidate.01`
- * @property {string} [google] Google Search Console `google-site-verification`
  */
 
 /**
@@ -35,7 +34,6 @@ export const siteConfig = {
     bytedance: "bYnnji8tNYRfDtWnJhM/",
     qihoo360: "c8daf2f7eaaf25291bf990f1ef2f7e22",
     bing: "6ECCC6ED13B693A9DFD72DB00F57756A",
-    google: "vL6PMgcfFC0PUPVL1IvtsyB3hFVQ4lpageYtsSituUQ",
   },
   /** 头条搜索站长 → 数据提交 → 自动收录；空则不注入脚本 */
   bytedancePushToken:
