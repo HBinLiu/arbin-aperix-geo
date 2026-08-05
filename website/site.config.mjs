@@ -1,9 +1,7 @@
 /**
  * @typedef {Object} SiteVerification
  * @property {string} [baidu] 百度站长 `baidu-site-verification`
- * @property {string} [sogou] 搜狗站长 `sogou_site_verification`
  * @property {string} [qihoo360] 360 站长 `360-site-verification`
- * @property {string} [shenma] 神马搜索 `shenma-site-verification`
  * @property {string} [bytedance] 头条/抖音搜索 `bytedance-verification-code`
  */
 
@@ -33,8 +31,6 @@ export const siteConfig = {
     baidu: "codeva-gKYs7LQKFy",
     bytedance: "bYnnji8tNYRfDtWnJhM/",
     qihoo360: "c8daf2f7eaaf25291bf990f1ef2f7e22",
-    sogou: "GzqlHHREtg",
-    shenma: "1c9f3523e3bfabe7db4fd8beba28ba76_1785892881",
   },
   /** 头条搜索站长 → 数据提交 → 自动收录；空则不注入脚本 */
   bytedancePushToken:

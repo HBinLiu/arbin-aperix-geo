@@ -5,16 +5,14 @@ export type SiteVerificationMeta = {
   content: string;
 };
 
-type VerificationKey = "baidu" | "sogou" | "qihoo360" | "shenma" | "bytedance";
+type VerificationKey = "baidu" | "qihoo360" | "bytedance";
 
 const VERIFICATION_META: Record<
   VerificationKey,
   { name: string; env: keyof ImportMetaEnv }
 > = {
   baidu: { name: "baidu-site-verification", env: "PUBLIC_BAIDU_SITE_VERIFICATION" },
-  sogou: { name: "sogou_site_verification", env: "PUBLIC_SOGOU_SITE_VERIFICATION" },
   qihoo360: { name: "360-site-verification", env: "PUBLIC_360_SITE_VERIFICATION" },
-  shenma: { name: "shenma-site-verification", env: "PUBLIC_SHENMA_SITE_VERIFICATION" },
   bytedance: {
     name: "bytedance-verification-code",
     env: "PUBLIC_BYTEDANCE_SITE_VERIFICATION",
