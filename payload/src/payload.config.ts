@@ -22,7 +22,8 @@ import { defaultLexicalEditor } from "./lib/lexical/default";
 import { createEmailAdapter } from "./lib/email";
 import { contactEndpoint, contactOptionsEndpoint } from "./endpoints/contact";
 import { previewUrlEndpoint } from "./endpoints/preview-url";
-import { baiduPushEndpoint } from "./endpoints/baidu-push";
+import { baiduPushEndpoint } from "./push/baidu";
+import { indexNowPushEndpoint } from "./push/indexnow";
 import { getPayloadServerUrl, getWebsiteUrl } from "./lib/urls";
 import { ADMIN_DATE_TIME_FORMAT } from "./lib/admin";
 import { seo } from "./plugins/seo";
@@ -65,7 +66,13 @@ export default buildConfig({
   globals: [AboutPage],
   editor: defaultLexicalEditor,
   email: createEmailAdapter(),
-  endpoints: [contactEndpoint, contactOptionsEndpoint, previewUrlEndpoint, baiduPushEndpoint],
+  endpoints: [
+    contactEndpoint,
+    contactOptionsEndpoint,
+    previewUrlEndpoint,
+    baiduPushEndpoint,
+    indexNowPushEndpoint,
+  ],
   secret: process.env.PAYLOAD_SECRET || "",
   typescript: {
     outputFile: path.resolve(dirname, "payload-types.ts"),

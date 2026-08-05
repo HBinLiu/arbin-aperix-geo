@@ -7,14 +7,11 @@
  *
  * 会显式加载 `.env` / `.env.production`（`payload run` 默认不读 production 文件）。
  */
-import { loadEnvFiles } from "../lib/loadEnvFiles";
-import {
-  collectAllSitemapUrls,
-  collectStaticSitemapUrls,
-  pushUrlListToBaidu,
-} from "../lib/baiduPushSitemap";
-import { isBaiduPushEnabled } from "../lib/baiduPush";
-import { getWebsiteUrl } from "../lib/urls";
+import { loadEnvFiles } from "../../lib/loadEnvFiles";
+import { getWebsiteUrl } from "../../lib/urls";
+import { collectAllSitemapUrls, collectStaticSitemapUrls } from "../sitemap";
+import { pushUrlListToBaidu } from "./batch";
+import { isBaiduPushEnabled } from "./client";
 
 loadEnvFiles();
 

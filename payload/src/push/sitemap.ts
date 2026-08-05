@@ -1,7 +1,4 @@
-import { getWebsiteUrl } from "./urls";
-import { pushUrlsToBaidu, type BaiduPushResult } from "./baiduPush";
-
-const BATCH_SIZE = 2000;
+import { getWebsiteUrl } from "../lib/urls";
 
 /** 与 website CMS 栏目路径前缀对齐 */
 const CMS_PATH_PREFIXES = [
@@ -62,31 +59,4 @@ export async function collectAllSitemapUrls(
   websiteBase = getWebsiteUrl(),
 ): Promise<string[]> {
   return fetchUnifiedSitemapLocs(websiteBase);
-}
-
-export type BaiduSitemapPushSummary = {
-  collected: number;
-  batches: number;
-  results: BaiduPushResult[];
-  ok: boolean;
-};
-
-/** 按百度单次上限分批推送 */
-export async function pushUrlListToBaidu(urls: string[]): Promise<BaiduSitemapPushSummary> {
-  const unique = [...new Set(urls.map((u) => u.trim()).filter(Boolean))];
-  const results: BaiduPushResult[] = [];
-  let batches = 0;
-
-  for (let i = 0; i < unique.length; i += BATCH_SIZE) {
-    batches += 1;
-    const chunk = unique.slice(i, i + BATCH_SIZE);
-    results.push(await pushUrlsToBaidu(chunk));
-  }
-
-  return {
-    collected: unique.length,
-    batches,
-    results,
-    ok: results.length > 0 && results.every((r) => r.ok),
-  };
 }

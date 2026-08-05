@@ -100,3 +100,31 @@ curl -X POST 'https://www.aperix.cn/cms/api/baidu-push' \
 ```
 
 日志前缀 `[baidu-push]`；日配额以站长平台「剩余额度」为准。站长后台提交 `{origin}/sitemap.xml` 即可。
+
+## IndexNow 推送（Bing 等）
+
+配置 `INDEXNOW_KEY`（须与官网 `site.config.mjs` 的 `indexNowKey`、以及 `website/public/{key}.txt` 一致）后：
+
+1. **CMS 内容自动**：与百度相同集合，在首次发布或改 slug 时异步推送（需 `PUBLIC_WEBSITE_URL` 为 `https://`）。
+2. **官网营销页**：部署后从线上 `/sitemap.xml` 拉取并推送。
+
+```bash
+# 生产（容器内）
+docker exec -it aperix-payload npm run indexnow:push-static
+docker exec -it aperix-payload npm run indexnow:push-all
+
+# 本地
+npm run indexnow:push-static
+npm run indexnow:push-all
+```
+
+或已登录 CMS 后：
+
+```bash
+curl -X POST 'https://www.aperix.cn/cms/api/indexnow-push' \
+  -H 'Content-Type: application/json' \
+  -H 'Cookie: <admin-session>' \
+  -d '{"sitemap":"static"}'
+```
+
+日志前缀 `[indexnow]`。先部署官网 key 文件再推送；HTTP 202 表示已接收、key 校验可能仍在进行。

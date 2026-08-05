@@ -5,7 +5,7 @@ export type SiteVerificationMeta = {
   content: string;
 };
 
-type VerificationKey = "baidu" | "qihoo360" | "bytedance";
+type VerificationKey = "baidu" | "qihoo360" | "bytedance" | "bing" | "google";
 
 const VERIFICATION_META: Record<
   VerificationKey,
@@ -17,6 +17,8 @@ const VERIFICATION_META: Record<
     name: "bytedance-verification-code",
     env: "PUBLIC_BYTEDANCE_SITE_VERIFICATION",
   },
+  bing: { name: "msvalidate.01", env: "PUBLIC_BING_SITE_VERIFICATION" },
+  google: { name: "google-site-verification", env: "PUBLIC_GOOGLE_SITE_VERIFICATION" },
 };
 
 /** 头条搜索站长 · 自动收录 push.js */

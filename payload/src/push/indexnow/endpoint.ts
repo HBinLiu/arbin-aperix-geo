@@ -1,14 +1,13 @@
 import type { Endpoint } from "payload";
 
-import { pushUrlsToBaidu, isBaiduPushEnabled } from "../lib/baiduPush";
-import {
-  collectAllSitemapUrls,
-  collectStaticSitemapUrls,
-  pushUrlListToBaidu,
-} from "../lib/baiduPushSitemap";
+import { collectAllSitemapUrls, collectStaticSitemapUrls } from "../sitemap";
+import { pushUrlListToIndexNow } from "./batch";
+import { pushUrlsToIndexNow, isIndexNowPushEnabled } from "./client";
+
+const INDEXNOW_MAX_REQUEST = 10_000;
 
 /**
- * POST /cms/api/baidu-push
+ * POST /cms/api/indexnow-push
  *
  * Body 任选其一：
  * - `{ "urls": ["https://…"] }` 手动指定
@@ -17,18 +16,15 @@ import {
  *
  * 需已登录 CMS。
  */
-export const baiduPushEndpoint: Endpoint = {
-  path: "/baidu-push",
+export const indexNowPushEndpoint: Endpoint = {
+  path: "/indexnow-push",
   method: "post",
   handler: async (req) => {
     if (!req.user) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (!isBaiduPushEnabled()) {
-      return Response.json(
-        { error: "百度推送未配置（BAIDU_PUSH_SITE / BAIDU_PUSH_TOKEN）" },
-        { status: 503 },
-      );
+    if (!isIndexNowPushEnabled()) {
+      return Response.json({ error: "IndexNow 未配置（INDEXNOW_KEY）" }, { status: 503 });
     }
 
     let body: unknown;
@@ -50,7 +46,7 @@ export const baiduPushEndpoint: Endpoint = {
           { status: 502 },
         );
       }
-      const summary = await pushUrlListToBaidu(urls);
+      const summary = await pushUrlListToIndexNow(urls);
       return Response.json(summary, { status: summary.ok ? 200 : 502 });
     }
 
@@ -64,11 +60,14 @@ export const baiduPushEndpoint: Endpoint = {
         { status: 400 },
       );
     }
-    if (urls.length > 2000) {
-      return Response.json({ error: "单次最多 2000 条 URL" }, { status: 400 });
+    if (urls.length > INDEXNOW_MAX_REQUEST) {
+      return Response.json(
+        { error: `单次最多 ${INDEXNOW_MAX_REQUEST} 条 URL` },
+        { status: 400 },
+      );
     }
 
-    const result = await pushUrlsToBaidu(urls);
+    const result = await pushUrlsToIndexNow(urls);
     return Response.json(result, { status: result.ok ? 200 : 502 });
   },
 };

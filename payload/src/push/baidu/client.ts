@@ -45,7 +45,6 @@ function siteCandidates(): string[] {
   if (!raw) return [];
   const host = raw.replace(/^https?:\/\//i, "");
   const withHttps = host.startsWith("http") ? host : `https://${host}`;
-  // 后台示例常见两种：带 https:// 或纯主机名
   return [...new Set([raw, withHttps, host].filter(Boolean))];
 }
 
@@ -60,7 +59,6 @@ function postBaiduUrls(path: string, body: string): Promise<{ status: number; ra
         headers: {
           "Content-Type": "text/plain",
           "Content-Length": Buffer.byteLength(body, "utf8"),
-          // 部分示例带 User-Agent: curl
           "User-Agent": "curl/7.12.1",
         },
       },
@@ -148,7 +146,6 @@ export async function pushUrlsToBaidu(urls: string[]): Promise<BaiduPushResult> 
       last = parseBaiduResult(status, raw);
       if (last.ok) return last;
       if (String(last.message || "").includes("site init fail")) {
-        // 换 site 格式再试
         continue;
       }
       return last;

@@ -80,6 +80,8 @@ Sitemap 仅帮助爬虫发现 URL，不保证收录或排名。
 
 **头条/抖音自动收录：** 配置 `bytedancePushToken` 后，用户浏览页面时由官方 `ttzz/push.js` 提交当前 URL；与后台 Sitemap 提交互不冲突。站长后台仍需提交 `{origin}/sitemap.xml`。
 
+**IndexNow：** `site.config.mjs` 的 `indexNowKey` + `website/public/{key}.txt`。CMS 发布时自动推；营销页部署后于 `payload` 执行 `npm run indexnow:push-static`。详见 `payload/README.md`。
+
 ## 环境变量
 
 | 变量 | 说明 |
