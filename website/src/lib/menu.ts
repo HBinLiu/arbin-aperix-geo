@@ -110,6 +110,7 @@ export const platformMenuSections: PlatformMenuSection[] = [
 ];
 
 export const defaultHeaderLinks: PlatformNavLink[] = [
+  { label: "服务", href: "/services/geo-website/" },
   { label: "定价", href: "/pricing" },
   { label: "关于我们", href: "/about" },
 ];

@@ -10,6 +10,7 @@ import {
   singlePageAuditFaqDefaults,
   llmsTxtGeneratorFaqDefaults,
   hotPromptFinderFaqDefaults,
+  geoWebsiteFaqDefaults,
   teamSolutionFaqDefaultsBySlug,
   sceneFaqDefaultsBySlug,
 } from "@shared/faq/defaults";
@@ -73,6 +74,11 @@ export const faqSeedGroups: FaqSeedGroup[] = [
     page: FAQ_PAGE.hotPromptFinder,
     label: FAQ_PAGE_LABEL_BY_VALUE[FAQ_PAGE.hotPromptFinder],
     items: hotPromptFinderFaqDefaults,
+  },
+  {
+    page: FAQ_PAGE.geoWebsite,
+    label: FAQ_PAGE_LABEL_BY_VALUE[FAQ_PAGE.geoWebsite],
+    items: geoWebsiteFaqDefaults,
   },
   ...MONITOR_FAQ_SLUGS.map((slug) => {
     const page = monitorFaqPage(slug);

@@ -101,9 +101,9 @@ export const footerColumnRows: FooterColumn[][] = [
       links: [
         { label: "关于我们", href: "/about" },
         { label: "联系我们", href: "/contact" },
+        { label: "官网定制", href: "/services/geo-website/" },
         { label: "定价方案", href: "/pricing" },
-        { label: "开始试用", href: appLinks.register },
-        { label: "登录", href: appLinks.login },
+        { label: "注册试用", href: appLinks.register },
       ],
     },
   ],

@@ -120,6 +120,7 @@ export function getMarketingSitemapPaths(): string[] {
     "/free-tools/hot-prompt-finder/",
     "/free-tools/llms-txt-generator/",
     "/free-tools/single-page-audit/",
+    "/services/geo-website/",
   ];
 
   const monitors = getAllMonitorPages().map((page) =>

@@ -10,6 +10,7 @@ export const FAQ_PAGE = {
   singlePageAudit: "free-tools/single-page-audit",
   llmsTxtGenerator: "free-tools/llms-txt-generator",
   hotPromptFinder: "free-tools/hot-prompt-finder",
+  geoWebsite: "services/geo-website",
 } as const;
 
 export const TEAM_SOLUTION_SLUGS = [
@@ -79,6 +80,7 @@ export const FAQ_PAGE_OPTIONS = [
   { label: "单页审计", value: FAQ_PAGE.singlePageAudit },
   { label: "LLMs.txt 生成器", value: FAQ_PAGE.llmsTxtGenerator },
   { label: "热门提示词发现器", value: FAQ_PAGE.hotPromptFinder },
+  { label: "官网定制服务", value: FAQ_PAGE.geoWebsite },
   { label: "豆包监测", value: monitorFaqPage("we-monitor-doubao") },
   { label: "DeepSeek 监测", value: monitorFaqPage("we-monitor-deepseek") },
   { label: "通义千问监测", value: monitorFaqPage("we-monitor-qwen") },

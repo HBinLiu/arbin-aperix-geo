@@ -18,6 +18,7 @@ export const defaultPageSeoEntries: CmsPageSeoSeedEntry[] = [
   toCmsPageSeoSeed(CORE_PAGE_SEO.singlePageAudit),
   toCmsPageSeoSeed(CORE_PAGE_SEO.llmsTxtGenerator),
   toCmsPageSeoSeed(CORE_PAGE_SEO.hotPromptFinder),
+  toCmsPageSeoSeed(CORE_PAGE_SEO.geoWebsite),
   ...Object.values(PLATFORM_PAGE_SEO).map(toCmsPageSeoSeed),
   ...Object.values(SOLUTION_TEAM_SEO).map(toCmsPageSeoSeed),
   ...Object.values(MONITOR_PAGE_SEO).map(toCmsPageSeoSeed),

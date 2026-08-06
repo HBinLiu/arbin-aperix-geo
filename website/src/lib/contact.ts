@@ -81,7 +81,7 @@ export const contactPage = resolveSiteCopyDeep({
   titleBefore: "获取",
   titleHighlight: "演示",
   description:
-    "了解 {{siteName}} 如何帮助您的品牌在 AI 搜索中获得可见性和信任。预约与我们团队的个性化演示。",
+    "了解 {{siteName}} 如何帮助您的品牌在 AI 搜索中获得可见性和信任。也可咨询 GEO 时代官网定制与改造。",
   benefits: [
     {
       icon: "clock" as const,
@@ -90,13 +90,13 @@ export const contactPage = resolveSiteCopyDeep({
     },
     {
       icon: "messages" as const,
-      title: "品牌专家指导",
-      description: "我们的 GEO 专家解答您所有问题。",
+      title: "免费品牌审计",
+      description: "查看您当前的 AI 可见性评分。",
     },
     {
       icon: "scan" as const,
-      title: "免费品牌审计",
-      description: "查看您当前的 AI 可见性评分。",
+      title: "官网定制服务",
+      description: "建设可被 AI 引用的品牌官网，了解服务详情。",
     },
   ] satisfies ContactBenefit[],
   qr: {
@@ -104,7 +104,7 @@ export const contactPage = resolveSiteCopyDeep({
     description: "添加顾问，快速沟通演示安排。",
   },
   form: {
-    title: "预约您的演示",
+    title: "填写您的需求",
     nameLabel: "姓名",
     namePlaceholder: "输入您的姓名",
     nameError: "请输入姓名",
@@ -118,9 +118,9 @@ export const contactPage = resolveSiteCopyDeep({
     companyPlaceholder: "您的公司名称",
     companyError: "请输入公司名称",
     messageLabel: "您希望通过 GEO 实现什么目标？",
-    messagePlaceholder: "告诉我们您的目标...",
+    messagePlaceholder: "例如：预约产品演示、咨询 GEO 官网定制、了解竞品可见性…",
     messageMaxLength: 300,
-    submitLabel: "请求演示",
+    submitLabel: "提交需求",
     submittingLabel: "正在提交...",
     submitError: "提交失败，请稍后再试。",
     footerNote: "我们将在 24 小时内回复。",

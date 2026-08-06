@@ -268,6 +268,9 @@ export const llmsTxtGeneratorSeo = toPageSeo(CORE_PAGE_SEO.llmsTxtGenerator);
 /** 免费工具 · 热门提示词发现器 */
 export const hotPromptFinderSeo = toPageSeo(CORE_PAGE_SEO.hotPromptFinder);
 
+/** 服务 · GEO 官网定制 */
+export const geoWebsiteSeo = toPageSeo(CORE_PAGE_SEO.geoWebsite);
+
 /** 研究报告详情 */
 export function researchDetailSeo(report: { title: string; description: string; slug: string }) {
   return {

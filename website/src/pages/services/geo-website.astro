@@ -1,0 +1,18 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import GeoWebsitePage from "@/components/services/GeoWebsitePage.astro";
+import { mergeGeoWebsiteFaqs } from "@/lib/services/geo-website";
+import { buildFaqPageJsonLd } from "@/lib/json-ld";
+import { getFaqsByPage } from "@/lib/payload";
+import { geoWebsiteSeo } from "@/lib/seo";
+import { FAQ_PAGE } from "@shared/faq/pages";
+import "@/styles/style.css";
+import "@/styles/services/geo-website.css";
+
+const faqs = mergeGeoWebsiteFaqs(await getFaqsByPage(FAQ_PAGE.geoWebsite));
+const jsonLd = [buildFaqPageJsonLd(faqs)];
+---
+
+<BaseLayout seo={geoWebsiteSeo} jsonLd={jsonLd}>
+  <GeoWebsitePage faqs={faqs} />
+</BaseLayout>

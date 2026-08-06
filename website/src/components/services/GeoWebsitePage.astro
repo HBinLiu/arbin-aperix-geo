@@ -1,0 +1,200 @@
+---
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import CtaSection from "@/components/home/CtaSection.astro";
+import FaqSection from "@/components/home/FaqSection.astro";
+import { HERO_GRID } from "@/lib/assets";
+import { geoWebsiteCta, geoWebsitePage } from "@/lib/services/geo-website";
+import type { Faq } from "@/lib/faqs";
+import { BookOpen, FilePenLine, Layers, Link2, Quote, Search, SearchCheck, Sparkles, Globe, Wrench } from "@lucide/astro";
+
+type Props = {
+  faqs: Faq[];
+};
+
+const { faqs } = Astro.props;
+const eraIcons = [Globe, Search, Sparkles] as const;
+const eraTones = ["portal", "seo", "geo"] as const;
+
+const eraSections = geoWebsitePage.eras.columns.map((col, index) => ({
+  ...col,
+  tone: eraTones[index] ?? "portal",
+  Icon: eraIcons[index] ?? Globe,
+  items: [
+    { label: "官网角色", value: col.role },
+    { label: "主要受众", value: col.audience },
+    { label: "成功标准", value: col.success },
+  ],
+}));
+
+const whyIcons = [Quote, Search, BookOpen, Link2] as const;
+const whyPoints = geoWebsitePage.why.points.map((point, index) => ({
+  ...point,
+  number: String(index + 1).padStart(2, "0"),
+  Icon: whyIcons[index] ?? Quote,
+}));
+
+const offerIcons = [Layers, SearchCheck, FilePenLine, Wrench] as const;
+const offerItems = geoWebsitePage.offer.items.map((item, index) => ({
+  ...item,
+  Icon: offerIcons[index] ?? Layers,
+}));
+---
+
+<SiteHeader />
+
+<main class="geo-web-page flex flex-1 flex-col">
+  <section class="geo-web-hero hero relative py-20 sm:py-32 lg:py-[180px]">
+    <div class="hero-perspective pointer-events-none absolute inset-0" aria-hidden="true">
+      <div class="hero-perspective-top">
+        <div class="hero-perspective-bg hero-perspective-fade"></div>
+        <div
+          class="hero-perspective-grid hero-perspective-fade"
+          style={`background-image: url(${HERO_GRID.url})`}
+        ></div>
+      </div>
+      <div class="hero-perspective-bottom">
+        <div class="hero-perspective-bg hero-perspective-fade"></div>
+        <div
+          class="hero-perspective-grid hero-perspective-fade"
+          style={`background-image: url(${HERO_GRID.url})`}
+        ></div>
+      </div>
+    </div>
+
+    <div class="geo-web-inner geo-web-hero-inner">
+      <div class="geo-web-hero-content">
+        <h1 class="geo-web-hero-title">{geoWebsitePage.hero.title}</h1>
+        <p class="geo-web-hero-desc">
+          {
+            geoWebsitePage.hero.descriptionLines.map((line, index) => (
+              <>
+                {index > 0 && <br />}
+                {line}
+              </>
+            ))
+          }
+        </p>
+        <div class="geo-web-hero-actions">
+          <a href={geoWebsitePage.hero.primaryCtaHref} class="btn btn-primary">
+            {geoWebsitePage.hero.primaryCtaLabel}
+          </a>
+          <a href={geoWebsitePage.hero.secondaryCtaHref} class="btn btn-ghost">
+            {geoWebsitePage.hero.secondaryCtaLabel}
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="geo-web-section" aria-labelledby="geo-web-eras-title">
+    <div class="geo-web-inner">
+      <h2 id="geo-web-eras-title" class="geo-web-section-title geo-web-section-title--center">{geoWebsitePage.eras.title}</h2>
+      <div class="geo-web-eras" aria-label="官网角色时代演进">
+        {
+          eraSections.map((section) => {
+            const EraIcon = section.Icon;
+            return (
+              <article class={`geo-web-era geo-web-era--${section.tone}`}>
+                <div class="geo-web-era-head">
+                  <h3 class="geo-web-era-title">
+                    <span class={`geo-web-era-badge geo-web-era-badge--${section.tone}`} aria-hidden="true">
+                      <EraIcon size={16} />
+                    </span>
+                    {section.era}
+                  </h3>
+                </div>
+                <div class="geo-web-era-body">
+                  <ul class="geo-web-era-list">
+                    {section.items.map((item) => (
+                      <li class="geo-web-era-item">
+                        <span
+                          class={`geo-web-era-item-icon geo-web-era-item-icon--${section.tone}`}
+                          aria-hidden="true"
+                        >
+                          <EraIcon size={16} />
+                        </span>
+                        <span class="geo-web-era-item-copy">
+                          <span class="geo-web-era-item-label">{item.label}</span>
+                          <span class="geo-web-era-item-value">{item.value}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </article>
+            );
+          })
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="geo-web-section" aria-labelledby="geo-web-why-title">
+    <div class="geo-web-inner">
+      <div class="geo-web-section-intro">
+        <h2 id="geo-web-why-title" class="geo-web-section-title geo-web-section-title--center">{geoWebsitePage.why.title}</h2>
+        <p class="geo-web-section-desc geo-web-section-desc--center">
+          {
+            geoWebsitePage.why.descriptionLines.map((line, index) => (
+              <>
+                {index > 0 && <br />}
+                {line}
+              </>
+            ))
+          }
+        </p>
+      </div>
+      <div class="geo-web-why-grid">
+        {
+          whyPoints.map((point) => {
+            const WhyIcon = point.Icon;
+            return (
+              <article class="geo-web-why-card">
+                <span class="geo-web-why-number" aria-hidden="true">{point.number}</span>
+                <div class="geo-web-why-icon" aria-hidden="true">
+                  <WhyIcon size={20} />
+                </div>
+                <h3 class="geo-web-why-title">{point.title}</h3>
+                <p class="geo-web-why-text">{point.description}</p>
+              </article>
+            );
+          })
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="geo-web-section" aria-labelledby="geo-web-offer-title">
+    <div class="geo-web-inner">
+      <div class="geo-web-section-intro">
+        <h2 id="geo-web-offer-title" class="geo-web-section-title geo-web-section-title--center">{geoWebsitePage.offer.title}</h2>
+        <p class="geo-web-section-desc geo-web-section-desc--center">{geoWebsitePage.offer.description}</p>
+      </div>
+      <div class="geo-web-offer-grid">
+        {
+          offerItems.map((item) => {
+            const OfferIcon = item.Icon;
+            return (
+              <article class="geo-web-offer-card">
+                <div class="geo-web-offer-icon" aria-hidden="true">
+                  <OfferIcon size={20} />
+                </div>
+                <div class="geo-web-offer-copy">
+                  <h3 class="geo-web-offer-title">{item.title}</h3>
+                  <p class="geo-web-offer-text">{item.description}</p>
+                </div>
+              </article>
+            );
+          })
+        }
+      </div>
+    </div>
+  </section>
+
+  <FaqSection title="常见问题" items={faqs} />
+
+  <CtaSection {...geoWebsiteCta} />
+</main>
+
+<SiteFooter />

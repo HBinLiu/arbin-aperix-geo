@@ -788,3 +788,60 @@ export const hotPromptFinderFaqDefaults: FaqDefault[] = [
   },
 ];
 
+export const geoWebsiteFaqDefaults: FaqDefault[] = [
+  {
+    question: "GEO 官网定制和普通建站有什么区别？",
+    answerHtml: faqBody({
+      paragraphs: [
+        "普通建站更关注视觉、转化漏斗和 SEO 排名。GEO 官网定制在此之上，额外优化「可被 AI 引用」的能力：清晰的信息架构、可核验的事实陈述、结构化数据、llms.txt，以及对回答引擎友好的内容模型。",
+        "目标不只是让人看得懂，也要让模型能准确抽取并引用你的品牌信息。",
+      ],
+    }),
+  },
+  {
+    question: "已有官网还能做 GEO 改造吗？",
+    answerHtml: faqBody({
+      paragraphs: [
+        "可以。多数项目从现有站点诊断开始：哪些页面可被引用、哪些实体信息缺失、技术抓取与结构化数据是否到位。",
+        "然后按优先级改造信息架构、关键页面文案与技术基础，不一定需要推倒重来。",
+      ],
+    }),
+  },
+  {
+    question: "做完官网就能出现在 AI 回答里吗？",
+    answerHtml: faqBody({
+      paragraphs: [
+        "官网是「可引用材料」的底座，但出现在回答里还取决于模型训练与检索信号、竞品内容、第三方提及等。",
+        "定制官网提高被正确理解与引用的概率；持续监测能告诉你是否被提到、被如何描述。两者配合才形成 GEO 闭环。",
+      ],
+    }),
+  },
+  {
+    question: "和 {{siteName}} 监测产品是什么关系？",
+    answerHtml: faqBody({
+      paragraphs: [
+        "官网定制解决「模型有没有像样的官方材料可引」；{{siteName}} 监测解决「各 AI 平台有没有提到你、引用了谁、竞品占位如何」。",
+        "可以只做官网服务，也可以上线后接监测持续看效果。",
+      ],
+    }),
+  },
+  {
+    question: "交付周期大概多久？",
+    answerHtml: faqBody({
+      paragraphs: [
+        "视改造范围而定。常见的信息架构与关键页改造可在数周内推进；全新官网从诊断、设计到上线通常按项目阶段排期。",
+        "咨询时我们会根据站点现状与目标给出更具体的里程碑。",
+      ],
+    }),
+  },
+  {
+    question: "如何开始合作？",
+    answerHtml: faqBody({
+      paragraphs: [
+        "通过联系页预约沟通，说明品牌、现有官网与希望被 AI 如何描述你。",
+        "我们会先对齐目标与范围，再给出改造或全新定制建议。",
+      ],
+    }),
+  },
+];
+

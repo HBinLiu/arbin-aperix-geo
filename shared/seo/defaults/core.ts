@@ -97,4 +97,12 @@ export const CORE_PAGE_SEO = {
       "输入品牌域名和核心业务线，识别与你业务相关的 AI 搜索问题与内容机会。",
     keywords: "热门提示词,Prompt发现,AI搜索问题,免费GEO工具,{{siteName}},艾佩睿思",
   },
+  geoWebsite: {
+    label: "官网定制服务",
+    path: "/services/geo-website/",
+    titleTopic: "GEO 官网定制 - 建设可被 AI 引用的品牌官网",
+    description:
+      "门户与 SEO 之后，官网成为 AI 回答的权威来源。{{siteName}} 提供面向 GEO 的定制官网建设与改造，让品牌被人读懂、被模型信任。",
+    keywords: "GEO官网,定制官网,生成式引擎优化,AI可见性,官网建设,{{siteName}},艾佩睿思",
+  },
 } as const satisfies Record<string, PageSeoDefault>;

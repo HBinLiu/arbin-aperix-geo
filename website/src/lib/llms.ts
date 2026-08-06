@@ -18,6 +18,7 @@ import {
   platformPromptSeo,
   platformTopicSeo,
   pricingSeo,
+  geoWebsiteSeo,
 } from "@/lib/seo";
 import { MONITOR_SLUGS } from "@/lib/platform/monitor";
 import type { PlatformId } from "@shared/platform";
@@ -104,6 +105,11 @@ export function buildLlmsTxt(site: URL, faqs: Faq[] = homeFaqs): string {
     { path: "/pricing", label: "定价", description: pricingSeo.description },
     { path: "/about", label: "关于我们", description: aboutSeo.description },
     { path: "/contact", label: "联系我们", description: contactSeo.description },
+    {
+      path: "/services/geo-website",
+      label: "官网定制服务",
+      description: geoWebsiteSeo.description,
+    },
     { path: "/research", label: "研究", description: researchSeo.description },
     { path: "/news", label: "新闻", description: newsSeo.description },
     { path: "/blog", label: "博客", description: blogSeo.description },
