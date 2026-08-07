@@ -18,7 +18,7 @@ export type ServicePoint = {
 
 export const geoWebsitePage = resolveSiteCopyDeep({
   hero: {
-    title: "GEO 时代，官网仍是品牌最重要的可引用源",
+    title: "GEO 时代，官网仍是品牌重要的可引用源",
     descriptionLines: [
       "搜索从「排名列表」变成「模型回答」。官网要同时被人读懂、被模型信任。",
       "我们提供面向 GEO 的官网定制与改造服务。",
@@ -98,7 +98,7 @@ export const geoWebsitePage = resolveSiteCopyDeep({
       },
       {
         title: "改造或全新定制",
-        description: "支持现有站 GEO 改造，或全新官网从 0 到 1 交付，对接你的转化与运营流程。",
+        description: "支持现有站 GEO 改造，或全新官网定制，对接你的转化与运营流程。",
       },
     ] satisfies ServicePoint[],
   },
