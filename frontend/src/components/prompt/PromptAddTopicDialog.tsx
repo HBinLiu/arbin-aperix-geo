@@ -11,6 +11,7 @@ import {
 
 type PromptAddTopicDialogProps = {
   open: boolean;
+  mode?: "create" | "edit";
   name: string;
   onNameChange: (value: string) => void;
   submitting?: boolean;
@@ -19,15 +20,19 @@ type PromptAddTopicDialogProps = {
 };
 
 function PromptAddTopicDialogFooter({
+  mode,
   submitting,
   canSubmit,
   onSubmit,
 }: {
+  mode: "create" | "edit";
   submitting: boolean;
   canSubmit: boolean;
   onSubmit: () => void;
 }) {
   const { requestClose } = useDialog();
+  const submitLabel =
+    mode === "edit" ? (submitting ? "保存中…" : "保存") : submitting ? "添加中…" : "添加主题";
 
   return (
     <DialogFooter>
@@ -35,15 +40,16 @@ function PromptAddTopicDialogFooter({
         取消
       </Button>
       <Button type="button" disabled={submitting || !canSubmit} onClick={onSubmit}>
-        {submitting ? "添加中…" : "添加主题"}
+        {submitLabel}
       </Button>
     </DialogFooter>
   );
 }
 
-/** 提示词管理 · 添加主题对话框 */
+/** 提示词管理 · 添加 / 编辑主题对话框 */
 export function PromptAddTopicDialog({
   open,
+  mode = "create",
   name,
   onNameChange,
   submitting = false,
@@ -51,12 +57,13 @@ export function PromptAddTopicDialog({
   onSubmit,
 }: PromptAddTopicDialogProps) {
   const canSubmit = Boolean(name.trim());
+  const title = mode === "edit" ? "编辑主题" : "添加主题";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} closeDisabled={submitting}>
       <DialogContent className="max-w-lg" aria-labelledby="prompt-add-topic-dialog-title">
         <div className="flex items-center justify-between px-5 pt-5 pb-2">
-          <DialogTitle id="prompt-add-topic-dialog-title">添加主题</DialogTitle>
+          <DialogTitle id="prompt-add-topic-dialog-title">{title}</DialogTitle>
           <DialogClose />
         </div>
 
@@ -77,6 +84,7 @@ export function PromptAddTopicDialog({
         </div>
 
         <PromptAddTopicDialogFooter
+          mode={mode}
           submitting={submitting}
           canSubmit={canSubmit}
           onSubmit={onSubmit}

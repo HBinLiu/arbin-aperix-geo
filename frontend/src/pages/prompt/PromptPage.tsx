@@ -25,22 +25,34 @@ import type { GeneratedPromptItem } from "@/types";
 
 type DialogMode =
   | { type: "add-topic" }
+  | { type: "edit-topic"; topicId: string }
   | { type: "add-prompt" }
   | { type: "edit-prompt"; row: PromptTableRow };
 
 type DeleteConfirmState =
   | { type: "single"; row: PromptTableRow }
-  | { type: "batch"; count: number };
+  | { type: "batch"; count: number }
+  | { type: "topic"; topicId: string; topicName: string; promptCount: number };
 
 function truncatePromptText(text: string, max = 24): string {
   return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+function deleteConfirmTitle(state: DeleteConfirmState): string {
+  return state.type === "topic" ? "删除主题" : "删除提示词";
 }
 
 function deleteConfirmDescription(state: DeleteConfirmState): string {
   if (state.type === "single") {
     return `确定删除「${truncatePromptText(state.row.text)}」吗？此操作不可撤销。`;
   }
-  return `确定删除选中的 ${state.count} 条提示词吗？此操作不可撤销。`;
+  if (state.type === "batch") {
+    return `确定删除选中的 ${state.count} 条提示词吗？此操作不可撤销。`;
+  }
+  if (state.promptCount > 0) {
+    return `确定删除主题「${state.topicName}」吗？其下 ${state.promptCount} 条提示词也会一并删除，此操作不可撤销。`;
+  }
+  return `确定删除主题「${state.topicName}」吗？此操作不可撤销。`;
 }
 
 /** 提示词管理页 */
@@ -52,6 +64,8 @@ export function PromptContent() {
     isLoading,
     isMutating,
     createTopic,
+    updateTopic,
+    removeTopic,
     createPrompt,
     updatePrompt,
     removePrompt,
@@ -66,6 +80,7 @@ export function PromptContent() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [dialog, setDialog] = useState<DialogMode | null>(null);
   const [topicName, setTopicName] = useState("");
+  const [topicFormMode, setTopicFormMode] = useState<"create" | "edit">("create");
   const [promptText, setPromptText] = useState("");
   const [promptTopicId, setPromptTopicId] = useState("");
   const [promptFunnelStage, setPromptFunnelStage] = useState(taxonomy.default_funnel_stage);
@@ -124,7 +139,24 @@ export function PromptContent() {
 
   const openAddTopic = () => {
     setTopicName("");
+    setTopicFormMode("create");
     setDialog({ type: "add-topic" });
+  };
+
+  const openEditTopic = (topic: (typeof topics)[number]) => {
+    setTopicName(topic.name);
+    setTopicFormMode("edit");
+    setDialog({ type: "edit-topic", topicId: topic.id });
+  };
+
+  const openDeleteTopic = (topic: (typeof topics)[number]) => {
+    const promptCount = prompts.filter((prompt) => prompt.topic_id === topic.id).length;
+    setDeleteConfirm({
+      type: "topic",
+      topicId: topic.id,
+      topicName: topic.name,
+      promptCount,
+    });
   };
 
   const openAddPrompt = () => {
@@ -157,7 +189,7 @@ export function PromptContent() {
     if (!isMutating) setDialog(null);
   };
 
-  const handleAddTopic = async () => {
+  const handleSaveTopic = async () => {
     const name = topicName.trim();
     if (!name) {
       toast.error("请填写主题名称。");
@@ -165,8 +197,14 @@ export function PromptContent() {
     }
 
     try {
-      await createTopic.mutateAsync({ name });
-      toast.success("主题已添加。");
+      if (topicFormMode === "edit") {
+        if (dialog?.type !== "edit-topic") return;
+        await updateTopic.mutateAsync({ topicId: dialog.topicId, body: { name } });
+        toast.success("主题已更新。");
+      } else {
+        await createTopic.mutateAsync({ name });
+        toast.success("主题已添加。");
+      }
       setDialog(null);
     } catch {
       // API 层已处理 toast
@@ -194,10 +232,25 @@ export function PromptContent() {
           return next;
         });
         toast.success("提示词已删除。");
-      } else {
+      } else if (deleteConfirm.type === "batch") {
         await Promise.all([...selectedIds].map((id) => removePrompt.mutateAsync(id)));
         toast.success(`已删除 ${deleteConfirm.count} 条提示词。`);
         setSelectedIds(new Set());
+      } else {
+        await removeTopic.mutateAsync(deleteConfirm.topicId);
+        if (selectedTopicId === deleteConfirm.topicId) {
+          setSelectedTopicId(PROMPT_TOPIC_ALL);
+        }
+        setSelectedIds((prev) => {
+          const topicPromptIds = new Set(
+            prompts.filter((prompt) => prompt.topic_id === deleteConfirm.topicId).map((p) => p.id),
+          );
+          if (topicPromptIds.size === 0) return prev;
+          const next = new Set(prev);
+          for (const id of topicPromptIds) next.delete(id);
+          return next;
+        });
+        toast.success("主题已删除。");
       }
       setDeleteConfirm(null);
     } catch {
@@ -419,7 +472,10 @@ export function PromptContent() {
         selectedTopicId={selectedTopicId}
         onSelectTopic={setSelectedTopicId}
         onAddTopic={openAddTopic}
+        onEditTopic={openEditTopic}
+        onDeleteTopic={openDeleteTopic}
         loading={isLoading}
+        actionsDisabled={isLoading || isMutating || uploading}
       />
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-muted-background">
@@ -495,11 +551,13 @@ export function PromptContent() {
 
       <PromptConfirmDialog
         open={deleteConfirm !== null}
-        title="删除提示词"
+        title={deleteConfirm ? deleteConfirmTitle(deleteConfirm) : "删除"}
         description={deleteConfirm ? deleteConfirmDescription(deleteConfirm) : ""}
         confirmLabel="删除"
-        submitting={removePrompt.isPending}
-        onOpenChange={(open) => !open && !removePrompt.isPending && setDeleteConfirm(null)}
+        submitting={removePrompt.isPending || removeTopic.isPending}
+        onOpenChange={(open) =>
+          !open && !removePrompt.isPending && !removeTopic.isPending && setDeleteConfirm(null)
+        }
         onConfirm={() => void handleConfirmDelete()}
       />
 
@@ -513,12 +571,13 @@ export function PromptContent() {
       />
 
       <PromptAddTopicDialog
-        open={dialog?.type === "add-topic"}
+        open={dialog?.type === "add-topic" || dialog?.type === "edit-topic"}
+        mode={topicFormMode}
         name={topicName}
         onNameChange={setTopicName}
-        submitting={createTopic.isPending}
+        submitting={createTopic.isPending || updateTopic.isPending}
         onOpenChange={(open) => !open && closeDialog()}
-        onSubmit={() => void handleAddTopic()}
+        onSubmit={() => void handleSaveTopic()}
       />
 
       <PromptCreateDialog

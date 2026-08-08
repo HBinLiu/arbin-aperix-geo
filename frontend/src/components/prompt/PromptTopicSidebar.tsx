@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CirclePlus, Search } from "lucide-react";
+import { CirclePlus, Search, SquarePen, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,10 @@ type PromptTopicSidebarProps = {
   selectedTopicId: string;
   onSelectTopic: (topicId: string) => void;
   onAddTopic: () => void;
+  onEditTopic: (topic: SubjectTopic) => void;
+  onDeleteTopic: (topic: SubjectTopic) => void;
   loading?: boolean;
+  actionsDisabled?: boolean;
 };
 
 /** 提示词管理 · 主题侧栏 */
@@ -23,7 +26,10 @@ export function PromptTopicSidebar({
   selectedTopicId,
   onSelectTopic,
   onAddTopic,
+  onEditTopic,
+  onDeleteTopic,
   loading = false,
+  actionsDisabled = false,
 }: PromptTopicSidebarProps) {
   const [search, setSearch] = useState("");
   const counts = useMemo(() => topicPromptCounts(topics, prompts), [topics, prompts]);
@@ -65,6 +71,20 @@ export function PromptTopicSidebar({
             count={counts.get(topic.id) ?? 0}
             active={selectedTopicId === topic.id}
             onClick={() => onSelectTopic(topic.id)}
+            onEdit={
+              actionsDisabled
+                ? undefined
+                : () => {
+                    onEditTopic(topic);
+                  }
+            }
+            onDelete={
+              actionsDisabled
+                ? undefined
+                : () => {
+                    onDeleteTopic(topic);
+                  }
+            }
           />
         ))}
       </nav>
@@ -74,6 +94,7 @@ export function PromptTopicSidebar({
           type="button"
           variant="brandout"
           className="h-8 w-full justify-center gap-1.5 rounded-lg"
+          disabled={actionsDisabled}
           onClick={onAddTopic}
         >
           <CirclePlus className="size-3.5" aria-hidden />
@@ -89,23 +110,71 @@ function TopicNavItem({
   count,
   active,
   onClick,
+  onEdit,
+  onDelete,
 }: {
   label: string;
   count: number;
   active: boolean;
   onClick: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }) {
+  const showActions = Boolean(onEdit || onDelete);
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <div
       className={cn(
-        "flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors",
-        active ? "bg-background text-foreground font-medium" : "text-foreground hover:bg-background/60",
+        "group flex w-full items-center gap-1 rounded-md px-1 py-0.5 transition-colors",
+        active ? "bg-background" : "hover:bg-background/60",
       )}
     >
-      <span className="truncate">{label}</span>
-      <span className="text-muted-foreground shrink-0 tabular-nums">{count}</span>
-    </button>
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors",
+          active ? "text-foreground font-medium" : "text-foreground",
+        )}
+      >
+        <span className="truncate">{label}</span>
+        <span className="text-muted-foreground shrink-0 tabular-nums">{count}</span>
+      </button>
+
+      {showActions ? (
+        <div className="flex shrink-0 items-center gap-0.5 pr-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          {onEdit ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-foreground size-7"
+              aria-label={`编辑主题 ${label}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onEdit();
+              }}
+            >
+              <SquarePen className="size-3.5" aria-hidden />
+            </Button>
+          ) : null}
+          {onDelete ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-destructive size-7"
+              aria-label={`删除主题 ${label}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onDelete();
+              }}
+            >
+              <Trash2 className="size-3.5" aria-hidden />
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 }
