@@ -125,7 +125,7 @@ function TopicNavItem({
   return (
     <div
       className={cn(
-        "group flex w-full items-center gap-1 rounded-md px-1 py-0.5 transition-colors",
+        "group relative rounded-md transition-colors",
         active ? "bg-background" : "hover:bg-background/60",
       )}
     >
@@ -133,16 +133,23 @@ function TopicNavItem({
         type="button"
         onClick={onClick}
         className={cn(
-          "flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors",
+          "flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors",
           active ? "text-foreground font-medium" : "text-foreground",
         )}
       >
         <span className="truncate">{label}</span>
-        <span className="text-muted-foreground shrink-0 tabular-nums">{count}</span>
+        <span
+          className={cn(
+            "text-muted-foreground shrink-0 tabular-nums",
+            showActions && "group-hover:hidden group-focus-within:hidden",
+          )}
+        >
+          {count}
+        </span>
       </button>
 
       {showActions ? (
-        <div className="flex shrink-0 items-center gap-0.5 pr-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+        <div className="absolute top-1/2 right-1 z-10 hidden -translate-y-1/2 items-center gap-0.5 group-hover:flex group-focus-within:flex">
           {onEdit ? (
             <Button
               type="button"
