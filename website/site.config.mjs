@@ -30,7 +30,7 @@ export const siteConfig = {
   ogImage: "/assets/images/website/og-default.webp",
   /** 站长验证码；也可由 PUBLIC_*_SITE_VERIFICATION 环境变量覆盖 */
   siteVerification: {
-    baidu: "codeva-gKYs7LQKFy",
+    baidu: "codeva-IwwIxViLOq",
     bytedance: "bYnnji8tNYRfDtWnJhM/",
     qihoo360: "c8daf2f7eaaf25291bf990f1ef2f7e22",
     bing: "6ECCC6ED13B693A9DFD72DB00F57756A",
