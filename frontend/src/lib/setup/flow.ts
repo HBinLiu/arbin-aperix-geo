@@ -1,9 +1,4 @@
-export const MIN_BRAND_INTRO_CHARS = 300;
 export const MAX_SETUP_UPLOAD_FILES = 10;
-
-export function brandIntroEffectiveChars(text: string): number {
-  return text.replace(/\s+/g, "").length;
-}
 
 /** 品牌 URL、介绍、上传文件至少填一项 */
 export function hasAnyBrandMaterial(input: {
@@ -34,7 +29,7 @@ export function setupPromptsStep(mode: "domain" | "brand"): number {
 
 export function setupStepLabels(mode: "domain" | "brand", setupLabel: string): string[] {
   if (mode === "brand") {
-    return [setupLabel, "完善资料", "选择竞品", "审查主题", "确认提示词"];
+    return [setupLabel, "完善资料", "添加竞品", "审查主题", "确认提示词"];
   }
-  return [setupLabel, "选择竞品", "审查主题", "确认提示词"];
+  return [setupLabel, "添加竞品", "审查主题", "确认提示词"];
 }

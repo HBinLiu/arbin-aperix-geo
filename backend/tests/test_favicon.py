@@ -413,9 +413,10 @@ def test_homepage_sources_crawl4ai_skipped_when_disabled(monkeypatch) -> None:
     assert called["n"] == 0
 
 
-def test_negative_cache_skips_network(monkeypatch) -> None:
+def test_negative_cache_skips_network(monkeypatch, tmp_path) -> None:
     from aperix_geo.services.favicon import _storage as storage_mod
 
+    monkeypatch.setattr("aperix_geo.services.favicon._storage._storage_root", lambda: tmp_path)
     storage_mod._cache.clear()
     storage_mod._negative_cache.clear()
     called = {"n": 0}
@@ -434,9 +435,10 @@ def test_negative_cache_skips_network(monkeypatch) -> None:
     assert called["n"] == 0
 
 
-def test_negative_cache_set_on_miss(monkeypatch) -> None:
+def test_negative_cache_set_on_miss(monkeypatch, tmp_path) -> None:
     from aperix_geo.services.favicon import _storage as storage_mod
 
+    monkeypatch.setattr("aperix_geo.services.favicon._storage._storage_root", lambda: tmp_path)
     storage_mod._cache.clear()
     storage_mod._negative_cache.clear()
     monkeypatch.setattr(
@@ -446,6 +448,60 @@ def test_negative_cache_set_on_miss(monkeypatch) -> None:
 
     assert resolve_favicon_coalesced("miss.example.com") is None
     assert storage_mod.negative_cache_hit("miss.example.com")
+    index = storage_mod.load_index("miss.example.com")
+    assert index.get("miss") is True
+    assert index.get("missed_at")
+
+
+def test_disk_miss_survives_memory_clear(monkeypatch, tmp_path) -> None:
+    from aperix_geo.services.favicon import _storage as storage_mod
+
+    monkeypatch.setattr("aperix_geo.services.favicon._storage._storage_root", lambda: tmp_path)
+    storage_mod._cache.clear()
+    storage_mod._negative_cache.clear()
+    called = {"n": 0}
+
+    def fake_network(*args, **kwargs):
+        called["n"] += 1
+        return None
+
+    monkeypatch.setattr(
+        "aperix_geo.services.favicon._resolve.resolve_favicon_network",
+        fake_network,
+    )
+
+    storage_mod.negative_cache_set("persist-miss.example.com")
+    storage_mod._negative_cache.clear()
+
+    assert storage_mod.disk_miss("persist-miss.example.com")
+    assert storage_mod.negative_cache_hit("persist-miss.example.com")
+    assert resolve_favicon_coalesced("persist-miss.example.com") is None
+    assert called["n"] == 0
+
+
+def test_persist_clears_disk_miss(monkeypatch, tmp_path) -> None:
+    from aperix_geo.services.favicon import _storage as storage_mod
+
+    monkeypatch.setattr("aperix_geo.services.favicon._storage._storage_root", lambda: tmp_path)
+    storage_mod._cache.clear()
+    storage_mod._negative_cache.clear()
+
+    storage_mod.negative_cache_set("recover.example.com")
+    assert storage_mod.disk_miss("recover.example.com")
+
+    body = b"\x89PNG\r\n\x1a\n" + b"x" * 20
+    storage_mod.persist_favicon(
+        "recover.example.com",
+        url="https://recover.example.com/favicon.png",
+        body=body,
+        media_type="image/png",
+    )
+
+    assert not storage_mod.disk_miss("recover.example.com")
+    assert not storage_mod.negative_cache_hit("recover.example.com")
+    index = storage_mod.load_index("recover.example.com")
+    assert "miss" not in index
+    assert index.get("static") == "favicon.png"
 
 
 def test_coalesced_resolve_hits_memory_cache_on_repeat(monkeypatch) -> None:

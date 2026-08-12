@@ -1,38 +1,33 @@
-"""Setup 向导 LLM 分步调用（discover 画像 / topics 主题+摘要）。"""
+"""Setup 向导 LLM 分步调用（discover 画像 / topics 模板摘要）。"""
 
 from __future__ import annotations
 
 import logging
 from typing import Any
 
-from aperix_geo.services.competitor.profile import normalize_niche_profile, region_label
+from aperix_geo.services.competitor.profile import keywords_list, normalize_niche_profile, region_label
 from aperix_geo.services.competitor.summary import (
     fallback_profile_summary,
     generate_niche_profile_via_llm,
-    generate_profile_summary_via_llm,
-    generate_topic_plan_via_llm,
     merge_competitors_into_summary,
     merge_llm_usage,
 )
-from aperix_geo.services.competitor.topic_types import TopicCluster
 from aperix_geo.services.competitor.types import NicheProfile
-from aperix_geo.services.setup.llm.payloads import (
-    build_profile_summary_payload,
-    build_subject_research_payload,
-    build_topic_plan_payload,
-)
-from aperix_geo.services.setup.profile_qa import (
-    repair_profile_search_queries,
-    sanitize_profile_lexicon,
-    validate_profile_lexicon,
-)
-from aperix_geo.services.setup.topic_bind import bind_topic_clusters_to_cores
-from aperix_geo.services.setup.topic_parse import parse_topic_plan_response
-from aperix_geo.services.setup.topic_qa import collect_subject_names, validate_topic_clusters
+from aperix_geo.services.setup.llm.payloads import build_subject_research_payload
 
 logger = logging.getLogger(__name__)
 
 _MAX_PROFILE_ATTEMPTS = 2
+_MIN_KEYWORDS = 1
+
+
+def _validate_slim_profile(profile: NicheProfile) -> None:
+    industry = str(profile.get("industry") or "").strip()
+    if not industry or industry == "未知行业":
+        raise ValueError("industry 无效")
+    kws = keywords_list(profile)
+    if len(kws) < _MIN_KEYWORDS:
+        raise ValueError("keywords 至少 1 条")
 
 
 def run_niche_profile_stage(
@@ -46,7 +41,7 @@ def run_niche_profile_stage(
     homepage_text: str = "",
     homepage_metadata: dict[str, str] | None = None,
 ) -> tuple[NicheProfile, dict, dict[str, Any]]:
-    """UI Step 0→1 discover：微观利基结构化画像。"""
+    """Setup discover：精简微观利基画像。"""
     target = target.strip()
     research_payload = build_subject_research_payload(
         subject_type=subject_type,
@@ -72,9 +67,7 @@ def run_niche_profile_stage(
             )
             usage = merge_llm_usage(usage, call_usage)
             profile = normalize_niche_profile(data, entity=target)
-            profile = repair_profile_search_queries(profile)
-            profile = sanitize_profile_lexicon(profile)
-            validate_profile_lexicon(profile)
+            _validate_slim_profile(profile)
         except ValueError as exc:
             last_error = exc
             validation_feedback = [str(exc)]
@@ -91,40 +84,6 @@ def run_niche_profile_stage(
     raise ValueError(f"微观利基画像失败：{last_error}") from last_error
 
 
-def run_topic_generation_stage(
-    *,
-    profile: NicheProfile,
-    subject_type: str,
-    entity_key: str,
-    competitors: list[dict[str, Any]] | None = None,
-) -> tuple[list[TopicCluster], dict[str, Any]]:
-    """UI Step 1→2 topics：topic_plan LLM → 解析归一化 → bind → 结构校验。"""
-    validate_profile_lexicon(profile)
-    subject_names = collect_subject_names(
-        profile_company=str(profile.get("company") or ""),
-        entity_key=entity_key,
-        competitors=competitors,
-    )
-    payload = build_topic_plan_payload(
-        subject_type=subject_type,
-        target=entity_key,
-        profile=profile,
-        competitors=competitors,
-    )
-    data, usage = generate_topic_plan_via_llm(
-        entity_key=entity_key,
-        user_payload=payload,
-    )
-    clusters = parse_topic_plan_response(data)
-    clusters = bind_topic_clusters_to_cores(clusters, profile=profile)
-    validate_topic_clusters(
-        clusters,
-        subject_names=subject_names,
-        profile=profile,
-    )
-    return clusters, usage
-
-
 def run_profile_summary_stage(
     *,
     profile: NicheProfile,
@@ -135,39 +94,21 @@ def run_profile_summary_stage(
     entity_key: str,
     competitors: list[dict[str, Any]] | None,
 ) -> tuple[str, dict[str, Any]]:
-    """UI Step 1→2 topics：用户确认竞品后生成 profile_summary（在监测主题之后）。"""
-    payload = build_profile_summary_payload(
+    """用户确认竞品后：模板摘要（含竞品，不含主题）。"""
+    _ = (target, language)
+    summary = fallback_profile_summary(
+        profile,
+        entity=entity_key,
+        region_label=region_label(region),
+    )
+    summary = merge_competitors_into_summary(
+        summary,
         subject_type=subject_type,
-        target=target,
-        region=region,
-        language=language,
-        profile=profile,
         competitors=competitors,
     )
-    usage: dict[str, Any] = {}
-    try:
-        summary, usage = generate_profile_summary_via_llm(
-            entity_key=entity_key,
-            user_payload=payload,
-        )
-    except Exception:
-        logger.warning("设置向导·主题 主体摘要 LLM 失败，使用模板回退", exc_info=True)
-        summary = ""
-
-    if not summary:
-        summary = fallback_profile_summary(
-            profile,
-            entity=entity_key,
-            region_label=region_label(region),
-        )
-        summary = merge_competitors_into_summary(
-            summary,
-            subject_type=subject_type,
-            competitors=competitors,
-        )
     logger.info(
-        "设置向导·主题·摘要 entity=%r 字数=%d",
+        "设置向导·主题·摘要 entity=%r 字数=%d 来源=fallback",
         entity_key,
         len(summary),
     )
-    return summary, usage
+    return summary, {}

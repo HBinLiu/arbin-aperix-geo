@@ -56,8 +56,6 @@ def _brand_session_payload(*, brand: str, region: str, language: str) -> dict[st
         "materials_saved": False,
         "profile_hash": "",
         "profile": {},
-        "search_queries": [],
-        "topic_clusters": [],
         "monitoring_topics": [],
         "research_payload": {},
         "profile_summary": "",

@@ -1,6 +1,5 @@
-import { DEFAULT_MAX_COMPETITORS } from "@/lib/billing/limits";
 import { coalesceWebsiteUrl, hostnameFromWebsiteInput, registrableDomain } from "@/lib/domain";
-import type { CompetitorItem, CompetitorRow, DiscoveredCompetitor, SubjectMode } from "@/types";
+import type { CompetitorItem, CompetitorRow, SubjectMode } from "@/types";
 
 export function newCompetitorRow(partial?: Partial<CompetitorRow>): CompetitorRow {
   return {
@@ -13,21 +12,6 @@ export function newCompetitorRow(partial?: Partial<CompetitorRow>): CompetitorRo
     selected: true,
     ...partial,
   };
-}
-
-export function rowsFromDiscover(
-  competitors: DiscoveredCompetitor[],
-  maxCount: number = DEFAULT_MAX_COMPETITORS,
-): CompetitorRow[] {
-  const safeMax = Math.max(1, maxCount);
-  return competitors.slice(0, safeMax).map((c) =>
-    newCompetitorRow({
-      name: c.brand.trim() || (c.domain ? registrableDomain(c.domain) : ""),
-      domain: c.domain ? registrableDomain(c.domain) : "",
-      websiteUrl: (c.website_url ?? "").trim(),
-      selected: true,
-    }),
-  );
 }
 
 /** 表格行主域名键（与 rowsToPersist 域名模式一致） */

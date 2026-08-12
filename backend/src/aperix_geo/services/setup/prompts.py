@@ -5,70 +5,34 @@ from __future__ import annotations
 import logging
 import time
 from typing import Any
-
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from aperix_geo.services.competitor.profile import profile_from_dict
 from aperix_geo.services.billing.quota import (
     assert_setup_ai_usage_available,
     charge_setup_ai_usage,
     usage_reference,
 )
 from aperix_geo.services.billing.usage_tokens import SETUP_LLM_PLATFORM
-from aperix_geo.services.prompts.context import entity_aliases
-from aperix_geo.services.prompts.setup import PROMPT_PER_TOPIC, generate_setup_prompts
+from aperix_geo.services.prompts.context import prompt_context_from_session
+from aperix_geo.services.prompts.setup import generate_setup_prompts
 from aperix_geo.services.setup.cache.prompts import cached_prompts, prompts_generation_hash
 from aperix_geo.services.setup.cache.session import get_session, update_session
 from aperix_geo.services.setup.helpers import (
     competitor_labels_from_session,
     require_deepseek_api_key,
 )
+from aperix_geo.services.setup.topic_items import normalize_topic_names
 
 logger = logging.getLogger(__name__)
 
 
-def _normalize_topics(topics: list[str]) -> list[str]:
-    confirmed = [t.strip() for t in topics if t.strip()]
+def _require_topics(topics: list[str]) -> list[str]:
+    confirmed = normalize_topic_names(topics)
     if not confirmed:
         raise ValueError("至少需要一个监测主题")
-    if len(confirmed) != len(set(confirmed)):
-        raise ValueError("监测主题不能重复")
     return confirmed
-
-
-def _session_prompt_context(
-    session: dict[str, Any],
-    *,
-    topics: list[str],
-    exclude_prompts: list[str] | None,
-) -> dict[str, Any]:
-    entity = str(session.get("target") or "").strip()
-    if not entity:
-        raise ValueError("setup session missing target")
-
-    confirmed_topics = _normalize_topics(topics)
-    profile = profile_from_dict(session.get("profile") or {})
-    aliases = entity_aliases(
-        entity=entity,
-        profile_company=str(profile.get("company") or ""),
-    )
-    excluded = [p.strip() for p in (exclude_prompts or []) if p.strip()]
-    competitor_list = competitor_labels_from_session(session)
-
-    return {
-        "entity": entity,
-        "confirmed_topics": confirmed_topics,
-        "topic_clusters": session.get("topic_clusters") if isinstance(session.get("topic_clusters"), list) else [],
-        "profile": profile,
-        "industry": str(profile.get("industry") or ""),
-        "features": str(profile.get("features") or ""),
-        "customers": str(profile.get("customers") or ""),
-        "aliases": aliases,
-        "competitors": competitor_list,
-        "excluded": excluded,
-    }
 
 
 def generate_setup_prompts_for_session(
@@ -89,10 +53,12 @@ def generate_setup_prompts_for_session(
     if session is None:
         raise ValueError("setup session not found")
 
-    ctx = _session_prompt_context(
+    confirmed_topics = _require_topics(topics)
+    ctx = prompt_context_from_session(
         session,
-        topics=topics,
+        topics=confirmed_topics,
         exclude_prompts=exclude_prompts,
+        competitor_labels=competitor_labels_from_session(session),
     )
     logger.info(
         "设置向导·提示词 开始 session=%s target=%r 主题=%d",
@@ -103,11 +69,10 @@ def generate_setup_prompts_for_session(
     prompts_hash = prompts_generation_hash(
         entity=ctx["entity"],
         topics=ctx["confirmed_topics"],
-        topic_clusters=ctx["topic_clusters"],
         competitors=ctx["competitors"],
         industry=ctx["industry"],
-        features=ctx["features"],
-        customers=ctx["customers"],
+        keywords=ctx["keywords"],
+        brief=ctx["brief"],
         aliases=ctx["aliases"],
         exclude_prompts=ctx["excluded"],
     )
@@ -140,10 +105,6 @@ def generate_setup_prompts_for_session(
     items = generate_setup_prompts(
         entity=ctx["entity"],
         topics=ctx["confirmed_topics"],
-        topic_clusters=ctx["topic_clusters"],
-        industry=ctx["industry"],
-        features=ctx["features"],
-        customers=ctx["customers"],
         competitors=ctx["competitors"],
         aliases=ctx["aliases"],
         exclude_prompts=ctx["excluded"],

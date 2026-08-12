@@ -41,7 +41,10 @@ export function faviconCacheKey(url: string): string {
   return resolveFaviconInput(url)?.host ?? "";
 }
 
-/** 会话内 favicon 状态，避免同 host 重复请求已知 miss。 */
+/**
+ * 会话内 favicon 状态。
+ * 首次 miss 后整次 SPA 不再请求该 host，直接走文字图标。
+ */
 export function getFaviconClientStatus(url: string): FaviconClientStatus | undefined {
   const key = faviconCacheKey(url);
   if (!key) return undefined;

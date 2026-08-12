@@ -80,9 +80,8 @@ class SeoProfile(str, Enum):
     """Per-scenario SEO/GEO field subsets."""
 
     SUBJECT_HOMEPAGE = "subject_homepage"
-    ARTICLE_DISCOVERY = "article_discovery"
     CITATION = "citation"
-    CROSS_VALIDATE = "cross_validate"
+    SITE_HEAD = "site_head"
     FULL = "full"
 
 
@@ -123,25 +122,6 @@ _PROFILE_SUBJECT_HOMEPAGE = frozenset(
     },
 )
 
-# ARTICLE_DISCOVERY: 资讯/榜单文抽竞品，侧重实体提及与 GEO 问答
-_PROFILE_ARTICLE_DISCOVERY = frozenset(
-    {
-        "title",
-        "description",
-        "keywords",
-        "tags",
-        "categories",
-        "mentioned_names",
-        "brand_names",
-        "faq_items",
-        "speakable_text",
-        "content_type",
-        "publisher",
-        "authors",
-        "schema_types",
-    },
-)
-
 # CITATION: 采样引用页 ABSA/GEO 分类，侧重来源归因与页面语义
 _PROFILE_CITATION = frozenset(
     {
@@ -164,8 +144,8 @@ _PROFILE_CITATION = frozenset(
     },
 )
 
-# CROSS_VALIDATE: 竞品官网交叉验算，身份 + 产品结构化信号
-_PROFILE_CROSS_VALIDATE = frozenset(
+# SITE_HEAD: 竞品/品牌站头（title/description/brand），身份信号
+_PROFILE_SITE_HEAD = frozenset(
     {
         "title",
         "description",
@@ -177,9 +157,8 @@ _PROFILE_CROSS_VALIDATE = frozenset(
 
 SEO_PROFILE_FIELDS: dict[SeoProfile, frozenset[str]] = {
     SeoProfile.SUBJECT_HOMEPAGE: _PROFILE_SUBJECT_HOMEPAGE,
-    SeoProfile.ARTICLE_DISCOVERY: _PROFILE_ARTICLE_DISCOVERY,
     SeoProfile.CITATION: _PROFILE_CITATION,
-    SeoProfile.CROSS_VALIDATE: _PROFILE_CROSS_VALIDATE,
+    SeoProfile.SITE_HEAD: _PROFILE_SITE_HEAD,
     SeoProfile.FULL: frozenset(_SEO_SCALAR_FIELDS + _SEO_TUPLE_FIELDS),
 }
 
@@ -767,8 +746,8 @@ def _merge_seo(*parts: SeoMetadata) -> SeoMetadata:
 
 
 def profile_include_microdata(profile: SeoProfile) -> bool:
-    """CROSS_VALIDATE only needs head meta + JSON-LD; skip Microdata body scan."""
-    return profile != SeoProfile.CROSS_VALIDATE
+    """SITE_HEAD only needs head meta + JSON-LD; skip Microdata body scan."""
+    return profile != SeoProfile.SITE_HEAD
 
 
 _PARSE_CACHE: OrderedDict[tuple[str, bool], SeoMetadata] = OrderedDict()

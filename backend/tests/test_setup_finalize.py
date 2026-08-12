@@ -109,7 +109,6 @@ def test_finalize_setup_writes_aliases_and_deletes_session(
         "language": "zh-CN",
         "profile": profile,
         "profile_summary": "# Airwallex",
-        "competitors_hash": "discover-hash",
         "competitors": [
             {
                 "domain": "wise.com",
@@ -198,7 +197,6 @@ def test_finalize_setup_onboarding_skips_sampling_job(
         "language": "zh-CN",
         "profile": profile,
         "profile_summary": "# Airwallex",
-        "competitors_hash": "discover-hash",
         "competitors": [
             {
                 "domain": "wise.com",

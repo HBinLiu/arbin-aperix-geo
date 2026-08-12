@@ -7,7 +7,6 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from aperix_geo.config import get_settings
 from aperix_geo.db.models import Brand, BrandSource, LLMResponse, LLMResponseSignal, Subject
 from aperix_geo.services.brand.catalog import BrandSyncContext
 from aperix_geo.services.brand.domain import resolve_brand_domain
@@ -56,7 +55,7 @@ def _signal_needs_domain_backfill(db: Session, signal: LLMResponseSignal) -> boo
 
 
 def backfill_brand_domain_for_response(db: Session, response_id: UUID) -> int:
-    """Resolve missing other-brand domains via SearXNG; update tb_brands and signals."""
+    """Resolve missing other-brand domains from response text/URLs; update tb_brands and signals."""
     row = db.get(LLMResponse, response_id)
     if row is None:
         return 0
@@ -107,7 +106,6 @@ def backfill_brand_domain_for_response(db: Session, response_id: UUID) -> int:
             brand=brand_name,
             raw_text=raw_text,
             urls=urls,
-            allow_search=True,
             sync_ctx=sync_ctx,
         )
         if not domain:
@@ -142,10 +140,7 @@ def backfill_brand_domain_for_response(db: Session, response_id: UUID) -> int:
 
 
 def maybe_enqueue_brand_domain_backfill(response_id: UUID) -> None:
-    """Enqueue Celery backfill when SearXNG is configured."""
-    if not get_settings().searxng_base_url.strip():
-        return
-
+    """Enqueue Celery backfill (text/URL domain resolution; no web search)."""
     from aperix_geo.utils.cache.redis_kv import redis_set_nx
 
     if not redis_set_nx(f"aperix:brand:backfill:{response_id}", ttl_s=3600):

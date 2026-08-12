@@ -284,9 +284,6 @@ class Competitor(Base):
     brand: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
     aliases: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default=sa_text("'[]'::jsonb"))
     summary: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
-    cross_validate_score: Mapped[float | None] = mapped_column(Float, nullable=True)
-    cross_validate_reason: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
-    cross_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=_NOW)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, server_default=_NOW

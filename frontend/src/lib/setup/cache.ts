@@ -52,7 +52,7 @@ export function clearSetupCache() {
 export function defaultSetupCache(): SetupCache {
   return {
     sessionId: "",
-    mode: "domain",
+    mode: "brand",
     websiteUrl: "",
     brandName: "",
     brandIntro: "",

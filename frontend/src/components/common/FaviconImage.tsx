@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Globe, Loader2 } from "lucide-react";
 
+import { brandIconColor } from "@/lib/brand/iconColor";
 import {
   faviconCacheKey,
   faviconCandidateUrls,
@@ -21,6 +22,11 @@ type FaviconImageProps = {
   showLoadingSpinner?: boolean;
   /** 输入框等场景立即加载，避免 lazy + opacity-0 导致不发起请求 */
   eager?: boolean;
+  /**
+   * miss / 无法解析时的文字图标文案（取首字符）。
+   * 不传则用 host 首字母；都没有时回退 Globe。
+   */
+  fallbackLabel?: string;
 };
 
 type DisplayState = "loading" | "loaded" | "fallback";
@@ -31,6 +37,26 @@ function resolveInitialState(url: string, candidates: string[]): DisplayState {
   if (status === "miss") return "fallback";
   if (status === "ok") return "loaded";
   return "loading";
+}
+
+function letterFromLabel(label: string): string {
+  const trimmed = label.trim();
+  if (!trimmed) return "";
+  return trimmed.slice(0, 1).toUpperCase();
+}
+
+function fallbackLetter(url: string, fallbackLabel?: string): string {
+  const fromProp = letterFromLabel(fallbackLabel ?? "");
+  if (fromProp) return fromProp;
+  const host = faviconCacheKey(url).replace(/^www\./i, "");
+  return letterFromLabel(host);
+}
+
+function letterTextClass(size: number): string {
+  if (size <= 16) return "text-[9px]";
+  if (size <= 20) return "text-[9px]";
+  if (size <= 24) return "text-[10px]";
+  return "text-[11px]";
 }
 
 function IconShell({
@@ -54,9 +80,27 @@ function IconShell({
 }
 
 function FaviconFallback({
-  size,
+  url,
+  size = 20,
   iconClassName,
-}: Pick<FaviconImageProps, "size" | "iconClassName">) {
+  fallbackLabel,
+}: Pick<FaviconImageProps, "url" | "size" | "iconClassName" | "fallbackLabel">) {
+  const letter = fallbackLetter(url, fallbackLabel);
+  if (letter) {
+    const colorKey = (fallbackLabel || faviconCacheKey(url) || letter).trim() || letter;
+    return (
+      <span
+        className={cn(
+          "flex size-full shrink-0 items-center justify-center rounded-[inherit] font-semibold leading-none",
+          letterTextClass(size),
+        )}
+        style={{ backgroundColor: brandIconColor(colorKey), color: "#ffffff" }}
+        aria-hidden
+      >
+        <span className="leading-none">{letter}</span>
+      </span>
+    );
+  }
   return (
     <Globe
       className={cn("text-muted-foreground shrink-0", iconClassName ?? "size-5")}
@@ -81,7 +125,8 @@ function FaviconSpinner({
 
 /**
  * 站点图标：按输入 URL 请求 favicon API（``?url=``）。
- * 加载中显示转圈；成功显示 favicon；API 204/失败时回退 Globe。
+ * 加载中显示转圈；成功显示 favicon；
+ * 首次 204/失败后会话内标记 miss，不再请求，直接文字图标。
  */
 export function FaviconImage({
   url,
@@ -90,6 +135,7 @@ export function FaviconImage({
   iconClassName,
   showLoadingSpinner = true,
   eager = false,
+  fallbackLabel,
 }: FaviconImageProps) {
   const cacheKey = React.useMemo(() => faviconCacheKey(url), [url]);
   const candidates = React.useMemo(() => faviconCandidateUrls(url), [url]);
@@ -124,18 +170,15 @@ export function FaviconImage({
     setDisplay("loaded");
   }, [url]);
 
-  if (display === "fallback") {
+  if (display === "fallback" || !src) {
     return (
       <IconShell size={size} className={className}>
-        <FaviconFallback size={size} iconClassName={iconClassName} />
-      </IconShell>
-    );
-  }
-
-  if (!src) {
-    return (
-      <IconShell size={size} className={className}>
-        <FaviconFallback size={size} iconClassName={iconClassName} />
+        <FaviconFallback
+          url={url}
+          size={size}
+          iconClassName={iconClassName}
+          fallbackLabel={fallbackLabel}
+        />
       </IconShell>
     );
   }

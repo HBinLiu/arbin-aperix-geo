@@ -114,44 +114,42 @@ python3 scripts/sampling_reparse.py --dry-run  # 重算已有回复的 parsed �
 | `crawl/seo.py` | HTML head / JSON-LD / Microdata 解析与 `SeoProfile` 场景裁剪 |
 | `crawl/metadata.py` | 抓取结果 → `PageMetadata`（SEO + 可选正文） |
 | `sampling/citation/page.py` | 引用页 `text_snippet`、品牌提及检测 |
-| `competitor/web_context.py` | 竞品首页 LLM 画像 |
-| `competitor/head_fetch.py` | 竞品候选站 title + 结构化 SEO（`SeoProfile.CROSS_VALIDATE`，`include_body=False`） |
+| `competitor/web_context.py` | 主体首页抓取（供画像 LLM） |
+| `competitor/head_fetch.py` | 竞品/品牌站头 title + 结构化 SEO（`SeoProfile.SITE_HEAD`，`include_body=False`） |
 | `setup/llm/payloads.py` | Setup 各 LLM 阶段 user message（含域名 site_data） |
-| `crawl/enrich.py` | 资讯 URL SEO enrichment（`SeoProfile.ARTICLE_DISCOVERY`） |
 
 常量：`HEAD_PARSE_MAX_CHARS=120_000`（全量 SEO 解析上限），`PAGE_CRAWL_SEO_MAX_CHARS` 默认 `64_000`（SEO-only 抓取上限），`MIN_BODY_CHARS=40`（与 `PageFetchResult.fetch_ok` 阈值一致）。SEO-only 场景默认不启用 Crawl4AI 兜底（`PAGE_CRAWL_SEO_FALLBACK_ENABLED=false`）。
 
-竞品发现流程（`discover-competitors`，代码在 `services/competitor/`）：
+竞品与 Setup 流程（`services/competitor/` + `services/setup/`）：
 
-**Onboarding 分步 API（推荐）**
+**Onboarding 分步 API**
 
-向导 **UI 顺序**：网站/品牌设置 → **选择竞品** → **审查主题** → 确认提示词 → 落库。
+向导 **UI 顺序**：网站/品牌设置 → **选择竞品（手填）** → **审查主题** → 确认提示词 → 落库。
 
 | UI | API | 说明 |
 |----|-----|------|
-| 设置 → 选竞品 | `POST /subjects/setup/discover` | 微观画像 + 竞品发现；body 可带 `session_id` |
+| 设置 → 选竞品 | `POST /subjects/setup/discover` | 微观画像；竞品返回空列表，由用户手填 |
 | 选竞品 → 审主题 | `POST /subjects/setup/topics` | body: `{ session_id, competitors }`；生成 **profile_summary** + 监测主题 |
 | 审主题 → 提示词 | `POST /subjects/setup/prompts` | body: `{ session_id, topics, ... }` |
 | 完成 | `POST /subjects/setup/finalize` | body: `{ session_id, competitors, topics }` |
 
-会话默认 24h TTL；竞品搜索后清除 raw crawl；finalize 后删除 session。
+会话默认 24h TTL；finalize 后删除 session。
 
-**竞品发现 LLM 分工（豆包主路径）**
+**LLM 分工**
 
 | 调用 | Prompt / API | 产出 |
 |------|--------------|------|
-| 2a | 豆包 Responses API（联网） | 竞品 JSON 列表 |
-| 2b | `COMPETITOR_CROSS_VALIDATE_SYSTEM` | 候选站 head 抓取 + 交叉验算打分 |
-| 2c | `SUBJECT_PROFILE_SUMMARY_SYSTEM` | `profile_summary`（完整 Markdown） |
-| 3 | `SETUP_WIZARD_PROMPTS_SYSTEM` | 各 topic 监测问句 |
+| 1 | `SUBJECT_PROFILE_*` | 精简微观利基画像 |
+| 2 | 模板 `fallback_profile_summary` | `profile_summary`（含手填竞品章节） |
+| 3 | `SETUP_WIZARD_PROMPTS_SYSTEM` | 各 topic 监测问句初版 |
 
 **域名/品牌模式完整链路**
 
-1. **discover**：域名/品牌爬站 + 微观画像 LLM → 豆包竞品 + 交叉验算（**不含** profile_summary）
-2. **topics**：用户确认竞品 → profile_summary LLM + 监测主题 LLM
-3. **终选竞品**：及格分 Top N（`COMPETITOR_RESULT_MAX`）
+1. **discover**：爬站/材料 + 微观画像 LLM（竞品手填）
+2. **topics**：用户确认竞品 → profile_summary + 监测主题
+3. **prompts / finalize**：提示词与落库
 
-环境变量见 `.env.development` / `.env.production`：`COMPETITOR_*`、`DOUBAO_*`；`SEARXNG_BASE_URL` 可选，用于采样后开集品牌域名回填（Setup 竞品发现不用 SearXNG）。安装 Crawl4AI 浏览器（正文类抓取兜底）：
+环境变量见 `.env.development` / `.env.production`（采样豆包等为 `DOUBAO_*`）。开集品牌域名回填仅从回复正文/引用 URL 解析。安装 Crawl4AI 浏览器（正文类抓取兜底）：
 
 ```bash
 crawl4ai-setup

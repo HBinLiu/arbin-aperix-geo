@@ -176,7 +176,13 @@ export function CompetitorHoverCard({ row, geoMetrics, className }: CompetitorHo
       <div className="flex items-center gap-3">
         {faviconUrl ? (
           <div className="border-border flex size-12 shrink-0 items-center justify-center rounded-md border bg-muted-background p-2">
-            <FaviconImage url={faviconUrl} size={32} className="size-8" iconClassName="size-5" />
+            <FaviconImage
+              url={faviconUrl}
+              size={32}
+              className="size-8 rounded-md"
+              iconClassName="size-5"
+              fallbackLabel={label}
+            />
           </div>
         ) : (
           <div className="bg-background flex size-12 shrink-0 items-center justify-center rounded-full text-base font-semibold">
@@ -240,7 +246,14 @@ type CompetitorTableRowProps = {
 function competitorBrandIcon(row: CompetitorItem) {
   const faviconUrl = brandFaviconUrl(row);
   if (!faviconUrl) return brandListIcon(brandRowLabel(row), row.domain);
-  return <FaviconImage url={faviconUrl} size={20} className="size-5 shrink-0 rounded-md" />;
+  return (
+    <FaviconImage
+      url={faviconUrl}
+      size={20}
+      className="size-5 shrink-0 rounded-md"
+      fallbackLabel={brandRowLabel(row)}
+    />
+  );
 }
 
 export function CompetitorTableRow({ row, onEdit, onRemove, actionDisabled }: CompetitorTableRowProps) {

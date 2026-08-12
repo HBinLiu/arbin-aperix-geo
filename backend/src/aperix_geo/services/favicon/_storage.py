@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -12,6 +13,7 @@ from aperix_geo.utils.net import registrable_from
 
 _CACHE_TTL_S = 86_400
 _CACHE_MAX = 500
+# 内存负缓存：热点加速；磁盘 miss 才是跨进程真相源
 _NEGATIVE_CACHE_TTL_S = 6 * 3600
 _NEGATIVE_CACHE_MAX = 2_000
 _MEDIA_EXT = {
@@ -27,21 +29,53 @@ _cache: dict[str, tuple[float, bytes, str]] = {}
 _negative_cache: dict[str, float] = {}
 
 
-def negative_cache_hit(domain: str) -> bool:
-    expires = _negative_cache.get(domain)
-    if expires is None:
-        return False
-    if time.monotonic() > expires:
-        _negative_cache.pop(domain, None)
-        return False
-    return True
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def negative_cache_set(domain: str) -> None:
+def _remember_negative(domain: str) -> None:
     if len(_negative_cache) >= _NEGATIVE_CACHE_MAX:
         oldest = min(_negative_cache.items(), key=lambda x: x[1])[0]
         _negative_cache.pop(oldest, None)
     _negative_cache[domain] = time.monotonic() + _NEGATIVE_CACHE_TTL_S
+
+
+def disk_miss(domain: str) -> bool:
+    """True when domain dir has a miss marker and no usable favicon file."""
+    index = load_index(domain)
+    if index.get("miss") is not True:
+        return False
+    return static_favicon_path(domain) is None
+
+
+def negative_cache_hit(domain: str) -> bool:
+    expires = _negative_cache.get(domain)
+    if expires is not None:
+        if time.monotonic() <= expires:
+            return True
+        _negative_cache.pop(domain, None)
+    if disk_miss(domain):
+        _remember_negative(domain)
+        return True
+    return False
+
+
+def negative_cache_set(domain: str) -> None:
+    """Record HOME miss in memory + disk ``index.json`` (until a real favicon persists)."""
+    key = domain.strip().lower()
+    if not key:
+        return
+    _remember_negative(key)
+    # 已有成功图标时不写 miss（避免覆盖）
+    if static_favicon_path(key) is not None:
+        return
+    _write_index(
+        key,
+        {
+            "miss": True,
+            "missed_at": _utc_now_iso(),
+        },
+    )
 
 
 def _storage_root() -> Path:

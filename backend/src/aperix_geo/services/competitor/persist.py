@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -26,12 +25,6 @@ class CompetitorNotFoundError(Exception):
 
 class InvalidCompetitorError(Exception):
     pass
-
-
-def _cross_validated_at(item: CompetitorItem) -> datetime | None:
-    if item.cross_validate_score is None:
-        return None
-    return datetime.now(UTC)
 
 
 def _normalize_competitor_items(
@@ -62,9 +55,6 @@ def _normalize_competitor_items(
                     "brand": brand,
                     "aliases": [str(a).strip() for a in (item.aliases or []) if str(a).strip()],
                     "summary": summary,
-                    "cross_validate_score": item.cross_validate_score,
-                    "cross_validate_reason": (item.cross_validate_reason or "").strip(),
-                    "cross_validated_at": _cross_validated_at(item),
                 }
             )
             continue
@@ -83,9 +73,6 @@ def _normalize_competitor_items(
                 "brand": brand,
                 "aliases": [str(a).strip() for a in (item.aliases or []) if str(a).strip()],
                 "summary": summary,
-                "cross_validate_score": item.cross_validate_score,
-                "cross_validate_reason": (item.cross_validate_reason or "").strip(),
-                "cross_validated_at": _cross_validated_at(item),
             }
         )
     return normalized
@@ -99,9 +86,6 @@ def _append_competitor(subject: Subject, row: dict[str, Any]) -> None:
             brand=row["brand"],
             aliases=row["aliases"],
             summary=row["summary"],
-            cross_validate_score=row["cross_validate_score"],
-            cross_validate_reason=row["cross_validate_reason"],
-            cross_validated_at=row["cross_validated_at"],
         )
     )
 
@@ -112,9 +96,6 @@ def _update_competitor(existing: Competitor, row: dict[str, Any]) -> None:
     existing.brand = row["brand"]
     existing.aliases = row["aliases"]
     existing.summary = row["summary"]
-    existing.cross_validate_score = row["cross_validate_score"]
-    existing.cross_validate_reason = row["cross_validate_reason"]
-    existing.cross_validated_at = row["cross_validated_at"]
 
 
 def apply_competitors(
@@ -183,8 +164,6 @@ def update_competitor_by_id(
         brand=(item.brand or target.brand or "").strip(),
         aliases=list(item.aliases if item.aliases is not None else (target.aliases or [])),
         summary=(item.summary if item.summary is not None else target.summary or "").strip(),
-        cross_validate_score=target.cross_validate_score,
-        cross_validate_reason=target.cross_validate_reason or "",
     )
 
     normalized = _normalize_competitor_items([merged])

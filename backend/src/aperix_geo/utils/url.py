@@ -308,7 +308,7 @@ def homepage_fetch_urls(
     """首页类抓取 URL 列表。
 
     - ``website_url`` 非空：只试完整 http(s) 或 bare host 单次 ``parse_url``，不 www/http 变体探测
-    - ``website_url`` 为空且 ``probe_variants``：``website_candidates(domain)``（仅 SearXNG 等无 URL 兜底）
+    - ``website_url`` 为空且 ``probe_variants``：``website_candidates(domain)``（无显式 URL 时探测）
     """
     raw = website_url.strip()
     if raw:

@@ -23,6 +23,7 @@ from aperix_geo.services.prompts.persist import (
     get_topic_for_subject,
     remaining_prompt_slots_for_subject,
 )
+from aperix_geo.services.prompts.setup import generate_setup_prompts
 from aperix_geo.services.prompts.taxonomy import PromptTaxonomyLock, prompt_taxonomy_lock
 from aperix_geo.services.providers import LLMProviderError
 
@@ -52,8 +53,6 @@ def generate_subject_prompt_candidates(
         ).scalars().all()
     )
 
-    from aperix_geo.services.prompts.setup import generate_setup_prompts
-
     def _bill(stage: str, usage: dict) -> None:
         consume_ai_usage(
             db,
@@ -68,9 +67,6 @@ def generate_subject_prompt_candidates(
     items = generate_setup_prompts(
         entity=str(ctx["entity"]),
         topics=[topic.name],
-        industry=str(ctx["industry"]),
-        features=str(ctx["features"]),
-        customers=str(ctx["customers"]),
         competitors=[str(c) for c in ctx["competitors"] if str(c).strip()],
         aliases=[str(a) for a in ctx["aliases"] if str(a).strip()],
         profile=profile,
@@ -87,15 +83,14 @@ def generate_subject_prompt_candidates(
         text = str(row.get("text") or "").strip()
         if not text:
             continue
+        # taxonomy 已在 generate_setup_prompts 内 apply；此处只取字段
         rows.append(
-            taxonomy_lock.apply_prompt_row(
-                {
-                    "text": text,
-                    "funnel_stage": str(row.get("funnel_stage") or taxonomy_lock.funnel_stage),
-                    "search_intent": str(row.get("search_intent") or taxonomy_lock.search_intent),
-                    "decision_type": str(row.get("decision_type") or taxonomy_lock.decision_type),
-                }
-            )
+            {
+                "text": text,
+                "funnel_stage": str(row.get("funnel_stage") or taxonomy_lock.funnel_stage),
+                "search_intent": str(row.get("search_intent") or taxonomy_lock.search_intent),
+                "decision_type": str(row.get("decision_type") or taxonomy_lock.decision_type),
+            }
         )
     if not rows:
         raise ValueError("未能生成任何提示词")

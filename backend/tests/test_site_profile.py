@@ -1,12 +1,10 @@
-"""Tests for micro-niche profile normalization and search query."""
+"""Tests for slim niche profile normalization."""
 
 from aperix_geo.services.competitor.profile import (
-    _split_tags,
-    build_search_query,
+    keywords_list,
     merge_profile_updates,
     normalize_niche_profile,
     profile_from_dict,
-    search_queries_list,
 )
 from aperix_geo.services.competitor.summary import (
     fallback_profile_summary,
@@ -16,103 +14,45 @@ from aperix_geo.services.competitor.summary import (
 from aperix_geo.services.setup.helpers import company_from_session
 
 
-def test_normalize_profile_micro_niche() -> None:
+def test_normalize_profile_slim() -> None:
     profile = normalize_niche_profile(
         {
             "industry": "医疗影像AI诊断与辅助决策系统",
-            "features": ["AI辅助结节检测", "云端PACS工作流集成", "多余"],
-            "customers": "三甲医院放射科、医学影像中心",
-            "search_queries": ["医疗影像AI诊断", "肺结节AI筛查", "云PACS影像系统", "DICOM智能阅片"],
+            "keywords": ["AI辅助结节检测", "云端PACS", "DICOM阅片"],
+            "brief": "三甲医院放射科",
         },
         entity="deepwise.com",
     )
     assert profile["industry"] == "医疗影像AI诊断与辅助决策系统"
-    assert "AI辅助结节检测" in profile["features"]
-    assert profile["features"].count("、") <= 2
-    assert "肺结节AI筛查" in profile["search_queries"]
+    assert keywords_list(profile) == ["AI辅助结节检测", "云端PACS", "DICOM阅片"]
+    assert "三甲医院" in profile["brief"]
 
 
-def test_search_queries_list() -> None:
+def test_normalize_ignores_legacy_fields() -> None:
     profile = normalize_niche_profile(
         {
             "industry": "跨境支付",
-            "features": ["收款"],
-            "customers": "企业",
-            "search_queries": ["跨境B2B", "多币种", "企业全球", "国际汇款"],
+            "features": ["收款", "换汇"],
+            "customers": "出海中小企业",
+            "topic_lexicon": {"category_terms": ["跨境收款", "多币种账户"]},
         },
         entity="example.com",
     )
-    assert search_queries_list(profile) == ["跨境B2B", "多币种", "企业全球", "国际汇款"]
+    assert keywords_list(profile) == []
+    assert profile["brief"] == ""
 
 
-def test_merge_profile_updates_search_queries() -> None:
+def test_merge_profile_updates_keywords() -> None:
     base = profile_from_dict(
         {
             "company": "Acme",
             "industry": "SaaS",
-            "features": "支付",
-            "customers": "企业",
-            "search_queries": "旧词一、旧词二",
+            "keywords": "旧词一、旧词二",
+            "brief": "企业",
         },
     )
-    merged = merge_profile_updates(base, search_queries=["跨境支付", "多币种账户", "企业钱包", "国际汇款"])
-    assert "跨境支付" in merged["search_queries"]
-    assert "旧词一" not in merged["search_queries"]
-
-
-def test_search_queries_accepts_five() -> None:
-    base = profile_from_dict(
-        {
-            "company": "Acme",
-            "industry": "SaaS",
-            "features": "支付",
-            "customers": "企业",
-            "search_queries": "旧词",
-        },
-    )
-    queries = ["主题一", "主题二", "主题三", "主题四", "主题五"]
-    merged = merge_profile_updates(base, search_queries=queries)
-    assert _split_tags(merged["search_queries"]) == queries
-
-
-def test_search_queries_not_truncated() -> None:
-    profile = normalize_niche_profile(
-        {
-            "industry": "跨境支付",
-            "features": ["收款"],
-            "customers": "企业",
-            "search_queries": [
-                "跨境B2B收款平台",
-                "多币种",
-                "企业全球账户系统",
-                "国际汇款",
-            ],
-        },
-        entity="example.com",
-    )
-    parts = _split_tags(profile["search_queries"])
-    assert parts == [
-        "跨境B2B收款平台",
-        "多币种",
-        "企业全球账户系统",
-        "国际汇款",
-    ]
-
-
-def test_search_query_prefers_search_queries() -> None:
-    profile = normalize_niche_profile(
-        {
-            "industry": "医疗影像AI诊断与辅助决策系统",
-            "features": ["AI辅助结节检测"],
-            "customers": "三甲医院放射科",
-            "search_queries": ["医疗影像AI诊断", "肺结节AI筛查", "云PACS影像系统", "DICOM智能阅片"],
-        },
-        entity="deepwise.com",
-    )
-    q = build_search_query(profile)
-    assert q is not None
-    assert "医疗影像AI诊断" in q
-    assert "肺结节AI筛查" in q
+    merged = merge_profile_updates(base, profile_patch={"keywords": "跨境支付、多币种账户"})
+    assert keywords_list(merged) == ["跨境支付", "多币种账户"]
 
 
 def test_fallback_profile_summary_sections() -> None:
@@ -120,18 +60,15 @@ def test_fallback_profile_summary_sections() -> None:
         {
             "company": "示例品牌",
             "industry": "跨境 B2B 支付",
-            "features": "多币种收款、合规结汇",
-            "customers": "出海中小企业",
-            "search_queries": "跨境收款、多币种账户",
+            "keywords": "多币种收款、合规结汇",
+            "brief": "出海中小企业",
         },
     )
     summary = fallback_profile_summary(profile, entity="示例品牌", region_label="中国大陆")
     assert summary.startswith("# 示例品牌")
     assert "## 概述" in summary
     assert "## 竞品" in summary
-    assert "## 理想客户画像" in summary
-    assert "## 地域与合规" in summary
-    assert "待补充" in summary
+    assert "多币种收款" in summary
     assert "中国大陆" in summary
 
 

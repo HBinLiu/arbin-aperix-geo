@@ -66,14 +66,18 @@ export function SetupTextInput({
 }: SetupTextInputProps & { className?: string; containerClassName?: string }) {
   return (
     <div className={cn(setupControlShell(shell), containerClassName)}>
-      {leading ? (
-        <div className="pointer-events-none absolute inset-y-0 left-3.5 z-10 flex items-center">{leading}</div>
-      ) : null}
-      <Input
-        controlSize="sm"
-        className={cn(leading && "pl-9", className)}
-        {...props}
-      />
+      <div className="relative h-9 w-full min-w-0">
+        {leading ? (
+          <span className="pointer-events-none absolute top-1/2 left-3 z-10 flex size-5 -translate-y-1/2 items-center justify-center">
+            {leading}
+          </span>
+        ) : null}
+        <Input
+          controlSize="sm"
+          className={cn("!mx-0 h-9 w-full", leading && "pl-10", className)}
+          {...props}
+        />
+      </div>
     </div>
   );
 }

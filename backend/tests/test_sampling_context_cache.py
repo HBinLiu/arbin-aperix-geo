@@ -43,9 +43,8 @@ def test_subject_roundtrip_serialization() -> None:
     subject.niche_profile = {
         "company": "Aperix",
         "industry": "GEO SaaS",
-        "features": "监测",
-        "customers": "品牌方",
-        "search_queries": "AI搜索",
+        "keywords": "监测",
+        "brief": "品牌方",
     }
     restored = _deserialize_subject(_serialize_subject(subject))
     assert restored.brand == "Aperix"

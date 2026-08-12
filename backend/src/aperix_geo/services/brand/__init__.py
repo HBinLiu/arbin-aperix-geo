@@ -10,7 +10,6 @@ from aperix_geo.services.brand.domain import (
     extract_domain_from_text_for_brand,
     other_entity_id,
     resolve_brand_domain,
-    search_brand_official_domain,
 )
 from aperix_geo.services.brand.keys import configured_brand_keys
 from aperix_geo.services.brand.resolve import (
@@ -55,7 +54,6 @@ __all__ = [
     "resolve_brand_id_for_analysis_entity",
     "resolve_brand_domain",
     "resolve_or_create_brand",
-    "search_brand_official_domain",
     "sync_brand_for_entity",
     "sync_brands_for_entities",
     "sync_subject_brands_from_setup",

@@ -1,4 +1,4 @@
-"""设置向导：初始提示词生成（LLM）。"""
+"""设置向导：初始提示词生成（LLM 主路径，keyword_plan 补齐/兜底）。"""
 
 from __future__ import annotations
 
@@ -8,65 +8,66 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
+from aperix_geo.services.competitor.profile import keywords_list
 from aperix_geo.services.competitor.types import NicheProfile
+from aperix_geo.services.providers import LLMProviderError, chat_completion
 from aperix_geo.services.providers.prompts import (
     SETUP_WIZARD_PROMPTS_USER_PREFIX,
     setup_wizard_prompts_system,
 )
-from aperix_geo.services.providers import chat_completion
+from aperix_geo.services.prompts.constants import PROMPT_MAX_PER_TOPIC, PROMPT_PER_TOPIC
 from aperix_geo.services.prompts.taxonomy import (
     PromptTaxonomyLock,
     normalize_decision_type,
     normalize_funnel_stage,
     normalize_search_intent,
 )
-from aperix_geo.services.setup.keyword_plan import (
-    build_keyword_plan,
-    build_topic_keyword_map,
-    keyword_plan_to_dict,
-)
-from aperix_geo.services.setup.prompt_seed import build_prompts_from_seeds
+from aperix_geo.services.setup.keyword_plan import KeywordPlan, build_keyword_plan
 from aperix_geo.services.setup.prompt_qa import validate_generated_prompts
-from aperix_geo.services.setup.topic_items import clusters_for_prompt_topics, topic_name_key
+from aperix_geo.services.setup.prompt_seed import build_prompts_from_plan
+from aperix_geo.services.setup.topic_items import topic_name_key
 from aperix_geo.utils.json import extract_json_object
 
 logger = logging.getLogger(__name__)
 
-from aperix_geo.services.prompts.constants import PROMPT_MAX_PER_TOPIC, PROMPT_PER_TOPIC
 
-
-def _exclude_set(exclude_prompts: list[str] | None) -> set[str]:
-    return {p.strip() for p in (exclude_prompts or []) if p.strip()}
+def llm_prompt_row_to_internal(
+    item: dict[str, Any],
+    *,
+    taxonomy_lock: PromptTaxonomyLock | None = None,
+) -> dict[str, str] | None:
+    """LLM 短字段 → 内部长字段；可选 taxonomy lock。"""
+    text = str(item.get("text") or "").strip()
+    if not text:
+        return None
+    row = {
+        "text": text,
+        "funnel_stage": normalize_funnel_stage(str(item.get("funnel") or "")),
+        "search_intent": normalize_search_intent(str(item.get("intent") or "")),
+        "decision_type": normalize_decision_type(str(item.get("decision") or "")),
+    }
+    return taxonomy_lock.apply_prompt_row(row) if taxonomy_lock is not None else row
 
 
 def _normalize_generated_prompts(
     raw: list[Any],
     *,
     limit: int,
-    excluded: set[str] | None = None,
+    excluded: set[str],
     taxonomy_lock: PromptTaxonomyLock | None = None,
 ) -> list[dict[str, str]]:
-    blocked = excluded or set()
     out: list[dict[str, str]] = []
     seen: set[str] = set()
     for item in raw:
         if not isinstance(item, dict):
             continue
-        text = str(item.get("text") or "").strip()
-        funnel_stage = normalize_funnel_stage(str(item.get("funnel") or ""))
-        search_intent = normalize_search_intent(str(item.get("intent") or ""))
-        decision_type = normalize_decision_type(str(item.get("decision") or ""))
-        if not text or text in seen or text in blocked:
+        row = llm_prompt_row_to_internal(item, taxonomy_lock=taxonomy_lock)
+        if row is None:
+            continue
+        text = row["text"]
+        if text in seen or text in excluded:
             continue
         seen.add(text)
-        row = {
-            "text": text,
-            "funnel_stage": funnel_stage,
-            "search_intent": search_intent,
-            "decision_type": decision_type,
-        }
-        if taxonomy_lock is not None:
-            row = taxonomy_lock.apply_prompt_row(row)
         out.append(row)
         if len(out) >= limit:
             break
@@ -77,36 +78,25 @@ def _build_user_payload(
     *,
     entity: str,
     topics: list[str],
-    topic_clusters: list[dict[str, Any]] | None,
-    industry: str,
-    features: str,
-    customers: str,
     competitors: list[str],
     aliases: list[str],
     prompts_per_topic: int,
     exclude_prompts: list[str],
     profile: NicheProfile,
-    validation_feedback: list[str] | None = None,
     taxonomy_lock: PromptTaxonomyLock | None = None,
 ) -> dict[str, Any]:
     n = max(1, min(int(prompts_per_topic), PROMPT_MAX_PER_TOPIC))
-    clusters = clusters_for_prompt_topics(topics, topic_clusters)
-    plan = build_keyword_plan(profile)
     payload: dict[str, Any] = {
         "entity": entity.strip() or "本品牌",
         "aliases": [a.strip() for a in aliases if a.strip()],
-        "industry": industry,
-        "features": features,
-        "customers": customers,
+        "industry": str(profile.get("industry") or ""),
+        "keywords": keywords_list(profile),
+        "brief": str(profile.get("brief") or ""),
         "competitors": [c.strip() for c in competitors if c.strip()],
-        "topic_clusters": clusters,
+        "topics": [t.strip() for t in topics if t.strip()],
         "prompts_per_topic": n,
         "exclude_prompts": [p.strip() for p in exclude_prompts if p.strip()],
-        "keyword_plan": keyword_plan_to_dict(plan),
-        "topic_keyword_map": build_topic_keyword_map(topics, plan=plan),
     }
-    if validation_feedback:
-        payload["validation_feedback"] = [s.strip() for s in validation_feedback if s.strip()]
     if taxonomy_lock is not None:
         payload["taxonomy_lock"] = taxonomy_lock.to_llm_payload()
     return payload
@@ -137,11 +127,7 @@ def _invoke_setup_prompts_llm(
     rows = data.get("topics")
     if not isinstance(rows, list):
         raise ValueError("missing topics array")
-    logger.debug(
-        "设置向导提示词 LLM: topics=%d %.0fms",
-        len(rows),
-        latency_ms,
-    )
+    logger.debug("设置向导提示词 LLM: topics=%d %.0fms", len(rows), latency_ms)
     return [row for row in rows if isinstance(row, dict)]
 
 
@@ -196,49 +182,32 @@ def _merge_prompt_lists(
     return out
 
 
-def _validate_prompt_batch(
-    rows: list[dict[str, Any]],
-    *,
-    keyword_plan: Any,
-    topic_clusters: list[dict[str, Any]] | None,
-) -> None:
-    try:
-        validate_generated_prompts(
-            rows,
-            keyword_plan=keyword_plan,
-            topic_clusters=topic_clusters,
-        )
-    except ValueError as exc:
-        logger.warning("设置向导提示词校验未通过: %s", exc)
-        raise
-
-
-def _fill_prompt_gaps_from_seeds(
+def _fill_prompt_gaps_from_plan(
     result: list[dict[str, Any]],
     *,
-    topic_clusters: list[dict[str, Any]] | None,
     profile: NicheProfile,
+    plan: KeywordPlan,
     n: int,
     excluded: set[str],
     taxonomy_lock: PromptTaxonomyLock | None = None,
 ) -> None:
-    """用 profile 长尾候选补齐 LLM 未产满的主题，避免额外 LLM 重试。"""
+    """用已构建的 keyword_plan 补齐 LLM 未产满的主题，避免额外 LLM 重试。"""
     topics_needing_fill = [
         str(item["topic"])
         for item in result
-        if 0 < len(item.get("prompts") or []) < n or not item.get("prompts")
+        if len(item.get("prompts") or []) < n
     ]
     if not topics_needing_fill:
         return
-    seed_items = build_prompts_from_seeds(
+    plan_items = build_prompts_from_plan(
         topics=topics_needing_fill,
-        topic_clusters=topic_clusters,
         profile=profile,
+        plan=plan,
         limit=n,
         excluded=excluded,
         taxonomy_lock=taxonomy_lock,
     )
-    by_topic = {str(item["topic"]): item for item in seed_items}
+    by_topic = {str(item["topic"]): item for item in plan_items}
     for item in result:
         topic = str(item["topic"])
         extra = by_topic.get(topic, {}).get("prompts") or []
@@ -251,13 +220,10 @@ def _generate_setup_prompts_via_llm(
     *,
     entity: str,
     cleaned_topics: list[str],
-    topic_clusters: list[dict[str, Any]] | None,
-    industry: str,
-    features: str,
-    customers: str,
     competitor_list: list[str],
     aliases: list[str] | None,
     profile: NicheProfile,
+    plan: KeywordPlan,
     n: int,
     excluded: set[str],
     excluded_list: list[str],
@@ -267,10 +233,6 @@ def _generate_setup_prompts_via_llm(
     user_payload = _build_user_payload(
         entity=entity,
         topics=cleaned_topics,
-        topic_clusters=topic_clusters,
-        industry=industry,
-        features=features,
-        customers=customers,
         competitors=competitor_list,
         aliases=list(aliases or []),
         prompts_per_topic=n,
@@ -278,37 +240,34 @@ def _generate_setup_prompts_via_llm(
         profile=profile,
         taxonomy_lock=taxonomy_lock,
     )
-    keyword_plan = build_keyword_plan(profile)
-    cluster_payload = clusters_for_prompt_topics(cleaned_topics, topic_clusters)
-
     billing_key = hashlib.sha256(
         json.dumps(user_payload, ensure_ascii=False, sort_keys=True).encode()
     ).hexdigest()[:16]
 
-    def _bill(stage: str) -> Callable[[dict[str, Any]], None]:
-        def _inner(usage: dict[str, Any]) -> None:
-            if on_live_call is not None:
-                on_live_call(stage, usage)
-
-        return _inner
+    def _on_usage(usage: dict[str, Any]) -> None:
+        if on_live_call is not None:
+            on_live_call(f"batch:{billing_key}", usage)
 
     by_name = _rows_by_topic_name(
-        _invoke_setup_prompts_llm(user_payload, on_live_call=_bill(f"batch:{billing_key}"))
+        _invoke_setup_prompts_llm(user_payload, on_live_call=_on_usage)
     )
-    result: list[dict[str, Any]] = []
-    for topic in cleaned_topics:
-        prompts = _prompts_from_row(
-            by_name.get(topic_name_key(topic)),
-            limit=n,
-            excluded=excluded,
-            taxonomy_lock=taxonomy_lock,
-        )
-        result.append({"topic": topic, "prompts": prompts})
+    result: list[dict[str, Any]] = [
+        {
+            "topic": topic,
+            "prompts": _prompts_from_row(
+                by_name.get(topic_name_key(topic)),
+                limit=n,
+                excluded=excluded,
+                taxonomy_lock=taxonomy_lock,
+            ),
+        }
+        for topic in cleaned_topics
+    ]
 
-    _fill_prompt_gaps_from_seeds(
+    _fill_prompt_gaps_from_plan(
         result,
-        topic_clusters=topic_clusters,
         profile=profile,
+        plan=plan,
         n=n,
         excluded=excluded,
         taxonomy_lock=taxonomy_lock,
@@ -318,7 +277,7 @@ def _generate_setup_prompts_via_llm(
     if empty:
         raise ValueError(f"以下监测主题未生成有效问句：{'、'.join(empty)}")
 
-    _validate_prompt_batch(result, keyword_plan=keyword_plan, topic_clusters=cluster_payload)
+    validate_generated_prompts(result)
 
     short = [str(item["topic"]) for item in result if 0 < len(item["prompts"]) < n]
     if short:
@@ -341,10 +300,6 @@ def generate_setup_prompts(
     *,
     entity: str,
     topics: list[str],
-    topic_clusters: list[dict[str, Any]] | None = None,
-    industry: str = "",
-    features: str = "",
-    customers: str = "",
     competitors: list[str] | None = None,
     aliases: list[str] | None = None,
     profile: NicheProfile,
@@ -353,27 +308,29 @@ def generate_setup_prompts(
     on_live_call: Callable[[str, dict[str, Any]], None] | None = None,
     taxonomy_lock: PromptTaxonomyLock | None = None,
 ) -> list[dict[str, Any]]:
-    """每个主题返回至多 prompts_per_topic 条提示词（LLM 优先，失败时回退 seed）。"""
+    """每主题至多 prompts_per_topic 条。
+
+    LLM 解析/结构失败回退 keyword_plan。
+    LLMProviderError（上游 API）不回退——调用方应感知真实失败，且计费已在成功响应后发生。
+    """
     cleaned_topics = [t.strip() for t in topics if t.strip()]
     if not cleaned_topics:
         return []
 
-    excluded = _exclude_set(exclude_prompts)
     excluded_list = [p.strip() for p in (exclude_prompts or []) if p.strip()]
+    excluded = set(excluded_list)
     n = max(1, min(int(prompts_per_topic), PROMPT_MAX_PER_TOPIC))
     competitor_list = [c.strip() for c in (competitors or []) if c.strip()]
+    plan = build_keyword_plan(profile)
 
     try:
         return _generate_setup_prompts_via_llm(
             entity=entity,
             cleaned_topics=cleaned_topics,
-            topic_clusters=topic_clusters,
-            industry=industry,
-            features=features,
-            customers=customers,
             competitor_list=competitor_list,
             aliases=aliases,
             profile=profile,
+            plan=plan,
             n=n,
             excluded=excluded,
             excluded_list=excluded_list,
@@ -381,31 +338,27 @@ def generate_setup_prompts(
             taxonomy_lock=taxonomy_lock,
         )
     except ValueError as exc:
-        logger.info("设置向导提示词: LLM 未产出有效问句，回退 seed: %s", exc)
+        logger.info("设置向导提示词: LLM 未产出有效问句，回退 keyword_plan: %s", exc)
+    except LLMProviderError:
+        raise
 
-    keyword_plan = build_keyword_plan(profile)
-    cluster_payload = clusters_for_prompt_topics(cleaned_topics, topic_clusters)
-    seed_result = build_prompts_from_seeds(
+    plan_result = build_prompts_from_plan(
         topics=cleaned_topics,
-        topic_clusters=topic_clusters,
         profile=profile,
+        plan=plan,
         limit=n,
         excluded=excluded,
         taxonomy_lock=taxonomy_lock,
     )
-    empty_seed = [str(item["topic"]) for item in seed_result if not item["prompts"]]
-    if empty_seed:
-        raise ValueError(f"以下监测主题未生成有效问句：{'、'.join(empty_seed)}")
+    empty_plan = [str(item["topic"]) for item in plan_result if not item["prompts"]]
+    if empty_plan:
+        raise ValueError(f"以下监测主题未生成有效问句：{'、'.join(empty_plan)}")
 
-    _validate_prompt_batch(
-        seed_result,
-        keyword_plan=keyword_plan,
-        topic_clusters=cluster_payload,
-    )
+    validate_generated_prompts(plan_result)
     logger.info(
-        "设置向导提示词(seed): entity=%r topics=%d prompts=%d",
+        "设置向导提示词(plan): entity=%r topics=%d prompts=%d",
         entity.strip() or "本品牌",
-        len(seed_result),
-        sum(len(item["prompts"]) for item in seed_result),
+        len(plan_result),
+        sum(len(item["prompts"]) for item in plan_result),
     )
-    return seed_result
+    return plan_result

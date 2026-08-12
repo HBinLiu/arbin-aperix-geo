@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
 
+import { BrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
 import { FaviconImage } from "@/components/common/FaviconImage";
 import { Button } from "@/components/ui/button";
 import { useDashboardContext } from "@/hooks/useDashboardContext";
@@ -10,7 +11,31 @@ import { isAtSubjectLimit } from "@/lib/billing/limits";
 import { DASHBOARD_SETUP_PATH } from "@/lib/dashboard";
 import { clearSetupCache } from "@/lib/setup";
 import { subjectDisplayLabel, subjectFaviconUrl } from "@/lib/subject";
+import type { Subject } from "@/types";
 import { cn } from "@/lib/utils";
+
+function SubjectIcon({ subject, size }: { subject: Subject; size: "sm" | "default" }) {
+  const label = subjectDisplayLabel(subject);
+  const faviconUrl = subjectFaviconUrl(subject);
+  const px = size === "sm" ? 20 : 24;
+  const box = size === "sm" ? "size-5" : "size-6";
+
+  if (faviconUrl) {
+    return (
+      <FaviconImage
+        url={faviconUrl}
+        size={px}
+        className={cn(box, "shrink-0 rounded-md")}
+        iconClassName={box}
+        fallbackLabel={label}
+        showLoadingSpinner={false}
+      />
+    );
+  }
+
+  // 无网站 URL 时与筛选条等一致：按展示名稳定着色的文字图标
+  return <BrandRankIcon label={label} size={size} faviconLoadingSpinner={false} />;
+}
 
 export function SubjectSwitcher() {
   const navigate = useNavigate();
@@ -49,8 +74,6 @@ export function SubjectSwitcher() {
     navigate(DASHBOARD_SETUP_PATH);
   };
 
-  const activeFaviconUrl = subjectFaviconUrl(subject);
-
   return (
     <div ref={rootRef} className="relative flex items-center pl-4">
       <button
@@ -60,18 +83,7 @@ export function SubjectSwitcher() {
         onClick={() => setOpen((v) => !v)}
         className="hover:bg-background/80 flex min-w-0 max-w-[min(100vw-12rem,16rem)] items-center gap-2 rounded-md px-1.5 py-1 outline-hidden"
       >
-        {activeFaviconUrl ? (
-          <FaviconImage
-            url={activeFaviconUrl}
-            size={24}
-            className="size-6 shrink-0"
-            iconClassName="size-6"
-          />
-        ) : (
-          <span className="bg-background text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded text-xs font-semibold">
-            {subjectDisplayLabel(subject).slice(0, 1).toUpperCase()}
-          </span>
-        )}
+        <SubjectIcon subject={subject} size="default" />
         <span className="truncate text-sm font-semibold">{subjectDisplayLabel(subject)}</span>
         <ChevronsUpDown className="text-muted-foreground size-4 shrink-0" aria-hidden />
       </button>
@@ -85,7 +97,6 @@ export function SubjectSwitcher() {
           <div className="max-h-64 overflow-y-auto p-2">
             {subjects.map((item) => {
               const active = item.id === subject.id;
-              const faviconUrl = subjectFaviconUrl(item);
               return (
                 <button
                   key={item.id}
@@ -98,18 +109,7 @@ export function SubjectSwitcher() {
                     active && "bg-background",
                   )}
                 >
-                  {faviconUrl ? (
-                    <FaviconImage
-                      url={faviconUrl}
-                      size={20}
-                      className="size-5 shrink-0"
-                      iconClassName="size-5"
-                    />
-                  ) : (
-                    <span className="bg-background text-muted-foreground flex size-5 shrink-0 items-center justify-center rounded text-[10px] font-semibold">
-                      {subjectDisplayLabel(item).slice(0, 1).toUpperCase()}
-                    </span>
-                  )}
+                  <SubjectIcon subject={item} size="sm" />
                   <span className="min-w-0 flex-1 truncate font-medium">{subjectDisplayLabel(item)}</span>
                   {active ? <Check className="size-4 shrink-0" aria-hidden /> : null}
                 </button>

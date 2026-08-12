@@ -54,8 +54,10 @@ def persist_brand_knowledge_from_setup(
         },
         facts_json={
             "industry": str(profile.get("industry") or "").strip(),
-            "icp": str(profile.get("customers") or "").strip(),
-            "products": [p for p in str(profile.get("features") or "").split("、") if p.strip()],
+            "icp": str(profile.get("brief") or "").strip(),
+            "products": [
+                p for p in str(profile.get("keywords") or "").split("、") if p.strip()
+            ],
             "pain_points": [],
             "differentiators": [],
         },

@@ -16,7 +16,7 @@ from aperix_geo.services.setup.materials import (
 )
 
 
-def test_build_brand_research_payload_uses_user_corpus_not_searxng() -> None:
+def test_build_brand_research_payload_uses_user_corpus_only() -> None:
     payload = build_subject_research_payload(
         subject_type="brand",
         target="深睿医疗",
@@ -47,9 +47,8 @@ def test_is_niche_profile_sufficient() -> None:
     ok = normalize_niche_profile(
         {
             "industry": "医疗 AI",
-            "features": ["影像诊断"],
-            "customers": "三甲医院",
-            "search_queries": ["AI 医学影像"],
+            "keywords": ["影像诊断", "AI 医学影像"],
+            "brief": "三甲医院",
         },
         entity="深睿医疗",
     )

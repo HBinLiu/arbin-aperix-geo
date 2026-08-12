@@ -4,7 +4,8 @@
 
 流水线：归一化 → 内存/磁盘 →（HOME+apex）子域 promote → 网络抓取 → 落盘（子域自动镜像 apex）。
 
-磁盘：``{FAVICON_STORAGE_DIR}/{domain}/favicon.{ext}`` + ``index.json``。
+磁盘：``{FAVICON_STORAGE_DIR}/{domain}/favicon.{ext}`` + ``index.json``；
+HOME 抓取失败时 ``index.json`` 记 ``miss: true``，重启后仍跳过网络（成功 persist 会清除）。
 """
 
 from __future__ import annotations

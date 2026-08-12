@@ -138,12 +138,6 @@ def finalize_setup(
             brand=str(row.get("brand") or ""),
             summary=str(row.get("summary") or ""),
             aliases=list(row.get("aliases") or []),
-            cross_validate_score=(
-                float(row["cross_validate_score"])
-                if row.get("cross_validate_score") is not None
-                else None
-            ),
-            cross_validate_reason=str(row.get("cross_validate_reason") or ""),
         )
         for row in enriched_competitors
     ]

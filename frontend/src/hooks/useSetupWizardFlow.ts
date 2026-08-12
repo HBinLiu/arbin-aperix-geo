@@ -10,8 +10,6 @@ import {
   saveSetupMaterials,
   uploadSetupMaterialFile,
 } from "@/api/setup";
-import { maxCompetitorsPerSubject } from "@/lib/billing/limits";
-import { useTenantSubscription } from "@/hooks/useTenantSubscription";
 import { coalesceWebsiteUrl, hostnameFromWebsiteInput, registrableDomain } from "@/lib/domain";
 import {
   clearSetupCache,
@@ -41,8 +39,6 @@ type UseSetupWizardFlowOptions = {
 
 export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
   const initial = React.useMemo(() => loadSetupCache() ?? defaultSetupCache(), []);
-  const { data: subscription } = useTenantSubscription();
-  const maxCompetitors = maxCompetitorsPerSubject(subscription);
 
   const [step, setStep] = React.useState(initial.step);
   const [mode, setMode] = React.useState<SubjectMode>(initial.mode);
@@ -171,11 +167,11 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
   const validateCompetitors = (): boolean => {
     const { competitors } = rowsToPersist(mode, competitorRows);
     if (mode === "domain" && competitors.filter((c) => c.domain).length < 1) {
-      toast.error("请至少选择一个竞品域名。");
+      toast.error("请至少添加一个竞品域名。");
       return false;
     }
     if (mode === "brand" && competitors.filter((c) => c.brand).length < 1) {
-      toast.error("请至少选择一个竞品品牌。");
+      toast.error("请至少添加一个竞品品牌。");
       return false;
     }
     return true;
@@ -218,17 +214,10 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
         region,
         language,
         sessionId: sessionId || undefined,
-        maxCompetitors,
       });
       setSessionId(result.sessionId);
-      setCompetitorRows(result.competitorRows);
-      if (result.competitorRows.length === 0) {
-        toast.info(
-          mode === "domain"
-            ? "未发现符合条件的竞品，请手动添加域名。"
-            : "未发现符合条件的竞品品牌，请手动添加。",
-        );
-      }
+      setCompetitorRows([]);
+      setTopicRows([]);
     } catch {
       setStep(mode === "brand" ? 1 : 0);
     } finally {
@@ -272,13 +261,10 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
         region,
         language,
         sessionId,
-        maxCompetitors,
       });
       setSessionId(result.sessionId);
-      setCompetitorRows(result.competitorRows);
-      if (result.competitorRows.length === 0) {
-        toast.info("未发现符合条件的竞品品牌，请手动添加。");
-      }
+      setCompetitorRows([]);
+      setTopicRows([]);
     } catch {
       setStep(1);
     } finally {
@@ -470,13 +456,11 @@ export function useSetupWizardFlow({ onCompleted }: UseSetupWizardFlowOptions) {
   };
 
   const shellHeader = setupStepHeader(step, mode, {
-    discovering,
     loadingTopics,
     generatingPrompts,
   });
 
   const verticalStep = setupVerticalStep(step, mode, {
-    discovering,
     loadingTopics,
     generatingPrompts,
   });

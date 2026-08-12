@@ -23,12 +23,6 @@ export type PromptRow = {
   decisionType?: string;
 };
 
-export type DiscoveredCompetitor = {
-  domain: string;
-  website_url?: string;
-  brand: string;
-};
-
 export type CompetitorRow = {
   id: string;
   name: string;

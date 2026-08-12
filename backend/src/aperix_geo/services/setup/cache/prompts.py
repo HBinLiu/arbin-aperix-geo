@@ -7,36 +7,29 @@ import json
 from typing import Any
 
 from aperix_geo.services.prompts.constants import PROMPT_PER_TOPIC
+from aperix_geo.services.setup.topic_items import topic_name_key
 
 
 def prompts_generation_hash(
     *,
     entity: str,
     topics: list[str],
-    topic_clusters: list[dict[str, Any]] | None = None,
     competitors: list[str],
     industry: str,
-    features: str,
-    customers: str,
+    keywords: str,
+    brief: str,
     aliases: list[str],
     exclude_prompts: list[str],
     prompts_per_topic: int = PROMPT_PER_TOPIC,
 ) -> str:
-    cluster_names = []
-    if topic_clusters:
-        for cluster in topic_clusters:
-            if isinstance(cluster, dict):
-                name = str(cluster.get("name") or "").strip()
-                if name:
-                    cluster_names.append(name)
     payload = {
         "entity": entity.strip(),
-        "topics": sorted(t.strip() for t in topics if t.strip()),
-        "topic_clusters": sorted(cluster_names),
+        # 用 topic_name_key，避免「AI 可见度」与「AI可见度」缓存分裂
+        "topics": sorted({topic_name_key(t) for t in topics if t.strip()}),
         "competitors": sorted(c.strip() for c in competitors if c.strip()),
         "industry": industry.strip(),
-        "features": features.strip(),
-        "customers": customers.strip(),
+        "keywords": keywords.strip(),
+        "brief": brief.strip(),
         "aliases": sorted(a.strip() for a in aliases if a.strip()),
         "exclude_prompts": sorted(p.strip() for p in exclude_prompts if p.strip()),
         "prompts_per_topic": prompts_per_topic,

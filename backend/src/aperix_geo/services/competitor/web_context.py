@@ -66,7 +66,7 @@ def fetch_site_homepage_context(
         return HomepageContext(url="", metadata={}, markdown="")
 
     if not _dns_reachable(user_url, root):
-        logger.info("竞品发现: 跳过首页抓取，DNS 解析失败 域名=%s", root or raw_input)
+        logger.info("主体首页: 跳过抓取，DNS 解析失败 域名=%s", root or raw_input)
         return HomepageContext(url="", metadata={}, markdown="")
 
     candidates = profile_homepage_fetch_urls(
@@ -94,7 +94,7 @@ def fetch_site_homepage_context(
         page_url = result.final_url or start_url
         meta = homepage_metadata_dict(parsed)
         logger.info(
-            "竞品发现: 首页抓取完成 域名=%s url=%s source=%s title=%r 字符数=%d",
+            "主体首页: 抓取完成 域名=%s url=%s source=%s title=%r 字符数=%d",
             root,
             page_url,
             result.source,

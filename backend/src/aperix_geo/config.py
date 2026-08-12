@@ -232,23 +232,6 @@ class Settings(BaseSettings):
     ernie_web_search_enabled: bool = True
     ernie_chat_timeout_s: float = Field(default=120.0, ge=10.0, le=600.0)
 
-    # --- 竞品发现（.env：COMPETITOR_* + DOUBAO_*）---
-    searxng_base_url: str = ""
-    searxng_timeout_s: float = Field(
-        default=30.0,
-        ge=5.0,
-        le=120.0,
-        validation_alias=AliasChoices("searxng_timeout_s", "sampling_searxng_timeout_s"),
-    )
-    # 交叉验算 head 走 PAGE_CRAWL_SEO_*（轻量 httpx）；池越大召回越好，与 PAGE_CRAWL_CONCURRENCY 配合
-    competitor_pool_size: int = Field(default=40, ge=8, le=60)
-    competitor_search_rounds: int = Field(default=3, ge=1, le=5)
-    competitor_cross_validate_pass_score: float = Field(default=6.0, ge=0.0, le=10.0)
-    # head 已预抓取，瓶颈在 LLM；略大批次减少往返
-    competitor_cross_validate_batch_size: int = Field(default=20, ge=1, le=50)
-    competitor_result_min: int = Field(default=3, ge=1, le=20)
-    competitor_result_max: int = Field(default=5, ge=1, le=20)
-
     # 设置向导 Redis 会话 TTL（秒）；0=永不过期。finalize 成功仍会主动删除。
     setup_session_ttl_s: int = Field(default=86_400, ge=0, le=604_800)
     setup_upload_dir: str = Field(

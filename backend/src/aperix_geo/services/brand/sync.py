@@ -256,7 +256,6 @@ def sync_brand_for_entity(
     entity: BrandSyncEntity,
     raw_text: str = "",
     urls: list[str] | None = None,
-    allow_search: bool = True,
     sync_ctx: BrandSyncContext | None = None,
 ) -> Brand:
     catalog = sync_ctx.catalog if sync_ctx is not None else None
@@ -296,7 +295,6 @@ def sync_brand_for_entity(
         brand=entity.entity_label,
         raw_text=raw_text,
         urls=urls,
-        allow_search=allow_search,
         sync_ctx=sync_ctx,
     )
     return resolve_or_create_brand(
@@ -325,7 +323,6 @@ def sync_brands_for_entities(
     entities: list[BrandSyncEntity],
     raw_text: str = "",
     urls: list[str] | None = None,
-    allow_search: bool = True,
 ) -> dict[str, Brand]:
     sync_ctx = BrandSyncContext.load(db, subject_id=subject_id)
     brands: dict[str, Brand] = {}
@@ -337,7 +334,6 @@ def sync_brands_for_entities(
                 entity=entity,
                 raw_text=raw_text,
                 urls=urls,
-                allow_search=allow_search,
                 sync_ctx=sync_ctx,
             )
         except IntegrityError:

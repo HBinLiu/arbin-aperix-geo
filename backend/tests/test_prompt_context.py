@@ -30,9 +30,8 @@ def test_prompt_context_from_subject_uses_niche_profile() -> None:
         niche_profile={
             "company": "Aperix",
             "industry": "GEO SaaS",
-            "features": "AI可见度监测",
-            "customers": "市场团队",
-            "category_terms": "AI可见度监测",
+            "keywords": "AI可见度监测",
+            "brief": "市场团队",
         },
     )
     subject.competitors = [
@@ -40,15 +39,15 @@ def test_prompt_context_from_subject_uses_niche_profile() -> None:
     ]
     ctx = prompt_context_from_subject(subject)
     assert ctx["entity"] == "Aperix"
-    assert ctx["features"] == "AI可见度监测"
+    assert ctx["keywords"] == "AI可见度监测"
     assert ctx["industry"] == "GEO SaaS"
-    assert ctx["customers"] == "市场团队"
+    assert ctx["brief"] == "市场团队"
     assert ctx["profile"]["company"] == "Aperix"
     assert "beta.com" in ctx["competitors"]
     assert "Beta" in ctx["competitors"]
 
 
-def test_prompt_context_falls_back_to_profile_summary() -> None:
+def test_prompt_context_empty_profile_has_empty_keywords() -> None:
     subject = Subject(
         id=uuid.uuid4(),
         tenant_id=uuid.uuid4(),
@@ -59,4 +58,5 @@ def test_prompt_context_falls_back_to_profile_summary() -> None:
         niche_profile={},
     )
     ctx = prompt_context_from_subject(subject)
-    assert ctx["features"] == "# long summary"
+    assert ctx["keywords"] == ""
+    assert ctx["brief"] == ""

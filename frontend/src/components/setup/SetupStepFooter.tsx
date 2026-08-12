@@ -12,7 +12,7 @@ type SetupStepFooterProps = {
 };
 
 export function SetupStepFooter({ step, maxStep, busy, submitting, onBack }: SetupStepFooterProps) {
-  // 发现竞品 / 生成主题 / 生成提示词：主内容区已显示 Loader，隐藏底部栏
+  // 分析画像 / 生成主题 / 生成提示词：主内容区已显示 Loader，隐藏底部栏
   if (busy && !submitting) return null;
 
   const continueLabel = step === maxStep ? (submitting ? "提交中…" : "完成设置") : "继续";

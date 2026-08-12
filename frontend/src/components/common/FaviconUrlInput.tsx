@@ -91,37 +91,29 @@ export function FaviconUrlInput({
     onBlur?.(event);
   };
 
-  const leading = <FaviconLeading url={displayUrl} />;
-
-  const inputProps = {
-    ref: inputRef,
-    value,
-    onChange,
-    onBlur: handleBlur,
-    disabled,
-    ...props,
-  };
-
-  if (layout === "merged") {
-    return (
-      <div className={cn("relative min-w-0 flex-1", containerClassName)}>
-        <div className="pointer-events-none absolute top-1/2 left-3.5 z-10 flex -translate-y-1/2 items-center">
-          {leading}
-        </div>
-        <Input
-          variant="merged"
-          controlSize="sm"
-          className={cn("w-full pl-10", className)}
-          {...inputProps}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className={cn(setupControlShellClass, containerClassName)}>
-      <div className="pointer-events-none absolute inset-y-0 left-3.5 z-10 flex items-center">{leading}</div>
-      <Input controlSize="sm" className={cn("pl-9", className)} {...inputProps} />
+  // 与 Input 同高的定位盒：取消 Input 默认 mx-0.5，避免图标相对「含 margin 的外框」错位
+  const field = (
+    <div className="relative h-9 w-full min-w-0">
+      <span className="pointer-events-none absolute top-1/2 left-3 z-10 flex size-5 -translate-y-1/2 items-center justify-center">
+        <FaviconLeading url={displayUrl} />
+      </span>
+      <Input
+        ref={inputRef}
+        value={value}
+        onChange={onChange}
+        onBlur={handleBlur}
+        disabled={disabled}
+        variant={layout === "merged" ? "merged" : undefined}
+        controlSize="sm"
+        className={cn("!mx-0 h-9 w-full pl-10", className)}
+        {...props}
+      />
     </div>
   );
+
+  if (layout === "merged") {
+    return <div className={cn("min-w-0 flex-1", containerClassName)}>{field}</div>;
+  }
+
+  return <div className={cn(setupControlShellClass, containerClassName)}>{field}</div>;
 }

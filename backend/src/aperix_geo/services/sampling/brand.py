@@ -146,7 +146,6 @@ def persist_open_brands_from_absa(
                 brand=label,
                 raw_text=raw_text,
                 urls=urls,
-                allow_search=False,
                 sync_ctx=sync_ctx,
             )
         domain_key = registrable_from(domain) if domain else ""

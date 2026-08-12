@@ -18,6 +18,7 @@ import {
   faviconCandidateUrls,
   faviconUrlFromHost,
   getFaviconClientStatus,
+  markFaviconClientMiss,
   markFaviconClientOk,
 } from "@/lib/favicon";
 import type { AnalysisEntityRef, AnalysisFilters } from "@/types";
@@ -88,13 +89,15 @@ export function FilterSelect({
           className,
         )}
       >
-        {leading ??
-          (Icon ? (
-            <Icon
-              className={cn("size-3.5 shrink-0", isPrimary ? "text-primary-foreground" : "text-muted-foreground")}
-              aria-hidden
-            />
-          ) : null)}
+        {leading ? (
+          // SelectTrigger 有 [&>span]:line-clamp-1，图标勿作直接 span 子节点，否则文字图标无法垂直居中
+          <div className="flex shrink-0 items-center justify-center">{leading}</div>
+        ) : Icon ? (
+          <Icon
+            className={cn("size-3.5 shrink-0", isPrimary ? "text-primary-foreground" : "text-muted-foreground")}
+            aria-hidden
+          />
+        ) : null}
         <span className={cn("truncate", isPrimary ? "font-medium text-primary-foreground" : "text-foreground")}>
           {displayValue ?? placeholder}
         </span>
@@ -145,6 +148,7 @@ export function AnalysisFilterBar({
     const img = new Image();
     img.src = src;
     img.onload = () => markFaviconClientOk(pageUrl);
+    img.onerror = () => markFaviconClientMiss(pageUrl);
   }, [entityIconLabel]);
 
   const entityLeading = useMemo(

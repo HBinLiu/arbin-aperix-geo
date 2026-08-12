@@ -7,9 +7,7 @@ from aperix_geo.services.brand.backfill import maybe_enqueue_brand_domain_backfi
 
 
 @patch("aperix_geo.utils.cache.redis_kv.redis_set_nx", return_value=False)
-@patch("aperix_geo.services.brand.backfill.get_settings")
-def test_backfill_skips_when_debounce_active(mock_settings: MagicMock, mock_set_nx: MagicMock) -> None:
-    mock_settings.return_value.searxng_base_url = "http://searxng"
+def test_backfill_skips_when_debounce_active(mock_set_nx: MagicMock) -> None:
     response_id = uuid4()
 
     with patch("aperix_geo.tasks.brand.backfill_brand_domain") as mock_task:
@@ -20,9 +18,7 @@ def test_backfill_skips_when_debounce_active(mock_settings: MagicMock, mock_set_
 
 
 @patch("aperix_geo.utils.cache.redis_kv.redis_set_nx", return_value=True)
-@patch("aperix_geo.services.brand.backfill.get_settings")
-def test_backfill_enqueues_when_debounce_acquired(mock_settings: MagicMock, mock_set_nx: MagicMock) -> None:
-    mock_settings.return_value.searxng_base_url = "http://searxng"
+def test_backfill_enqueues_when_debounce_acquired(mock_set_nx: MagicMock) -> None:
     response_id = uuid4()
 
     with patch("aperix_geo.tasks.brand.backfill_brand_domain") as mock_task:

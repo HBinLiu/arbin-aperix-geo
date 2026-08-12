@@ -1,23 +1,20 @@
-"""Shared types for competitor discovery."""
+"""Shared types for competitor / niche profile."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Literal, NotRequired, TypedDict
 
 SubjectType = Literal["domain", "brand"]
 
 
 class NicheProfile(TypedDict):
+    """精简微观利基画像（Setup discover）。"""
+
     company: str
     industry: str
-    features: str
-    customers: str
-    search_queries: str
-    category_terms: str
-    scenario_terms: str
-    audience_terms: str
-    pain_terms: str
+    keywords: str
+    brief: str
 
 
 class DiscoveredCompetitor(TypedDict):
@@ -29,13 +26,6 @@ class DiscoveredCompetitor(TypedDict):
 
 
 @dataclass(frozen=True)
-class CompetitorScore:
-    domain: str
-    score: float
-    reason: str
-
-
-@dataclass(frozen=True)
 class SiteHead:
     domain: str
     title: str
@@ -44,24 +34,3 @@ class SiteHead:
     seo: str = ""
     resolved_url: str = ""
     brand_names: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True)
-class CandidateMeta:
-    domain: str
-    brand: str
-    website_url: str
-
-
-@dataclass
-class CandidatePool:
-    """交叉验算候选池。"""
-
-    domains: list[str]
-    by_domain: dict[str, CandidateMeta] = field(default_factory=dict)
-
-
-@dataclass
-class CrossValidateResult:
-    scores: list[CompetitorScore]
-    heads: dict[str, SiteHead]

@@ -300,7 +300,7 @@ def test_seo_prose_empty() -> None:
     assert seo_prose_text(parse_seo_from_html("")) == ""
 
 
-def test_apply_seo_profile_cross_validate_strips_article_fields() -> None:
+def test_apply_seo_profile_site_head_strips_article_fields() -> None:
     html = """
     <head>
     <title>Profound</title>
@@ -315,34 +315,14 @@ def test_apply_seo_profile_cross_validate_strips_article_fields() -> None:
     </script>
     """
     full = parse_seo_from_html(html)
-    scoped = apply_seo_profile(full, SeoProfile.CROSS_VALIDATE)
+    scoped = apply_seo_profile(full, SeoProfile.SITE_HEAD)
     assert scoped.title == "Profound"
     assert scoped.description == "GEO platform"
     assert scoped.tags == ()
     assert scoped.faq_items == ()
-    prose = seo_prose_text(full, profile=SeoProfile.CROSS_VALIDATE)
+    prose = seo_prose_text(full, profile=SeoProfile.SITE_HEAD)
     assert "tags:" not in prose
     assert "faq:" not in prose
-
-
-def test_apply_seo_profile_article_discovery_keeps_mentions_not_canonical() -> None:
-    html = """
-    <head>
-    <link rel="canonical" href="https://example.com/article" />
-    <meta property="og:type" content="article" />
-    </head>
-    <script type="application/ld+json">
-    {
-      "@type": "ItemList",
-      "itemListElement": [{"@type": "ListItem", "item": {"name": "Otterly"}}]
-    }
-    </script>
-    """
-    full = parse_seo_from_html(html)
-    article = apply_seo_profile(full, SeoProfile.ARTICLE_DISCOVERY)
-    assert "Otterly" in article.mentioned_names
-    assert article.canonical_url == ""
-    assert article.content_type == "article"
 
 
 def test_apply_seo_profile_subject_homepage_keeps_product_signals() -> None:
@@ -362,14 +342,14 @@ def test_apply_seo_profile_subject_homepage_keeps_product_signals() -> None:
     assert "BusinessApplication" in subject.categories
 
 
-def test_apply_seo_profile_cross_validate() -> None:
+def test_apply_seo_profile_site_head() -> None:
     html = """
     <script type="application/ld+json">
     {"@type": "SoftwareApplication", "name": "Profound", "brand": {"name": "Profound"}}
     </script>
     """
     full = parse_seo_from_html(html)
-    scoped = apply_seo_profile(full, SeoProfile.CROSS_VALIDATE)
+    scoped = apply_seo_profile(full, SeoProfile.SITE_HEAD)
     assert "Profound" in scoped.brand_names
     assert "SoftwareApplication" in scoped.schema_types
     assert scoped.tags == ()

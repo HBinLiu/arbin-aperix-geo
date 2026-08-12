@@ -1,4 +1,4 @@
-"""主体 Markdown 摘要：竞品搜索后生成与回写。"""
+"""主体 Markdown 摘要：模板生成与竞品章节回写。"""
 
 from __future__ import annotations
 
@@ -9,12 +9,8 @@ from typing import Any
 
 from aperix_geo.services.competitor.types import NicheProfile
 from aperix_geo.services.providers.prompts import (
-    SUBJECT_PROFILE_SUMMARY_SYSTEM,
-    SUBJECT_PROFILE_SUMMARY_USER_SUFFIX,
     SUBJECT_PROFILE_SYSTEM,
     SUBJECT_PROFILE_USER_SUFFIX,
-    SUBJECT_TOPIC_PLAN_SYSTEM,
-    SUBJECT_TOPIC_PLAN_USER_SUFFIX,
 )
 from aperix_geo.services.providers import chat_completion
 from aperix_geo.utils.json import extract_json_object
@@ -60,7 +56,7 @@ def _format_competitor_section_body(
         suffix = f"（{domain}）" if domain and domain != brand else ""
         detail = f"：{summary}" if summary else "：同业竞品"
         lines.append(f"* **{label}**{suffix}{detail}")
-    empty = "* **暂无：** 本轮搜索未发现符合条件的竞品"
+    empty = "* **暂无：** 尚未添加竞品"
     return "\n".join(lines) if lines else empty
 
 
@@ -84,7 +80,7 @@ def generate_niche_profile_via_llm(
     user_payload: dict[str, Any],
     temperature: float = 0.15,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Setup 1a: 微观利基结构化画像。"""
+    """Setup discover：精简微观利基结构化画像。"""
     text, usage, latency_ms = chat_completion(
         [
             {"role": "system", "content": SUBJECT_PROFILE_SYSTEM},
@@ -101,44 +97,11 @@ def generate_niche_profile_via_llm(
     )
     data = extract_json_object(text)
     logger.debug(
-        "Setup 1a 微观利基画像 LLM: entity=%r search_queries=%d (%dms)",
+        "Setup 微观利基画像 LLM: entity=%r (%dms)",
         entity_key,
-        len(data.get("search_queries") or []),
         latency_ms,
     )
     return data, usage
-
-
-def generate_profile_summary_via_llm(
-    *,
-    entity_key: str,
-    user_payload: dict[str, Any],
-    temperature: float = 0.2,
-) -> tuple[str, dict[str, Any]]:
-    """Setup Step2：竞品搜索后生成完整主体 Markdown 摘要。"""
-    text, usage, latency_ms = chat_completion(
-        [
-            {"role": "system", "content": SUBJECT_PROFILE_SUMMARY_SYSTEM},
-            {
-                "role": "user",
-                "content": (
-                    f"{json.dumps(user_payload, ensure_ascii=False, indent=2)}\n\n"
-                    f"{SUBJECT_PROFILE_SUMMARY_USER_SUFFIX}"
-                ),
-            },
-        ],
-        temperature=temperature,
-        json_mode=True,
-    )
-    data = extract_json_object(text)
-    summary = str(data.get("profile_summary") or "").strip()
-    logger.info(
-        "Setup 主体摘要 LLM: entity=%r summary=%d chars (%dms)",
-        entity_key,
-        len(summary),
-        latency_ms,
-    )
-    return summary, usage
 
 
 def merge_llm_usage(*usages: dict[str, Any]) -> dict[str, Any]:
@@ -149,55 +112,24 @@ def merge_llm_usage(*usages: dict[str, Any]) -> dict[str, Any]:
     return merged
 
 
-def generate_topic_plan_via_llm(
-    *,
-    entity_key: str,
-    user_payload: dict[str, Any],
-    temperature: float = 0.25,
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Setup topics：单次规划监测主题簇与种子问句。"""
-    text, usage, latency_ms = chat_completion(
-        [
-            {"role": "system", "content": SUBJECT_TOPIC_PLAN_SYSTEM},
-            {
-                "role": "user",
-                "content": (
-                    f"{json.dumps(user_payload, ensure_ascii=False, indent=2)}\n\n"
-                    f"{SUBJECT_TOPIC_PLAN_USER_SUFFIX}"
-                ),
-            },
-        ],
-        temperature=temperature,
-        json_mode=True,
-    )
-    data = extract_json_object(text)
-    logger.debug(
-        "Setup 主题规划 LLM: entity=%r clusters=%d (%dms)",
-        entity_key,
-        len(data.get("topic_clusters") or []),
-        latency_ms,
-    )
-    return data, usage
-
-
 def fallback_profile_summary(profile: NicheProfile, *, entity: str, region_label: str) -> str:
     name = profile.get("company") or entity
-    features = profile.get("features") or "—"
-    customers = profile.get("customers") or "—"
     industry = profile.get("industry") or "—"
+    keywords = str(profile.get("keywords") or "").strip() or "—"
+    brief = str(profile.get("brief") or "").strip() or "—"
     return (
         f"# {name}\n\n"
-        f"## 概述\n{name} 是一家定位于「{industry}」领域的品牌/企业，主要服务 {customers}。\n\n"
-        f"## 核心能力\n* **核心能力：** {features}\n\n"
-        f"## 产品与服务\n* **待补充：** 需抓取产品/解决方案页面后完善\n\n"
-        f"## 目标用户\n* **目标客户：** {customers}\n\n"
+        f"## 概述\n{name} 定位于「{industry}」。{brief}\n\n"
+        f"## 核心能力\n* **监测关键词：** {keywords}\n\n"
+        f"## 产品与服务\n* **待补充：** 可在主体详情中完善\n\n"
+        f"## 目标用户\n* **说明：** {brief}\n\n"
         f"## 市场定位\n* **定位：** 在 {industry} 垂直赛道提供差异化方案\n\n"
         f"## 竞品\n* **待补充：** 见竞品章节\n\n"
-        f"## 核心价值\n在 {industry} 领域提供 {features}。\n\n"
-        f"## 独家能力\n* **核心能力：** {features}\n\n"
-        f"## 客户痛点\n* **待明确：** 需结合行业调研补充\n\n"
-        f"## 理想客户画像\n{customers}\n\n"
+        f"## 核心价值\n在 {industry} 领域围绕「{keywords}」开展监测。\n\n"
+        f"## 独家能力\n* **关键词：** {keywords}\n\n"
+        f"## 客户痛点\n* **待明确：** 需结合业务补充\n\n"
+        f"## 理想客户画像\n{brief}\n\n"
         f"## 决策触发点\n「{industry} 有哪些合适方案？」\n\n"
         f"## 地域与合规\n* **主要市场：** {region_label}\n"
-        f"* **合规要求：** 待补充（需结合行业资质信息）"
+        f"* **合规要求：** 待补充"
     )

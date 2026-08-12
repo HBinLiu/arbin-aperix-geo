@@ -87,7 +87,6 @@ def test_backfill_updates_signal_and_brand(mock_resolve: MagicMock) -> None:
     assert signal.primary_domain == "stripe.com"
     assert signal.brand_id == brand_row.id
     mock_resolve.assert_called_once()
-    assert mock_resolve.call_args.kwargs["allow_search"] is True
     mock_upsert.assert_called_once()
 
 
@@ -196,18 +195,16 @@ def test_backfill_skips_when_search_unresolved(mock_resolve: MagicMock) -> None:
     assert signal.primary_domain == ""
 
 
+@patch("aperix_geo.utils.cache.redis_kv.redis_set_nx", return_value=True)
 @patch("aperix_geo.tasks.brand.backfill_brand_domain.delay")
-def test_maybe_enqueue_when_searxng_configured(mock_delay: MagicMock) -> None:
+def test_maybe_enqueue_always_when_debounce_ok(mock_delay: MagicMock, _mock_nx: MagicMock) -> None:
     response_id = uuid.uuid4()
-    settings = MagicMock(searxng_base_url="http://127.0.0.1:8080")
-    with patch("aperix_geo.services.brand.backfill.get_settings", return_value=settings):
-        maybe_enqueue_brand_domain_backfill(response_id)
+    maybe_enqueue_brand_domain_backfill(response_id)
     mock_delay.assert_called_once_with(str(response_id))
 
 
+@patch("aperix_geo.utils.cache.redis_kv.redis_set_nx", return_value=False)
 @patch("aperix_geo.tasks.brand.backfill_brand_domain.delay")
-def test_maybe_enqueue_skips_without_searxng(mock_delay: MagicMock) -> None:
-    settings = MagicMock(searxng_base_url="")
-    with patch("aperix_geo.services.brand.backfill.get_settings", return_value=settings):
-        maybe_enqueue_brand_domain_backfill(uuid.uuid4())
+def test_maybe_enqueue_skips_when_debounced(mock_delay: MagicMock, _mock_nx: MagicMock) -> None:
+    maybe_enqueue_brand_domain_backfill(uuid.uuid4())
     mock_delay.assert_not_called()

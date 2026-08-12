@@ -76,7 +76,7 @@ function DomainInput({
   onKeyDown?: (e: React.KeyboardEvent) => void;
 }) {
   return (
-    <div className={cn("border-input relative min-w-0 border-l", className)}>
+    <div className={cn("border-input relative h-9 min-w-0 border-l", className)}>
       <FaviconUrlInput
         layout="merged"
         faviconMode="domain"
@@ -171,7 +171,7 @@ function CompetitorTable({
                     onUpdateRow(row.id, { domain: main, websiteUrl }),
                   )
                 }
-                placeholder="主域名"
+              placeholder={isDomainMode ? "网站域名" : "网站域名（可选）"}
                 ariaLabel={`${row.name || "竞品"} 主域名`}
               />
             </InputGroup>
@@ -216,7 +216,7 @@ function CompetitorTable({
             <DomainInput
               value={draftDomain}
               onChange={onDraftDomainChange}
-              placeholder="填写网站域名"
+              placeholder={isDomainMode ? "填写网站域名" : "网站域名（可选）"}
               ariaLabel="新竞品主域名"
               onBlurNormalize={(raw) => {
                 const main = registrableDomain(raw);

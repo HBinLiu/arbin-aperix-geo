@@ -136,8 +136,6 @@ def test_update_competitor_by_id_preserves_id_and_updates_fields() -> None:
         brand="Beta",
         aliases=["B"],
         summary="old",
-        cross_validate_score=8.0,
-        cross_validate_reason="ok",
     )
     subject = _domain_subject(competitors=[target])
     db = MagicMock()
@@ -159,7 +157,6 @@ def test_update_competitor_by_id_preserves_id_and_updates_fields() -> None:
     assert updated.brand == "Beta Corp"
     assert updated.aliases == ["B", "BetaCo"]
     assert updated.summary == "new summary"
-    assert updated.cross_validate_score == 8.0
     assert db.flush.call_count >= 1
 
 

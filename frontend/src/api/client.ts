@@ -7,11 +7,8 @@ import { toast } from "@/lib/toast";
 /** 默认请求超时（含 LLM 分析类接口，与后端 chat_completion 120s 对齐） */
 export const API_TIMEOUT_MS = 120_000;
 
-/** 微观利基画像（首页分析 + LLM） */
-export const DISCOVER_PROFILE_TIMEOUT_MS = 180_000;
-
-/** 竞品搜索：多轮 SearXNG + 交叉验算 */
-export const DISCOVER_COMPETITORS_TIMEOUT_MS = 300_000;
+/** 主题步等待后台画像就绪 */
+export const SETUP_TOPICS_TIMEOUT_MS = 180_000;
 
 /** 初始提示词生成（LLM） */
 export const GENERATE_PROMPTS_TIMEOUT_MS = 180_000;

@@ -11,10 +11,6 @@ export function newTopicRow(partial?: Partial<TopicRow>): TopicRow {
   };
 }
 
-export function topicRowsFromNames(names: string[]): TopicRow[] {
-  return names.map((name) => newTopicRow({ name, selected: true }));
-}
-
 export type SetupMonitoringTopic = {
   name: string;
 };

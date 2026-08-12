@@ -117,7 +117,7 @@ def verify_domain_homepage(
     )
     heads = fetch_site_heads(
         [normalized],
-        seo_profile=SeoProfile.CROSS_VALIDATE,
+        seo_profile=SeoProfile.SITE_HEAD,
         preferred_urls=preferred_urls,
     )
     head = heads.get(normalized)
@@ -140,7 +140,7 @@ def homepage_matches_both_brands(
     if not normalized or not (label or "").strip() or not (existing_brand or "").strip():
         return False
     if head is None:
-        heads = fetch_site_heads([normalized], seo_profile=SeoProfile.CROSS_VALIDATE)
+        heads = fetch_site_heads([normalized], seo_profile=SeoProfile.SITE_HEAD)
         head = heads.get(normalized)
     if head is None or not head.reachable:
         return False

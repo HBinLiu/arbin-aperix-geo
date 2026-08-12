@@ -17,8 +17,8 @@ def test_prompts_generation_hash_stable_for_topic_order() -> None:
         topics=["b", "a"],
         competitors=["rival.com"],
         industry="SaaS",
-        features="API",
-        customers="团队",
+        keywords="API",
+        brief="团队",
         aliases=["Example"],
         exclude_prompts=[],
     )
@@ -27,8 +27,8 @@ def test_prompts_generation_hash_stable_for_topic_order() -> None:
         topics=["a", "b"],
         competitors=["rival.com"],
         industry="SaaS",
-        features="API",
-        customers="团队",
+        keywords="API",
+        brief="团队",
         aliases=["Example"],
         exclude_prompts=[],
     )
@@ -51,8 +51,8 @@ def test_generate_setup_prompts_for_session_uses_cache(
         {
             "company": "Example",
             "industry": "SaaS",
-            "features": "API",
-            "customers": "团队",
+            "keywords": "API",
+            "brief": "团队",
         },
         entity="example.com",
     )
@@ -63,8 +63,8 @@ def test_generate_setup_prompts_for_session_uses_cache(
         topics=topics,
         competitors=competitors,
         industry="SaaS",
-        features="API",
-        customers="团队",
+        keywords="API",
+        brief="团队",
         aliases=["Example"],
         exclude_prompts=[],
     )
@@ -112,7 +112,7 @@ def test_generate_setup_prompts_for_session_stores_result(
     _mock_assert_ai,
 ) -> None:
     profile = normalize_niche_profile(
-        {"industry": "SaaS", "features": "API", "customers": "团队"},
+        {"industry": "SaaS", "keywords": "API", "brief": "团队"},
         entity="example.com",
     )
     mock_get_session.return_value = {

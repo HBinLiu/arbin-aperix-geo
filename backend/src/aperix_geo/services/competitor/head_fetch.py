@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 _SEO_EXCERPT_CHARS = 800
 
 
-def _cross_validate_seo_excerpt(parsed: PageMetadata) -> str:
+def _site_head_seo_excerpt(parsed: PageMetadata) -> str:
     supplement = SeoMetadata(
         content_type=parsed.content_type,
         brand_names=tuple(parsed.brand_names),
@@ -50,7 +50,7 @@ def _site_head_from_fetch(
         title=parsed.title,
         description=parsed.description,
         reachable=True,
-        seo=_cross_validate_seo_excerpt(parsed),
+        seo=_site_head_seo_excerpt(parsed),
         resolved_url=resolved_url,
         brand_names=tuple(dict.fromkeys(brand_names)),
     )
@@ -99,7 +99,7 @@ def _fetch_one_sync(
             resolved_url=resolved,
         )
 
-    logger.info("竞品发现: head 不可达 domain=%s", domain)
+    logger.info("竞品 head 不可达 domain=%s", domain)
     return SiteHead(domain=domain, title="", description="", reachable=False)
 
 
@@ -107,7 +107,7 @@ async def fetch_site_heads_async(
     domains: list[str],
     *,
     concurrency: int | None = None,
-    seo_profile: SeoProfile = SeoProfile.CROSS_VALIDATE,
+    seo_profile: SeoProfile = SeoProfile.SITE_HEAD,
     preferred_urls: dict[str, str] | None = None,
 ) -> dict[str, SiteHead]:
     crawl = page_crawl_settings()
@@ -140,7 +140,7 @@ def fetch_site_heads(
     domains: list[str],
     *,
     concurrency: int | None = None,
-    seo_profile: SeoProfile = SeoProfile.CROSS_VALIDATE,
+    seo_profile: SeoProfile = SeoProfile.SITE_HEAD,
     preferred_urls: dict[str, str] | None = None,
 ) -> dict[str, SiteHead]:
     crawl = page_crawl_settings()

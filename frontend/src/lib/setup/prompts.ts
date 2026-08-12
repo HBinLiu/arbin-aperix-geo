@@ -1,6 +1,6 @@
 import type { GeneratedPromptItem, PromptRow, TopicRow } from "@/types";
 
-const PROMPT_PER_TOPIC = 10;
+const PROMPT_PER_TOPIC = 5;
 
 export function newPromptRow(partial?: Partial<PromptRow>): PromptRow {
   return {

@@ -35,8 +35,6 @@ type SetupStepContentView = {
   activeTopics: TopicRow[];
   regionOptions: SelectOption[];
   languageOptions: SelectOption[];
-  analyzingProfile: boolean;
-  discoveringCompetitors: boolean;
   loadingTopics: boolean;
   generatingPrompts: boolean;
   uploadingFiles: boolean;
@@ -79,8 +77,6 @@ export function SetupStepContent({ view, actions }: SetupStepContentProps) {
     activeTopics,
     regionOptions,
     languageOptions,
-    analyzingProfile,
-    discoveringCompetitors,
     loadingTopics,
     generatingPrompts,
     uploadingFiles,
@@ -111,18 +107,6 @@ export function SetupStepContent({ view, actions }: SetupStepContentProps) {
             type="button"
             className={cn(
               "rounded-md text-xs font-medium transition-all sm:text-sm",
-              mode === "domain"
-                ? "bg-muted-background text-foreground shadow-xs"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-            onClick={() => onModeChange("domain")}
-          >
-            按网站
-          </button>
-          <button
-            type="button"
-            className={cn(
-              "rounded-md text-xs font-medium transition-all sm:text-sm",
               mode === "brand"
                 ? "bg-muted-background text-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground",
@@ -130,6 +114,18 @@ export function SetupStepContent({ view, actions }: SetupStepContentProps) {
             onClick={() => onModeChange("brand")}
           >
             按品牌
+          </button>
+          <button
+            type="button"
+            className={cn(
+              "rounded-md text-xs font-medium transition-all sm:text-sm",
+              mode === "domain"
+                ? "bg-muted-background text-foreground shadow-xs"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+            onClick={() => onModeChange("domain")}
+          >
+            按网站
           </button>
         </div>
 
@@ -179,9 +175,7 @@ export function SetupStepContent({ view, actions }: SetupStepContentProps) {
   }
 
   if (mode === "brand" && step === 1) {
-    return analyzingProfile || discoveringCompetitors ? (
-      <SetupLoader />
-    ) : (
+    return (
       <SetupStepMaterials
         brandWebsiteUrl={brandWebsiteUrl}
         brandIntro={brandIntro}
@@ -209,9 +203,7 @@ export function SetupStepContent({ view, actions }: SetupStepContentProps) {
             domain: registrableDomain(brandWebsiteUrl),
             websiteUrl: brandWebsiteUrl,
           };
-    return analyzingProfile || discoveringCompetitors ? (
-      <SetupLoader />
-    ) : (
+    return (
       <SetupStepCompetitor
         mode={mode}
         subject={subject}

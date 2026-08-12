@@ -26,7 +26,7 @@ function SetupWizardHeader({ title, subtitle }: SetupWizardHeaderProps) {
   );
 }
 
-/** 设置向导：域名 4 步 / 品牌 5 步。 */
+/** 设置向导：品牌 5 步 / 域名 4 步；默认按品牌。 */
 export function SetupWizard({ onCompleted }: SetupWizardProps) {
   const {
     step,
@@ -43,7 +43,6 @@ export function SetupWizard({ onCompleted }: SetupWizardProps) {
     competitorRows,
     promptRows,
     submitting,
-    discovering,
     uploadingFiles,
     loadingTopics,
     generatingPrompts,
@@ -90,8 +89,6 @@ export function SetupWizard({ onCompleted }: SetupWizardProps) {
     activeTopics,
     regionOptions,
     languageOptions,
-    analyzingProfile: discovering,
-    discoveringCompetitors: discovering,
     loadingTopics,
     generatingPrompts,
     uploadingFiles,

@@ -62,7 +62,6 @@ def sync_brands_for_drafts(
     drafts: list[EntitySignalDraft],
     raw_text: str = "",
     urls: list[str] | None = None,
-    allow_search: bool = False,
 ) -> dict[str, Brand]:
     entities = [brand_sync_entity_for_draft(subject, draft) for draft in drafts]
     return sync_brands_for_entities(
@@ -71,5 +70,4 @@ def sync_brands_for_drafts(
         entities=entities,
         raw_text=raw_text,
         urls=urls,
-        allow_search=allow_search,
     )

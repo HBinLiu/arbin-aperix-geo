@@ -74,6 +74,7 @@ def make_celery() -> Celery:
         "aperix_geo.tasks.billing",
         "aperix_geo.tasks.knowledge",
         "aperix_geo.tasks.doubao_accounts",
+        "aperix_geo.tasks.setup",
     ]
     return app
 

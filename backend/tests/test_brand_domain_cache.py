@@ -48,7 +48,6 @@ def test_remember_brand_row_domains_warms_aliases() -> None:
         assert mock_set.call_count == 2
 
 
-@patch("aperix_geo.services.brand.domain.search_brand_official_domain")
 @patch("aperix_geo.services.brand.domain.extract_domain_from_text_for_brand")
 @patch("aperix_geo.services.brand.resolve.find_brand_by_name_or_alias")
 @patch("aperix_geo.services.brand.domain.get_brand_domain_cached", return_value="stripe.com")
@@ -56,7 +55,6 @@ def test_resolve_brand_domain_uses_redis_before_db(
     mock_get_cache,
     mock_find_db,
     mock_extract,
-    mock_search,
 ) -> None:
     domain = resolve_brand_domain(
         None,  # type: ignore[arg-type]
@@ -67,4 +65,3 @@ def test_resolve_brand_domain_uses_redis_before_db(
     mock_get_cache.assert_called_once()
     mock_find_db.assert_not_called()
     mock_extract.assert_not_called()
-    mock_search.assert_not_called()

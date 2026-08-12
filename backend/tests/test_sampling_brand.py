@@ -30,7 +30,7 @@ def _subject() -> Subject:
     return subject
 
 
-def test_persist_open_brands_creates_rows_without_cross_validate() -> None:
+def test_persist_open_brands_creates_rows() -> None:
     db = MagicMock()
     subject = _subject()
     absa = {

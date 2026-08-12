@@ -129,15 +129,8 @@ def is_niche_profile_sufficient(profile: NicheProfile) -> bool:
     industry = profile.get("industry", "").strip()
     if not industry or industry == "未知行业":
         return False
-    features = profile.get("features", "").strip()
-    customers = profile.get("customers", "").strip()
-    search_queries = profile.get("search_queries", "").strip()
-    category_terms = profile.get("category_terms", "").strip()
-    if not search_queries and not category_terms:
-        return False
-    if not features and not customers:
-        return False
-    return True
+    keywords = str(profile.get("keywords") or "").strip()
+    return bool(keywords)
 
 
 def assert_niche_profile_sufficient(profile: NicheProfile) -> None:

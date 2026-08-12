@@ -66,8 +66,6 @@ def _enrich_competitor_item(item: CompetitorItem) -> CompetitorItem:
         "brand": item.brand,
         "aliases": list(item.aliases),
         "summary": item.summary,
-        "cross_validate_score": item.cross_validate_score,
-        "cross_validate_reason": item.cross_validate_reason,
     }
     enriched = enrich_confirmed_competitors([raw], session=None)
     if not enriched:
@@ -79,8 +77,6 @@ def _enrich_competitor_item(item: CompetitorItem) -> CompetitorItem:
         brand=row["brand"],
         aliases=list(row.get("aliases") or []),
         summary=str(row.get("summary") or ""),
-        cross_validate_score=row.get("cross_validate_score"),
-        cross_validate_reason=str(row.get("cross_validate_reason") or ""),
     )
 
 

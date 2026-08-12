@@ -1,13 +1,12 @@
 import {
   api,
-  DISCOVER_PROFILE_TIMEOUT_MS,
   GENERATE_PROMPTS_TIMEOUT_MS,
+  SETUP_TOPICS_TIMEOUT_MS,
 } from "@/api/client";
 import { coalesceWebsiteUrl, registrableDomain } from "@/lib/domain";
 import {
   buildFinalizePayload,
   promptRowsFromGenerated,
-  rowsFromDiscover,
   rowsToPersist,
   topicRowsFromSetupTopics,
 } from "@/lib/setup";
@@ -83,10 +82,9 @@ export async function deleteSetupMaterialFile(input: {
 
 export type DiscoverSetupResult = {
   sessionId: string;
-  competitorRows: CompetitorRow[];
 };
 
-/** UI Step 0→1：微观画像 + 竞品发现 */
+/** UI Step：入队后台画像；竞品手填；主题在 topics 步带出 */
 export async function discoverSetup(input: {
   mode: SubjectMode;
   domain: string;
@@ -94,37 +92,25 @@ export async function discoverSetup(input: {
   region: string;
   language: string;
   sessionId?: string;
-  maxCompetitors?: number;
 }): Promise<DiscoverSetupResult> {
   const domain = input.domain.trim();
   const brand = input.brand.trim();
   const sessionId = input.sessionId?.trim();
   const { data } = await api.post<{
     session_id: string;
-    competitors: {
-      domain: string;
-      website_url?: string;
-      brand: string;
-    }[];
-  }>(
-    "/subjects/setup/discover",
-    {
-      type: input.mode,
-      ...(domain ? { domain } : {}),
-      ...(brand ? { brand } : {}),
-      region: input.region,
-      language: input.language,
-      ...(sessionId ? { session_id: sessionId } : {}),
-    },
-    { timeout: DISCOVER_PROFILE_TIMEOUT_MS },
-  );
-  return {
-    sessionId: data.session_id,
-    competitorRows: rowsFromDiscover(data.competitors ?? [], input.maxCompetitors),
-  };
+    status?: string;
+  }>("/subjects/setup/discover", {
+    type: input.mode,
+    ...(domain ? { domain } : {}),
+    ...(brand ? { brand } : {}),
+    region: input.region,
+    language: input.language,
+    ...(sessionId ? { session_id: sessionId } : {}),
+  });
+  return { sessionId: data.session_id };
 }
 
-/** UI Step 1→2：用户确认竞品后生成监测主题 */
+/** UI Step：确认竞品后生成监测主题（后端可能短等画像就绪） */
 export async function generateSetupTopics(input: {
   sessionId: string;
   mode: SubjectMode;
@@ -139,7 +125,7 @@ export async function generateSetupTopics(input: {
       session_id: input.sessionId.trim(),
       competitors,
     },
-    { timeout: GENERATE_PROMPTS_TIMEOUT_MS },
+    { timeout: SETUP_TOPICS_TIMEOUT_MS },
   );
   return {
     topicRows: topicRowsFromSetupTopics(data.topics ?? []),

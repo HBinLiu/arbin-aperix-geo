@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from aperix_geo.services.prompts.setup import _normalize_generated_prompts
+from aperix_geo.services.prompts.setup import llm_prompt_row_to_internal
 from aperix_geo.services.prompts.taxonomy import prompt_taxonomy_lock
 from aperix_geo.services.providers.prompts import setup_wizard_prompts_system
 
@@ -18,29 +18,26 @@ def test_prompt_taxonomy_lock_normalizes_values() -> None:
     assert lock.decision_type == "price_value"
 
 
-def test_normalize_generated_prompts_applies_taxonomy_lock() -> None:
+def test_llm_prompt_row_to_internal_applies_taxonomy_lock() -> None:
     lock = prompt_taxonomy_lock(
         funnel_stage="tofu",
         search_intent="informational",
         decision_type="category_awareness",
     )
-    rows = _normalize_generated_prompts(
-        [
-            {
-                "text": "红茶怎么选？",
-                "funnel": "bofu",
-                "intent": "commercial",
-                "decision": "solution_comparison",
-            }
-        ],
-        limit=1,
+    row = llm_prompt_row_to_internal(
+        {
+            "text": "红茶怎么选？",
+            "funnel": "bofu",
+            "intent": "commercial",
+            "decision": "solution_comparison",
+        },
         taxonomy_lock=lock,
     )
-    assert len(rows) == 1
-    assert rows[0]["text"] == "红茶怎么选？"
-    assert rows[0]["funnel_stage"] == "tofu"
-    assert rows[0]["search_intent"] == "informational"
-    assert rows[0]["decision_type"] == "category_awareness"
+    assert row is not None
+    assert row["text"] == "红茶怎么选？"
+    assert row["funnel_stage"] == "tofu"
+    assert row["search_intent"] == "informational"
+    assert row["decision_type"] == "category_awareness"
 
 
 def test_setup_wizard_prompts_system_includes_taxonomy_lock() -> None:

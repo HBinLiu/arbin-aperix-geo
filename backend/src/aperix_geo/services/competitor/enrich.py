@@ -1,4 +1,4 @@
-"""竞品 brand / aliases / summary 补全（discover 交叉验算 + Setup 用户确认）。"""
+"""竞品 brand / aliases / summary 补全（Setup 用户确认 / 手填）。"""
 
 from __future__ import annotations
 
@@ -122,7 +122,7 @@ def merge_competitor_aliases(
     seed_aliases: list[str] | None = None,
     brand_names: tuple[str, ...] = (),
 ) -> list[str]:
-    """合并用户/豆包/SEO 别名，去重且不含 canonical brand。"""
+    """合并用户/SEO 别名，去重且不含 canonical brand。"""
     out = normalize_competitor_aliases(existing or [], brand=brand)
     seen = {alias.casefold() for alias in out}
     seen.add(brand.casefold())
@@ -138,27 +138,8 @@ def merge_competitor_aliases(
     return out
 
 
-def _discovered_item(
-    item: DiscoveredCompetitor,
-    *,
-    domain: str,
-    brand: str,
-    summary: str,
-    aliases: list[str] | None = None,
-) -> DiscoveredCompetitor:
-    out: DiscoveredCompetitor = {
-        "domain": domain,
-        "website_url": str(item.get("website_url") or "").strip(),
-        "brand": brand[:255],
-        "summary": summary[:_SUMMARY_MAX_LEN],
-    }
-    if aliases:
-        out["aliases"] = aliases
-    return out
-
-
 def resolve_competitor_brand(item: DiscoveredCompetitor) -> str:
-    """保留豆包 brand，仅做 ensure_brand 规范化；head title 不参与 brand。"""
+    """规范化 brand；head title 不参与 brand。"""
     domain = str(item.get("domain") or "").strip()
     seed = str(item.get("brand") or "").strip()
     return ensure_brand(seed, domain=domain)
@@ -178,47 +159,12 @@ def resolve_summary_from_site_metadata(metadata: dict[str, Any] | None) -> str:
 
 
 def resolve_competitor_summary(head: SiteHead | None) -> str:
-    """交叉验算抓取的 head：优先 meta description，否则用 title。"""
+    """竞品首页 head：优先 meta description，否则用 title。"""
     if head is None or not head.reachable:
         return ""
     return resolve_summary_from_site_metadata(
         {"description": head.description, "title": head.title},
     )
-
-
-def enrich_discovered_competitors(
-    competitors: list[DiscoveredCompetitor],
-    *,
-    heads: dict[str, SiteHead] | None = None,
-) -> list[DiscoveredCompetitor]:
-    """discover 阶段：为豆包竞品补充 brand / summary / aliases（summary 总是来自 head）。"""
-    if not competitors:
-        return []
-
-    heads = heads or {}
-    out: list[DiscoveredCompetitor] = []
-    for item in competitors:
-        domain = str(item.get("domain") or "").strip()
-        head = heads.get(registrable_from(domain)) if domain else None
-        brand = resolve_competitor_brand(item)
-        summary = resolve_competitor_summary(head)
-        aliases = enrich_entity_aliases(
-            brand=brand,
-            domain=domain,
-            existing=item.get("aliases"),
-            head=head,
-        )
-        out.append(
-            _discovered_item(
-                item,
-                domain=domain,
-                brand=brand,
-                summary=summary,
-                aliases=aliases or None,
-            )
-        )
-    logger.info("竞品 enrich: %d 条", len(out))
-    return out
 
 
 def _index_session_competitors_by_domain(session: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
@@ -323,9 +269,6 @@ def enrich_confirmed_competitor_dict(
     }
     if aliases:
         out["aliases"] = aliases
-    for key in ("cross_validate_score", "cross_validate_reason"):
-        if key in item:
-            out[key] = item[key]
     return out
 
 

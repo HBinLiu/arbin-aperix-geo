@@ -11,7 +11,7 @@ from aperix_geo.services.brand.backfill import backfill_brand_domain_for_respons
 
 @celery_app.task
 def backfill_brand_domain(response_id: str) -> dict[str, int]:
-    """Resolve open-set brand domains via SearXNG after sampling persist."""
+    """Resolve open-set brand domains from response text/URLs after sampling persist."""
     rid = UUID(response_id)
     db = SessionLocal()
     try:

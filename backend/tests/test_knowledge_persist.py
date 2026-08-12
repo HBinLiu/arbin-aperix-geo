@@ -27,7 +27,7 @@ def test_persist_brand_knowledge_writes_sources() -> None:
         "brand": "深睿医疗",
         "brand_intro": "品牌介绍" * 80,
         "website_url": "https://example.com",
-        "profile": {"industry": "医疗 AI", "customers": "医院", "features": "影像诊断"},
+        "profile": {"industry": "医疗 AI", "brief": "医院", "keywords": "影像诊断"},
         "upload_files": [
             {
                 "id": "f1",

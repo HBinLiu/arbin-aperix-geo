@@ -68,6 +68,7 @@ function brandRankFavicon(
       className={cn(config.faviconClass, brandRankRoundedClass(shape))}
       iconClassName={config.iconClass}
       showLoadingSpinner={showLoadingSpinner}
+      fallbackLabel={label}
     />
   );
 }
@@ -140,7 +141,7 @@ export const BrandRankIcon = memo(function BrandRankIcon({
   return (
     <span
       className={cn(
-        "flex shrink-0 items-center justify-center font-semibold",
+        "flex shrink-0 items-center justify-center font-semibold leading-none",
         roundedClass,
         config.box,
         config.letterText,
@@ -148,7 +149,7 @@ export const BrandRankIcon = memo(function BrandRankIcon({
       )}
       style={brandIconFillStyle(letterColor)}
     >
-      {label.slice(0, 1).toUpperCase()}
+      <span className="leading-none">{label.slice(0, 1).toUpperCase()}</span>
     </span>
   );
 });

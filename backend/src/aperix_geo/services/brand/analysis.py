@@ -44,7 +44,6 @@ def resolve_brand_id_for_analysis_entity(
         db,
         subject_id=subject.id,
         entity=sync_entity,
-        allow_search=False,
     )
     db.flush()
     return brand.id

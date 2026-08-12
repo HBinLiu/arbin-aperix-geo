@@ -49,8 +49,6 @@ class CompetitorItem(BaseModel):
     brand: str = Field(default="", max_length=255)
     aliases: list[str] = Field(default_factory=list)
     summary: str = Field(default="")
-    cross_validate_score: float | None = None
-    cross_validate_reason: str = Field(default="")
 
     @field_validator("website_url", mode="before")
     @classmethod
@@ -76,32 +74,6 @@ class PromoteBrandOut(BaseModel):
     entity_label: str
     signals_migrated: int
     signals_dropped: int
-
-
-class DiscoveredCompetitor(BaseModel):
-    domain: str = Field(default="", description="主域名（eTLD+1）；品牌模式竞品为空")
-    website_url: str = Field(default="", description="官网 URL")
-    brand: str = Field(..., description="公司/品牌名称")
-    summary: str = Field(default="", description="站点 meta description 摘要")
-    aliases: list[str] = Field(default_factory=list, description="品牌别名/常用简称")
-
-    @field_validator("website_url", mode="before")
-    @classmethod
-    def _validate_website_url(cls, v: object) -> str:
-        return validate_optional_http_url(v)
-
-
-class SetupDiscoverCompetitorOut(BaseModel):
-    """discover 响应：仅 Step1 UI 展示所需字段；summary/aliases 在 session.competitors。"""
-
-    domain: str = Field(default="", max_length=255)
-    website_url: str = Field(default="", max_length=255)
-    brand: str = Field(..., max_length=255)
-
-    @field_validator("website_url", mode="before")
-    @classmethod
-    def _validate_website_url(cls, v: object) -> str:
-        return validate_optional_http_url(v)
 
 
 class GeneratedPromptOut(BaseModel):
@@ -136,13 +108,20 @@ class SetupDiscoverRequest(BaseModel):
     language: str = Field(default="zh-CN", max_length=16)
     session_id: str | None = Field(
         default=None,
-        description="退回后重试时携带，用于 session / 竞品缓存命中",
+        description="退回后重试时携带，用于复用 session / 画像缓存",
     )
+
+
+class SetupMonitoringTopicOut(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
 
 
 class SetupDiscoverResponse(BaseModel):
     session_id: str = Field(..., description="Redis 会话 ID，后续步骤须携带")
-    competitors: list[SetupDiscoverCompetitorOut] = Field(default_factory=list)
+    status: str = Field(
+        default="pending",
+        description="ready=画像已就绪；pending=已入队后台生成",
+    )
 
 
 class SetupSessionCreateRequest(BaseModel):
@@ -180,10 +159,6 @@ class SetupUploadFileOut(BaseModel):
     status: str = "ok"
 
 
-class SetupCompetitorsResponse(BaseModel):
-    competitors: list[DiscoveredCompetitor] = Field(default_factory=list)
-
-
 class SetupPromptsGenerateRequest(BaseModel):
     session_id: str = Field(..., min_length=1)
     topics: list[str] = Field(..., min_length=1, description="用户确认后的监测主题")
@@ -199,12 +174,8 @@ class SetupTopicsRequest(BaseModel):
     competitors: list[CompetitorItem] = Field(
         ...,
         min_length=1,
-        description="用户在 Step1 确认后的竞品列表",
+        description="用户确认后的竞品列表（手填）",
     )
-
-
-class SetupMonitoringTopicOut(BaseModel):
-    name: str = Field(..., min_length=1, max_length=255)
 
 
 class SetupTopicsResponse(BaseModel):

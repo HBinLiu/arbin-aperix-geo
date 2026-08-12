@@ -30,7 +30,7 @@ from aperix_geo.services.providers import LLMProviderError
 from aperix_geo.services.billing.exceptions import QuotaExceededError, SubscriptionInactiveError
 from aperix_geo.services.billing.http import billing_http_exception
 from aperix_geo.services.setup.prompts import generate_setup_prompts_for_session
-from aperix_geo.services.setup.discover import discover_setup
+from aperix_geo.services.setup.discover import start_discover_setup
 from aperix_geo.services.setup.exceptions import MaterialsInsufficientError, SubjectDuplicateError
 from aperix_geo.services.setup.finalize import finalize_setup
 from aperix_geo.services.setup.materials_store import (
@@ -124,7 +124,7 @@ def discover_setup_endpoint(
     current: CurrentUser,
 ) -> SetupDiscoverResponse:
     try:
-        result = discover_setup(
+        result = start_discover_setup(
             db=db,
             tenant_id=current.tenant_id,
             user_id=current.id,
@@ -152,7 +152,7 @@ def discover_setup_endpoint(
     except (LLMProviderError, json.JSONDecodeError, TypeError) as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"画像或竞品发现失败：{e}",
+            detail=f"画像生成失败：{e}",
         ) from e
     return SetupDiscoverResponse(**result)
 
@@ -173,6 +173,11 @@ def generate_setup_topics_endpoint(
         )
     except (QuotaExceededError, SubscriptionInactiveError) as e:
         raise billing_http_exception(e, inactive_detail="订阅已过期，无法继续设置") from e
+    except MaterialsInsufficientError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": e.code, "message": e.message},
+        ) from e
     except ValueError as e:
         status_code = status.HTTP_404_NOT_FOUND if "not found" in str(e) else status.HTTP_400_BAD_REQUEST
         raise HTTPException(status_code=status_code, detail=str(e)) from e
