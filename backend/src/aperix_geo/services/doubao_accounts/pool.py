@@ -133,7 +133,14 @@ def release_account(
     else:
         message = (error or "crawl failed").strip()
         row.last_error = message[:2000]
-        if "login" in message.lower() or "登录" in message:
+        if (
+            "login" in message.lower()
+            or "登录" in message
+            or "captcha" in message.lower()
+            or "验证码" in message
+            or "人机验证" in message
+            or "行为验证" in message
+        ):
             row.status = STATUS_NEED_RELOGIN
             logger.warning("doubao account need_relogin id=%s label=%s err=%s", row.id, row.label, message)
     db.flush()

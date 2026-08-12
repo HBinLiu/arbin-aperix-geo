@@ -1,4 +1,4 @@
-"""Unit tests for Doubao Web panel extraction (no live browser)."""
+"""Unit tests for Doubao Web panel extraction / md-box HTML → Markdown."""
 
 from __future__ import annotations
 
@@ -11,8 +11,13 @@ from aperix_geo.services.providers.doubao_web.accounts import load_storage_state
 from aperix_geo.services.providers.doubao_web.crawler import user_prompt_from_messages
 from aperix_geo.services.providers.doubao_web.errors import DoubaoLoginExpired
 from aperix_geo.services.providers.doubao_web.extract import (
+    blank_chat_failure_reason,
+    clean_assistant_text,
+    conversation_id_from_url,
     extract_quoted_queries,
     extract_urls,
+    filter_http_urls,
+    md_box_html_to_markdown,
     panel_counts,
     panel_present,
     pick_share_url,
@@ -27,6 +32,76 @@ SAMPLE_PANEL = """
 1. https://example.com/a
 2. https://example.com/b
 """
+
+SAMPLE_MD_BOX = """
+<div class="container-h3Yzeb">
+  <div data-streaming="false" class="container-qX9Csx md-box-root">
+    <div class="container-fBOrXO"><h1 class="container-KCOKpE">面向抖音网红的 SaaS 方向</h1></div>
+    <div class="container-fBOrXO"><blockquote class="container-U80Nkv">
+      <div class="container-enLQFx">核心原则：<strong class="container-nB6Z1e">博主愿意付费</strong></div>
+    </blockquote></div>
+    <div class="container-fBOrXO"><div class="container-enLQFx">结合前面分析分成 6 大类。</div></div>
+    <div class="container-fBOrXO"><h2 class="container-KCOKpE">第一大类：直播辅助</h2></div>
+    <div class="container-fBOrXO"><ol class="container-RLBpOb">
+      <li>实时违禁词预警；</li>
+      <li>话术复盘。</li>
+    </ol></div>
+    <div class="container-fBOrXO"><table><thead><tr><th>困境</th><th>工具</th></tr></thead>
+      <tbody><tr><td>合规风险</td><td>预审复盘</td></tr></tbody></table></div>
+  </div>
+</div>
+"""
+
+
+def test_conversation_id_from_url() -> None:
+    assert conversation_id_from_url("https://www.doubao.com/chat/") == ""
+    assert conversation_id_from_url("https://www.doubao.com/chat") == ""
+    assert (
+        conversation_id_from_url("https://www.doubao.com/chat/xmOWWDyV4wJ6gt49W")
+        == "xmOWWDyV4wJ6gt49W"
+    )
+    assert (
+        conversation_id_from_url("https://www.doubao.com/chat/abc-123_xyz/extra")
+        == "abc-123_xyz"
+    )
+
+
+def test_blank_chat_failure_reason() -> None:
+    assert (
+        blank_chat_failure_reason(
+            url="https://www.doubao.com/chat/",
+            md_box_texts=[],
+            message_like_count=0,
+            search_panel_hint=False,
+            prior_conversation_id="oldid123",
+        )
+        == ""
+    )
+    assert "prior conversation" in blank_chat_failure_reason(
+        url="https://www.doubao.com/chat/oldid123",
+        md_box_texts=[],
+        message_like_count=0,
+        search_panel_hint=False,
+        prior_conversation_id="oldid123",
+    )
+    assert "md-box history" in blank_chat_failure_reason(
+        url="https://www.doubao.com/chat/",
+        md_box_texts=["已有助手回复"],
+        message_like_count=0,
+        search_panel_hint=False,
+    )
+    assert "search panel" in blank_chat_failure_reason(
+        url="https://www.doubao.com/chat/",
+        md_box_texts=[],
+        message_like_count=0,
+        search_panel_hint=True,
+    )
+    assert "message-like" in blank_chat_failure_reason(
+        url="https://www.doubao.com/chat/",
+        md_box_texts=[],
+        message_like_count=5,
+        search_panel_hint=False,
+    )
 
 
 def test_panel_present_and_counts() -> None:
@@ -50,6 +125,48 @@ def test_extract_urls_and_pick_share() -> None:
     assert pick_share_url(
         ["https://example.com/x", "https://www.doubao.com/share/abc123"]
     ).startswith("https://www.doubao.com/share/")
+
+
+def test_filter_http_urls_keeps_absolute_http() -> None:
+    urls = filter_http_urls(
+        [
+            "https://example.com/a",
+            "https://www.doubao.com/algo/redirect?u=1",
+            "/relative",
+            "javascript:void(0)",
+            "",
+        ]
+    )
+    assert "https://example.com/a" in urls
+    assert "https://www.doubao.com/algo/redirect?u=1" in urls
+    assert "/relative" not in urls
+
+
+def test_page_looks_like_captcha() -> None:
+    from aperix_geo.services.providers.doubao_web.extract import page_looks_like_captcha
+
+    assert page_looks_like_captcha("请选择所有符合上文描述的图片，并拖拽到下方\n拖拽到这里")
+    assert page_looks_like_captcha("请完成行为验证后继续")
+    assert not page_looks_like_captcha("适合小团队的 CRM 有哪些\nZoho CRM 推荐")
+
+
+def test_md_box_html_to_markdown_keeps_structure() -> None:
+    md = md_box_html_to_markdown(SAMPLE_MD_BOX)
+    assert md.startswith("# 面向抖音网红的 SaaS 方向")
+    assert "## 第一大类：直播辅助" in md
+    assert "> 核心原则：" in md
+    assert "**博主愿意付费**" in md
+    assert "1. 实时违禁词预警" in md
+    assert "| 困境 | 工具 |" in md
+    assert "搜索" not in md
+    assert "下载电脑版" not in md
+
+
+def test_clean_assistant_text_preserves_markdown() -> None:
+    md = md_box_html_to_markdown(SAMPLE_MD_BOX)
+    cleaned = clean_assistant_text(md, user_prompt="随便问一句")
+    assert cleaned.startswith("# 面向抖音网红的 SaaS 方向")
+    assert "## 第一大类" in cleaned
 
 
 def test_user_prompt_from_messages() -> None:

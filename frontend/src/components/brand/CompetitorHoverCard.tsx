@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 
+import { BrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
 import { BrandRankLabel } from "@/components/brand/BrandRankLabel";
 import { SentimentValue } from "@/components/analysis/sentiment/SentimentValue";
 import { FaviconImage } from "@/components/common/FaviconImage";
@@ -174,21 +175,20 @@ export function CompetitorHoverCard({ row, geoMetrics, className }: CompetitorHo
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center gap-3">
-        {faviconUrl ? (
-          <div className="border-border flex size-12 shrink-0 items-center justify-center rounded-md border bg-muted-background p-2">
+        <div className="border-border flex size-12 shrink-0 items-center justify-center rounded-md border bg-muted-background p-2">
+          {faviconUrl ? (
             <FaviconImage
               url={faviconUrl}
               size={32}
               className="size-8 rounded-md"
               iconClassName="size-5"
               fallbackLabel={label}
+              showLoadingSpinner={false}
             />
-          </div>
-        ) : (
-          <div className="bg-background flex size-12 shrink-0 items-center justify-center rounded-full text-base font-semibold">
-            {label.slice(0, 1)}
-          </div>
-        )}
+          ) : (
+            <BrandRankIcon label={label} size="lg" className="size-8 text-sm" faviconLoadingSpinner={false} />
+          )}
+        </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-base font-semibold tracking-tight">{label}</p>
           {domain ? (

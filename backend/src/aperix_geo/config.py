@@ -176,9 +176,11 @@ class Settings(BaseSettings):
     doubao_responses_timeout_s: float = Field(default=120.0, ge=10.0, le=600.0)
     # 豆包采样路径：api_only（默认现网）| crawl_first | crawl_only（见 docs/09）
     doubao_sampling_mode: str = "api_only"
-    doubao_crawl_timeout_s: float = Field(default=180.0, ge=30.0, le=900.0)
+    doubao_crawl_timeout_s: float = Field(default=120.0, ge=30.0, le=900.0)
     doubao_crawl_concurrency: int = Field(default=2, ge=1, le=16)
     doubao_crawl_headless: bool = True
+    # Keep one Chromium warm per worker process; each crawl still gets a fresh context.
+    doubao_crawl_browser_reuse: bool = True
     doubao_crawl_require_share_url: bool = True
     doubao_crawl_storage_state_path: str = ""
     doubao_chat_base_url: str = "https://www.doubao.com/chat/"

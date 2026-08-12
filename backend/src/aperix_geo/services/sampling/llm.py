@@ -131,7 +131,10 @@ def try_doubao_web_crawl(
 ) -> SamplingChatResult | None:
     """Attempt Doubao Web crawl. Return None to signal API fallback.
 
-    Soft failures (no credentials, login expired, DOM/share errors) → None.
+    Soft failures (no credentials, needs human ops / captcha / login, DOM/share) → None.
+    Captcha and login expiry share ticket + alert recovery (never auto-solved).
+    Under crawl_first this sample may API-fallback; account stays out of pool until
+    ops completes the login ticket.
     Missing Playwright install → None.
     """
     from aperix_geo.db.session import SessionLocal

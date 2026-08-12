@@ -12,13 +12,18 @@ from sqlalchemy.orm import Session
 from aperix_geo.config import Settings, get_settings
 from aperix_geo.db.base import utc_now
 from aperix_geo.db.models import DoubaoAccount
+from aperix_geo.services.doubao_accounts.human_ops import request_human_intervention
 from aperix_geo.services.doubao_accounts.pool import (
     STATUS_ACTIVE,
-    STATUS_NEED_RELOGIN,
     storage_state_has_cookies,
 )
 from aperix_geo.services.providers.doubao_web import selectors as sel
-from aperix_geo.services.providers.doubao_web.errors import DoubaoLoginExpired
+from aperix_geo.services.providers.doubao_web.errors import (
+    DoubaoCaptchaRequired,
+    DoubaoLoginExpired,
+    DoubaoNeedsHumanOps,
+)
+from aperix_geo.services.providers.doubao_web.extract import page_looks_like_captcha
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +33,7 @@ def run_doubao_account_heartbeat(
     *,
     settings: Settings | None = None,
 ) -> dict[str, Any]:
-    """Probe active accounts; mark need_relogin on failure. No-op when disabled."""
+    """Probe active accounts; on failure open human ticket + alert. No-op when disabled."""
     settings = settings or get_settings()
     if not settings.doubao_heartbeat_enabled:
         return {"ok": True, "skipped": True, "reason": "disabled"}
@@ -59,14 +64,30 @@ def run_doubao_account_heartbeat(
             row.last_ok_at = utc_now()
             row.last_error = ""
             revived += 1
-        except DoubaoLoginExpired as exc:
-            row.status = STATUS_NEED_RELOGIN
-            row.last_error = str(exc)[:2000]
+        except DoubaoNeedsHumanOps as exc:
+            reason = "captcha" if isinstance(exc, DoubaoCaptchaRequired) else "login_expired"
+            request_human_intervention(
+                db,
+                account_id=row.id,
+                reason=reason,
+                error=str(exc),
+                settings=settings,
+            )
             failed += 1
-            logger.warning("doubao heartbeat login expired id=%s label=%s", row.id, row.label)
+            logger.warning(
+                "doubao heartbeat needs human ops id=%s label=%s reason=%s",
+                row.id,
+                row.label,
+                reason,
+            )
         except Exception as exc:
-            row.status = STATUS_NEED_RELOGIN
-            row.last_error = str(exc)[:2000]
+            request_human_intervention(
+                db,
+                account_id=row.id,
+                reason="login_expired",
+                error=str(exc),
+                settings=settings,
+            )
             failed += 1
             logger.warning("doubao heartbeat failed id=%s label=%s: %s", row.id, row.label, exc)
         db.flush()
@@ -86,39 +107,43 @@ def probe_account_login(
     *,
     settings: Settings | None = None,
 ) -> dict[str, Any]:
-    """Open chat page with storage_state; raise DoubaoLoginExpired if session dead."""
+    """Open chat page with storage_state; raise DoubaoNeedsHumanOps if session unusable."""
     settings = settings or get_settings()
     if not storage_state_has_cookies(storage_state):
         raise DoubaoLoginExpired("storage_state missing cookies")
 
     try:
-        from playwright.sync_api import sync_playwright
+        from aperix_geo.services.providers.doubao_web.browser import browser_page_session
     except ImportError as exc:
         raise RuntimeError("playwright is not installed") from exc
 
     base_url = (settings.doubao_chat_base_url or sel.CHAT_URL).strip() or sel.CHAT_URL
     timeout_ms = min(60_000, int(settings.doubao_crawl_timeout_s * 1000))
 
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=bool(settings.doubao_crawl_headless))
+    with browser_page_session(settings, storage_state=storage_state) as (page, context):
+        page.goto(base_url, wait_until="domcontentloaded", timeout=timeout_ms)
+        url = (page.url or "").lower()
+        if "login" in url or "passport" in url:
+            raise DoubaoLoginExpired(f"redirected to login: {page.url}")
         try:
-            context = browser.new_context(
-                storage_state=storage_state,
-                locale="zh-CN",
-                viewport={"width": 1280, "height": 800},
-            )
-            context.set_default_timeout(timeout_ms)
-            page = context.new_page()
-            page.goto(base_url, wait_until="domcontentloaded", timeout=timeout_ms)
-            url = (page.url or "").lower()
-            if "login" in url or "passport" in url:
-                raise DoubaoLoginExpired(f"redirected to login: {page.url}")
-            login_btn = page.get_by_role("button", name=sel.LOGIN_HINT)
-            composer = page.locator("textarea, div[contenteditable='true']")
-            if login_btn.count() > 0 and composer.count() == 0:
-                raise DoubaoLoginExpired("login UI visible")
-            if composer.count() == 0:
-                raise DoubaoLoginExpired("chat composer not found")
-            return context.storage_state()
-        finally:
-            browser.close()
+            body = page.locator("body").inner_text(timeout=3_000) or ""
+        except Exception:
+            body = ""
+        if page_looks_like_captcha(body):
+            raise DoubaoCaptchaRequired("behavior captcha on heartbeat probe")
+        for css in sel.CAPTCHA_DOM_SELECTORS:
+            try:
+                loc = page.locator(css)
+                if loc.count() > 0 and loc.first.is_visible():
+                    raise DoubaoCaptchaRequired("behavior captcha on heartbeat probe")
+            except DoubaoCaptchaRequired:
+                raise
+            except Exception:
+                continue
+        login_btn = page.get_by_role("button", name=sel.LOGIN_HINT)
+        composer = page.locator("textarea, div[contenteditable='true']")
+        if login_btn.count() > 0 and composer.count() == 0:
+            raise DoubaoLoginExpired("login UI visible")
+        if composer.count() == 0:
+            raise DoubaoLoginExpired("chat composer not found")
+        return context.storage_state()

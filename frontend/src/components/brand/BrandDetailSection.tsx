@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { Check, Copy, ExternalLink, Pencil, Plus, Tag } from "lucide-react";
 
+import { BrandRankIcon } from "@/components/analysis/common/BrandRankIcon";
 import { BrandSectionCard } from "@/components/brand/BrandSectionCard";
 import { EditBrandDialog } from "@/components/brand/EditBrandDialog";
 import { FaviconImage } from "@/components/common/FaviconImage";
@@ -132,11 +133,16 @@ export function BrandDetailSection({ subject }: BrandDetailSectionProps) {
                   size={32}
                   className="size-8"
                   iconClassName="size-4"
+                  fallbackLabel={displayName}
+                  showLoadingSpinner={false}
                 />
               ) : (
-                <span className="text-muted-foreground text-base font-semibold">
-                  {displayName.slice(0, 1).toUpperCase()}
-                </span>
+                <BrandRankIcon
+                  label={displayName}
+                  size="lg"
+                  className="size-8 text-sm"
+                  faviconLoadingSpinner={false}
+                />
               )}
             </div>
             <div className="min-w-0">

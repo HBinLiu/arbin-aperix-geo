@@ -20,7 +20,11 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from aperix_geo.config import get_settings  # noqa: E402
 from aperix_geo.services.providers.doubao_web.crawler import crawl_doubao_chat  # noqa: E402
-from aperix_geo.services.providers.doubao_web.errors import DoubaoCrawlError  # noqa: E402
+from aperix_geo.services.providers.doubao_web.errors import (  # noqa: E402
+    DoubaoCaptchaRequired,
+    DoubaoCrawlError,
+    DoubaoNeedsHumanOps,
+)
 
 
 def main() -> int:
@@ -36,20 +40,35 @@ def main() -> int:
     print(f"Crawling prompt={prompt!r} headless={settings.doubao_crawl_headless}")
     try:
         result = crawl_doubao_chat([{"role": "user", "content": prompt}], settings=settings)
+    except DoubaoNeedsHumanOps as exc:
+        kind = "CAPTCHA" if isinstance(exc, DoubaoCaptchaRequired) else "LOGIN"
+        print(f"{kind} → human ops (ticket/alert path): {exc}", file=sys.stderr)
+        print(
+            "Pool accounts: open/complete Doubao login ticket (ops API / CLI). "
+            "Local file smoke: clear challenge in a headed browser, re-export storage_state, retry.",
+            file=sys.stderr,
+        )
+        return 3
     except DoubaoCrawlError as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 2
 
     payload = {
-        "text": result.text[:500],
+        "text": result.text,
         "text_len": len(result.text),
         "search_queries": list(result.search_queries),
         "source_urls": list(result.source_urls),
+        "source_url_count": len(result.source_urls),
         "share_url": result.share_url,
         "web_search_mode": result.web_search_mode,
         "latency_ms": result.latency_ms,
     }
     print(json.dumps(payload, ensure_ascii=False, indent=2))
+    if not result.source_urls:
+        print(
+            "NOTE: source_urls empty — panel may use non-<a> cards; check expanded「参考资料」DOM",
+            file=sys.stderr,
+        )
     return 0
 
 
