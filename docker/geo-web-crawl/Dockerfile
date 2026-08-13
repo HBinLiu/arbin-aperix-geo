@@ -27,7 +27,8 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 COPY docker/geo-web-crawl/requirements.txt /app/requirements.txt
-RUN pip install -r /app/requirements.txt
+RUN pip install -r /app/requirements.txt \
+    && python -c "import playwright; print('playwright', playwright.__version__)"
 
 COPY backend/src /app/src
 
