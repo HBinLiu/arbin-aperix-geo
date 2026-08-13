@@ -10,9 +10,12 @@ are serialized by a lock. Prefer Celery prefork (one task per process) or keep
 
 Celery prefork: never call playwright.stop()/browser.close() on objects inherited
 from the parent after fork — only drop references, then start fresh in the child.
-Also reset the inherited asyncio event loop before ``sync_playwright().__enter__``;
-otherwise the greenlet dispatcher returns without setting ``_playwright`` and raises
-``AttributeError: ... has no attribute '_playwright'``.
+
+Sync Playwright's ``__enter__`` creates its own asyncio loop for the driver fiber.
+Do **not** pre-install an idle loop via ``asyncio.set_event_loop(new_event_loop())``:
+that leaves a thread-default loop that fights Playwright's own loop and often ends as
+``AttributeError: PlaywrightContextManager has no attribute '_playwright'``.
+After fork, clear any inherited loop with ``set_event_loop(None)`` instead.
 """
 
 from __future__ import annotations
@@ -46,25 +49,25 @@ def discard_browser_pool_inherited() -> None:
 
 
 def prepare_sync_playwright_runtime() -> None:
-    """Make Sync Playwright startable in a Celery prefork child.
+    """Make Sync Playwright startable after Celery prefork (or a dirty asyncio state).
 
-    After fork the inherited asyncio loop / greenlet state is unsafe. Replacing
-    the loop avoids PlaywrightContextManager.__enter__ returning without
-    assigning ``_playwright``.
+    Clears inherited Playwright refs and any non-running thread event loop. Playwright
+    Sync API will create the loop it owns inside ``sync_playwright().__enter__``.
     """
     import asyncio
 
     discard_browser_pool_inherited()
     try:
         try:
-            if asyncio.get_running_loop() is not None:
-                logger.warning(
-                    "doubao crawl: asyncio loop already running; sync Playwright may fail"
-                )
-                return
+            asyncio.get_running_loop()
+            logger.warning(
+                "doubao crawl: asyncio loop already running; sync Playwright may fail"
+            )
+            return
         except RuntimeError:
             pass
-        asyncio.set_event_loop(asyncio.new_event_loop())
+        # Clear stale/inherited loop; do not install a replacement idle loop.
+        asyncio.set_event_loop(None)
     except Exception:
         logger.debug("prepare_sync_playwright_runtime failed", exc_info=True)
 
