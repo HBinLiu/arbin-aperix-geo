@@ -91,6 +91,33 @@ def test_acquire_skips_stale_account() -> None:
     assert acquire_account(db, settings=settings) is None
 
 
+@patch("aperix_geo.services.doubao_accounts.human_ops.request_human_intervention")
+def test_acquire_empty_cookies_marks_need_relogin_and_opens_ticket(mock_ops: MagicMock) -> None:
+    settings = Settings(
+        doubao_heartbeat_fresh_s=21600,
+        doubao_account_lease_ttl_s=300,
+        doubao_ops_ticket_enabled=True,
+    )
+    row = DoubaoAccount(
+        id=uuid4(),
+        label="empty",
+        status=STATUS_ACTIVE,
+        storage_state={},
+        last_ok_at=utc_now(),
+        last_error="",
+        lease_owner="",
+        lease_until=EPOCH,
+    )
+    db = MagicMock()
+    db.scalars.return_value.first.return_value = row
+    assert acquire_account(db, settings=settings) is None
+    assert row.status == STATUS_NEED_RELOGIN
+    assert "missing cookies" in row.last_error
+    mock_ops.assert_called_once()
+    assert mock_ops.call_args.kwargs["account_id"] == row.id
+    assert mock_ops.call_args.kwargs["reason"] == "login_expired"
+
+
 def test_release_marks_need_relogin_on_login_error() -> None:
     row = DoubaoAccount(
         id=uuid4(),
@@ -125,3 +152,38 @@ def test_heartbeat_disabled_noop() -> None:
     result = run_doubao_account_heartbeat(db, settings=Settings(doubao_heartbeat_enabled=False))
     assert result["skipped"] is True
     db.scalars.assert_not_called()
+
+
+def test_accounts_needing_heartbeat_includes_empty_cookies_even_if_fresh() -> None:
+    from aperix_geo.services.doubao_accounts.heartbeat import accounts_needing_heartbeat
+
+    now = utc_now()
+    empty = DoubaoAccount(
+        id=uuid4(),
+        label="empty",
+        status=STATUS_ACTIVE,
+        storage_state={},
+        last_ok_at=now,
+        lease_until=EPOCH,
+    )
+    fresh_ok = DoubaoAccount(
+        id=uuid4(),
+        label="ok",
+        status=STATUS_ACTIVE,
+        storage_state=_state(),
+        last_ok_at=now,
+        lease_until=EPOCH,
+    )
+    stale_ok = DoubaoAccount(
+        id=uuid4(),
+        label="stale",
+        status=STATUS_ACTIVE,
+        storage_state=_state(),
+        last_ok_at=now - timedelta(hours=4),
+        lease_until=EPOCH,
+    )
+    selected = accounts_needing_heartbeat(
+        [fresh_ok, empty, stale_ok],
+        stale_before=now - timedelta(hours=3),
+    )
+    assert [r.label for r in selected] == ["empty", "stale"]

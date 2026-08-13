@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -27,6 +28,35 @@ from aperix_geo.services.providers.doubao_web.extract import page_looks_like_cap
 
 logger = logging.getLogger(__name__)
 
+_HEARTBEAT_SCAN_LIMIT = 100
+_HEARTBEAT_CHECK_LIMIT = 20
+
+
+def accounts_needing_heartbeat(
+    rows: list[DoubaoAccount],
+    *,
+    stale_before: datetime,
+    limit: int = _HEARTBEAT_CHECK_LIMIT,
+) -> list[DoubaoAccount]:
+    """Prefer empty-cookie actives (always), then stale actives with cookies."""
+    empty: list[DoubaoAccount] = []
+    stale: list[DoubaoAccount] = []
+    for row in rows:
+        if not storage_state_has_cookies(row.storage_state):
+            empty.append(row)
+        elif row.last_ok_at < stale_before:
+            stale.append(row)
+    selected: list[DoubaoAccount] = []
+    seen: set[UUID] = set()
+    for row in empty + stale:
+        if row.id in seen:
+            continue
+        seen.add(row.id)
+        selected.append(row)
+        if len(selected) >= limit:
+            break
+    return selected
+
 
 def run_doubao_account_heartbeat(
     db: Session,
@@ -39,19 +69,17 @@ def run_doubao_account_heartbeat(
         return {"ok": True, "skipped": True, "reason": "disabled"}
 
     now = utc_now()
-    # Heartbeat accounts that are active and either stale or due soon.
+    # Stale ≈ half the sampling freshness window; empty-cookie actives are always included.
     stale_before = now - timedelta(seconds=max(60, int(settings.doubao_heartbeat_fresh_s) // 2))
-    rows = list(
+    active_rows = list(
         db.scalars(
             select(DoubaoAccount)
-            .where(
-                DoubaoAccount.status == STATUS_ACTIVE,
-                DoubaoAccount.last_ok_at < stale_before,
-            )
+            .where(DoubaoAccount.status == STATUS_ACTIVE)
             .order_by(DoubaoAccount.last_ok_at.asc())
-            .limit(20)
+            .limit(_HEARTBEAT_SCAN_LIMIT)
         ).all()
     )
+    rows = accounts_needing_heartbeat(active_rows, stale_before=stale_before)
 
     checked = 0
     revived = 0

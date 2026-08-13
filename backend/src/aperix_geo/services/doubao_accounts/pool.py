@@ -84,6 +84,16 @@ def acquire_account(
         row.status = STATUS_NEED_RELOGIN
         row.last_error = "storage_state missing cookies"
         db.flush()
+        # 空 Cookie 的 active 行无法采样；与登录失效同一套人工工单（若开启）。
+        from aperix_geo.services.doubao_accounts.human_ops import request_human_intervention
+
+        request_human_intervention(
+            db,
+            account_id=row.id,
+            reason="login_expired",
+            error="storage_state missing cookies",
+            settings=settings,
+        )
         return None
 
     row.lease_owner = owner

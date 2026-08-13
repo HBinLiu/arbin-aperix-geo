@@ -102,7 +102,8 @@ def crawl_doubao_chat(
             lease = acquire_account(db, settings=settings)
             if lease is not None:
                 storage_state = lease.storage_state
-                db.commit()
+            # Commit lease take OR side effects (empty cookies → need_relogin + ticket).
+            db.commit()
         except Exception:
             db.rollback()
             logger.warning("doubao account acquire failed; trying file cold-start", exc_info=True)
