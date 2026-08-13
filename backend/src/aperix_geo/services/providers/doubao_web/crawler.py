@@ -85,13 +85,20 @@ def crawl_doubao_chat(
     if not prompt:
         raise DoubaoCrawlError("empty user prompt")
 
-    from aperix_geo.services.providers.doubao_web.browser import browser_page_session
     from aperix_geo.db.session import SessionLocal
     from aperix_geo.services.doubao_accounts.human_ops import request_human_intervention
     from aperix_geo.services.doubao_accounts.pool import (
         AccountLease,
         acquire_account,
         release_account,
+    )
+    from aperix_geo.services.providers.doubao_web.browser_crawl_job import (
+        build_crawl_payload,
+        run_doubao_browser_crawl_job,
+    )
+    from aperix_geo.services.providers.doubao_web.spawn_crawl import (
+        run_doubao_crawl_in_spawn,
+        should_spawn_doubao_crawl,
     )
 
     db = SessionLocal()
@@ -116,111 +123,91 @@ def crawl_doubao_chat(
                 "no Doubao credentials (pool empty / stale, or set DOUBAO_CRAWL_STORAGE_STATE_PATH)"
             )
 
-        timeout_ms = int(settings.doubao_crawl_timeout_s * 1000)
+        payload = build_crawl_payload(
+            prompt=prompt,
+            storage_state=storage_state,
+            settings=settings,
+        )
         started = time.monotonic()
-        base_url = (settings.doubao_chat_base_url or sel.CHAT_URL).strip() or sel.CHAT_URL
 
         with _concurrency_slot(settings):
-            with browser_page_session(settings, storage_state=storage_state) as (page, context):
-                try:
-                    crawl_deadline = time.monotonic() + settings.doubao_crawl_timeout_s
-                    page.goto(base_url, wait_until="domcontentloaded", timeout=timeout_ms)
-                    _assert_logged_in(page)
-                    _assert_no_captcha(page)
-                    _ensure_blank_chat(page, base_url=base_url)
-                    _fill_and_send(page, prompt)
-                    _assert_no_captcha(page)
-                    _wait_generation_done(
-                        page,
+            if should_spawn_doubao_crawl():
+                job = run_doubao_crawl_in_spawn(
+                    payload,
+                    timeout_s=float(settings.doubao_crawl_timeout_s),
+                )
+            else:
+                job = run_doubao_browser_crawl_job(payload)
+
+        if not job.get("ok"):
+            err_type = str(job.get("error_type") or "DoubaoCrawlError")
+            err_msg = str(job.get("error") or "crawl failed")
+            if job.get("human_ops") or err_type in {
+                "DoubaoNeedsHumanOps",
+                "DoubaoLoginExpired",
+                "DoubaoCaptchaRequired",
+            }:
+                if lease is not None:
+                    reason = "captcha" if err_type == "DoubaoCaptchaRequired" else "login_expired"
+                    request_human_intervention(
+                        db,
+                        account_id=lease.account_id,
+                        reason=reason,  # type: ignore[arg-type]
+                        error=err_msg,
                         settings=settings,
-                        deadline=crawl_deadline,
                     )
-                    _assert_no_captcha(page)
+                    db.commit()
+                    lease = None
+                if err_type == "DoubaoCaptchaRequired":
+                    raise DoubaoCaptchaRequired(err_msg)
+                if err_type == "DoubaoLoginExpired":
+                    raise DoubaoLoginExpired(err_msg)
+                raise DoubaoNeedsHumanOps(err_msg)
+            if lease is not None:
+                release_account(
+                    db,
+                    account_id=lease.account_id,
+                    lease_owner=lease.lease_owner,
+                    ok=False,
+                    error=err_msg,
+                )
+                db.commit()
+                lease = None
+            if err_type == "DoubaoShareError":
+                raise DoubaoShareError(err_msg)
+            raise DoubaoCrawlError(err_msg)
 
-                    # Extract answer BEFORE expanding the search panel (panel text pollutes DOM).
-                    raw_text = _extract_assistant_text(page, deadline=crawl_deadline)
-                    panel_text, panel_hrefs = _extract_search_panel(page)
-                    queries = extract_quoted_queries(panel_text) if panel_present(panel_text) else ()
-                    text = clean_assistant_text(
-                        raw_text,
-                        user_prompt=prompt,
-                        search_queries=queries,
-                    )
-                    if not text.strip():
-                        raise DoubaoCrawlError("empty assistant reply")
+        new_state = job.get("storage_state")
+        if lease is not None:
+            release_account(
+                db,
+                account_id=lease.account_id,
+                lease_owner=lease.lease_owner,
+                storage_state=new_state if isinstance(new_state, dict) else None,
+                ok=True,
+            )
+            db.commit()
+            lease = None
+        else:
+            state_path = resolve_storage_state_path(settings)
+            if state_path is not None and isinstance(new_state, dict):
+                try:
+                    save_storage_state(state_path, new_state)
+                except OSError:
+                    logger.warning("failed to rewrite storage_state", exc_info=True)
 
-                    # Panel DOM is the source of truth for citations (no host allow/deny lists).
-                    source_urls = filter_http_urls(
-                        list(panel_hrefs) + list(extract_urls(panel_text))
-                    )
-
-                    share_url = ""
-                    share_error: Exception | None = None
-                    try:
-                        share_url = _capture_share_url(page)
-                    except Exception as exc:
-                        share_error = exc
-
-                    if settings.doubao_crawl_require_share_url and not share_url:
-                        raise DoubaoShareError(
-                            f"share_url required but missing: {share_error or 'empty'}"
-                        ) from share_error
-
-                    new_state = context.storage_state()
-                    if lease is not None:
-                        release_account(
-                            db,
-                            account_id=lease.account_id,
-                            lease_owner=lease.lease_owner,
-                            storage_state=new_state,
-                            ok=True,
-                        )
-                        db.commit()
-                        lease = None
-                    else:
-                        state_path = resolve_storage_state_path(settings)
-                        if state_path is not None:
-                            try:
-                                save_storage_state(state_path, new_state)
-                            except OSError:
-                                logger.warning("failed to rewrite storage_state", exc_info=True)
-
-                    latency_ms = int((time.monotonic() - started) * 1000)
-                    return SamplingChatResult(
-                        text=text.strip(),
-                        usage={},
-                        latency_ms=latency_ms,
-                        source_urls=source_urls,
-                        web_search_mode="doubao_web_crawl",
-                        search_queries=queries,
-                        share_url=share_url,
-                    )
-                except DoubaoNeedsHumanOps as exc:
-                    # Login expired + captcha: same ticket + alert recovery.
-                    if lease is not None:
-                        reason = "captcha" if isinstance(exc, DoubaoCaptchaRequired) else "login_expired"
-                        request_human_intervention(
-                            db,
-                            account_id=lease.account_id,
-                            reason=reason,
-                            error=str(exc),
-                            settings=settings,
-                        )
-                        db.commit()
-                        lease = None
-                    raise
-                except Exception as exc:
-                    if lease is not None:
-                        release_account(
-                            db,
-                            account_id=lease.account_id,
-                            lease_owner=lease.lease_owner,
-                            ok=False,
-                            error=str(exc),
-                        )
-                        db.commit()
-                        lease = None
-                    raise
+        latency_ms = int(job.get("latency_ms") or (time.monotonic() - started) * 1000)
+        source_urls = tuple(job.get("source_urls") or ())
+        queries = tuple(job.get("search_queries") or ())
+        return SamplingChatResult(
+            text=str(job.get("text") or "").strip(),
+            usage={},
+            latency_ms=latency_ms,
+            source_urls=source_urls,
+            web_search_mode="doubao_web_crawl",
+            search_queries=queries,
+            share_url=str(job.get("share_url") or ""),
+        )
     finally:
         if lease is not None:
             try:
