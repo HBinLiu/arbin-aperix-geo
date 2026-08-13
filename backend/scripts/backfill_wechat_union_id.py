@@ -10,6 +10,8 @@ Usage (from backend/):
 
   uv run python scripts/backfill_wechat_union_id.py --dry-run
   uv run python scripts/backfill_wechat_union_id.py
+
+Env: backend/.env.{mode} via ENV/APP_ENV or backend/.env.mode (default development).
 """
 
 from __future__ import annotations

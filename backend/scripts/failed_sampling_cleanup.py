@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """删除因订阅到期或 AI 额度用尽而失败的采样任务（默认 dry-run）。
 
+环境：加载 backend/.env.{mode}；mode = ENV/APP_ENV 或 backend/.env.mode（默认 development）。
+
 匹配规则：
 - job.created_at 在 --since-days 内（默认 3）
 - 至少有一条 LLMResponse

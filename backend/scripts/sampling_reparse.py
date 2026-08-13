@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Re-run parse_llm_output on existing success responses and update parsed JSONB."""
+"""Re-run parse_llm_output on existing success responses and update parsed JSONB.
+
+Env: loads backend/.env.{mode}; mode from ENV/APP_ENV or backend/.env.mode.
+"""
 
 from __future__ import annotations
 

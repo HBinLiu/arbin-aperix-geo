@@ -4,8 +4,10 @@
 Usage (from backend/):
 
   export PYTHONPATH=src
-  export DOUBAO_CRAWL_STORAGE_STATE_PATH=data/doubao_storage_state.json
-  export DOUBAO_CRAWL_HEADLESS=false   # optional, easier to debug
+  # Env: .env.{mode} via ENV/APP_ENV or backend/.env.mode
+  # Optional overrides still work as process env:
+  #   DOUBAO_CRAWL_STORAGE_STATE_PATH=data/doubao_storage_state.json
+  #   DOUBAO_CRAWL_HEADLESS=false
   python3 scripts/doubao_web_smoke.py "适合小团队的 CRM 有哪些"
 """
 

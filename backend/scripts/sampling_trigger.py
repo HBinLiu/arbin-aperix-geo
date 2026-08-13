@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Trigger one sampling job for a subject (local dev, direct DB + Celery enqueue)."""
+"""Trigger one sampling job for a subject (direct DB + Celery enqueue).
+
+Env: loads backend/.env.{mode}; mode from ENV/APP_ENV or backend/.env.mode
+(default development). Production: ``echo production > .env.mode``.
+"""
 
 from __future__ import annotations
 

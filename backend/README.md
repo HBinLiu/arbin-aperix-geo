@@ -13,7 +13,7 @@ Python 单体：**FastAPI**、**Celery**、**PostgreSQL**、**Redis**。与前�
 | `.env.example` | 环境变量模板（亦可直接参考 `.env.development` / `.env.production`） |
 | `.env.development` / `.env.production` | 开发 / 生产环境变量 |
 
-配置加载：进程 `ENV` / `APP_ENV` 为 `production`（或 `prod`）时读 `.env.production`，否则读 `.env.development`。
+配置加载：优先进程 `ENV` / `APP_ENV`（`production`/`prod` → `.env.production`）；未设置时读 `backend/.env.mode`，否则 `.env.development`。
 
 ## 本地运行（在 `backend/` 下执行）
 
@@ -45,7 +45,8 @@ bash scripts/start_backend.sh
 # 使用 .env.development 中的 API_HOST / API_PORT（默认 0.0.0.0:8000）：
 python -m aperix_geo
 # 开发热重载：uvicorn aperix_geo.main:app --reload --host 0.0.0.0 --port 8000
-# 生产：export ENV=production 后启动（加载 .env.production）
+# 生产：echo production > .env.mode 后启动（加载 .env.production）
+# 也可临时：ENV=production python -m aperix_geo
 ```
 
 Worker（另开终端，同样在 `backend/` 且已 `activate`）：
@@ -165,7 +166,7 @@ crawl4ai-setup
 | 环境 | 邮箱 | 手机 |
 |------|------|------|
 | `ENV=development` / `dev` / `local`（默认） | 不发邮件，响应 **`dev_code`** | 不发短信，响应 **`dev_code`** |
-| `ENV=production` | 需配置 **SMTP_***，真实发信；未配置返回 **503** | 需配置 **SMS_ALIYUN_ACCESS_KEY_*** + 签名 + 模板；未配置返回 **503** |
+| `ENV=production` 或 `.env.mode=production` | 需配置 **SMTP_***，真实发信；未配置返回 **503** | 需配置 **SMS_ALIYUN_ACCESS_KEY_*** + 签名 + 模板；未配置返回 **503** |
 
 SMTP 变量见 `.env.development` / `.env.production`（`SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` / `SMTP_FROM_NAME` / `SMTP_USE_TLS`）。短信依赖 `alibabacloud-dysmsapi20170525`，模板验证码字段名须与 `SMS_ALIYUN_TEMPLATE_PARAM_CODE_KEY` 一致。
 
@@ -193,7 +194,7 @@ cd backend && export PYTHONPATH=src && python -m alembic upgrade head
 2. `git pull` → `backend/.venv` + `pip install -e .` → `alembic upgrade head`
 3. 生成并安装 **`aperix-backend.service`**（`ExecStart` → [`scripts/start_backend.sh`](scripts/start_backend.sh)），再 `restart` 或首次 `enable --now`
 
-进程 `ENV=production`，自行加载 `.env.production`。
+生产机写好 `backend/.env.mode`（内容 `production`）与 `.env.production` 后，进程自行加载对应配置；亦可仍用 `ENV=production` 覆盖。
 
 ```bash
 bash rebuild-and-restart-backend.sh

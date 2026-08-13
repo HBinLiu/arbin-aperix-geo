@@ -4,6 +4,7 @@
 Usage (from backend/):
 
   export PYTHONPATH=src
+  # Env: .env.{mode} via ENV/APP_ENV or backend/.env.mode (default development)
   python3 scripts/doubao_account_upsert.py \\
     --label staging-1 \\
     --state data/doubao_storage_state.json

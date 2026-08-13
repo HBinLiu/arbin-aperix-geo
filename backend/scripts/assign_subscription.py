@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """将某用户所在租户指派为指定订阅计划（等同完成订阅，无需支付）。
 
+环境：加载 backend/.env.{mode}；mode = ENV/APP_ENV 或 backend/.env.mode（默认 development）。
+
 Usage（在 backend/ 下）:
 
   uv run python scripts/assign_subscription.py --list-plans

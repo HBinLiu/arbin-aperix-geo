@@ -160,7 +160,10 @@ fi
 echo "alembic upgrade head..."
 (
   cd "$BACKEND"
-  export ENV=production
+  if [[ ! -f .env.mode ]]; then
+    echo production > .env.mode
+    echo "已写入 $BACKEND/.env.mode (=production)"
+  fi
   export PYTHONPATH=src
   "$VENV_BIN/python" -m alembic upgrade head
 )
@@ -178,7 +181,6 @@ Type=simple
 User=${SERVICE_USER}
 Group=${SERVICE_GROUP}
 WorkingDirectory=${BACKEND}
-Environment=ENV=production
 Environment=PYTHONPATH=src
 Environment=PATH=${VENV_BIN}:/usr/local/bin:/usr/bin
 ExecStart=/bin/bash ${BACKEND}/scripts/start_backend.sh

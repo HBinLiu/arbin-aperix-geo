@@ -9,16 +9,47 @@ from pathlib import Path
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# 仅加载 backend/.env.{mode}；mode 由进程 ENV / APP_ENV 决定（默认 development）。
+# 仅加载 backend/.env.{mode}。mode 优先 ENV/APP_ENV；未设置时读 backend/.env.mode。
 _BACKEND_DIR = Path(__file__).resolve().parents[2]
+_MODE_MARKER_FILE = _BACKEND_DIR / ".env.mode"
+
+
+def _normalize_env_mode(raw: str) -> str | None:
+    value = raw.strip().lower()
+    if value in {"production", "prod"}:
+        return "production"
+    if value in {"development", "dev", "local"}:
+        return "development"
+    return None
+
+
+def _mode_from_marker_file() -> str | None:
+    try:
+        if not _MODE_MARKER_FILE.is_file():
+            return None
+        line = _MODE_MARKER_FILE.read_text(encoding="utf-8").splitlines()[0].strip()
+        if not line or line.startswith("#"):
+            return None
+        # 支持 "production" 或 "ENV=production"
+        if "=" in line:
+            line = line.split("=", 1)[1].strip().strip("\"'")
+        return _normalize_env_mode(line)
+    except OSError:
+        return None
 
 
 def resolve_settings_env_mode() -> str:
-    """Map ENV/APP_ENV to env file suffix: production | development."""
-    raw = (os.environ.get("ENV") or os.environ.get("APP_ENV") or "development").strip().lower()
-    if raw in {"production", "prod"}:
-        return "production"
-    return "development"
+    """Map to env file suffix: production | development.
+
+    优先级：ENV / APP_ENV → backend/.env.mode → development。
+    若仅由 .env.mode 决定，会 setdefault ENV，使 Settings.env / OTP 行为一致。
+    """
+    raw = (os.environ.get("ENV") or os.environ.get("APP_ENV") or "").strip()
+    if raw:
+        return _normalize_env_mode(raw) or "development"
+    mode = _mode_from_marker_file() or "development"
+    os.environ.setdefault("ENV", mode)
+    return mode
 
 
 def settings_env_files() -> tuple[str, ...]:
@@ -257,7 +288,7 @@ class Settings(BaseSettings):
     api_port: int = Field(default=8000, ge=1, le=65535)
 
     # development / dev / local：验证码不发真实通道，send-code 回显 dev_code
-    # 生产部署：进程 export ENV=production，并配置 .env.production
+    # 生产：backend/.env.mode 写 production（或设 ENV=production），并配置 .env.production
     env: str = Field(default="development", description="运行环境；生产部署请设为 production")
 
     # 验证码（Redis）；开发环境 send-code 回显 dev_code，生产不回显
