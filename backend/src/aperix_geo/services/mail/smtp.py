@@ -39,10 +39,21 @@ def send_smtp_email(
     msg["To"] = ", ".join(to_addrs)
     msg.set_content(body)
 
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30) as smtp:
-        if settings.smtp_use_tls:
-            smtp.starttls()
-        if settings.smtp_user.strip():
-            smtp.login(settings.smtp_user, settings.smtp_password)
-        smtp.send_message(msg)
+    host = settings.smtp_host.strip()
+    port = int(settings.smtp_port)
+    user = settings.smtp_user.strip()
+    # 465 = implicit SSL (SMTPS); 587 = STARTTLS. Port 465 + starttls() usually fails.
+    use_ssl = port == 465
+    if use_ssl:
+        with smtplib.SMTP_SSL(host, port, timeout=30) as smtp:
+            if user:
+                smtp.login(user, settings.smtp_password)
+            smtp.send_message(msg)
+    else:
+        with smtplib.SMTP(host, port, timeout=30) as smtp:
+            if settings.smtp_use_tls:
+                smtp.starttls()
+            if user:
+                smtp.login(user, settings.smtp_password)
+            smtp.send_message(msg)
     logger.info("SMTP email sent subject=%s to=%s", subject, to_addrs)
