@@ -34,9 +34,9 @@ ARG PIP_TRUSTED_HOST=mirrors.aliyun.com
 # (Tsinghua/some mirrors 403 the manylinux wheel).
 RUN pip install -i "${PIP_INDEX_URL}" --trusted-host "${PIP_TRUSTED_HOST}" \
       -r /app/requirements.txt \
-    && (python -c "import playwright; print('playwright', playwright.__version__)" \
+    && (python -c "from playwright.sync_api import sync_playwright" \
         || pip install --retries 10 playwright==1.49.1) \
-    && python -c "import playwright; print('playwright ok', playwright.__version__)"
+    && python -c "from playwright.sync_api import sync_playwright; print('playwright sync_api ok')"
 
 COPY backend/src /app/src
 
