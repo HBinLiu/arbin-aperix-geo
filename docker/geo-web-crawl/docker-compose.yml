@@ -28,7 +28,9 @@ services:
     environment:
       GEO_WEB_CRAWL_CONCURRENCY: ${GEO_WEB_CRAWL_CONCURRENCY:-2}
       GEO_WEB_CRAWL_TOKEN: ${GEO_WEB_CRAWL_TOKEN:-Hp2SKSrnrJr8PHCAQ9Qe7aaAszaYKxRm}
-      GEO_WEB_CRAWL_BROWSER_WS_URL: ws://browserless:3000/chromium/playwright
+      # CDP endpoint (connect_over_cdp) — version-tolerant vs Browserless latest.
+      # Do NOT use /chromium/playwright unless Playwright client == Browserless PW version.
+      GEO_WEB_CRAWL_BROWSER_WS_URL: ws://browserless:3000/chromium
       GEO_WEB_CRAWL_BROWSERLESS_TOKEN: ${BROWSERLESS_TOKEN:-arbin_aperix_geo_crawl}
     depends_on:
       - browserless

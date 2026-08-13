@@ -51,6 +51,7 @@ def resolve_browser_ws_url() -> str:
 
 
 def _use_playwright_native(ws_url: str) -> bool:
+    """True only for Browserless Playwright-protocol paths (strict version match)."""
     path = (urlparse(ws_url).path or "").lower()
     return "playwright" in path
 

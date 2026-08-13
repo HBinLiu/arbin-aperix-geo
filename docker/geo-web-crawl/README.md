@@ -63,7 +63,7 @@ docker run -d --restart=unless-stopped --name geo-web-crawl \
   -p 9410:9410 \
   -e GEO_WEB_CRAWL_CONCURRENCY=2 \
   -e GEO_WEB_CRAWL_TOKEN=change-me \
-  -e GEO_WEB_CRAWL_BROWSER_WS_URL=ws://browserless:3000/chromium/playwright \
+  -e GEO_WEB_CRAWL_BROWSER_WS_URL=ws://browserless:3000/chromium \
   -e GEO_WEB_CRAWL_BROWSERLESS_TOKEN=change-me \
   --link browserless:browserless \
   aperix/geo-web-crawl:latest
@@ -74,10 +74,10 @@ docker run -d --restart=unless-stopped --name geo-web-crawl \
 
 ### 连接 URL
 
-| 模式 | URL | Playwright API |
-|------|-----|----------------|
-| **推荐** Playwright native | `ws://browserless:3000/chromium/playwright?token=…` | `chromium.connect` |
-| CDP | `ws://browserless:3000?token=…` 或 `/chromium` | `chromium.connect_over_cdp` |
+| 模式 | URL | Playwright API | 说明 |
+|------|-----|----------------|------|
+| **推荐 CDP** | `ws://browserless:3000/chromium?token=…` | `chromium.connect_over_cdp` | 版本宽松，生产默认 |
+| Playwright native | `ws://browserless:3000/chromium/playwright?token=…` | `chromium.connect` | **必须**与 Browserless 内置 Playwright 同版本，否则易 `KeyError: selectors` |
 
 未设 `GEO_WEB_CRAWL_BROWSER_WS_URL` 时，服务回退为**进程内 `chromium.launch()`**（开发 / 无 Browserless）。
 
