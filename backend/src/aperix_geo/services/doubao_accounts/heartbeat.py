@@ -16,6 +16,8 @@ from aperix_geo.db.models import DoubaoAccount
 from aperix_geo.services.doubao_accounts.human_ops import request_human_intervention
 from aperix_geo.services.doubao_accounts.pool import (
     STATUS_ACTIVE,
+    STATUS_LOGGING_IN,
+    STATUS_NEED_RELOGIN,
     storage_state_has_cookies,
 )
 from aperix_geo.services.providers.doubao_web import selectors as sel
@@ -38,17 +40,20 @@ def accounts_needing_heartbeat(
     stale_before: datetime,
     limit: int = _HEARTBEAT_CHECK_LIMIT,
 ) -> list[DoubaoAccount]:
-    """Prefer empty-cookie actives (always), then stale actives with cookies."""
-    empty: list[DoubaoAccount] = []
+    """Always include need_relogin / logging_in / empty-cookie; then stale actives."""
+    priority: list[DoubaoAccount] = []
     stale: list[DoubaoAccount] = []
     for row in rows:
-        if not storage_state_has_cookies(row.storage_state):
-            empty.append(row)
-        elif row.last_ok_at < stale_before:
+        status = (row.status or "").strip()
+        if status in (STATUS_NEED_RELOGIN, STATUS_LOGGING_IN):
+            priority.append(row)
+        elif not storage_state_has_cookies(row.storage_state):
+            priority.append(row)
+        elif status == STATUS_ACTIVE and row.last_ok_at < stale_before:
             stale.append(row)
     selected: list[DoubaoAccount] = []
     seen: set[UUID] = set()
-    for row in empty + stale:
+    for row in priority + stale:
         if row.id in seen:
             continue
         seen.add(row.id)
@@ -63,23 +68,28 @@ def run_doubao_account_heartbeat(
     *,
     settings: Settings | None = None,
 ) -> dict[str, Any]:
-    """Probe active accounts; on failure open human ticket + alert. No-op when disabled."""
+    """Probe pool accounts; on failure open human ticket + alert. No-op when disabled."""
     settings = settings or get_settings()
     if not settings.doubao_heartbeat_enabled:
         return {"ok": True, "skipped": True, "reason": "disabled"}
 
     now = utc_now()
-    # Stale ≈ half the sampling freshness window; empty-cookie actives are always included.
+    # Stale ≈ half the sampling freshness window.
+    # need_relogin / logging_in / empty-cookie actives are always candidates (else no new tickets).
     stale_before = now - timedelta(seconds=max(60, int(settings.doubao_heartbeat_fresh_s) // 2))
-    active_rows = list(
+    pool_rows = list(
         db.scalars(
             select(DoubaoAccount)
-            .where(DoubaoAccount.status == STATUS_ACTIVE)
-            .order_by(DoubaoAccount.last_ok_at.asc())
+            .where(
+                DoubaoAccount.status.in_(
+                    (STATUS_ACTIVE, STATUS_NEED_RELOGIN, STATUS_LOGGING_IN)
+                )
+            )
+            .order_by(DoubaoAccount.updated_at.asc())
             .limit(_HEARTBEAT_SCAN_LIMIT)
         ).all()
     )
-    rows = accounts_needing_heartbeat(active_rows, stale_before=stale_before)
+    rows = accounts_needing_heartbeat(pool_rows, stale_before=stale_before)
 
     checked = 0
     revived = 0

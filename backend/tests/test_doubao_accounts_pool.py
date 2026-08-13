@@ -187,3 +187,30 @@ def test_accounts_needing_heartbeat_includes_empty_cookies_even_if_fresh() -> No
         stale_before=now - timedelta(hours=3),
     )
     assert [r.label for r in selected] == ["empty", "stale"]
+
+
+def test_accounts_needing_heartbeat_includes_need_relogin() -> None:
+    from aperix_geo.services.doubao_accounts.heartbeat import accounts_needing_heartbeat
+
+    now = utc_now()
+    need = DoubaoAccount(
+        id=uuid4(),
+        label="need",
+        status=STATUS_NEED_RELOGIN,
+        storage_state={},
+        last_ok_at=now,
+        lease_until=EPOCH,
+    )
+    fresh_ok = DoubaoAccount(
+        id=uuid4(),
+        label="ok",
+        status=STATUS_ACTIVE,
+        storage_state=_state(),
+        last_ok_at=now,
+        lease_until=EPOCH,
+    )
+    selected = accounts_needing_heartbeat(
+        [fresh_ok, need],
+        stale_before=now - timedelta(hours=3),
+    )
+    assert [r.label for r in selected] == ["need"]
