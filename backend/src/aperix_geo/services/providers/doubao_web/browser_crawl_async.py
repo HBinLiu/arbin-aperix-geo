@@ -152,20 +152,44 @@ async def run_doubao_browser_crawl_job_async(payload: dict[str, Any]) -> dict[st
     timeout_s = float(payload.get("timeout_s") or 120)
     timeout_ms = min(60_000, int(timeout_s * 1000))
 
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=headless)
-        try:
-            context = await browser.new_context(
-                storage_state=storage_state,
-                locale="zh-CN",
-                viewport={"width": 1440, "height": 900},
-            )
-            context.set_default_timeout(max(1_000, timeout_ms))
+    try:
+        async with async_playwright() as playwright:
             try:
-                await context.grant_permissions(["clipboard-read", "clipboard-write"])
-            except Exception:
-                logger.debug("clipboard permission grant skipped", exc_info=True)
-            page = await context.new_page()
-            return await run_doubao_browser_crawl_on_async_page(page, context, payload)
-        finally:
-            await browser.close()
+                browser = await playwright.chromium.launch(headless=headless)
+            except Exception as exc:
+                logger.exception("async chromium.launch failed")
+                return {
+                    "ok": False,
+                    "error_type": "DoubaoCrawlError",
+                    "error": (
+                        f"async chromium.launch failed: {type(exc).__name__}: {exc}. "
+                        "Run in the worker venv: python -m playwright install chromium"
+                    ),
+                    "human_ops": False,
+                    "storage_state": None,
+                }
+            try:
+                context = await browser.new_context(
+                    storage_state=storage_state,
+                    locale="zh-CN",
+                    viewport={"width": 1440, "height": 900},
+                )
+                context.set_default_timeout(max(1_000, timeout_ms))
+                try:
+                    await context.grant_permissions(["clipboard-read", "clipboard-write"])
+                except Exception:
+                    logger.debug("clipboard permission grant skipped", exc_info=True)
+                page = await context.new_page()
+                logger.info("doubao-crawl-cli: async chromium launched headless=%s", headless)
+                return await run_doubao_browser_crawl_on_async_page(page, context, payload)
+            finally:
+                await browser.close()
+    except Exception as exc:
+        logger.exception("async_playwright session failed")
+        return {
+            "ok": False,
+            "error_type": type(exc).__name__,
+            "error": f"async_playwright session failed: {exc}",
+            "human_ops": False,
+            "storage_state": None,
+        }

@@ -103,8 +103,11 @@ def run_doubao_crawl_in_spawn(
 
         if completed.stderr:
             # Surface child logs for journald without drowning the parent.
-            for line in completed.stderr.strip().splitlines()[-30:]:
+            for line in completed.stderr.strip().splitlines()[-40:]:
                 logger.info("doubao-crawl-child: %s", line)
+        if completed.returncode != 0 and completed.stdout:
+            for line in completed.stdout.strip().splitlines()[-20:]:
+                logger.info("doubao-crawl-child-stdout: %s", line)
 
         if not out_path.is_file():
             err_tail = (completed.stderr or completed.stdout or "").strip()[-800:]
@@ -137,4 +140,11 @@ def run_doubao_crawl_in_spawn(
                 "human_ops": False,
                 "storage_state": None,
             }
+        if not result.get("ok"):
+            logger.warning(
+                "doubao-crawl-child result ok=false type=%s err=%s exit=%s",
+                result.get("error_type"),
+                str(result.get("error") or "")[:400],
+                completed.returncode,
+            )
         return result
