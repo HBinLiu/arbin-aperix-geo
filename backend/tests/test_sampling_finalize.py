@@ -91,6 +91,8 @@ def test_finalize_marks_succeed_when_all_done() -> None:
             subject_id=uuid.uuid4(),
             status=SamplingJobStatus.running,
             total_items=2,
+            quota_open_monthly=0,
+            quota_open_pack=0,
         ),
         rows=[
             _row(status=LLMResponseStatus.success),
