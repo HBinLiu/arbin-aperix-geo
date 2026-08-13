@@ -1,6 +1,6 @@
 # Deps for resident geo-web-crawl service + Doubao handler import chain.
-# playwright is installed separately in the Dockerfile (base image or official PyPI);
-# some China mirrors return 403 for the playwright wheel.
+# playwright is installed separately in the Dockerfile (official PyPI; mirrors often 403).
+# Image is Python 3.12 to match backend requires-python; Browserless provides Chromium.
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 pydantic-settings>=2.6.0
