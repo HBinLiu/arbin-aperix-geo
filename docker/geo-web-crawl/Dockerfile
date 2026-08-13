@@ -27,7 +27,11 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 COPY docker/geo-web-crawl/requirements.txt /app/requirements.txt
-RUN pip install -r /app/requirements.txt \
+# China-friendly default index; override at build: --build-arg PIP_INDEX_URL=https://pypi.org/simple
+ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ARG PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn
+RUN pip install -i "${PIP_INDEX_URL}" --trusted-host "${PIP_TRUSTED_HOST}" \
+      -r /app/requirements.txt \
     && python -c "import playwright; print('playwright', playwright.__version__)"
 
 COPY backend/src /app/src
