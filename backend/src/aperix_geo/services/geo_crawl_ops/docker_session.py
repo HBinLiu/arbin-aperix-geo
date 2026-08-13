@@ -94,6 +94,41 @@ def build_complete_callback_url(callback_base_url: str) -> str:
     return f"{base}/api/v1/ops/doubao/tickets/complete-by-token"
 
 
+def rewrite_callback_url_for_container(complete_url: str) -> tuple[str, bool]:
+    """Rewrite loopback callback hosts so the ops container can reach the API host.
+
+    ``127.0.0.1`` / ``localhost`` inside the container is the container itself, so
+    POSTs never hit the API → cookies/ticket stay stale while ``--rm`` still
+    removes the session after TTL/exit.
+
+    Returns ``(url, needs_host_gateway)``. When ``needs_host_gateway`` is True,
+    spawn must pass ``--add-host=host.docker.internal:host-gateway``.
+
+    Note: the API process must still accept connections from the Docker bridge
+    (listen on ``0.0.0.0``, or use a public/nginx URL / shared Docker network).
+    """
+    url = (complete_url or "").strip()
+    if not url:
+        return "", False
+    rewritten = re.sub(
+        r"^(https?://)(?:127\.0\.0\.1|localhost)(?=[:/]|$)",
+        r"\1host.docker.internal",
+        url,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+    if rewritten != url:
+        logger.warning(
+            "geo-crawl-ops callback rewritten for container: %s → %s "
+            "(set GEO_CRAWL_OPS_CALLBACK_BASE_URL to a container-reachable host "
+            "or public API URL to avoid this)",
+            url,
+            rewritten,
+        )
+        return rewritten, True
+    return url, False
+
+
 def spawn_ops_session(
     *,
     ticket_token: str,
@@ -156,8 +191,19 @@ def spawn_ops_session(
         f"GEO_CRAWL_OPS_REASON={reason}",
     ]
     complete_url = build_complete_callback_url(settings.geo_crawl_ops_callback_base_url)
+    complete_url, needs_host_gateway = rewrite_callback_url_for_container(complete_url)
     if complete_url:
         args.extend(["-e", f"GEO_CRAWL_OPS_COMPLETE_URL={complete_url}"])
+        logger.info("geo-crawl-ops COMPLETE_URL=%s", complete_url)
+    elif (settings.geo_crawl_ops_callback_base_url or "").strip():
+        logger.warning("geo-crawl-ops callback base set but complete URL empty")
+    else:
+        logger.warning(
+            "GEO_CRAWL_OPS_CALLBACK_BASE_URL unset; login will not auto-write cookies"
+        )
+    if needs_host_gateway:
+        # Linux Docker: map host.docker.internal → host gateway (Docker 20.10+)
+        args.extend(["--add-host", "host.docker.internal:host-gateway"])
     network = (settings.geo_crawl_ops_docker_network or "").strip()
     if network:
         args.extend(["--network", network])

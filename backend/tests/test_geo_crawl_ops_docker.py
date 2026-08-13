@@ -9,6 +9,7 @@ from aperix_geo.services.geo_crawl_ops.docker_session import (
     build_complete_callback_url,
     build_login_url,
     geo_crawl_ops_ready,
+    rewrite_callback_url_for_container,
     spawn_ops_session,
 )
 
@@ -48,6 +49,19 @@ def test_build_complete_callback_url() -> None:
         )
         == "http://api:8000/api/v1/ops/doubao/tickets/complete-by-token"
     )
+
+
+def test_rewrite_callback_url_for_container() -> None:
+    url, need = rewrite_callback_url_for_container(
+        "http://127.0.0.1:8000/api/v1/ops/doubao/tickets/complete-by-token"
+    )
+    assert url.startswith("http://host.docker.internal:8000/")
+    assert need is True
+    url2, need2 = rewrite_callback_url_for_container(
+        "http://api:8000/api/v1/ops/doubao/tickets/complete-by-token"
+    )
+    assert url2.startswith("http://api:8000/")
+    assert need2 is False
 
 
 def test_spawn_ops_session_docker_flow() -> None:
@@ -96,7 +110,54 @@ def test_spawn_ops_session_docker_flow() -> None:
     assert "--rm" in create
     assert "GEO_CRAWL_OPS_COMPLETE_URL=http://api:8000/api/v1/ops/doubao/tickets/complete-by-token" in create
     assert "GEO_CRAWL_OPS_REASON=captcha" in create
+    assert "--add-host" not in create
     assert any(c[:1] == ["start"] for c in calls)
+
+
+def test_spawn_rewrites_loopback_callback() -> None:
+    settings = Settings(
+        geo_crawl_ops_novnc_base_url="https://ops.example",
+        geo_crawl_ops_docker_image="aperix/geo-crawl-ops:latest",
+        geo_crawl_ops_callback_base_url="http://127.0.0.1:8000",
+    )
+    calls: list[list[str]] = []
+
+    def fake_run(args: list[str], *, timeout_s: float = 60.0) -> str:
+        calls.append(args)
+        if args[:1] == ["rm"]:
+            return ""
+        if args[:1] == ["create"]:
+            return "cid"
+        if args[:1] == ["start"]:
+            return "cid"
+        if args[:1] == ["inspect"]:
+            return "1"
+        raise AssertionError(args)
+
+    with (
+        patch(
+            "aperix_geo.services.geo_crawl_ops.docker_session.docker_cli_available",
+            return_value=True,
+        ),
+        patch(
+            "aperix_geo.services.geo_crawl_ops.docker_session._run_docker",
+            side_effect=fake_run,
+        ),
+    ):
+        spawn_ops_session(
+            ticket_token="t",
+            platform="doubao",
+            start_url="https://www.doubao.com/chat/",
+            ttl_min=15,
+            settings=settings,
+        )
+    create = next(c for c in calls if c[:1] == ["create"])
+    assert (
+        "GEO_CRAWL_OPS_COMPLETE_URL="
+        "http://host.docker.internal:8000/api/v1/ops/doubao/tickets/complete-by-token"
+        in create
+    )
+    assert create[create.index("--add-host") + 1] == "host.docker.internal:host-gateway"
 
 
 def test_spawn_default_reason_login_expired() -> None:
