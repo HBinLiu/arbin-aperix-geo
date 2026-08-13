@@ -10,6 +10,9 @@ are serialized by a lock. Prefer Celery prefork (one task per process) or keep
 
 Celery prefork: never call playwright.stop()/browser.close() on objects inherited
 from the parent after fork — only drop references, then start fresh in the child.
+Also reset the inherited asyncio event loop before ``sync_playwright().__enter__``;
+otherwise the greenlet dispatcher returns without setting ``_playwright`` and raises
+``AttributeError: ... has no attribute '_playwright'``.
 """
 
 from __future__ import annotations
@@ -42,6 +45,30 @@ def discard_browser_pool_inherited() -> None:
         _BROWSER_HEADLESS = None
 
 
+def prepare_sync_playwright_runtime() -> None:
+    """Make Sync Playwright startable in a Celery prefork child.
+
+    After fork the inherited asyncio loop / greenlet state is unsafe. Replacing
+    the loop avoids PlaywrightContextManager.__enter__ returning without
+    assigning ``_playwright``.
+    """
+    import asyncio
+
+    discard_browser_pool_inherited()
+    try:
+        try:
+            if asyncio.get_running_loop() is not None:
+                logger.warning(
+                    "doubao crawl: asyncio loop already running; sync Playwright may fail"
+                )
+                return
+        except RuntimeError:
+            pass
+        asyncio.set_event_loop(asyncio.new_event_loop())
+    except Exception:
+        logger.debug("prepare_sync_playwright_runtime failed", exc_info=True)
+
+
 def reset_browser_pool() -> None:
     """Close shared browser + playwright (tests / crash recovery in same process)."""
     global _PW_CM, _PLAYWRIGHT, _BROWSER, _BROWSER_HEADLESS
@@ -60,7 +87,11 @@ def reset_browser_pool() -> None:
             logger.debug("browser close during reset failed", exc_info=True)
     if pw_cm is not None:
         try:
-            pw_cm.__exit__(None, None, None)
+            # Only exit if enter progressed far enough to create a connection.
+            if getattr(pw_cm, "_connection", None) is not None or getattr(
+                pw_cm, "_playwright", None
+            ) is not None:
+                pw_cm.__exit__(None, None, None)
         except Exception:
             logger.debug("playwright context manager exit failed", exc_info=True)
             if playwright is not None:
@@ -82,6 +113,14 @@ def _browser_alive(browser: Any) -> bool:
         return False
 
 
+def _safe_cm_exit(cm: Any) -> None:
+    try:
+        if getattr(cm, "_connection", None) is not None or getattr(cm, "_playwright", None) is not None:
+            cm.__exit__(None, None, None)
+    except Exception:
+        logger.debug("playwright cm exit skipped/failed", exc_info=True)
+
+
 def _start_playwright() -> tuple[Any, Any]:
     """Start sync Playwright; return ``(context_manager, playwright)``."""
     try:
@@ -89,17 +128,16 @@ def _start_playwright() -> tuple[Any, Any]:
     except ImportError as exc:
         raise RuntimeError("playwright is not installed") from exc
 
-    # Prefer __enter__ over .start(): some Celery/fork edge cases leave a broken
-    # ContextManager where .start() raises AttributeError on ``_playwright``.
+    prepare_sync_playwright_runtime()
     cm = sync_playwright()
     try:
         playwright = cm.__enter__()
     except Exception:
-        try:
-            cm.__exit__(None, None, None)
-        except Exception:
-            pass
+        _safe_cm_exit(cm)
         raise
+    if getattr(cm, "_playwright", None) is None:
+        _safe_cm_exit(cm)
+        raise RuntimeError("playwright sync enter returned without _playwright (fork/runtime)")
     return cm, playwright
 
 
@@ -121,13 +159,7 @@ def _ensure_shared_browser(*, headless: bool) -> Any:
         try:
             browser = playwright.chromium.launch(headless=headless)
         except Exception:
-            try:
-                cm.__exit__(None, None, None)
-            except Exception:
-                try:
-                    playwright.stop()
-                except Exception:
-                    pass
+            _safe_cm_exit(cm)
             raise
 
         _PW_CM = cm
@@ -157,6 +189,53 @@ def _open_context(
     return context
 
 
+def _oneshot_browser_page_session(
+    *,
+    headless: bool,
+    storage_state: dict[str, Any],
+    timeout_ms: int,
+) -> Iterator[tuple[Any, Any]]:
+    """Launch a fresh Playwright driver for one crawl (Celery-safe fallback)."""
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError as exc:
+        raise RuntimeError("playwright is not installed") from exc
+
+    prepare_sync_playwright_runtime()
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=headless)
+        context = None
+        try:
+            context = _open_context(
+                browser,
+                storage_state=storage_state,
+                default_timeout_ms=timeout_ms,
+            )
+            page = context.new_page()
+            yield page, context
+        finally:
+            if context is not None:
+                try:
+                    context.close()
+                except Exception:
+                    logger.debug("context close failed", exc_info=True)
+            try:
+                browser.close()
+            except Exception:
+                logger.debug("browser close failed", exc_info=True)
+
+
+def _want_browser_reuse(settings: Settings) -> bool:
+    """Reuse is optional; under Celery prefer oneshot unless explicitly enabled."""
+    configured = bool(getattr(settings, "doubao_crawl_browser_reuse", True))
+    if not configured:
+        return False
+    # sampling_llm runs on the Celery llm worker — Sync Playwright + shared driver is fragile.
+    if (os.environ.get("CELERY_WORKER_ROLE") or "").strip():
+        return False
+    return True
+
+
 @contextmanager
 def browser_page_session(
     settings: Settings,
@@ -165,87 +244,75 @@ def browser_page_session(
 ) -> Iterator[tuple[Any, Any]]:
     """Yield ``(page, context)`` for one crawl; always closes the context.
 
-    When ``doubao_crawl_browser_reuse`` is true, Chromium stays warm in-process.
-    When false, launch + full teardown per call (debug / headed one-shots).
+    When ``doubao_crawl_browser_reuse`` is true (and not under Celery), Chromium stays
+    warm in-process. Otherwise (or on shared-driver failure) use a one-shot driver.
     """
     headless = bool(settings.doubao_crawl_headless)
-    reuse = bool(getattr(settings, "doubao_crawl_browser_reuse", True))
+    reuse = _want_browser_reuse(settings)
     timeout_ms = min(60_000, int(settings.doubao_crawl_timeout_s * 1000))
 
     if not reuse:
+        yield from _oneshot_browser_page_session(
+            headless=headless,
+            storage_state=storage_state,
+            timeout_ms=timeout_ms,
+        )
+        return
+
+    shared_error: Exception | None = None
+    with _LOCK:
         try:
-            from playwright.sync_api import sync_playwright
-        except ImportError as exc:
-            raise RuntimeError("playwright is not installed") from exc
-        with sync_playwright() as playwright:
-            browser = playwright.chromium.launch(headless=headless)
+            browser = _ensure_shared_browser(headless=headless)
             context = None
             try:
-                context = _open_context(
-                    browser,
-                    storage_state=storage_state,
-                    default_timeout_ms=timeout_ms,
-                )
+                try:
+                    context = _open_context(
+                        browser,
+                        storage_state=storage_state,
+                        default_timeout_ms=timeout_ms,
+                    )
+                except Exception:
+                    logger.warning("new_context failed; resetting browser pool", exc_info=True)
+                    reset_browser_pool()
+                    browser = _ensure_shared_browser(headless=headless)
+                    context = _open_context(
+                        browser,
+                        storage_state=storage_state,
+                        default_timeout_ms=timeout_ms,
+                    )
                 page = context.new_page()
                 yield page, context
+                return
+            except Exception:
+                if context is not None:
+                    try:
+                        context.close()
+                    except Exception:
+                        pass
+                    context = None
+                if browser is not None and not _browser_alive(browser):
+                    reset_browser_pool()
+                raise
             finally:
                 if context is not None:
                     try:
                         context.close()
                     except Exception:
                         logger.debug("context close failed", exc_info=True)
-                try:
-                    browser.close()
-                except Exception:
-                    logger.debug("browser close failed", exc_info=True)
-        return
-
-    # Serialize sync Playwright usage in this process.
-    with _LOCK:
-        try:
-            browser = _ensure_shared_browser(headless=headless)
+                        reset_browser_pool()
         except Exception as exc:
-            # Prefork inheritance / half-started driver — drop refs and retry once.
-            logger.warning("shared browser start failed (%s); discarding pool and retrying", exc)
+            shared_error = exc
             discard_browser_pool_inherited()
-            browser = _ensure_shared_browser(headless=headless)
-        context = None
-        try:
-            try:
-                context = _open_context(
-                    browser,
-                    storage_state=storage_state,
-                    default_timeout_ms=timeout_ms,
-                )
-            except Exception:
-                logger.warning("new_context failed; resetting browser pool", exc_info=True)
-                reset_browser_pool()
-                browser = _ensure_shared_browser(headless=headless)
-                context = _open_context(
-                    browser,
-                    storage_state=storage_state,
-                    default_timeout_ms=timeout_ms,
-                )
-            page = context.new_page()
-            yield page, context
-        except Exception:
-            # Browser may be wedged after driver errors — recycle for next call.
-            if context is not None:
-                try:
-                    context.close()
-                except Exception:
-                    pass
-                context = None
-            if browser is not None and not _browser_alive(browser):
-                reset_browser_pool()
-            raise
-        finally:
-            if context is not None:
-                try:
-                    context.close()
-                except Exception:
-                    logger.debug("context close failed", exc_info=True)
-                    reset_browser_pool()
+
+    logger.warning(
+        "shared browser unavailable (%s); falling back to one-shot Playwright",
+        shared_error,
+    )
+    yield from _oneshot_browser_page_session(
+        headless=headless,
+        storage_state=storage_state,
+        timeout_ms=timeout_ms,
+    )
 
 
 def _register_fork_hook() -> None:

@@ -30,10 +30,13 @@ def _pw_cm(playwright: MagicMock) -> MagicMock:
     cm = MagicMock()
     cm.__enter__.return_value = playwright
     cm.__exit__.return_value = False
+    cm._playwright = playwright
+    cm._connection = MagicMock()
     return cm
 
 
-def test_reuse_keeps_same_browser_across_sessions() -> None:
+def test_reuse_keeps_same_browser_across_sessions(monkeypatch) -> None:
+    monkeypatch.delenv("CELERY_WORKER_ROLE", raising=False)
     browser = MagicMock()
     browser.is_connected.return_value = True
     context = MagicMock()
@@ -57,7 +60,28 @@ def test_reuse_keeps_same_browser_across_sessions() -> None:
     browser.close.assert_not_called()
 
 
-def test_reuse_disabled_launches_each_time() -> None:
+def test_celery_role_forces_oneshot(monkeypatch) -> None:
+    monkeypatch.setenv("CELERY_WORKER_ROLE", "llm")
+    browser = MagicMock()
+    context = MagicMock()
+    page = MagicMock()
+    context.new_page.return_value = page
+    browser.new_context.return_value = context
+    playwright = MagicMock()
+    playwright.chromium.launch.return_value = browser
+
+    with patch("playwright.sync_api.sync_playwright", return_value=_pw_cm(playwright)):
+        with bp.browser_page_session(_settings(), storage_state={"cookies": []}):
+            pass
+        with bp.browser_page_session(_settings(), storage_state={"cookies": []}):
+            pass
+
+    assert playwright.chromium.launch.call_count == 2
+    assert browser.close.call_count == 2
+
+
+def test_reuse_disabled_launches_each_time(monkeypatch) -> None:
+    monkeypatch.delenv("CELERY_WORKER_ROLE", raising=False)
     browser = MagicMock()
     context = MagicMock()
     page = MagicMock()
@@ -83,7 +107,8 @@ def test_reuse_disabled_launches_each_time() -> None:
     assert browser.close.call_count == 2
 
 
-def test_dead_browser_is_relaunched() -> None:
+def test_dead_browser_is_relaunched(monkeypatch) -> None:
+    monkeypatch.delenv("CELERY_WORKER_ROLE", raising=False)
     dead = MagicMock()
     dead.is_connected.return_value = False
     alive = MagicMock()
