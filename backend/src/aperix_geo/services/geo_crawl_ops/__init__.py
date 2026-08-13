@@ -7,6 +7,7 @@ from aperix_geo.services.geo_crawl_ops.docker_session import (
     build_login_url,
     docker_cli_available,
     geo_crawl_ops_ready,
+    ops_session_running,
     spawn_ops_session,
     stop_ops_session,
 )
@@ -18,6 +19,7 @@ __all__ = [
     "build_login_url",
     "docker_cli_available",
     "geo_crawl_ops_ready",
+    "ops_session_running",
     "spawn_ops_session",
     "stop_ops_session",
 ]

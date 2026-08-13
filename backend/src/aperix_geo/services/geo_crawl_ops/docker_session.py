@@ -275,6 +275,21 @@ def _inspect_host_port(container_id: str, *, container_port: int) -> int:
         return 0
 
 
+def ops_session_running(container_id: str) -> bool:
+    """True when the container exists and ``State.Running`` is true."""
+    cid = (container_id or "").strip()
+    if not cid or not docker_cli_available():
+        return False
+    try:
+        raw = _run_docker(
+            ["inspect", "-f", "{{.State.Running}}", cid],
+            timeout_s=15.0,
+        )
+    except GeoCrawlOpsDockerError:
+        return False
+    return raw.strip().lower() in ("true", "1")
+
+
 def stop_ops_session(container_id: str) -> None:
     """Force-remove a geo-crawl-ops container (idempotent)."""
     cid = (container_id or "").strip()

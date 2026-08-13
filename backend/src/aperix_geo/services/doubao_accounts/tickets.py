@@ -24,6 +24,7 @@ from aperix_geo.services.doubao_accounts.pool import (
 from aperix_geo.services.geo_crawl_ops import (
     GeoCrawlOpsDockerError,
     geo_crawl_ops_ready,
+    ops_session_running,
     spawn_ops_session,
     stop_ops_session,
 )
@@ -184,34 +185,112 @@ def create_login_ticket(
     )
 
     if novnc_configured(settings):
-        start_url = (settings.doubao_chat_base_url or sel.CHAT_URL).strip() or sel.CHAT_URL
-        try:
-            session = spawn_ops_session(
-                ticket_token=ticket.token,
-                platform=PLATFORM,
-                start_url=start_url,
-                ttl_min=ttl_min,
-                storage_state=storage_state,
-                ops_reason=ops_reason,
-                settings=settings,
-            )
-            ticket.container_id = session.container_id
-            ticket.login_url = session.login_url
-            ticket.error_text = (
-                f"geo_crawl_ops_session: platform={PLATFORM} reason={ops_reason} "
-                f"port={session.host_port} name={session.name}"
-            )
-        except GeoCrawlOpsDockerError as exc:
-            logger.warning("geo-crawl-ops spawn failed; upload fallback ticket=%s: %s", ticket.id, exc)
-            ticket.login_url = ""
-            ticket.container_id = ""
-            ticket.error_text = f"novnc_spawn_failed: {exc}; complete via storage_state upload"
+        _spawn_ops_onto_ticket(
+            ticket,
+            storage_state=storage_state,
+            ops_reason=ops_reason,
+            ttl_min=ttl_min,
+            settings=settings,
+        )
     else:
         ticket.error_text = "novnc_unavailable: complete via storage_state upload"
 
     db.add(ticket)
     db.flush()
     return ticket
+
+
+def ensure_pending_ticket_session(
+    db: Session,
+    ticket: DoubaoLoginTicket,
+    *,
+    reason: str = "login_expired",
+    settings: Settings | None = None,
+) -> bool:
+    """Keep a pending ticket usable: expire if due, else respawn dead noVNC.
+
+    Returns True when a new ops container was started (caller should re-alert with
+    the fresh login_url). Returns False when the existing session is still up,
+    novnc is unavailable, or the ticket was expired.
+    """
+    settings = settings or get_settings()
+    if _expire_if_needed(ticket):
+        db.flush()
+        return False
+    if ticket.status != TICKET_PENDING:
+        return False
+    if not novnc_configured(settings):
+        return False
+
+    cid = (ticket.container_id or "").strip()
+    if cid and ops_session_running(cid):
+        return False
+
+    ops_reason = (reason or "login_expired").strip().lower()
+    if ops_reason not in ("login_expired", "captcha"):
+        ops_reason = "login_expired"
+
+    storage_state: dict[str, Any] | None = None
+    if ticket.account_id != ZERO_UUID:
+        account = db.get(DoubaoAccount, ticket.account_id)
+        if account is not None:
+            storage_state = dict(account.storage_state or {})
+            if account.status != STATUS_LOGGING_IN:
+                account.status = STATUS_LOGGING_IN
+
+    if cid:
+        stop_ops_session(cid)
+
+    ttl_min = int(settings.doubao_ops_ticket_ttl_min)
+    ticket.expires_at = utc_now() + timedelta(minutes=ttl_min)
+    _spawn_ops_onto_ticket(
+        ticket,
+        storage_state=storage_state,
+        ops_reason=ops_reason,
+        ttl_min=ttl_min,
+        settings=settings,
+    )
+    db.flush()
+    logger.warning(
+        "geo-crawl-ops session respawned for pending ticket=%s container=%s url=%s",
+        ticket.id,
+        (ticket.container_id or "")[:12],
+        (ticket.login_url or "")[:80],
+    )
+    # True even if spawn fell back to upload — ops must be notified with current state.
+    return True
+
+
+def _spawn_ops_onto_ticket(
+    ticket: DoubaoLoginTicket,
+    *,
+    storage_state: dict[str, Any] | None,
+    ops_reason: str,
+    ttl_min: int,
+    settings: Settings,
+) -> None:
+    start_url = (settings.doubao_chat_base_url or sel.CHAT_URL).strip() or sel.CHAT_URL
+    try:
+        session = spawn_ops_session(
+            ticket_token=ticket.token,
+            platform=PLATFORM,
+            start_url=start_url,
+            ttl_min=ttl_min,
+            storage_state=storage_state,
+            ops_reason=ops_reason,
+            settings=settings,
+        )
+        ticket.container_id = session.container_id
+        ticket.login_url = session.login_url
+        ticket.error_text = (
+            f"geo_crawl_ops_session: platform={PLATFORM} reason={ops_reason} "
+            f"port={session.host_port} name={session.name}"
+        )
+    except GeoCrawlOpsDockerError as exc:
+        logger.warning("geo-crawl-ops spawn failed; upload fallback ticket=%s: %s", ticket.id, exc)
+        ticket.login_url = ""
+        ticket.container_id = ""
+        ticket.error_text = f"novnc_spawn_failed: {exc}; complete via storage_state upload"
 
 
 def get_ticket(db: Session, ticket_id: UUID) -> DoubaoLoginTicket:

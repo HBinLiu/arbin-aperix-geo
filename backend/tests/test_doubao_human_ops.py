@@ -76,7 +76,7 @@ def test_request_human_intervention_opens_ticket_and_alerts() -> None:
     assert "auto:captcha" in created.error_text
 
 
-def test_request_human_intervention_reuses_pending_and_still_alerts() -> None:
+def test_request_human_intervention_reuses_live_session_without_alert() -> None:
     account_id = uuid4()
     account = DoubaoAccount(id=account_id, label="acc-1", status="active", storage_state={}, last_error="")
     pending = DoubaoLoginTicket(
@@ -87,6 +87,7 @@ def test_request_human_intervention_reuses_pending_and_still_alerts() -> None:
         status=TICKET_PENDING,
         error_text="already open",
         login_url="https://ops.example/p/1/vnc.html",
+        container_id="cid-live",
     )
     db = MagicMock()
     db.get.return_value = account
@@ -94,6 +95,57 @@ def test_request_human_intervention_reuses_pending_and_still_alerts() -> None:
 
     with (
         patch("aperix_geo.services.doubao_accounts.human_ops.create_login_ticket") as create_ticket,
+        patch(
+            "aperix_geo.services.doubao_accounts.human_ops.ensure_pending_ticket_session",
+            return_value=False,
+        ) as ensure_session,
+        patch(
+            "aperix_geo.services.doubao_accounts.human_ops.send_alert_email",
+        ) as send_mail,
+    ):
+        out = request_human_intervention(
+            db,
+            account_id=account_id,
+            reason="login_expired",
+            error="login UI visible",
+            settings=_settings(),
+        )
+
+    create_ticket.assert_not_called()
+    ensure_session.assert_called_once()
+    assert out["ticket_id"] == str(pending.id)
+    assert out["alerted"] is False
+    send_mail.assert_not_called()
+
+
+def test_request_human_intervention_respawns_dead_session_and_alerts() -> None:
+    account_id = uuid4()
+    account = DoubaoAccount(id=account_id, label="acc-1", status="active", storage_state={}, last_error="")
+    pending = DoubaoLoginTicket(
+        id=uuid4(),
+        account_id=account_id,
+        label="acc-1",
+        token="tok",
+        status=TICKET_PENDING,
+        error_text="already open",
+        login_url="https://ops.example/p/old/vnc.html",
+        container_id="cid-dead",
+    )
+    db = MagicMock()
+    db.get.return_value = account
+    db.scalars.return_value.first.return_value = pending
+
+    def _respawn(_db, ticket, **_kwargs):
+        ticket.login_url = "https://ops.example/p/new/vnc.html"
+        ticket.container_id = "cid-new"
+        return True
+
+    with (
+        patch("aperix_geo.services.doubao_accounts.human_ops.create_login_ticket") as create_ticket,
+        patch(
+            "aperix_geo.services.doubao_accounts.human_ops.ensure_pending_ticket_session",
+            side_effect=_respawn,
+        ),
         patch(
             "aperix_geo.services.doubao_accounts.human_ops.send_alert_email",
         ) as send_mail,
@@ -109,8 +161,9 @@ def test_request_human_intervention_reuses_pending_and_still_alerts() -> None:
     create_ticket.assert_not_called()
     assert out["ticket_id"] == str(pending.id)
     assert out["alerted"] is True
+    assert out["session_refreshed"] is True
     send_mail.assert_called_once()
-    assert "登录失效" in send_mail.call_args.kwargs["subject"]
+    assert "https://ops.example/p/new/vnc.html" in send_mail.call_args.kwargs["body"]
 
 
 def test_request_human_intervention_skips_ticket_when_disabled() -> None:

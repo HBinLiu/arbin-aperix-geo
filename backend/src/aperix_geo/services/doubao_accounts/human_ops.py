@@ -25,7 +25,7 @@ from aperix_geo.services.doubao_accounts.pool import mark_need_relogin
 from aperix_geo.services.doubao_accounts.tickets import (
     TICKET_PENDING,
     create_login_ticket,
-    novnc_configured,
+    ensure_pending_ticket_session,
 )
 
 logger = logging.getLogger(__name__)
@@ -101,14 +101,14 @@ def request_human_intervention(
     error: str = "",
     settings: Settings | None = None,
 ) -> dict[str, Any]:
-    """Mark need_relogin, ensure a pending ticket, and alert ops (same for captcha/login)."""
+    """Mark need_relogin, ensure a pending ticket (+ live noVNC), and alert when actionable."""
     settings = settings or get_settings()
     message = (error or reason).strip()
     mark_need_relogin(db, account_id=account_id, error=message)
 
     account = db.get(DoubaoAccount, account_id)
     label = account.label if account is not None else ""
-    ticket = _ensure_pending_ticket(
+    ticket, alert_needed = _ensure_pending_ticket(
         db,
         account_id=account_id,
         label=label,
@@ -116,19 +116,22 @@ def request_human_intervention(
         error=message,
         settings=settings,
     )
-    alerted = _maybe_alert_ops(
-        account_id=account_id,
-        label=label,
-        reason=reason,
-        error=message,
-        ticket=ticket,
-        settings=settings,
-    )
+    alerted = False
+    if alert_needed:
+        alerted = _maybe_alert_ops(
+            account_id=account_id,
+            label=label,
+            reason=reason,
+            error=message,
+            ticket=ticket,
+            settings=settings,
+        )
     return {
         "account_id": str(account_id),
         "reason": reason,
         "ticket_id": str(ticket.id) if ticket is not None else "",
         "alerted": alerted,
+        "session_refreshed": alert_needed and ticket is not None,
     }
 
 
@@ -140,9 +143,10 @@ def _ensure_pending_ticket(
     reason: HumanReason,
     error: str,
     settings: Settings,
-) -> DoubaoLoginTicket | None:
+) -> tuple[DoubaoLoginTicket | None, bool]:
+    """Return (ticket, should_alert). Alert on new ticket or respawned dead session."""
     if not settings.doubao_ops_ticket_enabled:
-        return None
+        return None, True  # still alert that human ops is needed (no ticket)
 
     existing = db.scalars(
         select(DoubaoLoginTicket)
@@ -153,7 +157,14 @@ def _ensure_pending_ticket(
         .limit(1)
     ).first()
     if existing is not None:
-        return existing
+        respawned = ensure_pending_ticket_session(
+            db, existing, reason=reason, settings=settings
+        )
+        if existing.status != TICKET_PENDING:
+            # Expired while ensuring — fall through to create a fresh ticket.
+            existing = None
+        else:
+            return existing, respawned
 
     try:
         ticket = create_login_ticket(
@@ -171,7 +182,7 @@ def _ensure_pending_ticket(
             reason,
             exc_info=True,
         )
-        return None
+        return None, True
 
     prefix = f"auto:{reason}"
     detail = (error or "").strip()
@@ -185,7 +196,7 @@ def _ensure_pending_ticket(
         account_id,
         reason,
     )
-    return ticket
+    return ticket, True
 
 
 def _maybe_alert_ops(
