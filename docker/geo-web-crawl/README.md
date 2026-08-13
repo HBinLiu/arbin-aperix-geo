@@ -13,19 +13,19 @@ backend  --HTTP-->  geo-web-crawl:9410  --WS-->  browserless:3000
 ## 构建 geo-web-crawl
 
 ```bash
-# 仓库根目录；默认走清华 PyPI 镜像（国内机）
+# 仓库根目录；业务依赖默认走阿里云 PyPI；playwright 优先用基础镜像自带
 docker build -t aperix/geo-web-crawl:latest -f docker/geo-web-crawl/Dockerfile .
 
 # 或 compose：
 docker compose -f docker/geo-web-crawl/docker-compose.yml build --no-cache geo-web-crawl
 ```
 
-若镜像仍慢，可换阿里云：
+若阿里云也慢，可改官方源：
 
 ```bash
 docker build -t aperix/geo-web-crawl:latest -f docker/geo-web-crawl/Dockerfile \
-  --build-arg PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/ \
-  --build-arg PIP_TRUSTED_HOST=mirrors.aliyun.com \
+  --build-arg PIP_INDEX_URL=https://pypi.org/simple \
+  --build-arg PIP_TRUSTED_HOST=pypi.org \
   .
 ```
 

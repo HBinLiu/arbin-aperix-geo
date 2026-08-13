@@ -1,7 +1,6 @@
 # Deps for resident geo-web-crawl service + Doubao handler import chain.
-# Pin playwright to the base image tag (mcr.microsoft.com/playwright/python:v1.49.1-jammy).
-# Browserless mode only needs the Python package; local Chromium is already in the base image.
-playwright==1.49.1
+# playwright is installed separately in the Dockerfile (base image or official PyPI);
+# some China mirrors return 403 for the playwright wheel.
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 pydantic-settings>=2.6.0

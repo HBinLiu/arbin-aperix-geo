@@ -27,12 +27,16 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 COPY docker/geo-web-crawl/requirements.txt /app/requirements.txt
-# China-friendly default index; override at build: --build-arg PIP_INDEX_URL=https://pypi.org/simple
-ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
-ARG PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn
+# Non-playwright deps: China mirror (Aliyun). Override with --build-arg if needed.
+ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+ARG PIP_TRUSTED_HOST=mirrors.aliyun.com
+# playwright: prefer package already in the Microsoft base image; else official PyPI
+# (Tsinghua/some mirrors 403 the manylinux wheel).
 RUN pip install -i "${PIP_INDEX_URL}" --trusted-host "${PIP_TRUSTED_HOST}" \
       -r /app/requirements.txt \
-    && python -c "import playwright; print('playwright', playwright.__version__)"
+    && (python -c "import playwright; print('playwright', playwright.__version__)" \
+        || pip install --retries 10 playwright==1.49.1) \
+    && python -c "import playwright; print('playwright ok', playwright.__version__)"
 
 COPY backend/src /app/src
 
