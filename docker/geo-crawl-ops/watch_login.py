@@ -8,10 +8,14 @@ Env:
   GEO_CRAWL_OPS_COMPLETE_URL   POST JSON {token, storage_state}
   GEO_CRAWL_OPS_CDP_URL        default http://127.0.0.1:9222
   GEO_CRAWL_OPS_TTL_MIN        stop watching after this many minutes
+  GEO_CRAWL_OPS_STORAGE_STATE_PATH  optional inject file — used as login_expired baseline
 
 Complete rules:
   login_expired — session cookies present AND fingerprint != baseline
-                  (baseline taken after settle; empty baseline ⇒ any session OK)
+                  baseline = fingerprint(injected storage_state) if any session cookies
+                  there, else () (any new session completes).
+                  Do NOT snapshot live cookies after a long settle — that races human
+                  login and freezes baseline on the post-login cookies.
   captcha       — session cookies present AND captcha UI gone for 2 polls;
                   prefers having seen captcha once; else waits grace window
 """
@@ -25,7 +29,9 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 DONE_FLAG = "/tmp/ops-done"
 
@@ -97,6 +103,23 @@ def session_fingerprint(platform: str, state: dict[str, Any]) -> tuple[tuple[str
     return tuple(sorted(pairs))
 
 
+def load_login_baseline(platform: str, state_path: str) -> tuple[tuple[str, str], ...]:
+    """Baseline for login_expired: injected session cookies, or empty (= any session OK)."""
+    path = (state_path or "").strip()
+    if not path:
+        return ()
+    p = Path(path)
+    if not p.is_file():
+        return ()
+    try:
+        raw = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ()
+    if not isinstance(raw, dict):
+        return ()
+    return session_fingerprint(platform, raw)
+
+
 def page_has_captcha(page: Any) -> bool:
     try:
         body = page.locator("body").inner_text(timeout=2_000) or ""
@@ -122,6 +145,45 @@ def _pick_page(browser: Any) -> Any | None:
         if pages:
             return pages[0]
     return None
+
+
+def pick_best_context_state(
+    browser: Any, platform: str
+) -> tuple[Any | None, dict[str, Any], list[str], tuple[tuple[str, str], ...]]:
+    """Prefer the CDP context that actually holds Doubao session cookies / pages.
+
+    Playwright-launched Chromium often exposes an empty default context as
+    ``contexts[0]``; the headed login window lives in another context. Reading
+    only index 0 makes the watcher think login never happened.
+    """
+    best_ctx = None
+    best_state: dict[str, Any] = {"cookies": []}
+    best_names: list[str] = []
+    best_fp: tuple[tuple[str, str], ...] = ()
+    best_score = -1
+    for context in browser.contexts:
+        try:
+            state = context.storage_state()
+        except Exception:
+            continue
+        if not isinstance(state, dict):
+            continue
+        names = session_cookie_names(platform, state)
+        fp = session_fingerprint(platform, state)
+        cookies = state.get("cookies") if isinstance(state.get("cookies"), list) else []
+        try:
+            page_n = len(context.pages)
+        except Exception:
+            page_n = 0
+        # Session cookies dominate; then total cookies; then open pages.
+        score = len(names) * 1000 + len(cookies) * 10 + page_n
+        if score > best_score:
+            best_score = score
+            best_ctx = context
+            best_state = state
+            best_names = names
+            best_fp = fp
+    return best_ctx, best_state, best_names, best_fp
 
 
 def _post_complete(url: str, token: str, state: dict[str, Any]) -> None:
@@ -162,6 +224,14 @@ def ready_for_complete(
     return fingerprint != baseline
 
 
+def _complete_url_hint(url: str) -> str:
+    try:
+        parsed = urlparse(url)
+        return f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+    except Exception:
+        return url[:120]
+
+
 def main() -> int:
     platform = (os.environ.get("GEO_CRAWL_OPS_PLATFORM") or "web").strip().lower()
     reason = (os.environ.get("GEO_CRAWL_OPS_REASON") or "login_expired").strip().lower()
@@ -171,8 +241,8 @@ def main() -> int:
     complete_url = (os.environ.get("GEO_CRAWL_OPS_COMPLETE_URL") or "").strip()
     cdp = (os.environ.get("GEO_CRAWL_OPS_CDP_URL") or "http://127.0.0.1:9222").strip()
     ttl_min = int(os.environ.get("GEO_CRAWL_OPS_TTL_MIN") or "15")
-    settle_s = float(os.environ.get("GEO_CRAWL_OPS_SETTLE_S") or "8")
     captcha_grace_s = float(os.environ.get("GEO_CRAWL_OPS_CAPTCHA_GRACE_S") or "20")
+    state_path = (os.environ.get("GEO_CRAWL_OPS_STORAGE_STATE_PATH") or "").strip()
 
     if not token or not complete_url:
         _log("COMPLETE_URL or TICKET_TOKEN unset; watcher idle (manual upload still ok)")
@@ -188,11 +258,25 @@ def main() -> int:
 
     deadline = time.monotonic() + max(ttl_min, 1) * 60
     connected_at: float | None = None
-    baseline: tuple[tuple[str, str], ...] | None = None
+    # Fixed baseline for login_expired (inject file or empty) — never race live login.
+    login_baseline = load_login_baseline(platform, state_path)
+    if reason == "login_expired":
+        if login_baseline:
+            _log(
+                f"login baseline from inject cookies={len(login_baseline)} "
+                f"(need change to complete)"
+            )
+        else:
+            _log("login baseline empty (any session cookie completes)")
     stable_hit = 0
     saw_captcha = False
+    last_heartbeat = 0.0
+    poll_i = 0
 
-    _log(f"watching reason={reason} platform={platform} cdp={cdp}")
+    _log(
+        f"watching reason={reason} platform={platform} cdp={cdp} "
+        f"complete={_complete_url_hint(complete_url)}"
+    )
 
     with sync_playwright() as playwright:
         browser = None
@@ -202,36 +286,41 @@ def main() -> int:
                     browser = playwright.chromium.connect_over_cdp(cdp)
                     if connected_at is None:
                         connected_at = time.monotonic()
-                    baseline = None
                     stable_hit = 0
+                    _log(f"cdp connected contexts={len(browser.contexts)}")
 
                 contexts = browser.contexts
                 if not contexts:
+                    _log("cdp: no browser contexts yet")
                     time.sleep(2.0)
                     continue
 
-                state = contexts[0].storage_state()
-                names = session_cookie_names(platform, state)
-                fp = session_fingerprint(platform, state)
+                ctx, state, names, fp = pick_best_context_state(browser, platform)
                 has_session = bool(names)
+                poll_i += 1
 
-                page = _pick_page(browser)
+                page = None
+                if ctx is not None:
+                    pages = list(ctx.pages)
+                    page = pages[0] if pages else _pick_page(browser)
+                else:
+                    page = _pick_page(browser)
                 captcha_visible = page_has_captcha(page) if page is not None else False
                 if captcha_visible:
                     saw_captcha = True
 
                 now = time.monotonic()
-                settled = connected_at is not None and (now - connected_at) >= settle_s
-                if reason == "login_expired" and settled and baseline is None and has_session:
-                    baseline = fp
-                    _log(f"baseline session cookies={','.join(names) or '(none)'} (need change to complete)")
-                    time.sleep(3.0)
-                    continue
-                if reason == "login_expired" and settled and baseline is None and not has_session:
-                    baseline = ()
-                    _log("baseline empty (any session cookie completes)")
+                if now - last_heartbeat >= 30.0:
+                    last_heartbeat = now
+                    cookie_n = len(state.get("cookies") or []) if isinstance(state, dict) else 0
+                    _log(
+                        f"heartbeat poll={poll_i} contexts={len(contexts)} "
+                        f"cookies={cookie_n} session={','.join(names) or '-'} "
+                        f"captcha={captcha_visible}"
+                    )
 
                 grace_elapsed = connected_at is not None and (now - connected_at) >= captcha_grace_s
+                baseline = login_baseline if reason == "login_expired" else None
                 ok = ready_for_complete(
                     reason=reason,
                     has_session=has_session,
@@ -264,7 +353,8 @@ def main() -> int:
                     if has_session or captcha_visible:
                         _log(
                             f"wait reason={reason} session={','.join(names) or '-'} "
-                            f"captcha={captcha_visible} saw={saw_captcha}"
+                            f"captcha={captcha_visible} saw={saw_captcha} "
+                            f"fp_changed={fp != login_baseline if reason == 'login_expired' else 'n/a'}"
                         )
             except Exception as exc:  # noqa: BLE001
                 browser = None

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -92,3 +93,65 @@ def test_ready_captcha_requires_gone() -> None:
         saw_captcha=False,
         grace_elapsed=True,
     )
+
+
+def test_load_login_baseline_empty_or_missing(tmp_path: Path) -> None:
+    w = _load_watch()
+    assert w.load_login_baseline("doubao", "") == ()
+    assert w.load_login_baseline("doubao", str(tmp_path / "missing.json")) == ()
+    empty = tmp_path / "empty.json"
+    empty.write_text('{"cookies":[{"name":"odin_tt","value":"guest"}]}', encoding="utf-8")
+    assert w.load_login_baseline("doubao", str(empty)) == ()
+
+
+def test_load_login_baseline_from_session_cookies(tmp_path: Path) -> None:
+    w = _load_watch()
+    path = tmp_path / "state.json"
+    path.write_text(
+        json.dumps(
+            {
+                "cookies": [
+                    {"name": "sessionid", "value": "abc"},
+                    {"name": "sid_guard", "value": "g1"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert w.load_login_baseline("doubao", str(path)) == (
+        ("sessionid", "abc"),
+        ("sid_guard", "g1"),
+    )
+
+
+def test_pick_best_context_prefers_session_cookies() -> None:
+    w = _load_watch()
+
+    class Ctx:
+        def __init__(self, cookies, pages=None):
+            self._cookies = cookies
+            self.pages = pages or []
+
+        def storage_state(self):
+            return {"cookies": self._cookies}
+
+    class Browser:
+        def __init__(self, contexts):
+            self.contexts = contexts
+
+    empty = Ctx([{"name": "odin_tt", "value": "guest"}])
+    logged_in = Ctx(
+        [
+            {"name": "sessionid", "value": "live"},
+            {"name": "sid_guard", "value": "g"},
+        ],
+        pages=["p1"],
+    )
+    browser = Browser([empty, logged_in])
+    ctx, state, names, fp = w.pick_best_context_state(browser, "doubao")
+    assert ctx is logged_in
+    assert "sessionid" in names
+    assert ("sessionid", "live") in fp
+    assert any(c.get("name") == "sessionid" for c in state["cookies"])
+
+
