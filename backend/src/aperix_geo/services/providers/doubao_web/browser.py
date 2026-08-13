@@ -7,12 +7,16 @@ per worker process; each crawl still gets an isolated BrowserContext from
 Constraints: Playwright sync API is not thread-safe — sessions in this process
 are serialized by a lock. Prefer Celery prefork (one task per process) or keep
 ``DOUBAO_CRAWL_CONCURRENCY`` low when using threads.
+
+Celery prefork: never call playwright.stop()/browser.close() on objects inherited
+from the parent after fork — only drop references, then start fresh in the child.
 """
 
 from __future__ import annotations
 
 import atexit
 import logging
+import os
 import threading
 from contextlib import contextmanager
 from typing import Any, Iterator
@@ -22,26 +26,49 @@ from aperix_geo.config import Settings
 logger = logging.getLogger(__name__)
 
 _LOCK = threading.RLock()
+_PW_CM: Any | None = None
 _PLAYWRIGHT: Any | None = None
 _BROWSER: Any | None = None
 _BROWSER_HEADLESS: bool | None = None
 
 
+def discard_browser_pool_inherited() -> None:
+    """Drop in-process Playwright refs without stopping drivers (post-fork safe)."""
+    global _PW_CM, _PLAYWRIGHT, _BROWSER, _BROWSER_HEADLESS
+    with _LOCK:
+        _PW_CM = None
+        _PLAYWRIGHT = None
+        _BROWSER = None
+        _BROWSER_HEADLESS = None
+
+
 def reset_browser_pool() -> None:
-    """Close shared browser + playwright (tests / crash recovery)."""
-    global _PLAYWRIGHT, _BROWSER, _BROWSER_HEADLESS
+    """Close shared browser + playwright (tests / crash recovery in same process)."""
+    global _PW_CM, _PLAYWRIGHT, _BROWSER, _BROWSER_HEADLESS
     with _LOCK:
         browser = _BROWSER
         playwright = _PLAYWRIGHT
+        pw_cm = _PW_CM
         _BROWSER = None
         _PLAYWRIGHT = None
+        _PW_CM = None
         _BROWSER_HEADLESS = None
     if browser is not None:
         try:
             browser.close()
         except Exception:
             logger.debug("browser close during reset failed", exc_info=True)
-    if playwright is not None:
+    if pw_cm is not None:
+        try:
+            pw_cm.__exit__(None, None, None)
+        except Exception:
+            logger.debug("playwright context manager exit failed", exc_info=True)
+            if playwright is not None:
+                try:
+                    playwright.stop()
+                except Exception:
+                    logger.debug("playwright stop during reset failed", exc_info=True)
+    elif playwright is not None:
         try:
             playwright.stop()
         except Exception:
@@ -55,8 +82,29 @@ def _browser_alive(browser: Any) -> bool:
         return False
 
 
+def _start_playwright() -> tuple[Any, Any]:
+    """Start sync Playwright; return ``(context_manager, playwright)``."""
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError as exc:
+        raise RuntimeError("playwright is not installed") from exc
+
+    # Prefer __enter__ over .start(): some Celery/fork edge cases leave a broken
+    # ContextManager where .start() raises AttributeError on ``_playwright``.
+    cm = sync_playwright()
+    try:
+        playwright = cm.__enter__()
+    except Exception:
+        try:
+            cm.__exit__(None, None, None)
+        except Exception:
+            pass
+        raise
+    return cm, playwright
+
+
 def _ensure_shared_browser(*, headless: bool) -> Any:
-    global _PLAYWRIGHT, _BROWSER, _BROWSER_HEADLESS
+    global _PW_CM, _PLAYWRIGHT, _BROWSER, _BROWSER_HEADLESS
     with _LOCK:
         if (
             _BROWSER is not None
@@ -66,25 +114,23 @@ def _ensure_shared_browser(*, headless: bool) -> Any:
             return _BROWSER
 
         # Headless flipped or dead process → rebuild.
-        if _BROWSER is not None or _PLAYWRIGHT is not None:
+        if _BROWSER is not None or _PLAYWRIGHT is not None or _PW_CM is not None:
             reset_browser_pool()
 
-        try:
-            from playwright.sync_api import sync_playwright
-        except ImportError as exc:
-            raise RuntimeError("playwright is not installed") from exc
-
-        # sync_playwright().__enter__ starts the driver; we keep it for process life.
-        playwright = sync_playwright().start()
+        cm, playwright = _start_playwright()
         try:
             browser = playwright.chromium.launch(headless=headless)
         except Exception:
             try:
-                playwright.stop()
+                cm.__exit__(None, None, None)
             except Exception:
-                pass
+                try:
+                    playwright.stop()
+                except Exception:
+                    pass
             raise
 
+        _PW_CM = cm
         _PLAYWRIGHT = playwright
         _BROWSER = browser
         _BROWSER_HEADLESS = headless
@@ -156,7 +202,13 @@ def browser_page_session(
 
     # Serialize sync Playwright usage in this process.
     with _LOCK:
-        browser = _ensure_shared_browser(headless=headless)
+        try:
+            browser = _ensure_shared_browser(headless=headless)
+        except Exception as exc:
+            # Prefork inheritance / half-started driver — drop refs and retry once.
+            logger.warning("shared browser start failed (%s); discarding pool and retrying", exc)
+            discard_browser_pool_inherited()
+            browser = _ensure_shared_browser(headless=headless)
         context = None
         try:
             try:
@@ -196,4 +248,14 @@ def browser_page_session(
                     reset_browser_pool()
 
 
+def _register_fork_hook() -> None:
+    if not hasattr(os, "register_at_fork"):
+        return
+    try:
+        os.register_at_fork(after_in_child=discard_browser_pool_inherited)
+    except Exception:
+        logger.debug("register_at_fork for doubao browser failed", exc_info=True)
+
+
+_register_fork_hook()
 atexit.register(reset_browser_pool)

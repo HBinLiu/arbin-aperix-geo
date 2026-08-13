@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import uuid
 from dataclasses import dataclass
 from datetime import timedelta
@@ -14,6 +15,7 @@ from sqlalchemy.orm import Session
 from aperix_geo.config import Settings, get_settings
 from aperix_geo.db.base import utc_now
 from aperix_geo.db.models import EPOCH, DoubaoAccount
+from aperix_geo.services.doubao_accounts.session_cookies import storage_state_has_session_cookies
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,11 @@ STATUS_ACTIVE = "active"
 STATUS_NEED_RELOGIN = "need_relogin"
 STATUS_LOGGING_IN = "logging_in"
 STATUS_BLOCKED = "blocked"
+
+# How many SKIP LOCKED candidates to try when rejecting empty/guest jars.
+_ACQUIRE_ATTEMPTS = 8
+# Extra seconds on top of crawl timeout so lease outlives a full sample.
+_LEASE_TIMEOUT_BUFFER_S = 60
 
 
 @dataclass(frozen=True)
@@ -32,25 +39,35 @@ class AccountLease:
 
 
 def storage_state_has_cookies(state: dict[str, Any] | None) -> bool:
-    if not isinstance(state, dict):
-        return False
-    cookies = state.get("cookies")
-    return isinstance(cookies, list) and len(cookies) > 0
+    """Alias kept for importers; requires session cookies (not guest-only)."""
+    return storage_state_has_session_cookies(state)
+
+
+def effective_account_lease_ttl_s(settings: Settings) -> int:
+    """Lease must cover a full crawl wall-clock (+ buffer), not only the configured lease floor."""
+    configured = int(settings.doubao_account_lease_ttl_s)
+    crawl_need = int(math.ceil(float(settings.doubao_crawl_timeout_s))) + _LEASE_TIMEOUT_BUFFER_S
+    return max(configured, crawl_need, 60)
 
 
 def count_fresh_active_accounts(db: Session, *, settings: Settings | None = None) -> int:
+    """Count active accounts that are fresh, unleased, and have session cookies."""
     settings = settings or get_settings()
     now = utc_now()
     fresh_cutoff = now - timedelta(seconds=int(settings.doubao_heartbeat_fresh_s))
-    stmt = (
-        select(DoubaoAccount.id)
-        .where(
-            DoubaoAccount.status == STATUS_ACTIVE,
-            DoubaoAccount.last_ok_at >= fresh_cutoff,
-        )
-        .limit(50)
+    rows = list(
+        db.scalars(
+            select(DoubaoAccount)
+            .where(
+                DoubaoAccount.status == STATUS_ACTIVE,
+                DoubaoAccount.last_ok_at >= fresh_cutoff,
+                DoubaoAccount.lease_until < now,
+            )
+            .order_by(DoubaoAccount.last_ok_at.desc())
+            .limit(50)
+        ).all()
     )
-    return len(list(db.scalars(stmt).all()))
+    return sum(1 for row in rows if storage_state_has_session_cookies(row.storage_state))
 
 
 def acquire_account(
@@ -59,52 +76,58 @@ def acquire_account(
     settings: Settings | None = None,
     lease_owner: str = "",
 ) -> AccountLease | None:
-    """Take one fresh active account with row lock (SKIP LOCKED)."""
+    """Take one fresh active account with row lock (SKIP LOCKED).
+
+    Skips guest/empty jars (marks need_relogin + ticket) and tries the next candidate.
+    """
     settings = settings or get_settings()
     now = utc_now()
     fresh_cutoff = now - timedelta(seconds=int(settings.doubao_heartbeat_fresh_s))
-    lease_until = now + timedelta(seconds=int(settings.doubao_account_lease_ttl_s))
+    lease_ttl = effective_account_lease_ttl_s(settings)
+    lease_until = now + timedelta(seconds=lease_ttl)
     owner = (lease_owner or "").strip() or str(uuid.uuid4())
 
-    stmt = (
-        select(DoubaoAccount)
-        .where(
-            DoubaoAccount.status == STATUS_ACTIVE,
-            DoubaoAccount.last_ok_at >= fresh_cutoff,
-            DoubaoAccount.lease_until < now,
+    for _ in range(_ACQUIRE_ATTEMPTS):
+        stmt = (
+            select(DoubaoAccount)
+            .where(
+                DoubaoAccount.status == STATUS_ACTIVE,
+                DoubaoAccount.last_ok_at >= fresh_cutoff,
+                DoubaoAccount.lease_until < now,
+            )
+            .order_by(DoubaoAccount.last_ok_at.desc())
+            .limit(1)
+            .with_for_update(skip_locked=True)
         )
-        .order_by(DoubaoAccount.last_ok_at.desc())
-        .limit(1)
-        .with_for_update(skip_locked=True)
-    )
-    row = db.scalars(stmt).first()
-    if row is None:
-        return None
-    if not storage_state_has_cookies(row.storage_state):
-        row.status = STATUS_NEED_RELOGIN
-        row.last_error = "storage_state missing cookies"
+        row = db.scalars(stmt).first()
+        if row is None:
+            return None
+        if not storage_state_has_session_cookies(row.storage_state):
+            row.status = STATUS_NEED_RELOGIN
+            row.last_error = "storage_state missing Doubao session cookies"
+            db.flush()
+            from aperix_geo.services.doubao_accounts.human_ops import request_human_intervention
+
+            request_human_intervention(
+                db,
+                account_id=row.id,
+                reason="login_expired",
+                error="storage_state missing Doubao session cookies",
+                settings=settings,
+            )
+            # Try next candidate in the same transaction.
+            continue
+
+        row.lease_owner = owner
+        row.lease_until = lease_until
         db.flush()
-        # 空 Cookie 的 active 行无法采样；与登录失效同一套人工工单（若开启）。
-        from aperix_geo.services.doubao_accounts.human_ops import request_human_intervention
-
-        request_human_intervention(
-            db,
+        return AccountLease(
             account_id=row.id,
-            reason="login_expired",
-            error="storage_state missing cookies",
-            settings=settings,
+            label=row.label,
+            storage_state=dict(row.storage_state or {}),
+            lease_owner=owner,
         )
-        return None
-
-    row.lease_owner = owner
-    row.lease_until = lease_until
-    db.flush()
-    return AccountLease(
-        account_id=row.id,
-        label=row.label,
-        storage_state=dict(row.storage_state or {}),
-        lease_owner=owner,
-    )
+    return None
 
 
 def release_account(
@@ -131,14 +154,24 @@ def release_account(
     row.lease_owner = ""
     row.lease_until = EPOCH
     if ok:
-        if storage_state is not None and storage_state_has_cookies(storage_state):
+        if storage_state is not None and storage_state_has_session_cookies(storage_state):
             row.storage_state = storage_state
+        elif storage_state is not None:
+            # Successful crawl that somehow lost session cookies — force relogin.
+            row.status = STATUS_NEED_RELOGIN
+            row.last_error = "crawl ok but storage_state missing session cookies"
+            logger.warning(
+                "doubao account lost session cookies after crawl id=%s label=%s",
+                row.id,
+                row.label,
+            )
+            db.flush()
+            return
         row.last_ok_at = utc_now()
         row.last_error = ""
         if row.status == STATUS_ACTIVE:
             pass
         elif row.status == STATUS_NEED_RELOGIN:
-            # Successful crawl after relogin path — revive.
             row.status = STATUS_ACTIVE
     else:
         message = (error or "crawl failed").strip()
@@ -156,16 +189,33 @@ def release_account(
     db.flush()
 
 
-def mark_need_relogin(db: Session, *, account_id: uuid.UUID, error: str = "") -> None:
+def mark_need_relogin(
+    db: Session,
+    *,
+    account_id: uuid.UUID,
+    error: str = "",
+    clear_lease: bool = True,
+) -> None:
+    """Mark account need_relogin.
+
+    When ``clear_lease`` is False (e.g. heartbeat must not interrupt a live crawl),
+    leave ``lease_owner`` / ``lease_until`` untouched.
+    """
     row = db.get(DoubaoAccount, account_id)
     if row is None:
         return
     row.status = STATUS_NEED_RELOGIN
-    row.lease_owner = ""
-    row.lease_until = EPOCH
+    if clear_lease:
+        row.lease_owner = ""
+        row.lease_until = EPOCH
     row.last_error = (error or "login expired").strip()[:2000]
     db.flush()
-    logger.warning("doubao account marked need_relogin id=%s label=%s", row.id, row.label)
+    logger.warning(
+        "doubao account marked need_relogin id=%s label=%s clear_lease=%s",
+        row.id,
+        row.label,
+        clear_lease,
+    )
 
 
 def upsert_account_from_state(
@@ -176,8 +226,8 @@ def upsert_account_from_state(
     status: str = STATUS_ACTIVE,
 ) -> DoubaoAccount:
     """Create or update a pool account (import / login ticket completion)."""
-    if not storage_state_has_cookies(storage_state):
-        raise ValueError("storage_state must include cookies")
+    if not storage_state_has_session_cookies(storage_state):
+        raise ValueError("storage_state must include Doubao session cookies (sessionid / sid_guard / …)")
     name = (label or "").strip() or f"doubao-{uuid.uuid4().hex[:8]}"
     existing = db.scalars(
         select(DoubaoAccount).where(DoubaoAccount.label == name).limit(1)

@@ -139,7 +139,10 @@ def try_doubao_web_crawl(
     """
     from aperix_geo.db.session import SessionLocal
     from aperix_geo.services.providers.doubao_web.accounts import crawl_credentials_available
-    from aperix_geo.services.providers.doubao_web.errors import DoubaoCrawlError
+    from aperix_geo.services.providers.doubao_web.errors import (
+        DoubaoCrawlError,
+        DoubaoNeedsHumanOps,
+    )
 
     db = SessionLocal()
     try:
@@ -148,18 +151,38 @@ def try_doubao_web_crawl(
         db.close()
 
     if not available:
-        logger.info("Doubao web crawl skipped: no storage_state file and no fresh pool account")
+        logger.warning(
+            "doubao_crawl_fallback reason=no_credentials mode=%s",
+            settings.doubao_sampling_mode,
+        )
         return None
 
     try:
         from aperix_geo.services.providers.doubao_web.crawler import crawl_doubao_chat
 
         return crawl_doubao_chat(messages, settings=settings)
+    except DoubaoNeedsHumanOps as exc:
+        logger.error(
+            "doubao_crawl_fallback reason=human_ops type=%s err=%s mode=%s",
+            type(exc).__name__,
+            exc,
+            settings.doubao_sampling_mode,
+        )
+        return None
     except DoubaoCrawlError as exc:
-        logger.warning("Doubao web crawl failed: %s", exc)
+        logger.warning(
+            "doubao_crawl_fallback reason=crawl_error err=%s mode=%s",
+            exc,
+            settings.doubao_sampling_mode,
+        )
         return None
     except Exception as exc:
-        logger.warning("Doubao web crawl unexpected error: %s", exc, exc_info=True)
+        logger.error(
+            "doubao_crawl_fallback reason=unexpected err=%s mode=%s",
+            exc,
+            settings.doubao_sampling_mode,
+            exc_info=True,
+        )
         return None
 
 
@@ -177,8 +200,12 @@ def _doubao_chat(settings: Settings) -> Callable[[list[dict[str, str]]], Samplin
                 "Doubao web crawl is not available (crawl_only mode)",
                 retryable=False,
             )
-        # crawl_first: no crawler / no account → API fallback (existing behavior until P2)
-        logger.info("Doubao sampling mode=%s; web crawl unavailable, using API", mode)
+        # crawl_first: keep API fallback but make it loud for ops grepping.
+        logger.warning(
+            "doubao_crawl_fallback reason=api_fallback mode=%s "
+            "(crawl unavailable; check doubao_crawl_fallback lines above)",
+            mode,
+        )
         return _doubao_api_chat(messages, settings)
 
     return _call

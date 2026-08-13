@@ -103,6 +103,13 @@ def _warmup_http_on_worker_process(**kwargs) -> None:
     from aperix_geo.services.crawl._httpx import warmup_http_stack
 
     warmup_http_stack()
+    # Playwright sync API cannot reuse parent-process drivers after Celery prefork.
+    try:
+        from aperix_geo.services.providers.doubao_web.browser import discard_browser_pool_inherited
+
+        discard_browser_pool_inherited()
+    except Exception:
+        pass
 
 
 worker_process_init.connect(_warmup_http_on_worker_process)

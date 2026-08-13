@@ -21,6 +21,10 @@ from aperix_geo.services.doubao_accounts.pool import (
     STATUS_NEED_RELOGIN,
     upsert_account_from_state,
 )
+from aperix_geo.services.doubao_accounts.session_cookies import (
+    session_cookie_names,
+    storage_state_has_session_cookies,
+)
 from aperix_geo.services.geo_crawl_ops import (
     GeoCrawlOpsDockerError,
     geo_crawl_ops_ready,
@@ -39,18 +43,6 @@ TICKET_EXPIRED = "expired"
 TICKET_CANCELLED = "cancelled"
 
 PLATFORM = "doubao"
-
-# Strong login signals (same set as scripts/doubao_web_login.py). Guest cookies like odin_tt do not count.
-_SESSION_COOKIE_NAMES = frozenset(
-    {
-        "sessionid",
-        "sessionid_ss",
-        "sid_guard",
-        "sid_tt",
-        "uid_tt",
-        "uid_tt_ss",
-    }
-)
 
 
 def novnc_configured(settings: Settings | None = None) -> bool:
@@ -316,23 +308,8 @@ def get_ticket_by_token(db: Session, token: str) -> DoubaoLoginTicket:
     return ticket
 
 
-def session_cookie_names(storage_state: dict[str, Any]) -> list[str]:
-    cookies = storage_state.get("cookies") if isinstance(storage_state, dict) else None
-    if not isinstance(cookies, list):
-        return []
-    found: list[str] = []
-    for cookie in cookies:
-        if not isinstance(cookie, dict):
-            continue
-        name = str(cookie.get("name") or "")
-        value = str(cookie.get("value") or "").strip()
-        if name in _SESSION_COOKIE_NAMES and value:
-            found.append(name)
-    return sorted(set(found))
-
-
 def require_session_storage_state(storage_state: dict[str, Any]) -> None:
-    if not session_cookie_names(storage_state):
+    if not storage_state_has_session_cookies(storage_state):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="storage_state missing Doubao session cookies (sessionid / sid_guard / uid_tt …)",

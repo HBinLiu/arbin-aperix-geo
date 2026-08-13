@@ -34,16 +34,27 @@ _HEARTBEAT_SCAN_LIMIT = 100
 _HEARTBEAT_CHECK_LIMIT = 20
 
 
+def _lease_active(row: DoubaoAccount, *, now: datetime) -> bool:
+    return bool(row.lease_until and row.lease_until > now)
+
+
 def accounts_needing_heartbeat(
     rows: list[DoubaoAccount],
     *,
     stale_before: datetime,
+    now: datetime | None = None,
     limit: int = _HEARTBEAT_CHECK_LIMIT,
 ) -> list[DoubaoAccount]:
-    """Always include need_relogin / logging_in / empty-cookie; then stale actives."""
+    """Always include need_relogin / logging_in / empty-session; then stale actives.
+
+    Skips accounts currently leased by a crawl worker.
+    """
+    now = now or utc_now()
     priority: list[DoubaoAccount] = []
     stale: list[DoubaoAccount] = []
     for row in rows:
+        if _lease_active(row, now=now):
+            continue
         status = (row.status or "").strip()
         if status in (STATUS_NEED_RELOGIN, STATUS_LOGGING_IN):
             priority.append(row)
@@ -89,12 +100,16 @@ def run_doubao_account_heartbeat(
             .limit(_HEARTBEAT_SCAN_LIMIT)
         ).all()
     )
-    rows = accounts_needing_heartbeat(pool_rows, stale_before=stale_before)
+    rows = accounts_needing_heartbeat(pool_rows, stale_before=stale_before, now=now)
 
     checked = 0
     revived = 0
     failed = 0
     for row in rows:
+        # Re-check lease in case it was taken between select and probe.
+        db.refresh(row)
+        if _lease_active(row, now=utc_now()):
+            continue
         checked += 1
         try:
             new_state = probe_account_login(row.storage_state, settings=settings)
@@ -148,7 +163,7 @@ def probe_account_login(
     """Open chat page with storage_state; raise DoubaoNeedsHumanOps if session unusable."""
     settings = settings or get_settings()
     if not storage_state_has_cookies(storage_state):
-        raise DoubaoLoginExpired("storage_state missing cookies")
+        raise DoubaoLoginExpired("storage_state missing Doubao session cookies")
 
     try:
         from aperix_geo.services.providers.doubao_web.browser import browser_page_session
@@ -182,6 +197,8 @@ def probe_account_login(
         composer = page.locator("textarea, div[contenteditable='true']")
         if login_btn.count() > 0 and composer.count() == 0:
             raise DoubaoLoginExpired("login UI visible")
+        # Composer alone is not enough (guest UI also has it); require session cookies
+        # already validated above. Missing composer ⇒ unusable.
         if composer.count() == 0:
             raise DoubaoLoginExpired("chat composer not found")
         return context.storage_state()

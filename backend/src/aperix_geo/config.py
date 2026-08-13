@@ -231,7 +231,7 @@ class Settings(BaseSettings):
     geo_crawl_ops_callback_base_url: str = ""
     # Ops API token for /ops/doubao/* (empty ⇒ ops routes return 503). Not a tenant JWT.
     doubao_ops_api_token: str = ""
-    # Account pool lease TTL while a crawl holds the account (seconds).
+    # Account pool lease floor (seconds). Effective lease = max(this, crawl_timeout+60).
     doubao_account_lease_ttl_s: int = Field(default=300, ge=60, le=3600)
 
     # --- 大模型：阿里云 · 通义千问（DashScope Generation API 采样）---

@@ -16,10 +16,12 @@ from aperix_geo.services.doubao_accounts.pool import (
     STATUS_ACTIVE,
     STATUS_NEED_RELOGIN,
     acquire_account,
+    effective_account_lease_ttl_s,
     release_account,
     storage_state_has_cookies,
     upsert_account_from_state,
 )
+from aperix_geo.services.doubao_accounts.session_cookies import storage_state_has_session_cookies
 
 
 def _state() -> dict:
@@ -40,10 +42,37 @@ def _state() -> dict:
     }
 
 
-def test_storage_state_has_cookies() -> None:
+def _guest_state() -> dict:
+    return {
+        "cookies": [
+            {
+                "name": "odin_tt",
+                "value": "guest",
+                "domain": ".doubao.com",
+                "path": "/",
+                "expires": -1,
+                "httpOnly": False,
+                "secure": True,
+                "sameSite": "Lax",
+            }
+        ],
+        "origins": [],
+    }
+
+
+def test_storage_state_requires_session_cookies() -> None:
     assert storage_state_has_cookies(_state())
+    assert storage_state_has_session_cookies(_state())
     assert not storage_state_has_cookies({})
     assert not storage_state_has_cookies({"cookies": []})
+    assert not storage_state_has_cookies(_guest_state())
+
+
+def test_effective_lease_covers_crawl_timeout() -> None:
+    settings = Settings(doubao_account_lease_ttl_s=300, doubao_crawl_timeout_s=120)
+    assert effective_account_lease_ttl_s(settings) == 300
+    settings2 = Settings(doubao_account_lease_ttl_s=300, doubao_crawl_timeout_s=400)
+    assert effective_account_lease_ttl_s(settings2) == 460  # 400 + 60
 
 
 def test_upsert_and_acquire_release(db_session=None) -> None:
@@ -51,6 +80,7 @@ def test_upsert_and_acquire_release(db_session=None) -> None:
     settings = Settings(
         doubao_heartbeat_fresh_s=21600,
         doubao_account_lease_ttl_s=300,
+        doubao_crawl_timeout_s=120,
     )
     row = DoubaoAccount(
         id=uuid4(),
@@ -92,6 +122,45 @@ def test_acquire_skips_stale_account() -> None:
 
 
 @patch("aperix_geo.services.doubao_accounts.human_ops.request_human_intervention")
+def test_acquire_guest_cookies_marks_need_relogin_and_tries_next(mock_ops: MagicMock) -> None:
+    settings = Settings(
+        doubao_heartbeat_fresh_s=21600,
+        doubao_account_lease_ttl_s=300,
+        doubao_ops_ticket_enabled=True,
+        doubao_crawl_timeout_s=120,
+    )
+    bad = DoubaoAccount(
+        id=uuid4(),
+        label="guest",
+        status=STATUS_ACTIVE,
+        storage_state=_guest_state(),
+        last_ok_at=utc_now(),
+        last_error="",
+        lease_owner="",
+        lease_until=EPOCH,
+    )
+    good = DoubaoAccount(
+        id=uuid4(),
+        label="ok",
+        status=STATUS_ACTIVE,
+        storage_state=_state(),
+        last_ok_at=utc_now(),
+        last_error="",
+        lease_owner="",
+        lease_until=EPOCH,
+    )
+    db = MagicMock()
+    db.scalars.return_value.first.side_effect = [bad, good]
+    lease = acquire_account(db, settings=settings, lease_owner="w")
+    assert lease is not None
+    assert lease.account_id == good.id
+    assert bad.status == STATUS_NEED_RELOGIN
+    assert "session cookies" in bad.last_error
+    mock_ops.assert_called_once()
+    assert good.lease_owner == "w"
+
+
+@patch("aperix_geo.services.doubao_accounts.human_ops.request_human_intervention")
 def test_acquire_empty_cookies_marks_need_relogin_and_opens_ticket(mock_ops: MagicMock) -> None:
     settings = Settings(
         doubao_heartbeat_fresh_s=21600,
@@ -109,10 +178,11 @@ def test_acquire_empty_cookies_marks_need_relogin_and_opens_ticket(mock_ops: Mag
         lease_until=EPOCH,
     )
     db = MagicMock()
-    db.scalars.return_value.first.return_value = row
+    # First candidate empty → ticket; second None → give up
+    db.scalars.return_value.first.side_effect = [row, None]
     assert acquire_account(db, settings=settings) is None
     assert row.status == STATUS_NEED_RELOGIN
-    assert "missing cookies" in row.last_error
+    assert "session cookies" in row.last_error
     mock_ops.assert_called_once()
     assert mock_ops.call_args.kwargs["account_id"] == row.id
     assert mock_ops.call_args.kwargs["reason"] == "login_expired"
@@ -141,10 +211,12 @@ def test_release_marks_need_relogin_on_login_error() -> None:
     assert row.lease_owner == ""
 
 
-def test_upsert_requires_cookies() -> None:
+def test_upsert_requires_session_cookies() -> None:
     db = MagicMock()
     with pytest.raises(ValueError):
         upsert_account_from_state(db, label="x", storage_state={"cookies": []})
+    with pytest.raises(ValueError):
+        upsert_account_from_state(db, label="x", storage_state=_guest_state())
 
 
 def test_heartbeat_disabled_noop() -> None:
@@ -185,8 +257,38 @@ def test_accounts_needing_heartbeat_includes_empty_cookies_even_if_fresh() -> No
     selected = accounts_needing_heartbeat(
         [fresh_ok, empty, stale_ok],
         stale_before=now - timedelta(hours=3),
+        now=now,
     )
     assert [r.label for r in selected] == ["empty", "stale"]
+
+
+def test_accounts_needing_heartbeat_skips_leased() -> None:
+    from aperix_geo.services.doubao_accounts.heartbeat import accounts_needing_heartbeat
+
+    now = utc_now()
+    leased = DoubaoAccount(
+        id=uuid4(),
+        label="leased",
+        status=STATUS_ACTIVE,
+        storage_state={},
+        last_ok_at=now,
+        lease_until=now + timedelta(minutes=10),
+        lease_owner="w1",
+    )
+    need = DoubaoAccount(
+        id=uuid4(),
+        label="need",
+        status=STATUS_NEED_RELOGIN,
+        storage_state={},
+        last_ok_at=now,
+        lease_until=EPOCH,
+    )
+    selected = accounts_needing_heartbeat(
+        [leased, need],
+        stale_before=now - timedelta(hours=3),
+        now=now,
+    )
+    assert [r.label for r in selected] == ["need"]
 
 
 def test_accounts_needing_heartbeat_includes_need_relogin() -> None:
@@ -212,5 +314,6 @@ def test_accounts_needing_heartbeat_includes_need_relogin() -> None:
     selected = accounts_needing_heartbeat(
         [fresh_ok, need],
         stale_before=now - timedelta(hours=3),
+        now=now,
     )
     assert [r.label for r in selected] == ["need"]

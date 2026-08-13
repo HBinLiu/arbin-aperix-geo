@@ -26,6 +26,13 @@ def teardown_function() -> None:
     bp.reset_browser_pool()
 
 
+def _pw_cm(playwright: MagicMock) -> MagicMock:
+    cm = MagicMock()
+    cm.__enter__.return_value = playwright
+    cm.__exit__.return_value = False
+    return cm
+
+
 def test_reuse_keeps_same_browser_across_sessions() -> None:
     browser = MagicMock()
     browser.is_connected.return_value = True
@@ -36,10 +43,8 @@ def test_reuse_keeps_same_browser_across_sessions() -> None:
 
     playwright = MagicMock()
     playwright.chromium.launch.return_value = browser
-    starter = MagicMock()
-    starter.start.return_value = playwright
 
-    with patch("playwright.sync_api.sync_playwright", return_value=starter):
+    with patch("playwright.sync_api.sync_playwright", return_value=_pw_cm(playwright)):
         with bp.browser_page_session(_settings(), storage_state={"cookies": []}) as (p1, c1):
             assert p1 is page
             assert c1 is context
@@ -61,11 +66,8 @@ def test_reuse_disabled_launches_each_time() -> None:
 
     playwright = MagicMock()
     playwright.chromium.launch.return_value = browser
-    cm = MagicMock()
-    cm.__enter__.return_value = playwright
-    cm.__exit__.return_value = False
 
-    with patch("playwright.sync_api.sync_playwright", return_value=cm):
+    with patch("playwright.sync_api.sync_playwright", return_value=_pw_cm(playwright)):
         with bp.browser_page_session(
             _settings(doubao_crawl_browser_reuse=False),
             storage_state={"cookies": []},
@@ -93,12 +95,11 @@ def test_dead_browser_is_relaunched() -> None:
 
     playwright = MagicMock()
     playwright.chromium.launch.return_value = alive
-    starter = MagicMock()
-    starter.start.return_value = playwright
 
-    with patch("playwright.sync_api.sync_playwright", return_value=starter):
+    with patch("playwright.sync_api.sync_playwright", return_value=_pw_cm(playwright)):
         with bp._LOCK:
             bp._PLAYWRIGHT = MagicMock()
+            bp._PW_CM = MagicMock()
             bp._BROWSER = dead
             bp._BROWSER_HEADLESS = True
         with bp.browser_page_session(_settings(), storage_state={"cookies": []}):
@@ -107,3 +108,20 @@ def test_dead_browser_is_relaunched() -> None:
     assert playwright.chromium.launch.call_count == 1
     dead.close.assert_called()
     alive.new_context.assert_called_once()
+
+
+def test_discard_inherited_clears_refs_without_stop() -> None:
+    pw = MagicMock()
+    cm = MagicMock()
+    browser = MagicMock()
+    with bp._LOCK:
+        bp._PLAYWRIGHT = pw
+        bp._PW_CM = cm
+        bp._BROWSER = browser
+        bp._BROWSER_HEADLESS = True
+    bp.discard_browser_pool_inherited()
+    assert bp._PLAYWRIGHT is None
+    assert bp._BROWSER is None
+    pw.stop.assert_not_called()
+    browser.close.assert_not_called()
+    cm.__exit__.assert_not_called()
