@@ -12,14 +12,13 @@ backend  --HTTP-->  geo-web-crawl:9410  --WS-->  browserless:3000
 
 ## 构建 geo-web-crawl
 
-镜像基于 **Python 3.12**（与 backend `requires-python >=3.12` 一致）。Chromium 由 Browserless 提供，镜像内不装浏览器。
+- **Python 3.12**；**精简依赖**（见 `requirements.txt`），不含 redis/celery/openai
+- 构建时会跑 import 检查：crawl 启动路径若再拉取重依赖会直接失败
+- Chromium 由 Browserless 提供
 
 ```bash
-# 仓库根目录
-docker build -t aperix/geo-web-crawl:latest -f docker/geo-web-crawl/Dockerfile .
-
-# 或 compose：
 docker compose -f docker/geo-web-crawl/docker-compose.yml build --no-cache geo-web-crawl
+docker compose -f docker/geo-web-crawl/docker-compose.yml up -d --force-recreate
 ```
 
 ## Compose（Browserless + crawl）

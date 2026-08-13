@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-
-from sqlalchemy.orm import Session
+from typing import TYPE_CHECKING, Any
 
 from aperix_geo.config import Settings
-from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO
-from aperix_geo.services.crawl_accounts.pool import count_fresh_active_accounts
 from aperix_geo.services.providers.doubao_web.errors import DoubaoCrawlError, DoubaoLoginExpired
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ def load_storage_state_from_file(settings: Settings) -> dict | None:
     return data
 
 
-def save_storage_state(path: Path, state: dict) -> None:
+def save_storage_state(path: Path, state: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -53,9 +53,10 @@ def crawl_credentials_available(settings: Settings, db: Session | None = None) -
     if db is None:
         return False
     try:
+        from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO
+        from aperix_geo.services.crawl_accounts.pool import count_fresh_active_accounts
+
         return count_fresh_active_accounts(db, platform=PLATFORM_DOUBAO, settings=settings) > 0
     except Exception:
         logger.debug("doubao account pool check failed", exc_info=True)
         return False
-
-

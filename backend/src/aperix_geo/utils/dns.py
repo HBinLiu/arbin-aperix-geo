@@ -7,12 +7,10 @@ import ipaddress
 import time
 from collections.abc import Callable
 
-from aperix_geo.utils.cache import (
-    BoundedTTLCache,
-    expires_at_from_ttl,
-    redis_get_json_with_remaining_ttl,
-    redis_set_json_exat,
-)
+from aperix_geo.utils.cache.bounded import BoundedTTLCache
+from aperix_geo.utils.cache.ttl import expires_at_from_ttl
+
+# Redis helpers are imported lazily inside functions that need them.
 
 _DNS_L1_MAX = 2048
 _dns_memory = BoundedTTLCache(_DNS_L1_MAX)
@@ -63,6 +61,12 @@ def _cached_bool(
     cached = _dns_memory.get(cache_key)
     if cached is not None:
         return bool(cached)
+
+    hit = None
+    from aperix_geo.utils.cache.redis_kv import (
+        redis_get_json_with_remaining_ttl,
+        redis_set_json_exat,
+    )
 
     hit = redis_get_json_with_remaining_ttl(_dns_redis_key(cache_key))
     if hit is not None:

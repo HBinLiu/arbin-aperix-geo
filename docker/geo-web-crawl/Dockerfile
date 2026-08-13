@@ -4,8 +4,8 @@
 # Build from repo root:
 #   docker build -t aperix/geo-web-crawl:latest -f docker/geo-web-crawl/Dockerfile .
 #
-# Backend requires Python >=3.12 (datetime.UTC, etc.) — do not use older Playwright
-# jammy images that ship Python 3.10.
+# Python >=3.12. Lean deps only — crawl import graph must stay free of
+# redis/celery/openai (enforced by build-time import check).
 
 FROM python:3.12-slim-bookworm
 
@@ -21,7 +21,6 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Minimal OS deps for Playwright driver (CDP/Browserless; no local Chromium).
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates \
       libglib2.0-0 \
@@ -42,15 +41,36 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY docker/geo-web-crawl/requirements.txt /app/requirements.txt
-# Non-playwright deps: China mirror. playwright from official PyPI (mirrors often 403).
+COPY backend/src /app/src
+
 ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
 ARG PIP_TRUSTED_HOST=mirrors.aliyun.com
 RUN pip install -i "${PIP_INDEX_URL}" --trusted-host "${PIP_TRUSTED_HOST}" \
       -r /app/requirements.txt \
-    && pip install --retries 10 playwright==1.49.1 \
-    && python -c "from playwright.sync_api import sync_playwright; print('playwright sync_api ok')"
+    && pip install --retries 15 playwright==1.49.1 \
+    && python - <<'PY'
+"""Fail the image build if crawl startup imports heavy backend deps."""
+import sys
 
-COPY backend/src /app/src
+class Block:
+    BAD = {"redis", "celery", "openai", "crawl4ai", "dashscope", "psycopg", "alembic", "sqlalchemy"}
+
+    def find_spec(self, fullname, path, target=None):
+        root = fullname.split(".", 1)[0]
+        if root in self.BAD:
+            raise ImportError(f"geo-web-crawl must not import {root!r} at startup")
+        return None
+
+sys.meta_path.insert(0, Block())
+from datetime import UTC  # noqa: F401
+from playwright.sync_api import sync_playwright  # noqa: F401
+from aperix_geo.services.geo_web_crawl.registry import ensure_handlers_loaded
+from aperix_geo.services.providers.doubao_web import browser_crawl_job, probe_job  # noqa: F401
+from aperix_geo.services.providers.doubao_web import crawler as _crawler  # noqa: F401
+
+ensure_handlers_loaded()
+print("geo-web-crawl lean import check ok")
+PY
 
 EXPOSE 9410
 WORKDIR /app

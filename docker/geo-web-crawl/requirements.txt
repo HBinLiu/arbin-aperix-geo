@@ -1,12 +1,11 @@
-# Deps for resident geo-web-crawl service + Doubao handler import chain.
-# playwright is installed separately in the Dockerfile (official PyPI; mirrors often 403).
-# Image is Python 3.12 to match backend requires-python; Browserless provides Chromium.
+# Lean deps for geo-web-crawl only (Doubao Playwright jobs + FastAPI).
+# Do NOT mirror full backend/pyproject.toml — keep crawl import graph free of
+# redis/celery/openai (see crawl_accounts/__init__ and utils.cache lazy loads).
+# playwright is installed separately (China mirrors often 403 the wheel).
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 pydantic-settings>=2.6.0
-sqlalchemy>=2.0.36
-pgvector>=0.3.6
-beautifulsoup4>=4.12.0
 httpx>=0.28.0
+beautifulsoup4>=4.12.0
 publicsuffix2>=1.0.0
 validators>=0.34.0
