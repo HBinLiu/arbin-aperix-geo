@@ -155,3 +155,28 @@ def test_pick_best_context_prefers_session_cookies() -> None:
     assert any(c.get("name") == "sessionid" for c in state["cookies"])
 
 
+def test_resolve_storage_state_prefers_live_dump(tmp_path: Path, monkeypatch) -> None:
+    w = _load_watch()
+    live = tmp_path / "live.json"
+    live.write_text(
+        json.dumps({"cookies": [{"name": "sessionid", "value": "from-live"}]}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(w, "LIVE_STATE_PATH", live)
+
+    class Ctx:
+        pages = []
+
+        def storage_state(self):
+            return {"cookies": []}
+
+    class Browser:
+        contexts = [Ctx()]
+
+    ctx, state, names, fp, src = w.resolve_storage_state(Browser(), "doubao")
+    assert src == "live"
+    assert names == ["sessionid"]
+    assert fp == (("sessionid", "from-live"),)
+    assert state["cookies"][0]["value"] == "from-live"
+
+

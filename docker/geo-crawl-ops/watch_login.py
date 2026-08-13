@@ -34,6 +34,9 @@ from typing import Any
 from urllib.parse import urlparse
 
 DONE_FLAG = "/tmp/ops-done"
+LIVE_STATE_PATH = Path(
+    (os.environ.get("GEO_CRAWL_OPS_LIVE_STATE_PATH") or "/tmp/ops-live-storage-state.json").strip()
+)
 
 _DOUBAO_SESSION = frozenset(
     {
@@ -186,6 +189,46 @@ def pick_best_context_state(
     return best_ctx, best_state, best_names, best_fp
 
 
+def load_live_storage_state(platform: str) -> tuple[dict[str, Any] | None, list[str], tuple[tuple[str, str], ...]]:
+    """Read storage_state dumped by launch_browser (authoritative cookie jar)."""
+    if not LIVE_STATE_PATH.is_file():
+        return None, [], ()
+    try:
+        raw = json.loads(LIVE_STATE_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None, [], ()
+    if not isinstance(raw, dict):
+        return None, [], ()
+    names = session_cookie_names(platform, raw)
+    fp = session_fingerprint(platform, raw)
+    return raw, names, fp
+
+
+def resolve_storage_state(
+    browser: Any, platform: str
+) -> tuple[Any | None, dict[str, Any], list[str], tuple[tuple[str, str], ...], str]:
+    """Prefer live dump from launch_browser; fall back to CDP contexts."""
+    live, live_names, live_fp = load_live_storage_state(platform)
+    ctx, cdp_state, cdp_names, cdp_fp = pick_best_context_state(browser, platform)
+    if live is not None and (
+        len(live_names) > len(cdp_names)
+        or (
+            len(live.get("cookies") or [])
+            > len((cdp_state.get("cookies") if isinstance(cdp_state, dict) else None) or [])
+        )
+    ):
+        return ctx, live, live_names, live_fp, "live"
+    if live is not None and not cdp_names and live_names:
+        return ctx, live, live_names, live_fp, "live"
+    if live is not None and not cdp_names and not live_names:
+        # Still prefer live jar when CDP is empty (even guest-only) so heartbeat is truthful.
+        live_cookies = live.get("cookies") if isinstance(live.get("cookies"), list) else []
+        cdp_cookies = cdp_state.get("cookies") if isinstance(cdp_state.get("cookies"), list) else []
+        if len(live_cookies) >= len(cdp_cookies):
+            return ctx, live, live_names, live_fp, "live"
+    return ctx, cdp_state, cdp_names, cdp_fp, "cdp"
+
+
 def _post_complete(url: str, token: str, state: dict[str, Any]) -> None:
     body = json.dumps({"token": token, "storage_state": state}, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
@@ -295,7 +338,7 @@ def main() -> int:
                     time.sleep(2.0)
                     continue
 
-                ctx, state, names, fp = pick_best_context_state(browser, platform)
+                ctx, state, names, fp, state_src = resolve_storage_state(browser, platform)
                 has_session = bool(names)
                 poll_i += 1
 
@@ -315,8 +358,8 @@ def main() -> int:
                     cookie_n = len(state.get("cookies") or []) if isinstance(state, dict) else 0
                     _log(
                         f"heartbeat poll={poll_i} contexts={len(contexts)} "
-                        f"cookies={cookie_n} session={','.join(names) or '-'} "
-                        f"captcha={captcha_visible}"
+                        f"src={state_src} cookies={cookie_n} "
+                        f"session={','.join(names) or '-'} captcha={captcha_visible}"
                     )
 
                 grace_elapsed = connected_at is not None and (now - connected_at) >= captcha_grace_s
