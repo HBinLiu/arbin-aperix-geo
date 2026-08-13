@@ -131,6 +131,7 @@ def spawn_ops_session(
 
     args = [
         "create",
+        "--rm",
         "--name",
         name,
         "--label",

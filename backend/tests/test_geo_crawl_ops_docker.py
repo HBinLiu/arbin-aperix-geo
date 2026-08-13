@@ -93,6 +93,7 @@ def test_spawn_ops_session_docker_flow() -> None:
     assert out.host_port == 60123
     assert out.login_url == "https://ops.example/?ticket=tok_abc"
     create = next(c for c in calls if c[:1] == ["create"])
+    assert "--rm" in create
     assert "GEO_CRAWL_OPS_COMPLETE_URL=http://api:8000/api/v1/ops/doubao/tickets/complete-by-token" in create
     assert "GEO_CRAWL_OPS_REASON=captcha" in create
     assert any(c[:1] == ["start"] for c in calls)
