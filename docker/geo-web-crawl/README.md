@@ -24,6 +24,14 @@ docker build -t aperix/geo-web-crawl:latest -f docker/geo-web-crawl/Dockerfile .
 cd docker/geo-web-crawl && docker compose up -d
 ```
 
+Browserless **默认不映射宿主机端口**（只在 compose 内网给 crawl 用）。若本机调试需要直连：
+
+```yaml
+# docker-compose.yml → browserless
+ports:
+  - "3001:3000"   # 避开已被占用的 3000
+```
+
 手动等价：
 
 ```bash

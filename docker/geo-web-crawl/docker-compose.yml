@@ -6,10 +6,11 @@ services:
   browserless:
     image: ghcr.io/browserless/chromium
     shm_size: "2gb"
-    ports:
-      - "3000:3000"
+    # Do NOT publish 3000 to the host by default — crawl reaches it on the
+    # compose network (ws://browserless:3000/...). Host bind fails when 3000
+    # is already taken; for local debug only: ports: ["3001:3000"]
     environment:
-      TOKEN: ${BROWSERLESS_TOKEN:-change-me}
+      TOKEN: ${BROWSERLESS_TOKEN:-arbin_aperix_geo_crawl}
       HOST: "0.0.0.0"
       CONCURRENT: ${BROWSERLESS_CONCURRENT:-4}
       QUEUED: ${BROWSERLESS_QUEUED:-8}
@@ -26,9 +27,9 @@ services:
       - "9410:9410"
     environment:
       GEO_WEB_CRAWL_CONCURRENCY: ${GEO_WEB_CRAWL_CONCURRENCY:-2}
-      GEO_WEB_CRAWL_TOKEN: ${GEO_WEB_CRAWL_TOKEN:-change-me}
+      GEO_WEB_CRAWL_TOKEN: ${GEO_WEB_CRAWL_TOKEN:-Hp2SKSrnrJr8PHCAQ9Qe7aaAszaYKxRm}
       GEO_WEB_CRAWL_BROWSER_WS_URL: ws://browserless:3000/chromium/playwright
-      GEO_WEB_CRAWL_BROWSERLESS_TOKEN: ${BROWSERLESS_TOKEN:-change-me}
+      GEO_WEB_CRAWL_BROWSERLESS_TOKEN: ${BROWSERLESS_TOKEN:-arbin_aperix_geo_crawl}
     depends_on:
       - browserless
     restart: unless-stopped
