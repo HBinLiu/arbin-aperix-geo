@@ -91,7 +91,7 @@ def build_complete_callback_url(callback_base_url: str) -> str:
         return ""
     if base.endswith("/tickets/complete-by-token"):
         return base
-    return f"{base}/api/v1/ops/doubao/tickets/complete-by-token"
+    return f"{base}/api/v1/ops/geo-crawl/tickets/complete-by-token"
 
 
 def rewrite_callback_url_for_container(complete_url: str) -> tuple[str, bool]:

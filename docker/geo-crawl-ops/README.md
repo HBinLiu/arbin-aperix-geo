@@ -37,7 +37,6 @@ Cookie 来源：优先读 launch 进程写入的 `/tmp/ops-live-storage-state.js
 ```text
 GEO_CRAWL_OPS_NOVNC_BASE_URL=https://ops-novnc.example
 GEO_CRAWL_OPS_DOCKER_IMAGE=aperix/geo-crawl-ops:latest
-GEO_CRAWL_OPS_DOCKER_NETWORK=
 GEO_CRAWL_OPS_CALLBACK_BASE_URL=https://app.aperix.cn
 ```
 

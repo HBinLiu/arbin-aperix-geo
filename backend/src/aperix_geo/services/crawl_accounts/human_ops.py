@@ -1,12 +1,4 @@
-"""Human ops recovery for Doubao crawl accounts (ticket + alert).
-
-Login expiry and behavior captcha share this path — never auto-solve captcha,
-and never treat captcha as a special in-browser wait. Sampling falls back to API;
-ops clears the account via login ticket (noVNC / storage_state upload).
-
-通知策略：有工单 / 人工介入时发信（无冷却、失败重试）；心跳正常探活不发摘要。
-不沿用 PROVIDER_ALERT_COOLDOWN（该冷却仅影响欠费等平台告警）。
-"""
+"""Human ops recovery for geo crawl accounts (ticket + alert)."""
 
 from __future__ import annotations
 
@@ -19,10 +11,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from aperix_geo.config import Settings, get_settings
-from aperix_geo.db.models import DoubaoAccount, DoubaoLoginTicket
+from aperix_geo.db.models import CrawlAccount, CrawlLoginTicket
 from aperix_geo.services.alerts.email import send_alert_email
-from aperix_geo.services.doubao_accounts.pool import mark_need_relogin
-from aperix_geo.services.doubao_accounts.tickets import (
+from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO, normalize_platform
+from aperix_geo.services.crawl_accounts.pool import mark_need_relogin
+from aperix_geo.services.crawl_accounts.tickets import (
     TICKET_PENDING,
     create_login_ticket,
     ensure_pending_ticket_session,
@@ -56,7 +49,6 @@ def send_ops_alert_email(
     body: str,
     context: str = "ops",
 ) -> bool:
-    """Send ops email with retries. Returns True when delivered."""
     if not settings.provider_alert_enabled:
         logger.info("ops alert skipped (%s): PROVIDER_ALERT_ENABLED=false", context)
         return False
@@ -101,17 +93,20 @@ def request_human_intervention(
     error: str = "",
     settings: Settings | None = None,
 ) -> dict[str, Any]:
-    """Mark need_relogin, ensure a pending ticket (+ live noVNC), and alert when actionable."""
     settings = settings or get_settings()
     message = (error or reason).strip()
     mark_need_relogin(db, account_id=account_id, error=message)
 
-    account = db.get(DoubaoAccount, account_id)
+    account = db.get(CrawlAccount, account_id)
     label = account.label if account is not None else ""
+    platform = normalize_platform(
+        account.platform if account is not None else PLATFORM_DOUBAO
+    )
     ticket, alert_needed = _ensure_pending_ticket(
         db,
         account_id=account_id,
         label=label,
+        platform=platform,
         reason=reason,
         error=message,
         settings=settings,
@@ -121,6 +116,7 @@ def request_human_intervention(
         alerted = _maybe_alert_ops(
             account_id=account_id,
             label=label,
+            platform=platform,
             reason=reason,
             error=message,
             ticket=ticket,
@@ -128,6 +124,7 @@ def request_human_intervention(
         )
     return {
         "account_id": str(account_id),
+        "platform": platform,
         "reason": reason,
         "ticket_id": str(ticket.id) if ticket is not None else "",
         "alerted": alerted,
@@ -140,19 +137,19 @@ def _ensure_pending_ticket(
     *,
     account_id: uuid.UUID,
     label: str,
+    platform: str,
     reason: HumanReason,
     error: str,
     settings: Settings,
-) -> tuple[DoubaoLoginTicket | None, bool]:
-    """Return (ticket, should_alert). Alert on new ticket or respawned dead session."""
+) -> tuple[CrawlLoginTicket | None, bool]:
     if not settings.doubao_ops_ticket_enabled:
-        return None, True  # still alert that human ops is needed (no ticket)
+        return None, True
 
     existing = db.scalars(
-        select(DoubaoLoginTicket)
+        select(CrawlLoginTicket)
         .where(
-            DoubaoLoginTicket.account_id == account_id,
-            DoubaoLoginTicket.status == TICKET_PENDING,
+            CrawlLoginTicket.account_id == account_id,
+            CrawlLoginTicket.status == TICKET_PENDING,
         )
         .limit(1)
     ).first()
@@ -161,7 +158,6 @@ def _ensure_pending_ticket(
             db, existing, reason=reason, settings=settings
         )
         if existing.status != TICKET_PENDING:
-            # Expired while ensuring — fall through to create a fresh ticket.
             existing = None
         else:
             return existing, respawned
@@ -169,6 +165,7 @@ def _ensure_pending_ticket(
     try:
         ticket = create_login_ticket(
             db,
+            platform=platform,
             account_id=account_id,
             label=label,
             operator="system",
@@ -177,8 +174,9 @@ def _ensure_pending_ticket(
         )
     except Exception:
         logger.warning(
-            "doubao human-ops ticket create failed account=%s reason=%s",
+            "geo crawl human-ops ticket create failed account=%s platform=%s reason=%s",
             account_id,
+            platform,
             reason,
             exc_info=True,
         )
@@ -186,14 +184,14 @@ def _ensure_pending_ticket(
 
     prefix = f"auto:{reason}"
     detail = (error or "").strip()
-    # Preserve create_login_ticket hint (novnc_unavailable / spawn_pending) after reason.
     prev = (ticket.error_text or "").strip()
     ticket.error_text = f"{prefix}: {detail}"[:1800] + (f" | {prev}" if prev else "")
     db.flush()
     logger.warning(
-        "doubao human-ops ticket opened id=%s account=%s reason=%s",
+        "geo crawl human-ops ticket opened id=%s account=%s platform=%s reason=%s",
         ticket.id,
         account_id,
+        platform,
         reason,
     )
     return ticket, True
@@ -203,15 +201,15 @@ def _maybe_alert_ops(
     *,
     account_id: uuid.UUID,
     label: str,
+    platform: str,
     reason: HumanReason,
     error: str,
-    ticket: DoubaoLoginTicket | None,
+    ticket: CrawlLoginTicket | None,
     settings: Settings,
 ) -> bool:
-    """Always attempt email on ticket / human-ops (no cooldown)."""
     reason_cn = _REASON_LABEL.get(reason, reason)
     env = (getattr(settings, "env", None) or "unknown").strip() or "unknown"
-    subject = f"[Aperix GEO] 豆包账号需人工处理：{reason_cn} ({env})"
+    subject = f"[Aperix GEO] 爬虫账号需人工处理：{platform}/{reason_cn} ({env})"
     ticket_line = (
         f"工单 ID：{ticket.id}\n登录 URL：{ticket.login_url or '（upload_fallback，请回传 storage_state）'}"
         if ticket is not None
@@ -220,7 +218,7 @@ def _maybe_alert_ops(
     body = "\n".join(
         [
             f"环境：{env}",
-            "账号平台：豆包",
+            f"账号平台：{platform}",
             f"账号 ID：{account_id}",
             f"账号 label：{label or '—'}",
             f"原因：{reason_cn}（{reason}）",
@@ -230,12 +228,12 @@ def _maybe_alert_ops(
             "",
             ticket_line,
             "",
-            "处理：打开/完成豆包登录工单（noVNC 或上传 storage_state），恢复后账号回 active。",
+            "处理：打开/完成登录工单（noVNC 或上传 storage_state），恢复后账号回 active。",
         ]
     )
     return send_ops_alert_email(
         settings,
         subject=subject,
         body=body,
-        context=f"doubao_ticket:{account_id}",
+        context=f"geo_crawl_ticket:{platform}:{account_id}",
     )

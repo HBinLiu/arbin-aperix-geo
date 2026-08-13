@@ -1,4 +1,4 @@
-"""Unit tests for Doubao account pool helpers (no live Playwright)."""
+"""Unit tests for crawl account pool helpers (no live Playwright)."""
 
 from __future__ import annotations
 
@@ -10,9 +10,9 @@ import pytest
 
 from aperix_geo.config import Settings
 from aperix_geo.db.base import utc_now
-from aperix_geo.db.models import EPOCH, DoubaoAccount
-from aperix_geo.services.doubao_accounts.heartbeat import run_doubao_account_heartbeat
-from aperix_geo.services.doubao_accounts.pool import (
+from aperix_geo.db.models import EPOCH, CrawlAccount
+from aperix_geo.services.crawl_accounts.heartbeat import run_crawl_account_heartbeat
+from aperix_geo.services.crawl_accounts.pool import (
     STATUS_ACTIVE,
     STATUS_NEED_RELOGIN,
     acquire_account,
@@ -21,7 +21,7 @@ from aperix_geo.services.doubao_accounts.pool import (
     storage_state_has_cookies,
     upsert_account_from_state,
 )
-from aperix_geo.services.doubao_accounts.session_cookies import storage_state_has_session_cookies
+from aperix_geo.services.crawl_accounts.session_cookies import storage_state_has_session_cookies
 
 
 def _state() -> dict:
@@ -82,7 +82,7 @@ def test_upsert_and_acquire_release(db_session=None) -> None:
         doubao_account_lease_ttl_s=300,
         doubao_crawl_timeout_s=120,
     )
-    row = DoubaoAccount(
+    row = CrawlAccount(
         id=uuid4(),
         label="t1",
         status=STATUS_ACTIVE,
@@ -121,7 +121,7 @@ def test_acquire_skips_stale_account() -> None:
     assert acquire_account(db, settings=settings) is None
 
 
-@patch("aperix_geo.services.doubao_accounts.human_ops.request_human_intervention")
+@patch("aperix_geo.services.crawl_accounts.human_ops.request_human_intervention")
 def test_acquire_guest_cookies_marks_need_relogin_and_tries_next(mock_ops: MagicMock) -> None:
     settings = Settings(
         doubao_heartbeat_fresh_s=21600,
@@ -129,7 +129,7 @@ def test_acquire_guest_cookies_marks_need_relogin_and_tries_next(mock_ops: Magic
         doubao_ops_ticket_enabled=True,
         doubao_crawl_timeout_s=120,
     )
-    bad = DoubaoAccount(
+    bad = CrawlAccount(
         id=uuid4(),
         label="guest",
         status=STATUS_ACTIVE,
@@ -139,7 +139,7 @@ def test_acquire_guest_cookies_marks_need_relogin_and_tries_next(mock_ops: Magic
         lease_owner="",
         lease_until=EPOCH,
     )
-    good = DoubaoAccount(
+    good = CrawlAccount(
         id=uuid4(),
         label="ok",
         status=STATUS_ACTIVE,
@@ -160,14 +160,14 @@ def test_acquire_guest_cookies_marks_need_relogin_and_tries_next(mock_ops: Magic
     assert good.lease_owner == "w"
 
 
-@patch("aperix_geo.services.doubao_accounts.human_ops.request_human_intervention")
+@patch("aperix_geo.services.crawl_accounts.human_ops.request_human_intervention")
 def test_acquire_empty_cookies_marks_need_relogin_and_opens_ticket(mock_ops: MagicMock) -> None:
     settings = Settings(
         doubao_heartbeat_fresh_s=21600,
         doubao_account_lease_ttl_s=300,
         doubao_ops_ticket_enabled=True,
     )
-    row = DoubaoAccount(
+    row = CrawlAccount(
         id=uuid4(),
         label="empty",
         status=STATUS_ACTIVE,
@@ -189,7 +189,7 @@ def test_acquire_empty_cookies_marks_need_relogin_and_opens_ticket(mock_ops: Mag
 
 
 def test_release_marks_need_relogin_on_login_error() -> None:
-    row = DoubaoAccount(
+    row = CrawlAccount(
         id=uuid4(),
         label="t2",
         status=STATUS_ACTIVE,
@@ -221,16 +221,16 @@ def test_upsert_requires_session_cookies() -> None:
 
 def test_heartbeat_disabled_noop() -> None:
     db = MagicMock()
-    result = run_doubao_account_heartbeat(db, settings=Settings(doubao_heartbeat_enabled=False))
+    result = run_crawl_account_heartbeat(db, settings=Settings(doubao_heartbeat_enabled=False))
     assert result["skipped"] is True
     db.scalars.assert_not_called()
 
 
 def test_accounts_needing_heartbeat_includes_empty_cookies_even_if_fresh() -> None:
-    from aperix_geo.services.doubao_accounts.heartbeat import accounts_needing_heartbeat
+    from aperix_geo.services.crawl_accounts.heartbeat import accounts_needing_heartbeat
 
     now = utc_now()
-    empty = DoubaoAccount(
+    empty = CrawlAccount(
         id=uuid4(),
         label="empty",
         status=STATUS_ACTIVE,
@@ -238,7 +238,7 @@ def test_accounts_needing_heartbeat_includes_empty_cookies_even_if_fresh() -> No
         last_ok_at=now,
         lease_until=EPOCH,
     )
-    fresh_ok = DoubaoAccount(
+    fresh_ok = CrawlAccount(
         id=uuid4(),
         label="ok",
         status=STATUS_ACTIVE,
@@ -246,7 +246,7 @@ def test_accounts_needing_heartbeat_includes_empty_cookies_even_if_fresh() -> No
         last_ok_at=now,
         lease_until=EPOCH,
     )
-    stale_ok = DoubaoAccount(
+    stale_ok = CrawlAccount(
         id=uuid4(),
         label="stale",
         status=STATUS_ACTIVE,
@@ -263,10 +263,10 @@ def test_accounts_needing_heartbeat_includes_empty_cookies_even_if_fresh() -> No
 
 
 def test_accounts_needing_heartbeat_skips_leased() -> None:
-    from aperix_geo.services.doubao_accounts.heartbeat import accounts_needing_heartbeat
+    from aperix_geo.services.crawl_accounts.heartbeat import accounts_needing_heartbeat
 
     now = utc_now()
-    leased = DoubaoAccount(
+    leased = CrawlAccount(
         id=uuid4(),
         label="leased",
         status=STATUS_ACTIVE,
@@ -275,7 +275,7 @@ def test_accounts_needing_heartbeat_skips_leased() -> None:
         lease_until=now + timedelta(minutes=10),
         lease_owner="w1",
     )
-    need = DoubaoAccount(
+    need = CrawlAccount(
         id=uuid4(),
         label="need",
         status=STATUS_NEED_RELOGIN,
@@ -292,10 +292,10 @@ def test_accounts_needing_heartbeat_skips_leased() -> None:
 
 
 def test_accounts_needing_heartbeat_includes_need_relogin() -> None:
-    from aperix_geo.services.doubao_accounts.heartbeat import accounts_needing_heartbeat
+    from aperix_geo.services.crawl_accounts.heartbeat import accounts_needing_heartbeat
 
     now = utc_now()
-    need = DoubaoAccount(
+    need = CrawlAccount(
         id=uuid4(),
         label="need",
         status=STATUS_NEED_RELOGIN,
@@ -303,7 +303,7 @@ def test_accounts_needing_heartbeat_includes_need_relogin() -> None:
         last_ok_at=now,
         lease_until=EPOCH,
     )
-    fresh_ok = DoubaoAccount(
+    fresh_ok = CrawlAccount(
         id=uuid4(),
         label="ok",
         status=STATUS_ACTIVE,

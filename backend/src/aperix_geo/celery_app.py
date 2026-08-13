@@ -60,8 +60,8 @@ def make_celery() -> Celery:
                 "schedule": crontab(minute=5, hour=0),
             },
             # Task no-ops when DOUBAO_HEARTBEAT_ENABLED=false
-            "doubao-account-heartbeat": {
-                "task": "aperix_geo.tasks.doubao_accounts.doubao_account_heartbeat",
+            "crawl-account-heartbeat": {
+                "task": "aperix_geo.tasks.crawl_accounts.crawl_account_heartbeat",
                 "schedule": crontab(minute=f"*/{hb_interval}"),
             },
         },
@@ -73,7 +73,7 @@ def make_celery() -> Celery:
         "aperix_geo.tasks.alert",
         "aperix_geo.tasks.billing",
         "aperix_geo.tasks.knowledge",
-        "aperix_geo.tasks.doubao_accounts",
+        "aperix_geo.tasks.crawl_accounts",
         "aperix_geo.tasks.setup",
     ]
     return app
@@ -103,13 +103,8 @@ def _warmup_http_on_worker_process(**kwargs) -> None:
     from aperix_geo.services.crawl._httpx import warmup_http_stack
 
     warmup_http_stack()
-    # Playwright sync API cannot reuse parent-process drivers / event loops after fork.
-    try:
-        from aperix_geo.services.providers.doubao_web.browser import prepare_sync_playwright_runtime
-
-        prepare_sync_playwright_runtime()
-    except Exception:
-        pass
+    # Doubao sampling + heartbeat run in geo-web-crawl (HTTP / cli) — no
+    # in-process Sync Playwright warmup needed here.
 
 
 worker_process_init.connect(_warmup_http_on_worker_process)

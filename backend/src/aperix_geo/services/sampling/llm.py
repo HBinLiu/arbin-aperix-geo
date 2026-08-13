@@ -124,6 +124,20 @@ def _doubao_api_chat(messages: list[dict[str, str]], settings: Settings) -> Samp
     )
 
 
+def try_web_crawl(
+    platform: str,
+    messages: list[dict[str, str]],
+    *,
+    settings: Settings,
+) -> SamplingChatResult | None:
+    """Attempt platform web crawl via registered handler. None → API fallback."""
+    plat = (platform or "").strip().lower()
+    handler = _WEB_CRAWL_HANDLERS.get(plat)
+    if handler is None:
+        return None
+    return handler(messages, settings=settings)
+
+
 def try_doubao_web_crawl(
     messages: list[dict[str, str]],
     *,
@@ -186,13 +200,26 @@ def try_doubao_web_crawl(
         return None
 
 
+_WEB_CRAWL_HANDLERS: dict[str, Callable[..., SamplingChatResult | None]] = {
+    "doubao": try_doubao_web_crawl,
+}
+
+
+def register_web_crawl_handler(
+    platform: str,
+    handler: Callable[..., SamplingChatResult | None],
+) -> None:
+    """Register or replace a platform web-crawl handler (for tests / future platforms)."""
+    _WEB_CRAWL_HANDLERS[(platform or "").strip().lower()] = handler
+
+
 def _doubao_chat(settings: Settings) -> Callable[[list[dict[str, str]]], SamplingChatResult]:
     def _call(messages: list[dict[str, str]]) -> SamplingChatResult:
         mode = _normalize_doubao_sampling_mode(settings.doubao_sampling_mode)
         if mode == "api_only":
             return _doubao_api_chat(messages, settings)
 
-        crawled = try_doubao_web_crawl(messages, settings=settings)
+        crawled = try_web_crawl("doubao", messages, settings=settings)
         if crawled is not None:
             return crawled
         if mode == "crawl_only":

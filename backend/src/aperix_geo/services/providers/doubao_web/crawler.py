@@ -86,19 +86,16 @@ def crawl_doubao_chat(
         raise DoubaoCrawlError("empty user prompt")
 
     from aperix_geo.db.session import SessionLocal
-    from aperix_geo.services.doubao_accounts.human_ops import request_human_intervention
-    from aperix_geo.services.doubao_accounts.pool import (
+    from aperix_geo.services.crawl_accounts.human_ops import request_human_intervention
+    from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO
+    from aperix_geo.services.crawl_accounts.pool import (
         AccountLease,
         acquire_account,
         release_account,
     )
+    from aperix_geo.services.geo_web_crawl.spawn import run_geo_web_crawl_spawn
     from aperix_geo.services.providers.doubao_web.browser_crawl_job import (
         build_crawl_payload,
-        run_doubao_browser_crawl_job,
-    )
-    from aperix_geo.services.providers.doubao_web.spawn_crawl import (
-        run_doubao_crawl_in_spawn,
-        should_spawn_doubao_crawl,
     )
 
     db = SessionLocal()
@@ -106,7 +103,7 @@ def crawl_doubao_chat(
     storage_state: dict[str, Any] | None = None
     try:
         try:
-            lease = acquire_account(db, settings=settings)
+            lease = acquire_account(db, platform=PLATFORM_DOUBAO, settings=settings)
             if lease is not None:
                 storage_state = lease.storage_state
             # Commit lease take OR side effects (empty cookies → need_relogin + ticket).
@@ -128,16 +125,18 @@ def crawl_doubao_chat(
             storage_state=storage_state,
             settings=settings,
         )
+        payload["platform"] = PLATFORM_DOUBAO
         started = time.monotonic()
 
+        # Always isolate via resident geo-web-crawl HTTP (or host geo_web_crawl.cli).
         with _concurrency_slot(settings):
-            if should_spawn_doubao_crawl():
-                job = run_doubao_crawl_in_spawn(
-                    payload,
-                    timeout_s=float(settings.doubao_crawl_timeout_s),
-                )
-            else:
-                job = run_doubao_browser_crawl_job(payload)
+            job = run_geo_web_crawl_spawn(
+                payload,
+                timeout_s=float(settings.doubao_crawl_timeout_s),
+                docker_image=(settings.geo_web_crawl_docker_image or "").strip(),
+                base_url=(settings.geo_web_crawl_base_url or "").strip(),
+                token=(settings.geo_web_crawl_token or "").strip(),
+            )
 
         if not job.get("ok"):
             err_type = str(job.get("error_type") or "DoubaoCrawlError")

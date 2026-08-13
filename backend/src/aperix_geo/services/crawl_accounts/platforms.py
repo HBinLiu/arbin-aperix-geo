@@ -1,0 +1,32 @@
+"""Platform ids and start-URL helpers for geo crawl accounts."""
+
+from __future__ import annotations
+
+from aperix_geo.config import Settings, get_settings
+
+PLATFORM_DOUBAO = "doubao"
+PLATFORM_DEEPSEEK = "deepseek"
+PLATFORM_QIANWEN = "qianwen"
+
+KNOWN_PLATFORMS = frozenset({PLATFORM_DOUBAO, PLATFORM_DEEPSEEK, PLATFORM_QIANWEN})
+
+
+def normalize_platform(raw: str | None) -> str:
+    p = (raw or "").strip().lower() or PLATFORM_DOUBAO
+    return p
+
+
+def platform_start_url(platform: str, *, settings: Settings | None = None) -> str:
+    """Chat / home URL opened in ops noVNC for the platform."""
+    settings = settings or get_settings()
+    p = normalize_platform(platform)
+    if p == PLATFORM_DOUBAO:
+        from aperix_geo.services.providers.doubao_web import selectors as sel
+
+        return (settings.doubao_chat_base_url or sel.CHAT_URL).strip() or sel.CHAT_URL
+    # Placeholders until DeepSeek / Qianwen web crawl ships.
+    if p == PLATFORM_DEEPSEEK:
+        return "https://chat.deepseek.com/"
+    if p == PLATFORM_QIANWEN:
+        return "https://www.tongyi.com/"
+    return ""

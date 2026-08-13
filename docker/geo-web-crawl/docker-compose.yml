@@ -1,0 +1,34 @@
+# Resident GEO web-crawl + self-hosted Browserless (Chromium pool).
+# Usage: docker compose -f docker/geo-web-crawl/docker-compose.yml up -d
+# Or from this directory: docker compose up -d
+
+services:
+  browserless:
+    image: ghcr.io/browserless/chromium
+    shm_size: "2gb"
+    ports:
+      - "3000:3000"
+    environment:
+      TOKEN: ${BROWSERLESS_TOKEN:-change-me}
+      HOST: "0.0.0.0"
+      CONCURRENT: ${BROWSERLESS_CONCURRENT:-4}
+      QUEUED: ${BROWSERLESS_QUEUED:-8}
+      # Crawl jobs often need minutes; default Browserless TIMEOUT is 30s.
+      TIMEOUT: ${BROWSERLESS_TIMEOUT_MS:-600000}
+    restart: unless-stopped
+
+  geo-web-crawl:
+    image: ${GEO_WEB_CRAWL_IMAGE:-aperix/geo-web-crawl:latest}
+    build:
+      context: ../..
+      dockerfile: docker/geo-web-crawl/Dockerfile
+    ports:
+      - "9410:9410"
+    environment:
+      GEO_WEB_CRAWL_CONCURRENCY: ${GEO_WEB_CRAWL_CONCURRENCY:-2}
+      GEO_WEB_CRAWL_TOKEN: ${GEO_WEB_CRAWL_TOKEN:-change-me}
+      GEO_WEB_CRAWL_BROWSER_WS_URL: ws://browserless:3000/chromium/playwright
+      GEO_WEB_CRAWL_BROWSERLESS_TOKEN: ${BROWSERLESS_TOKEN:-change-me}
+    depends_on:
+      - browserless
+    restart: unless-stopped

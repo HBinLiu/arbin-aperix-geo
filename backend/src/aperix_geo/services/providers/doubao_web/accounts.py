@@ -9,7 +9,8 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from aperix_geo.config import Settings
-from aperix_geo.services.doubao_accounts.pool import count_fresh_active_accounts
+from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO
+from aperix_geo.services.crawl_accounts.pool import count_fresh_active_accounts
 from aperix_geo.services.providers.doubao_web.errors import DoubaoCrawlError, DoubaoLoginExpired
 
 logger = logging.getLogger(__name__)
@@ -52,12 +53,9 @@ def crawl_credentials_available(settings: Settings, db: Session | None = None) -
     if db is None:
         return False
     try:
-        return count_fresh_active_accounts(db, settings=settings) > 0
+        return count_fresh_active_accounts(db, platform=PLATFORM_DOUBAO, settings=settings) > 0
     except Exception:
         logger.debug("doubao account pool check failed", exc_info=True)
         return False
 
 
-# Back-compat aliases used by older call sites / tests.
-def load_storage_state(settings: Settings) -> dict | None:
-    return load_storage_state_from_file(settings)

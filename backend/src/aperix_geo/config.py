@@ -211,28 +211,34 @@ class Settings(BaseSettings):
     doubao_crawl_timeout_s: float = Field(default=120.0, ge=30.0, le=900.0)
     doubao_crawl_concurrency: int = Field(default=2, ge=1, le=16)
     doubao_crawl_headless: bool = True
-    # Keep one Chromium warm per worker process; each crawl still gets a fresh context.
-    doubao_crawl_browser_reuse: bool = True
-    doubao_crawl_require_share_url: bool = True
     doubao_crawl_storage_state_path: str = ""
     doubao_chat_base_url: str = "https://www.doubao.com/chat/"
+
+    # Backend → resident geo-web-crawl HTTP (Browserless lives in that compose stack).
+    geo_web_crawl_base_url: str = ""
+    geo_web_crawl_token: str = ""
+    # Fallback when client is called without timeout_s; sampling uses doubao_crawl_timeout_s.
+    geo_web_crawl_timeout_s: float = Field(default=180.0, ge=30.0, le=1200.0)
+    # Only for emergency GEO_WEB_CRAWL_DOCKER_EPHEMERAL=1; production uses BASE_URL.
+    geo_web_crawl_docker_image: str = ""
+
     doubao_heartbeat_enabled: bool = False
     doubao_heartbeat_interval_min: int = Field(default=45, ge=5, le=1440)
     doubao_heartbeat_fresh_s: int = Field(default=21600, ge=300, le=604800)
-    # Human ops tickets (login expired + captcha).
     doubao_ops_ticket_enabled: bool = False
     doubao_ops_ticket_ttl_min: int = Field(default=15, ge=5, le=120)
-    # Shared crawl remote-desktop sessions (Doubao / DeepSeek / Qianwen / …).
-    geo_crawl_ops_novnc_base_url: str = ""
-    geo_crawl_ops_docker_image: str = ""
-    # Empty = default docker bridge; set when API shares a compose network with reverse-proxy.
-    geo_crawl_ops_docker_network: str = ""
-    # API base reachable from ops containers (e.g. http://api:8000). Empty ⇒ no auto cookie callback.
-    geo_crawl_ops_callback_base_url: str = ""
-    # Ops API token for /ops/doubao/* (empty ⇒ ops routes return 503). Not a tenant JWT.
-    doubao_ops_api_token: str = ""
+    # Ops API token for /ops/geo-crawl/*. Empty ⇒ 503.
+    geo_crawl_ops_api_token: str = ""
     # Account pool lease floor (seconds). Effective lease = max(this, crawl_timeout+60).
     doubao_account_lease_ttl_s: int = Field(default=300, ge=60, le=3600)
+
+    # Shared crawl-ops remote desktop (noVNC); not Browserless.
+    geo_crawl_ops_novnc_base_url: str = ""
+    geo_crawl_ops_docker_image: str = ""
+    # Rare: only if ops must join a named Docker network (e.g. internal service DNS).
+    # Not needed when CALLBACK_BASE_URL is a public domain.
+    geo_crawl_ops_docker_network: str = ""
+    geo_crawl_ops_callback_base_url: str = ""
 
     # --- 大模型：阿里云 · 通义千问（DashScope Generation API 采样）---
     qianwen_api_key: str = ""

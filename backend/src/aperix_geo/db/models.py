@@ -1235,12 +1235,13 @@ class KnowledgeChunk(Base):
     )
 
 
-class DoubaoAccount(Base):
-    """Global Doubao Web crawl account (ops pool, not per-tenant)."""
+class CrawlAccount(Base):
+    """Global web-crawl account pool (Doubao / DeepSeek / Qianwen / …)."""
 
-    __tablename__ = "tb_doubao_accounts"
+    __tablename__ = "tb_crawl_accounts"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    platform: Mapped[str] = mapped_column(String(32), nullable=False, default="doubao", server_default="doubao")
     label: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active", server_default="active")
     storage_state: Mapped[dict[str, Any]] = mapped_column(
@@ -1261,13 +1262,15 @@ class DoubaoAccount(Base):
 
     __table_args__ = (
         Index(
-            "uq_doubao_accounts_label",
+            "uq_crawl_accounts_platform_label",
+            "platform",
             "label",
             unique=True,
             postgresql_where=sa_text("deleted = false AND label <> ''"),
         ),
         Index(
-            "ix_doubao_accounts_status_last_ok",
+            "ix_crawl_accounts_platform_status_last_ok",
+            "platform",
             "status",
             "last_ok_at",
             postgresql_where=sa_text("deleted = false"),
@@ -1275,12 +1278,13 @@ class DoubaoAccount(Base):
     )
 
 
-class DoubaoLoginTicket(Base):
-    """Ops login ticket for Doubao Web re-login (noVNC or upload fallback)."""
+class CrawlLoginTicket(Base):
+    """Ops login ticket for web-crawl re-login (noVNC or upload fallback)."""
 
-    __tablename__ = "tb_doubao_login_tickets"
+    __tablename__ = "tb_crawl_login_tickets"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    platform: Mapped[str] = mapped_column(String(32), nullable=False, default="doubao", server_default="doubao")
     account_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), nullable=False, default=ZERO_UUID, server_default=sa_text("'00000000-0000-0000-0000-000000000000'")
     )
@@ -1304,20 +1308,26 @@ class DoubaoLoginTicket(Base):
 
     __table_args__ = (
         Index(
-            "uq_doubao_login_tickets_token",
+            "uq_crawl_login_tickets_token",
             "token",
             unique=True,
             postgresql_where=sa_text("deleted = false AND token <> ''"),
         ),
         Index(
-            "ix_doubao_login_tickets_status_expires",
+            "ix_crawl_login_tickets_status_expires",
             "status",
             "expires_at",
             postgresql_where=sa_text("deleted = false"),
         ),
         Index(
-            "ix_doubao_login_tickets_account_id",
+            "ix_crawl_login_tickets_account_id",
             "account_id",
+            postgresql_where=sa_text("deleted = false"),
+        ),
+        Index(
+            "ix_crawl_login_tickets_platform_status",
+            "platform",
+            "status",
             postgresql_where=sa_text("deleted = false"),
         ),
     )

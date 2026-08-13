@@ -1,4 +1,4 @@
-"""Tests for Doubao login tickets (upload fallback; no Docker)."""
+"""Tests for crawl login tickets (upload fallback; no Docker)."""
 
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ from fastapi import HTTPException
 
 from aperix_geo.config import Settings
 from aperix_geo.db.base import utc_now
-from aperix_geo.db.models import EPOCH, ZERO_UUID, DoubaoLoginTicket
-from aperix_geo.services.doubao_accounts.tickets import (
+from aperix_geo.db.models import EPOCH, ZERO_UUID, CrawlLoginTicket
+from aperix_geo.services.crawl_accounts.tickets import (
     TICKET_CANCELLED,
     TICKET_EXPIRED,
     TICKET_PENDING,
@@ -32,7 +32,7 @@ def _settings(**kwargs) -> Settings:
         "doubao_ops_ticket_ttl_min": 15,
         "geo_crawl_ops_novnc_base_url": "",
         "geo_crawl_ops_docker_image": "",
-        "doubao_ops_api_token": "ops-secret",
+        "geo_crawl_ops_api_token": "ops-secret",
     }
     base.update(kwargs)
     return Settings(**base)
@@ -91,7 +91,7 @@ def test_create_ticket_with_novnc_spawn() -> None:
     fake.host_port = 60123
     fake.name = "geo-crawl-ops-doubao-tok"
     with patch(
-        "aperix_geo.services.doubao_accounts.tickets.spawn_ops_session",
+        "aperix_geo.services.crawl_accounts.tickets.spawn_ops_session",
         return_value=fake,
     ):
         ticket = create_login_ticket(
@@ -108,7 +108,7 @@ def test_create_ticket_with_novnc_spawn() -> None:
 
 
 def test_get_ticket_expires() -> None:
-    ticket = DoubaoLoginTicket(
+    ticket = CrawlLoginTicket(
         id=uuid4(),
         account_id=ZERO_UUID,
         label="x",
@@ -124,7 +124,7 @@ def test_get_ticket_expires() -> None:
 
 
 def test_cancel_ticket() -> None:
-    ticket = DoubaoLoginTicket(
+    ticket = CrawlLoginTicket(
         id=uuid4(),
         account_id=ZERO_UUID,
         label="x",
@@ -140,7 +140,7 @@ def test_cancel_ticket() -> None:
 
 
 def test_complete_ticket_upserts_account() -> None:
-    ticket = DoubaoLoginTicket(
+    ticket = CrawlLoginTicket(
         id=uuid4(),
         account_id=ZERO_UUID,
         label="staging-1",
@@ -165,7 +165,7 @@ def test_complete_ticket_upserts_account() -> None:
 
 
 def test_complete_ticket_by_token() -> None:
-    ticket = DoubaoLoginTicket(
+    ticket = CrawlLoginTicket(
         id=uuid4(),
         account_id=ZERO_UUID,
         label="staging-1",
@@ -187,7 +187,7 @@ def test_complete_ticket_by_token() -> None:
 
 
 def test_complete_rejects_guest_cookies() -> None:
-    ticket = DoubaoLoginTicket(
+    ticket = CrawlLoginTicket(
         id=uuid4(),
         account_id=ZERO_UUID,
         label="staging-1",

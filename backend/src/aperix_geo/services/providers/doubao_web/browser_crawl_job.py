@@ -29,8 +29,6 @@ def settings_from_crawl_payload(payload: dict[str, Any]) -> Settings:
         doubao_crawl_timeout_s=float(payload.get("timeout_s") or 120),
         doubao_chat_base_url=str(payload.get("chat_base_url") or sel.CHAT_URL),
         doubao_crawl_headless=bool(payload.get("headless", True)),
-        doubao_crawl_require_share_url=bool(payload.get("require_share_url", True)),
-        doubao_crawl_browser_reuse=False,
     )
 
 
@@ -46,7 +44,6 @@ def build_crawl_payload(
         "timeout_s": float(settings.doubao_crawl_timeout_s),
         "chat_base_url": (settings.doubao_chat_base_url or sel.CHAT_URL).strip() or sel.CHAT_URL,
         "headless": bool(settings.doubao_crawl_headless),
-        "require_share_url": bool(settings.doubao_crawl_require_share_url),
     }
 
 
@@ -122,7 +119,7 @@ def run_doubao_browser_crawl_on_page(
         except Exception as exc:  # noqa: BLE001
             share_error = exc
 
-        if settings.doubao_crawl_require_share_url and not share_url:
+        if not share_url:
             raise DoubaoShareError(
                 f"share_url required but missing: {share_error or 'empty'}"
             ) from share_error
@@ -147,30 +144,4 @@ def run_doubao_browser_crawl_on_page(
         return _job_error(exc)
     except Exception as exc:  # noqa: BLE001
         logger.exception("doubao browser crawl on_page unexpected error")
-        return _job_error(exc)
-
-
-def run_doubao_browser_crawl_job(payload: dict[str, Any]) -> dict[str, Any]:
-    """Execute chat→reply→panel→share; return a JSON-serializable result dict."""
-    from aperix_geo.services.providers.doubao_web.browser import (
-        browser_page_session,
-        prepare_sync_playwright_runtime,
-    )
-
-    prepare_sync_playwright_runtime()
-    validated = _validate_payload(payload)
-    if isinstance(validated, dict):
-        return validated
-    _prompt, storage_state = validated
-    settings = settings_from_crawl_payload(payload)
-
-    try:
-        with browser_page_session(settings, storage_state=storage_state) as (page, context):
-            return run_doubao_browser_crawl_on_page(page, context, payload)
-    except DoubaoNeedsHumanOps as exc:
-        return _job_error(exc, human_ops=True)
-    except DoubaoCrawlError as exc:
-        return _job_error(exc)
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("doubao browser crawl job unexpected error")
         return _job_error(exc)

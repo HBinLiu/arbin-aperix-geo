@@ -41,24 +41,24 @@ def test_build_complete_callback_url() -> None:
     assert build_complete_callback_url("") == ""
     assert (
         build_complete_callback_url("http://api:8000")
-        == "http://api:8000/api/v1/ops/doubao/tickets/complete-by-token"
+        == "http://api:8000/api/v1/ops/geo-crawl/tickets/complete-by-token"
     )
     assert (
         build_complete_callback_url(
-            "http://api:8000/api/v1/ops/doubao/tickets/complete-by-token"
+            "http://api:8000/api/v1/ops/geo-crawl/tickets/complete-by-token"
         )
-        == "http://api:8000/api/v1/ops/doubao/tickets/complete-by-token"
+        == "http://api:8000/api/v1/ops/geo-crawl/tickets/complete-by-token"
     )
 
 
 def test_rewrite_callback_url_for_container() -> None:
     url, need = rewrite_callback_url_for_container(
-        "http://127.0.0.1:8000/api/v1/ops/doubao/tickets/complete-by-token"
+        "http://127.0.0.1:8000/api/v1/ops/geo-crawl/tickets/complete-by-token"
     )
     assert url.startswith("http://host.docker.internal:8000/")
     assert need is True
     url2, need2 = rewrite_callback_url_for_container(
-        "http://api:8000/api/v1/ops/doubao/tickets/complete-by-token"
+        "http://api:8000/api/v1/ops/geo-crawl/tickets/complete-by-token"
     )
     assert url2.startswith("http://api:8000/")
     assert need2 is False
@@ -108,7 +108,7 @@ def test_spawn_ops_session_docker_flow() -> None:
     assert out.login_url == "https://ops.example/?ticket=tok_abc"
     create = next(c for c in calls if c[:1] == ["create"])
     assert "--rm" in create
-    assert "GEO_CRAWL_OPS_COMPLETE_URL=http://api:8000/api/v1/ops/doubao/tickets/complete-by-token" in create
+    assert "GEO_CRAWL_OPS_COMPLETE_URL=http://api:8000/api/v1/ops/geo-crawl/tickets/complete-by-token" in create
     assert "GEO_CRAWL_OPS_REASON=captcha" in create
     assert "--add-host" not in create
     assert any(c[:1] == ["start"] for c in calls)
@@ -154,7 +154,7 @@ def test_spawn_rewrites_loopback_callback() -> None:
     create = next(c for c in calls if c[:1] == ["create"])
     assert (
         "GEO_CRAWL_OPS_COMPLETE_URL="
-        "http://host.docker.internal:8000/api/v1/ops/doubao/tickets/complete-by-token"
+        "http://host.docker.internal:8000/api/v1/ops/geo-crawl/tickets/complete-by-token"
         in create
     )
     assert create[create.index("--add-host") + 1] == "host.docker.internal:host-gateway"

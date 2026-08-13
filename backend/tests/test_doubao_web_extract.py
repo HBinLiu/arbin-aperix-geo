@@ -7,7 +7,10 @@ from pathlib import Path
 import pytest
 
 from aperix_geo.config import Settings
-from aperix_geo.services.providers.doubao_web.accounts import load_storage_state, resolve_storage_state_path
+from aperix_geo.services.providers.doubao_web.accounts import (
+    load_storage_state_from_file,
+    resolve_storage_state_path,
+)
 from aperix_geo.services.providers.doubao_web.crawler import user_prompt_from_messages
 from aperix_geo.services.providers.doubao_web.errors import DoubaoLoginExpired
 from aperix_geo.services.providers.doubao_web.extract import (
@@ -185,7 +188,7 @@ def test_load_storage_state_requires_cookies(tmp_path: Path) -> None:
     path.write_text('{"cookies": [], "origins": []}', encoding="utf-8")
     s = Settings(doubao_crawl_storage_state_path=str(path))
     with pytest.raises(DoubaoLoginExpired):
-        load_storage_state(s)
+        load_storage_state_from_file(s)
 
 
 def test_load_storage_state_ok(tmp_path: Path) -> None:
@@ -197,6 +200,6 @@ def test_load_storage_state_ok(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     s = Settings(doubao_crawl_storage_state_path=str(path))
-    data = load_storage_state(s)
+    data = load_storage_state_from_file(s)
     assert data is not None
     assert len(data["cookies"]) == 1

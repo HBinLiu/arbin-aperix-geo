@@ -1,6 +1,7 @@
-"""Ops Doubao account / login-ticket APIs.
+"""Ops geo-crawl account / login-ticket APIs (multi-platform).
 
-Auth: ``Authorization: Bearer <DOUBAO_OPS_API_TOKEN>`` or header ``X-Doubao-Ops-Token``.
+Auth: ``Authorization: Bearer <GEO_CRAWL_OPS_API_TOKEN>``,
+or header ``X-Geo-Crawl-Ops-Token``.
 """
 
 from __future__ import annotations
@@ -8,47 +9,50 @@ from __future__ import annotations
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
 from aperix_geo.api.deps import DbSession
 from aperix_geo.config import get_settings
-from aperix_geo.services.doubao_accounts import tickets as ticket_svc
-from aperix_geo.services.doubao_accounts.pool import upsert_account_from_state
+from aperix_geo.services.crawl_accounts import tickets as ticket_svc
+from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO, normalize_platform
+from aperix_geo.services.crawl_accounts.pool import upsert_account_from_state
 
-router = APIRouter(prefix="/ops/doubao", tags=["ops-doubao"])
+router = APIRouter(prefix="/ops/geo-crawl", tags=["ops-geo-crawl"])
 _ops_bearer = HTTPBearer(auto_error=False)
 
 
-def require_doubao_ops(
+def require_geo_crawl_ops(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_ops_bearer)],
-    x_doubao_ops_token: Annotated[str | None, Header(alias="X-Doubao-Ops-Token")] = None,
+    x_geo_crawl_ops_token: Annotated[str | None, Header(alias="X-Geo-Crawl-Ops-Token")] = None,
 ) -> None:
-    expected = (get_settings().doubao_ops_api_token or "").strip()
+    expected = (get_settings().geo_crawl_ops_api_token or "").strip()
     if not expected:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Doubao ops API not configured (set DOUBAO_OPS_API_TOKEN)",
+            detail="Geo crawl ops API not configured (set GEO_CRAWL_OPS_API_TOKEN)",
         )
     provided = ""
     if credentials and credentials.credentials:
         provided = credentials.credentials.strip()
-    elif x_doubao_ops_token:
-        provided = x_doubao_ops_token.strip()
+    elif x_geo_crawl_ops_token:
+        provided = x_geo_crawl_ops_token.strip()
     if not provided or provided != expected:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid ops token")
 
 
-OpsAuth = Annotated[None, Depends(require_doubao_ops)]
+OpsAuth = Annotated[None, Depends(require_geo_crawl_ops)]
 
 
 class UpsertAccountBody(BaseModel):
+    platform: str = PLATFORM_DOUBAO
     label: str = Field(min_length=1, max_length=128)
     storage_state: dict[str, Any]
 
 
 class CreateTicketBody(BaseModel):
+    platform: str = PLATFORM_DOUBAO
     label: str = ""
     account_id: UUID | None = None
     operator: str = ""
@@ -65,14 +69,23 @@ class CompleteByTokenBody(BaseModel):
 
 
 @router.get("/accounts")
-def ops_list_accounts(_: OpsAuth, db: DbSession) -> dict[str, Any]:
-    rows = ticket_svc.list_accounts(db)
+def ops_list_accounts(
+    _: OpsAuth,
+    db: DbSession,
+    platform: str | None = Query(default=None),
+) -> dict[str, Any]:
+    rows = ticket_svc.list_accounts(db, platform=platform)
     return {"items": [ticket_svc.account_to_dict(r) for r in rows]}
 
 
 @router.post("/accounts")
 def ops_upsert_account(_: OpsAuth, db: DbSession, body: UpsertAccountBody) -> dict[str, Any]:
-    row = upsert_account_from_state(db, label=body.label, storage_state=body.storage_state)
+    row = upsert_account_from_state(
+        db,
+        label=body.label,
+        storage_state=body.storage_state,
+        platform=normalize_platform(body.platform),
+    )
     db.commit()
     db.refresh(row)
     return ticket_svc.account_to_dict(row)
@@ -82,6 +95,7 @@ def ops_upsert_account(_: OpsAuth, db: DbSession, body: UpsertAccountBody) -> di
 def ops_create_ticket(_: OpsAuth, db: DbSession, body: CreateTicketBody) -> dict[str, Any]:
     ticket = ticket_svc.create_login_ticket(
         db,
+        platform=normalize_platform(body.platform),
         label=body.label,
         account_id=body.account_id,
         operator=body.operator,

@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
-"""豆包运维：手动触发一次账号池心跳（登录探活）。
+"""Crawl ops：手动触发一次账号池心跳（登录探活）。
 
 用途
 ----
-立刻跑一轮 ``run_doubao_account_heartbeat``：探活 active / need_relogin 等账号；
+立刻跑一轮 ``run_crawl_account_heartbeat``：探活 active / need_relogin 等账号；
 失败时按配置开登录工单（需 ``DOUBAO_OPS_TICKET_ENABLED``）。
 
 用法
 ----
   cd backend
   export PYTHONPATH=src
-  # 环境：backend/.env.{mode}；mode = ENV/APP_ENV 或 backend/.env.mode
-  # 生产：echo production > .env.mode
 
-  ./.venv/bin/python scripts/doubao_heartbeat_run.py
-  ./.venv/bin/python scripts/doubao_heartbeat_run.py --force   # 即使 HEARTBEAT_ENABLED=false 也跑
-  ./.venv/bin/python scripts/doubao_heartbeat_run.py --celery  # 丢给 worker 异步执行
+  ./.venv/bin/python scripts/crawl_heartbeat_run.py --platform doubao
+  ./.venv/bin/python scripts/crawl_heartbeat_run.py --platform doubao --force
+  ./.venv/bin/python scripts/crawl_heartbeat_run.py --platform doubao --celery
 """
 
 from __future__ import annotations
@@ -30,7 +28,12 @@ sys.path.insert(0, str(ROOT / "src"))
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="手动触发一次豆包账号心跳探活")
+    parser = argparse.ArgumentParser(description="手动触发一次爬虫账号心跳探活")
+    parser.add_argument(
+        "--platform",
+        default="doubao",
+        help="平台 id（doubao / deepseek / qianwen；默认 doubao）",
+    )
     parser.add_argument(
         "--force",
         action="store_true",
@@ -42,17 +45,18 @@ def main() -> int:
         help="经 Celery 异步执行（受 HEARTBEAT_ENABLED 约束；--force 仅对直跑有效）",
     )
     args = parser.parse_args()
+    platform = (args.platform or "doubao").strip().lower() or "doubao"
 
     if args.celery:
-        from aperix_geo.tasks.doubao_accounts import doubao_account_heartbeat
+        from aperix_geo.tasks.crawl_accounts import crawl_account_heartbeat
 
-        async_result = doubao_account_heartbeat.delay()
+        async_result = crawl_account_heartbeat.delay(platform=platform)
         print(json.dumps({"queued": True, "task_id": async_result.id}, ensure_ascii=False, indent=2))
         return 0
 
     from aperix_geo.config import get_settings
     from aperix_geo.db.session import SessionLocal
-    from aperix_geo.services.doubao_accounts.heartbeat import run_doubao_account_heartbeat
+    from aperix_geo.services.crawl_accounts.heartbeat import run_crawl_account_heartbeat
 
     settings = get_settings()
     if args.force and not settings.doubao_heartbeat_enabled:
@@ -60,7 +64,7 @@ def main() -> int:
 
     db = SessionLocal()
     try:
-        result = run_doubao_account_heartbeat(db, settings=settings)
+        result = run_crawl_account_heartbeat(db, settings=settings, platform=platform)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         if result.get("skipped"):
             print(

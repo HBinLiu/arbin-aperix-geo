@@ -1,4 +1,4 @@
-"""Lightweight Doubao account heartbeat (login probe + cookie refresh)."""
+"""Lightweight geo crawl account heartbeat (login probe + cookie refresh)."""
 
 from __future__ import annotations
 
@@ -12,21 +12,21 @@ from sqlalchemy.orm import Session
 
 from aperix_geo.config import Settings, get_settings
 from aperix_geo.db.base import utc_now
-from aperix_geo.db.models import DoubaoAccount
-from aperix_geo.services.doubao_accounts.human_ops import request_human_intervention
-from aperix_geo.services.doubao_accounts.pool import (
+from aperix_geo.db.models import CrawlAccount
+from aperix_geo.services.crawl_accounts.human_ops import request_human_intervention
+from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO, normalize_platform
+from aperix_geo.services.crawl_accounts.pool import (
     STATUS_ACTIVE,
     STATUS_LOGGING_IN,
     STATUS_NEED_RELOGIN,
     storage_state_has_cookies,
 )
-from aperix_geo.services.providers.doubao_web import selectors as sel
 from aperix_geo.services.providers.doubao_web.errors import (
     DoubaoCaptchaRequired,
+    DoubaoCrawlError,
     DoubaoLoginExpired,
     DoubaoNeedsHumanOps,
 )
-from aperix_geo.services.providers.doubao_web.extract import page_looks_like_captcha
 
 logger = logging.getLogger(__name__)
 
@@ -34,35 +34,32 @@ _HEARTBEAT_SCAN_LIMIT = 100
 _HEARTBEAT_CHECK_LIMIT = 20
 
 
-def _lease_active(row: DoubaoAccount, *, now: datetime) -> bool:
+def _lease_active(row: CrawlAccount, *, now: datetime) -> bool:
     return bool(row.lease_until and row.lease_until > now)
 
 
 def accounts_needing_heartbeat(
-    rows: list[DoubaoAccount],
+    rows: list[CrawlAccount],
     *,
     stale_before: datetime,
     now: datetime | None = None,
     limit: int = _HEARTBEAT_CHECK_LIMIT,
-) -> list[DoubaoAccount]:
-    """Always include need_relogin / logging_in / empty-session; then stale actives.
-
-    Skips accounts currently leased by a crawl worker.
-    """
+) -> list[CrawlAccount]:
     now = now or utc_now()
-    priority: list[DoubaoAccount] = []
-    stale: list[DoubaoAccount] = []
+    priority: list[CrawlAccount] = []
+    stale: list[CrawlAccount] = []
     for row in rows:
         if _lease_active(row, now=now):
             continue
+        plat = normalize_platform(row.platform)
         status = (row.status or "").strip()
         if status in (STATUS_NEED_RELOGIN, STATUS_LOGGING_IN):
             priority.append(row)
-        elif not storage_state_has_cookies(row.storage_state):
+        elif not storage_state_has_cookies(row.storage_state, platform=plat):
             priority.append(row)
         elif status == STATUS_ACTIVE and row.last_ok_at < stale_before:
             stale.append(row)
-    selected: list[DoubaoAccount] = []
+    selected: list[CrawlAccount] = []
     seen: set[UUID] = set()
     for row in priority + stale:
         if row.id in seen:
@@ -74,29 +71,30 @@ def accounts_needing_heartbeat(
     return selected
 
 
-def run_doubao_account_heartbeat(
+def run_crawl_account_heartbeat(
     db: Session,
     *,
+    platform: str = PLATFORM_DOUBAO,
     settings: Settings | None = None,
 ) -> dict[str, Any]:
-    """Probe pool accounts; on failure open human ticket + alert. No-op when disabled."""
+    """Probe pool accounts for one platform; on failure open human ticket + alert."""
     settings = settings or get_settings()
     if not settings.doubao_heartbeat_enabled:
         return {"ok": True, "skipped": True, "reason": "disabled"}
 
+    plat = normalize_platform(platform)
     now = utc_now()
-    # Stale ≈ half the sampling freshness window.
-    # need_relogin / logging_in / empty-cookie actives are always candidates (else no new tickets).
     stale_before = now - timedelta(seconds=max(60, int(settings.doubao_heartbeat_fresh_s) // 2))
     pool_rows = list(
         db.scalars(
-            select(DoubaoAccount)
+            select(CrawlAccount)
             .where(
-                DoubaoAccount.status.in_(
+                CrawlAccount.platform == plat,
+                CrawlAccount.status.in_(
                     (STATUS_ACTIVE, STATUS_NEED_RELOGIN, STATUS_LOGGING_IN)
-                )
+                ),
             )
-            .order_by(DoubaoAccount.updated_at.asc())
+            .order_by(CrawlAccount.updated_at.asc())
             .limit(_HEARTBEAT_SCAN_LIMIT)
         ).all()
     )
@@ -106,13 +104,14 @@ def run_doubao_account_heartbeat(
     revived = 0
     failed = 0
     for row in rows:
-        # Re-check lease in case it was taken between select and probe.
         db.refresh(row)
         if _lease_active(row, now=utc_now()):
             continue
         checked += 1
         try:
-            new_state = probe_account_login(row.storage_state, settings=settings)
+            new_state = probe_account_login(
+                row.storage_state, platform=plat, settings=settings
+            )
             row.storage_state = new_state
             row.last_ok_at = utc_now()
             row.last_error = ""
@@ -128,9 +127,10 @@ def run_doubao_account_heartbeat(
             )
             failed += 1
             logger.warning(
-                "doubao heartbeat needs human ops id=%s label=%s reason=%s",
+                "geo crawl heartbeat needs human ops id=%s label=%s platform=%s reason=%s",
                 row.id,
                 row.label,
+                plat,
                 reason,
             )
         except Exception as exc:
@@ -142,13 +142,20 @@ def run_doubao_account_heartbeat(
                 settings=settings,
             )
             failed += 1
-            logger.warning("doubao heartbeat failed id=%s label=%s: %s", row.id, row.label, exc)
+            logger.warning(
+                "geo crawl heartbeat failed id=%s label=%s platform=%s: %s",
+                row.id,
+                row.label,
+                plat,
+                exc,
+            )
         db.flush()
 
     db.commit()
     return {
         "ok": True,
         "skipped": False,
+        "platform": plat,
         "checked": checked,
         "ok_count": revived,
         "failed": failed,
@@ -158,47 +165,51 @@ def run_doubao_account_heartbeat(
 def probe_account_login(
     storage_state: dict[str, Any],
     *,
+    platform: str = PLATFORM_DOUBAO,
     settings: Settings | None = None,
 ) -> dict[str, Any]:
     """Open chat page with storage_state; raise DoubaoNeedsHumanOps if session unusable."""
     settings = settings or get_settings()
-    if not storage_state_has_cookies(storage_state):
-        raise DoubaoLoginExpired("storage_state missing Doubao session cookies")
+    plat = normalize_platform(platform)
+    if plat != PLATFORM_DOUBAO:
+        raise DoubaoCrawlError(f"heartbeat probe not implemented for platform={plat}")
+    if not storage_state_has_cookies(storage_state, platform=plat):
+        raise DoubaoLoginExpired(f"storage_state missing {plat} session cookies")
 
-    try:
-        from aperix_geo.services.providers.doubao_web.browser import browser_page_session
-    except ImportError as exc:
-        raise RuntimeError("playwright is not installed") from exc
+    from aperix_geo.services.providers.doubao_web.probe_job import build_probe_payload
+    from aperix_geo.services.geo_web_crawl.spawn import run_geo_web_crawl_spawn
 
-    base_url = (settings.doubao_chat_base_url or sel.CHAT_URL).strip() or sel.CHAT_URL
-    timeout_ms = min(60_000, int(settings.doubao_crawl_timeout_s * 1000))
+    payload = build_probe_payload(storage_state=storage_state, settings=settings)
+    payload["platform"] = plat
+    timeout_s = float(payload.get("timeout_s") or 60)
+    job = run_geo_web_crawl_spawn(
+        payload,
+        timeout_s=timeout_s,
+        docker_image=(settings.geo_web_crawl_docker_image or "").strip(),
+        base_url=(settings.geo_web_crawl_base_url or "").strip(),
+        token=(settings.geo_web_crawl_token or "").strip(),
+        mode="probe",
+    )
+    if job.get("ok"):
+        state = job.get("storage_state")
+        if isinstance(state, dict):
+            return state
+        raise DoubaoCrawlError("probe ok but storage_state missing")
 
-    with browser_page_session(settings, storage_state=storage_state) as (page, context):
-        page.goto(base_url, wait_until="domcontentloaded", timeout=timeout_ms)
-        url = (page.url or "").lower()
-        if "login" in url or "passport" in url:
-            raise DoubaoLoginExpired(f"redirected to login: {page.url}")
-        try:
-            body = page.locator("body").inner_text(timeout=3_000) or ""
-        except Exception:
-            body = ""
-        if page_looks_like_captcha(body):
-            raise DoubaoCaptchaRequired("behavior captcha on heartbeat probe")
-        for css in sel.CAPTCHA_DOM_SELECTORS:
-            try:
-                loc = page.locator(css)
-                if loc.count() > 0 and loc.first.is_visible():
-                    raise DoubaoCaptchaRequired("behavior captcha on heartbeat probe")
-            except DoubaoCaptchaRequired:
-                raise
-            except Exception:
-                continue
-        login_btn = page.get_by_role("button", name=sel.LOGIN_HINT)
-        composer = page.locator("textarea, div[contenteditable='true']")
-        if login_btn.count() > 0 and composer.count() == 0:
-            raise DoubaoLoginExpired("login UI visible")
-        # Composer alone is not enough (guest UI also has it); require session cookies
-        # already validated above. Missing composer ⇒ unusable.
-        if composer.count() == 0:
-            raise DoubaoLoginExpired("chat composer not found")
-        return context.storage_state()
+    err_type = str(job.get("error_type") or "DoubaoCrawlError")
+    err_msg = str(job.get("error") or "probe failed")
+    if err_type == "DoubaoCaptchaRequired" or (
+        job.get("human_ops") and "captcha" in err_msg.lower()
+    ):
+        raise DoubaoCaptchaRequired(err_msg)
+    if err_type in {
+        "DoubaoLoginExpired",
+        "DoubaoNeedsHumanOps",
+        "DoubaoCaptchaRequired",
+    } or job.get("human_ops"):
+        if err_type == "DoubaoCaptchaRequired":
+            raise DoubaoCaptchaRequired(err_msg)
+        if err_type == "DoubaoLoginExpired":
+            raise DoubaoLoginExpired(err_msg)
+        raise DoubaoNeedsHumanOps(err_msg)
+    raise DoubaoCrawlError(f"{err_type}: {err_msg}")

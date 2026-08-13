@@ -1,4 +1,4 @@
-"""Tests for Doubao human ops (ticket + alert) recovery path."""
+"""Tests for crawl human ops (ticket + alert) recovery path."""
 
 from __future__ import annotations
 
@@ -6,10 +6,10 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 from aperix_geo.config import Settings
-from aperix_geo.db.models import DoubaoAccount, DoubaoLoginTicket
-from aperix_geo.services.doubao_accounts.human_ops import request_human_intervention
-from aperix_geo.services.doubao_accounts.pool import STATUS_NEED_RELOGIN
-from aperix_geo.services.doubao_accounts.tickets import TICKET_PENDING
+from aperix_geo.db.models import CrawlAccount, CrawlLoginTicket
+from aperix_geo.services.crawl_accounts.human_ops import request_human_intervention
+from aperix_geo.services.crawl_accounts.pool import STATUS_NEED_RELOGIN
+from aperix_geo.services.crawl_accounts.tickets import TICKET_PENDING
 
 
 def _settings(**kwargs) -> Settings:
@@ -29,7 +29,7 @@ def _settings(**kwargs) -> Settings:
 
 def test_request_human_intervention_opens_ticket_and_alerts() -> None:
     account_id = uuid4()
-    account = DoubaoAccount(
+    account = CrawlAccount(
         id=account_id,
         label="acc-1",
         status="active",
@@ -40,7 +40,7 @@ def test_request_human_intervention_opens_ticket_and_alerts() -> None:
     db.get.return_value = account
     db.scalars.return_value.first.return_value = None
 
-    created = DoubaoLoginTicket(
+    created = CrawlLoginTicket(
         id=uuid4(),
         account_id=account_id,
         label="acc-1",
@@ -51,11 +51,11 @@ def test_request_human_intervention_opens_ticket_and_alerts() -> None:
 
     with (
         patch(
-            "aperix_geo.services.doubao_accounts.human_ops.create_login_ticket",
+            "aperix_geo.services.crawl_accounts.human_ops.create_login_ticket",
             return_value=created,
         ) as create_ticket,
         patch(
-            "aperix_geo.services.doubao_accounts.human_ops.send_alert_email",
+            "aperix_geo.services.crawl_accounts.human_ops.send_alert_email",
         ) as send_mail,
     ):
         out = request_human_intervention(
@@ -78,8 +78,8 @@ def test_request_human_intervention_opens_ticket_and_alerts() -> None:
 
 def test_request_human_intervention_reuses_live_session_without_alert() -> None:
     account_id = uuid4()
-    account = DoubaoAccount(id=account_id, label="acc-1", status="active", storage_state={}, last_error="")
-    pending = DoubaoLoginTicket(
+    account = CrawlAccount(id=account_id, label="acc-1", status="active", storage_state={}, last_error="")
+    pending = CrawlLoginTicket(
         id=uuid4(),
         account_id=account_id,
         label="acc-1",
@@ -94,13 +94,13 @@ def test_request_human_intervention_reuses_live_session_without_alert() -> None:
     db.scalars.return_value.first.return_value = pending
 
     with (
-        patch("aperix_geo.services.doubao_accounts.human_ops.create_login_ticket") as create_ticket,
+        patch("aperix_geo.services.crawl_accounts.human_ops.create_login_ticket") as create_ticket,
         patch(
-            "aperix_geo.services.doubao_accounts.human_ops.ensure_pending_ticket_session",
+            "aperix_geo.services.crawl_accounts.human_ops.ensure_pending_ticket_session",
             return_value=False,
         ) as ensure_session,
         patch(
-            "aperix_geo.services.doubao_accounts.human_ops.send_alert_email",
+            "aperix_geo.services.crawl_accounts.human_ops.send_alert_email",
         ) as send_mail,
     ):
         out = request_human_intervention(
@@ -120,8 +120,8 @@ def test_request_human_intervention_reuses_live_session_without_alert() -> None:
 
 def test_request_human_intervention_respawns_dead_session_and_alerts() -> None:
     account_id = uuid4()
-    account = DoubaoAccount(id=account_id, label="acc-1", status="active", storage_state={}, last_error="")
-    pending = DoubaoLoginTicket(
+    account = CrawlAccount(id=account_id, label="acc-1", status="active", storage_state={}, last_error="")
+    pending = CrawlLoginTicket(
         id=uuid4(),
         account_id=account_id,
         label="acc-1",
@@ -141,13 +141,13 @@ def test_request_human_intervention_respawns_dead_session_and_alerts() -> None:
         return True
 
     with (
-        patch("aperix_geo.services.doubao_accounts.human_ops.create_login_ticket") as create_ticket,
+        patch("aperix_geo.services.crawl_accounts.human_ops.create_login_ticket") as create_ticket,
         patch(
-            "aperix_geo.services.doubao_accounts.human_ops.ensure_pending_ticket_session",
+            "aperix_geo.services.crawl_accounts.human_ops.ensure_pending_ticket_session",
             side_effect=_respawn,
         ),
         patch(
-            "aperix_geo.services.doubao_accounts.human_ops.send_alert_email",
+            "aperix_geo.services.crawl_accounts.human_ops.send_alert_email",
         ) as send_mail,
     ):
         out = request_human_intervention(
@@ -168,11 +168,11 @@ def test_request_human_intervention_respawns_dead_session_and_alerts() -> None:
 
 def test_request_human_intervention_skips_ticket_when_disabled() -> None:
     account_id = uuid4()
-    account = DoubaoAccount(id=account_id, label="acc-1", status="active", storage_state={}, last_error="")
+    account = CrawlAccount(id=account_id, label="acc-1", status="active", storage_state={}, last_error="")
     db = MagicMock()
     db.get.return_value = account
 
-    with patch("aperix_geo.services.doubao_accounts.human_ops.create_login_ticket") as create_ticket:
+    with patch("aperix_geo.services.crawl_accounts.human_ops.create_login_ticket") as create_ticket:
         out = request_human_intervention(
             db,
             account_id=account_id,
