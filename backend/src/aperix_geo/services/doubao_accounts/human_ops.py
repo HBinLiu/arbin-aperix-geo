@@ -3,11 +3,15 @@
 Login expiry and behavior captcha share this path — never auto-solve captcha,
 and never treat captcha as a special in-browser wait. Sampling falls back to API;
 ops clears the account via login ticket (noVNC / storage_state upload).
+
+通知策略：有工单 / 人工介入时发信（无冷却、失败重试）；心跳正常探活不发摘要。
+不沿用 PROVIDER_ALERT_COOLDOWN（该冷却仅影响欠费等平台告警）。
 """
 
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 from typing import Any, Literal
 
@@ -17,7 +21,6 @@ from sqlalchemy.orm import Session
 from aperix_geo.config import Settings, get_settings
 from aperix_geo.db.models import DoubaoAccount, DoubaoLoginTicket
 from aperix_geo.services.alerts.email import send_alert_email
-from aperix_geo.services.alerts.state import evaluate_alert_gate, mark_alert_sent
 from aperix_geo.services.doubao_accounts.pool import mark_need_relogin
 from aperix_geo.services.doubao_accounts.tickets import (
     TICKET_PENDING,
@@ -33,6 +36,61 @@ _REASON_LABEL = {
     "login_expired": "登录失效",
     "captcha": "行为验证码",
 }
+
+_EMAIL_ATTEMPTS = 3
+_EMAIL_RETRY_SLEEP_S = 1.5
+
+
+def _alert_recipients(settings: Settings) -> list[str]:
+    return [
+        part.strip()
+        for part in (settings.provider_alert_email_to or "").split(",")
+        if part.strip()
+    ]
+
+
+def send_ops_alert_email(
+    settings: Settings,
+    *,
+    subject: str,
+    body: str,
+    context: str = "ops",
+) -> bool:
+    """Send ops email with retries. Returns True when delivered."""
+    if not settings.provider_alert_enabled:
+        logger.info("ops alert skipped (%s): PROVIDER_ALERT_ENABLED=false", context)
+        return False
+    email_to = _alert_recipients(settings)
+    if not email_to:
+        logger.warning("ops alert skipped (%s): PROVIDER_ALERT_EMAIL_TO empty", context)
+        return False
+
+    last_exc: Exception | None = None
+    for attempt in range(1, _EMAIL_ATTEMPTS + 1):
+        try:
+            send_alert_email(settings, to_addrs=email_to, subject=subject, body=body)
+            logger.info(
+                "ops alert emailed context=%s to=%s attempt=%s subject=%s",
+                context,
+                email_to,
+                attempt,
+                subject[:120],
+            )
+            return True
+        except Exception as exc:
+            last_exc = exc
+            logger.warning(
+                "ops alert email failed context=%s attempt=%s/%s: %s",
+                context,
+                attempt,
+                _EMAIL_ATTEMPTS,
+                exc,
+                exc_info=attempt == _EMAIL_ATTEMPTS,
+            )
+            if attempt < _EMAIL_ATTEMPTS:
+                time.sleep(_EMAIL_RETRY_SLEEP_S)
+    logger.error("ops alert email exhausted retries context=%s err=%s", context, last_exc)
+    return False
 
 
 def request_human_intervention(
@@ -139,25 +197,7 @@ def _maybe_alert_ops(
     ticket: DoubaoLoginTicket | None,
     settings: Settings,
 ) -> bool:
-    if not settings.provider_alert_enabled:
-        return False
-    email_to = [
-        part.strip()
-        for part in (settings.provider_alert_email_to or "").split(",")
-        if part.strip()
-    ]
-    if not email_to:
-        return False
-
-    gate_id = f"doubao_account:{account_id}"
-    gate = evaluate_alert_gate(
-        gate_id,
-        min_fails=1,
-        cooldown_seconds=settings.provider_alert_cooldown_seconds,
-    )
-    if not gate.should_notify:
-        return False
-
+    """Always attempt email on ticket / human-ops (no cooldown)."""
     reason_cn = _REASON_LABEL.get(reason, reason)
     env = (getattr(settings, "env", None) or "unknown").strip() or "unknown"
     subject = f"[Aperix GEO] 豆包账号需人工处理：{reason_cn} ({env})"
@@ -183,10 +223,9 @@ def _maybe_alert_ops(
             f"noVNC 配置：{'是' if novnc_configured(settings) else '否（upload fallback）'}",
         ]
     )
-    try:
-        send_alert_email(settings, to_addrs=email_to, subject=subject, body=body)
-    except Exception:
-        logger.warning("doubao human-ops alert email failed account=%s", account_id, exc_info=True)
-        return False
-    mark_alert_sent(gate_id)
-    return True
+    return send_ops_alert_email(
+        settings,
+        subject=subject,
+        body=body,
+        context=f"doubao_ticket:{account_id}",
+    )
