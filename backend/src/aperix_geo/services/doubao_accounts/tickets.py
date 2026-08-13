@@ -1,7 +1,8 @@
-"""Doubao login tickets: create / complete / cancel (upload fallback; noVNC optional)."""
+"""Doubao account tickets: create / complete / cancel (geo-crawl-ops noVNC or upload)."""
 
 from __future__ import annotations
 
+import logging
 import secrets
 from datetime import timedelta
 from typing import Any
@@ -20,6 +21,15 @@ from aperix_geo.services.doubao_accounts.pool import (
     STATUS_NEED_RELOGIN,
     upsert_account_from_state,
 )
+from aperix_geo.services.geo_crawl_ops import (
+    GeoCrawlOpsDockerError,
+    geo_crawl_ops_ready,
+    spawn_ops_session,
+    stop_ops_session,
+)
+from aperix_geo.services.providers.doubao_web import selectors as sel
+
+logger = logging.getLogger(__name__)
 
 TICKET_PENDING = "pending"
 TICKET_SUCCEEDED = "succeeded"
@@ -27,14 +37,25 @@ TICKET_FAILED = "failed"
 TICKET_EXPIRED = "expired"
 TICKET_CANCELLED = "cancelled"
 
+PLATFORM = "doubao"
+
+# Strong login signals (same set as scripts/doubao_web_login.py). Guest cookies like odin_tt do not count.
+_SESSION_COOKIE_NAMES = frozenset(
+    {
+        "sessionid",
+        "sessionid_ss",
+        "sid_guard",
+        "sid_tt",
+        "uid_tt",
+        "uid_tt_ss",
+    }
+)
+
 
 def novnc_configured(settings: Settings | None = None) -> bool:
+    """Doubao tickets can use shared geo-crawl-ops noVNC when ticket flag + GEO_CRAWL_OPS_* are set."""
     settings = settings or get_settings()
-    return bool(
-        settings.doubao_login_ticket_enabled
-        and (settings.doubao_login_novnc_base_url or "").strip()
-        and (settings.doubao_login_docker_image or "").strip()
-    )
+    return bool(settings.doubao_ops_ticket_enabled and geo_crawl_ops_ready(settings))
 
 
 def _expire_if_needed(ticket: DoubaoLoginTicket) -> bool:
@@ -43,6 +64,10 @@ def _expire_if_needed(ticket: DoubaoLoginTicket) -> bool:
     if ticket.expires_at <= utc_now():
         ticket.status = TICKET_EXPIRED
         ticket.error_text = "ticket expired"
+        if (ticket.container_id or "").strip():
+            stop_ops_session(ticket.container_id)
+            ticket.container_id = ""
+            ticket.login_url = ""
         return True
     return False
 
@@ -83,7 +108,7 @@ def ticket_to_dict(ticket: DoubaoLoginTicket, *, settings: Settings | None = Non
         "operator": ticket.operator,
         "login_url": ticket.login_url,
         "novnc_available": bool(ticket.login_url.strip()),
-        "upload_fallback": not novnc_configured(settings) or not ticket.login_url.strip(),
+        "upload_fallback": not bool(ticket.login_url.strip()),
         "container_id": ticket.container_id,
         "expires_at": ticket.expires_at.isoformat(),
         "completed_at": ticket.completed_at.isoformat(),
@@ -98,18 +123,24 @@ def create_login_ticket(
     label: str = "",
     account_id: UUID | None = None,
     operator: str = "",
+    reason: str = "login_expired",
     settings: Settings | None = None,
 ) -> DoubaoLoginTicket:
     settings = settings or get_settings()
-    if not settings.doubao_login_ticket_enabled:
+    if not settings.doubao_ops_ticket_enabled:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Doubao login tickets disabled (DOUBAO_LOGIN_TICKET_ENABLED=false)",
+            detail="Doubao ops tickets disabled (DOUBAO_OPS_TICKET_ENABLED=false)",
         )
+
+    ops_reason = (reason or "login_expired").strip().lower()
+    if ops_reason not in ("login_expired", "captcha"):
+        ops_reason = "login_expired"
 
     account: DoubaoAccount | None = None
     resolved_label = (label or "").strip()
     resolved_account_id = ZERO_UUID
+    storage_state: dict[str, Any] | None = None
 
     if account_id is not None and account_id != ZERO_UUID:
         account = db.get(DoubaoAccount, account_id)
@@ -117,6 +148,7 @@ def create_login_ticket(
             raise HTTPException(status_code=404, detail="Account not found")
         resolved_account_id = account.id
         resolved_label = account.label or resolved_label
+        storage_state = dict(account.storage_state or {})
         account.status = STATUS_LOGGING_IN
         account.lease_owner = ""
         account.lease_until = EPOCH
@@ -124,7 +156,6 @@ def create_login_ticket(
     if not resolved_label:
         resolved_label = f"doubao-{uuid4().hex[:8]}"
 
-    # Single open ticket per account when updating existing.
     if resolved_account_id != ZERO_UUID:
         open_ticket = db.scalars(
             select(DoubaoLoginTicket)
@@ -137,7 +168,7 @@ def create_login_ticket(
         if open_ticket is not None:
             raise HTTPException(status_code=409, detail="Account already has a pending login ticket")
 
-    ttl_min = int(settings.doubao_login_ticket_ttl_min)
+    ttl_min = int(settings.doubao_ops_ticket_ttl_min)
     ticket = DoubaoLoginTicket(
         id=uuid4(),
         account_id=resolved_account_id,
@@ -153,11 +184,28 @@ def create_login_ticket(
     )
 
     if novnc_configured(settings):
-        # Docker/noVNC spawn is ops infrastructure; P4 returns structured placeholder.
-        # Real container orchestration lands with the login image deployment.
-        base = settings.doubao_login_novnc_base_url.rstrip("/")
-        ticket.login_url = f"{base}/?ticket={ticket.token}"
-        ticket.error_text = "novnc_spawn_pending: configure worker to attach session"
+        start_url = (settings.doubao_chat_base_url or sel.CHAT_URL).strip() or sel.CHAT_URL
+        try:
+            session = spawn_ops_session(
+                ticket_token=ticket.token,
+                platform=PLATFORM,
+                start_url=start_url,
+                ttl_min=ttl_min,
+                storage_state=storage_state,
+                ops_reason=ops_reason,
+                settings=settings,
+            )
+            ticket.container_id = session.container_id
+            ticket.login_url = session.login_url
+            ticket.error_text = (
+                f"geo_crawl_ops_session: platform={PLATFORM} reason={ops_reason} "
+                f"port={session.host_port} name={session.name}"
+            )
+        except GeoCrawlOpsDockerError as exc:
+            logger.warning("geo-crawl-ops spawn failed; upload fallback ticket=%s: %s", ticket.id, exc)
+            ticket.login_url = ""
+            ticket.container_id = ""
+            ticket.error_text = f"novnc_spawn_failed: {exc}; complete via storage_state upload"
     else:
         ticket.error_text = "novnc_unavailable: complete via storage_state upload"
 
@@ -175,12 +223,53 @@ def get_ticket(db: Session, ticket_id: UUID) -> DoubaoLoginTicket:
     return ticket
 
 
+def get_ticket_by_token(db: Session, token: str) -> DoubaoLoginTicket:
+    tok = (token or "").strip()
+    if not tok:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    ticket = db.scalars(
+        select(DoubaoLoginTicket).where(DoubaoLoginTicket.token == tok).limit(1)
+    ).first()
+    if ticket is None:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    if _expire_if_needed(ticket):
+        db.flush()
+    return ticket
+
+
+def session_cookie_names(storage_state: dict[str, Any]) -> list[str]:
+    cookies = storage_state.get("cookies") if isinstance(storage_state, dict) else None
+    if not isinstance(cookies, list):
+        return []
+    found: list[str] = []
+    for cookie in cookies:
+        if not isinstance(cookie, dict):
+            continue
+        name = str(cookie.get("name") or "")
+        value = str(cookie.get("value") or "").strip()
+        if name in _SESSION_COOKIE_NAMES and value:
+            found.append(name)
+    return sorted(set(found))
+
+
+def require_session_storage_state(storage_state: dict[str, Any]) -> None:
+    if not session_cookie_names(storage_state):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="storage_state missing Doubao session cookies (sessionid / sid_guard / uid_tt …)",
+        )
+
+
 def cancel_ticket(db: Session, ticket_id: UUID) -> DoubaoLoginTicket:
     ticket = get_ticket(db, ticket_id)
     if ticket.status != TICKET_PENDING:
         raise HTTPException(status_code=409, detail=f"Ticket not pending ({ticket.status})")
+    if (ticket.container_id or "").strip():
+        stop_ops_session(ticket.container_id)
     ticket.status = TICKET_CANCELLED
     ticket.error_text = "cancelled"
+    ticket.container_id = ""
+    ticket.login_url = ""
     if ticket.account_id != ZERO_UUID:
         account = db.get(DoubaoAccount, ticket.account_id)
         if account is not None and account.status == STATUS_LOGGING_IN:
@@ -196,10 +285,31 @@ def complete_ticket_with_storage_state(
     storage_state: dict[str, Any],
 ) -> tuple[DoubaoLoginTicket, DoubaoAccount]:
     ticket = get_ticket(db, ticket_id)
+    return _complete_pending_ticket(db, ticket, storage_state=storage_state)
+
+
+def complete_ticket_by_token(
+    db: Session,
+    token: str,
+    *,
+    storage_state: dict[str, Any],
+) -> tuple[DoubaoLoginTicket, DoubaoAccount]:
+    """Complete a pending ticket by possession of its high-entropy token (ops container callback)."""
+    ticket = get_ticket_by_token(db, token)
+    return _complete_pending_ticket(db, ticket, storage_state=storage_state)
+
+
+def _complete_pending_ticket(
+    db: Session,
+    ticket: DoubaoLoginTicket,
+    *,
+    storage_state: dict[str, Any],
+) -> tuple[DoubaoLoginTicket, DoubaoAccount]:
     if ticket.status == TICKET_EXPIRED:
         raise HTTPException(status_code=410, detail="Ticket expired")
     if ticket.status != TICKET_PENDING:
         raise HTTPException(status_code=409, detail=f"Ticket not pending ({ticket.status})")
+    require_session_storage_state(storage_state)
 
     account = upsert_account_from_state(
         db,
@@ -207,6 +317,8 @@ def complete_ticket_with_storage_state(
         storage_state=storage_state,
         status=STATUS_ACTIVE,
     )
+    if (ticket.container_id or "").strip():
+        stop_ops_session(ticket.container_id)
     ticket.account_id = account.id
     ticket.status = TICKET_SUCCEEDED
     ticket.completed_at = utc_now()

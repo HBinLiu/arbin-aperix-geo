@@ -14,10 +14,10 @@ from aperix_geo.services.doubao_accounts.tickets import TICKET_PENDING
 
 def _settings(**kwargs) -> Settings:
     base = {
-        "doubao_login_ticket_enabled": True,
-        "doubao_login_ticket_ttl_min": 15,
-        "doubao_login_novnc_base_url": "",
-        "doubao_login_docker_image": "",
+        "doubao_ops_ticket_enabled": True,
+        "doubao_ops_ticket_ttl_min": 15,
+        "geo_crawl_ops_novnc_base_url": "",
+        "geo_crawl_ops_docker_image": "",
         "provider_alert_enabled": True,
         "provider_alert_email_to": "ops@example.com",
         "provider_alert_cooldown_seconds": 60,
@@ -140,7 +140,7 @@ def test_request_human_intervention_skips_ticket_when_disabled() -> None:
             account_id=account_id,
             reason="captcha",
             error="captcha",
-            settings=_settings(doubao_login_ticket_enabled=False, provider_alert_enabled=False),
+            settings=_settings(doubao_ops_ticket_enabled=False, provider_alert_enabled=False),
         )
 
     create_ticket.assert_not_called()

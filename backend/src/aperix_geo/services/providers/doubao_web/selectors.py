@@ -10,7 +10,7 @@ CHAT_URL = "https://www.doubao.com/chat/"
 # Role / accessible-name patterns (Playwright get_by_role / get_by_text).
 NEW_CHAT_NAME = re.compile(r"新对话|新聊天|新建对话|开启新对话")
 SEND_NAME = re.compile(r"^发送$|发送消息")
-STOP_NAME = re.compile(r"停止生成|停止回答|停止")
+STOP_NAME = re.compile(r"停止生成|停止回答|停止输出|^停止$|Stop generating")
 SHARE_NAME = re.compile(r"^\s*分享\s*$")
 # Overflow menu rows often include 置顶/重命名 next to 分享 (sanity check).
 SHARE_MENU_HINT = re.compile(r"置顶|重命名|举报|删除")
@@ -18,6 +18,9 @@ SHARE_MENU_HINT = re.compile(r"置顶|重命名|举报|删除")
 MORE_MENU_NAME = re.compile(r"更多|更多操作|更多选项|菜单|More")
 COPY_LINK_NAME = re.compile(r"复制链接|复制分享链接|^复制$")
 LOGIN_HINT = re.compile(r"登录|登陆|验证码|扫码")
+# Assistant message toolbar (copy / 朗读 / …). First direct ``button`` copies Markdown body.
+MESSAGE_ACTION_BAR = ".message-action-button-main"
+READ_ALOUD_NAME = re.compile(r"朗读")
 
 # Search / references panel header on assistant replies (outside md-box-root).
 SEARCH_PANEL_HINT = re.compile(r"搜索\s*\d+\s*个关键词")

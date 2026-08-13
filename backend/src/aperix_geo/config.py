@@ -32,6 +32,7 @@ class Settings(BaseSettings):
         env_file=settings_env_files(),
         env_file_encoding="utf-8",
         extra="ignore",
+        populate_by_name=True,
     )
 
     database_url: str = "postgresql+psycopg://aperix:aperix@127.0.0.1:5432/aperix_geo"
@@ -187,10 +188,16 @@ class Settings(BaseSettings):
     doubao_heartbeat_enabled: bool = False
     doubao_heartbeat_interval_min: int = Field(default=45, ge=5, le=1440)
     doubao_heartbeat_fresh_s: int = Field(default=21600, ge=300, le=604800)
-    doubao_login_ticket_enabled: bool = False
-    doubao_login_ticket_ttl_min: int = Field(default=15, ge=5, le=120)
-    doubao_login_novnc_base_url: str = ""
-    doubao_login_docker_image: str = ""
+    # Human ops tickets (login expired + captcha).
+    doubao_ops_ticket_enabled: bool = False
+    doubao_ops_ticket_ttl_min: int = Field(default=15, ge=5, le=120)
+    # Shared crawl remote-desktop sessions (Doubao / DeepSeek / Qianwen / …).
+    geo_crawl_ops_novnc_base_url: str = ""
+    geo_crawl_ops_docker_image: str = ""
+    # Empty = default docker bridge; set when API shares a compose network with reverse-proxy.
+    geo_crawl_ops_docker_network: str = ""
+    # API base reachable from ops containers (e.g. http://api:8000). Empty ⇒ no auto cookie callback.
+    geo_crawl_ops_callback_base_url: str = ""
     # Ops API token for /ops/doubao/* (empty ⇒ ops routes return 503). Not a tenant JWT.
     doubao_ops_api_token: str = ""
     # Account pool lease TTL while a crawl holds the account (seconds).

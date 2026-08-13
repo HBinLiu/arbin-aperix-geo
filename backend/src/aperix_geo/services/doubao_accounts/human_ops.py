@@ -83,7 +83,7 @@ def _ensure_pending_ticket(
     error: str,
     settings: Settings,
 ) -> DoubaoLoginTicket | None:
-    if not settings.doubao_login_ticket_enabled:
+    if not settings.doubao_ops_ticket_enabled:
         return None
 
     existing = db.scalars(
@@ -103,6 +103,7 @@ def _ensure_pending_ticket(
             account_id=account_id,
             label=label,
             operator="system",
+            reason=reason,
             settings=settings,
         )
     except Exception:
@@ -163,7 +164,7 @@ def _maybe_alert_ops(
     ticket_line = (
         f"工单 ID：{ticket.id}\n登录 URL：{ticket.login_url or '（upload_fallback，请回传 storage_state）'}"
         if ticket is not None
-        else "工单：未创建（DOUBAO_LOGIN_TICKET_ENABLED=false 或创建失败）"
+        else "工单：未创建（DOUBAO_OPS_TICKET_ENABLED=false 或创建失败）"
     )
     body = "\n".join(
         [

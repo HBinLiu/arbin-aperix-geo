@@ -1,7 +1,8 @@
 """Extraction helpers for Doubao Web (panel text + md-box HTML → Markdown).
 
-Reply body source of truth: ``.md-box-root`` / ``[data-streaming]`` (see selectors).
-Fan-out / citations are scraped from the separate search panel, not from md-box.
+Reply body preferred path (crawler): message toolbar「复制」→ clipboard Markdown.
+``md-box-root`` HTML→Markdown remains the DOM fallback. Fan-out / citations stay
+in the separate search panel.
 """
 
 from __future__ import annotations

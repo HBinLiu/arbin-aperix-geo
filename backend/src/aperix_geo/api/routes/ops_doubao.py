@@ -52,9 +52,15 @@ class CreateTicketBody(BaseModel):
     label: str = ""
     account_id: UUID | None = None
     operator: str = ""
+    reason: str = Field(default="login_expired", pattern="^(login_expired|captcha)$")
 
 
 class CompleteTicketBody(BaseModel):
+    storage_state: dict[str, Any]
+
+
+class CompleteByTokenBody(BaseModel):
+    token: str = Field(min_length=8, max_length=64)
     storage_state: dict[str, Any]
 
 
@@ -79,6 +85,7 @@ def ops_create_ticket(_: OpsAuth, db: DbSession, body: CreateTicketBody) -> dict
         label=body.label,
         account_id=body.account_id,
         operator=body.operator,
+        reason=body.reason,
     )
     db.commit()
     db.refresh(ticket)
@@ -102,6 +109,21 @@ def ops_complete_ticket(
     ticket, account = ticket_svc.complete_ticket_with_storage_state(
         db,
         ticket_id,
+        storage_state=body.storage_state,
+    )
+    db.commit()
+    return {
+        "ticket": ticket_svc.ticket_to_dict(ticket),
+        "account": ticket_svc.account_to_dict(account),
+    }
+
+
+@router.post("/tickets/complete-by-token")
+def ops_complete_ticket_by_token(db: DbSession, body: CompleteByTokenBody) -> dict[str, Any]:
+    """Public to geo-crawl-ops containers: auth is possession of the pending ticket token."""
+    ticket, account = ticket_svc.complete_ticket_by_token(
+        db,
+        body.token,
         storage_state=body.storage_state,
     )
     db.commit()

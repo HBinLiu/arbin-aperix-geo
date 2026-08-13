@@ -137,7 +137,7 @@ def crawl_doubao_chat(
                     _assert_no_captcha(page)
 
                     # Extract answer BEFORE expanding the search panel (panel text pollutes DOM).
-                    raw_text = _extract_assistant_text(page)
+                    raw_text = _extract_assistant_text(page, deadline=crawl_deadline)
                     panel_text, panel_hrefs = _extract_search_panel(page)
                     queries = extract_quoted_queries(panel_text) if panel_present(panel_text) else ()
                     text = clean_assistant_text(
@@ -251,21 +251,25 @@ def _assert_logged_in(page: Any) -> None:
 def _ensure_blank_chat(page: Any, *, base_url: str, attempts: int = 2) -> None:
     """Open a blank session and hard-validate before sending the sample prompt.
 
-    Retries once on failure (goto landing + 新对话). Still dirty → DoubaoCrawlError
-    so crawl_first can API-fallback instead of sampling into an old thread.
+    If the landing URL already has no conversation id, skip「新对话」on the first
+    attempt. Retries force goto + 新对话 when the page is still dirty.
     """
     prior_id = conversation_id_from_url(page.url or "")
     last_reason = ""
     for attempt in range(1, max(1, attempts) + 1):
-        _open_fresh_chat(page, base_url=base_url)
+        current_id = conversation_id_from_url(page.url or "")
+        # Initial open already on /chat/ with empty id → do not click 新对话.
+        click_new = bool(current_id) or attempt > 1
+        _open_fresh_chat(page, base_url=base_url, click_new_chat=click_new)
         page.wait_for_timeout(500)
         last_reason = _probe_blank_chat_reason(page, prior_conversation_id=prior_id)
         if not last_reason:
             logger.info(
-                "blank chat ready attempt=%s url=%s prior_id=%s",
+                "blank chat ready attempt=%s url=%s prior_id=%s clicked_new=%s",
                 attempt,
                 page.url,
                 prior_id or "-",
+                click_new,
             )
             return
         logger.warning(
@@ -280,14 +284,24 @@ def _ensure_blank_chat(page: Any, *, base_url: str, attempts: int = 2) -> None:
     )
 
 
-def _open_fresh_chat(page: Any, *, base_url: str) -> None:
-    """Navigate to chat landing and click 新对话 when available."""
+def _open_fresh_chat(page: Any, *, base_url: str, click_new_chat: bool = True) -> None:
+    """Navigate to chat landing; click 新对话 only when requested or still on a thread."""
     target = (base_url or sel.CHAT_URL).strip() or sel.CHAT_URL
+
+    # Already on blank /chat/ and caller does not force refresh → nothing to do.
+    if not click_new_chat and not conversation_id_from_url(page.url or ""):
+        logger.info("blank chat landing already (empty conversation_id); skip 新对话 url=%s", page.url)
+        return
+
     try:
         page.goto(target, wait_until="domcontentloaded")
         page.wait_for_timeout(400)
     except Exception:
         logger.debug("goto chat landing failed", exc_info=True)
+
+    # After goto landing with empty id and not forcing click → done.
+    if not click_new_chat and not conversation_id_from_url(page.url or ""):
+        return
 
     btn = page.get_by_role("button", name=sel.NEW_CHAT_NAME)
     if btn.count() == 0:
@@ -401,81 +415,209 @@ def _assert_no_captcha(page: Any) -> None:
         )
 
 
-def _wait_generation_done(page: Any, *, settings: Settings, deadline: float) -> None:
-    """Wait until streaming finishes: stop button gone and md-box data-streaming=false."""
-    stop = page.get_by_role("button", name=sel.STOP_NAME)
-
-    saw_stop = False
-    poll_until = min(deadline, time.monotonic() + 30.0)
-    while time.monotonic() < poll_until:
-        _assert_no_captcha(page)
+def _stop_button_visible(page: Any) -> bool:
+    """True while Doubao shows stop-generation control (label / aria / text)."""
+    for locator in (
+        page.get_by_role("button", name=sel.STOP_NAME),
+        page.locator("button").filter(has_text=sel.STOP_NAME),
+        page.locator("button[aria-label]").filter(has_text=sel.STOP_NAME),
+    ):
         try:
-            if stop.count() > 0 and stop.first.is_visible():
-                saw_stop = True
-                break
+            n = min(locator.count(), 8)
+            for i in range(n):
+                el = locator.nth(i)
+                if el.is_visible():
+                    return True
         except Exception:
-            pass
-        try:
-            box = page.locator(".md-box-root").last
-            if box.count() > 0:
-                flag = box.get_attribute("data-streaming")
-                text = (box.inner_text(timeout=500) or "").strip()
-                if text and flag != "true":
-                    break
-        except Exception:
-            pass
-        page.wait_for_timeout(500)
-
-    if saw_stop:
-        while time.monotonic() < deadline:
-            _assert_no_captcha(page)
-            try:
-                if stop.count() == 0 or not stop.first.is_visible():
-                    break
-            except Exception:
-                break
-            page.wait_for_timeout(500)
-        else:
-            raise DoubaoCrawlError("generation did not finish before timeout (stop button)")
-
-    _wait_md_box_streaming_false(page, settings=settings, deadline=deadline)
-    page.wait_for_timeout(400)
-
-
-def _wait_md_box_streaming_false(page: Any, *, settings: Settings, deadline: float) -> None:
-    """Prefer last .md-box-root reaching data-streaming=false (Doubao stream end signal)."""
-    remaining_ms = max(500, int((deadline - time.monotonic()) * 1000))
-    box = page.locator(".md-box-root").last
+            continue
+    # Fallback: scan visible button labels (Doubao sometimes uses icon + aria only).
     try:
-        box.wait_for(state="attached", timeout=min(15_000, remaining_ms))
+        return bool(
+            page.evaluate(
+                """() => {
+                  const re = /停止生成|停止回答|停止输出|^停止$|Stop generating/i;
+                  for (const b of document.querySelectorAll('button')) {
+                    const style = window.getComputedStyle(b);
+                    if (style.display === 'none' || style.visibility === 'hidden') continue;
+                    if (b.getClientRects().length === 0) continue;
+                    const label = (
+                      b.getAttribute('aria-label') ||
+                      b.getAttribute('title') ||
+                      b.innerText ||
+                      ''
+                    ).trim();
+                    if (re.test(label)) return true;
+                  }
+                  return false;
+                }"""
+            )
+        )
     except Exception:
-        page.wait_for_timeout(1_500)
-        return
+        return False
 
+
+def _any_streaming_true(page: Any) -> bool:
+    """True if any node still has data-streaming=true (not only the last md-box)."""
+    try:
+        return page.locator('[data-streaming="true"]').count() > 0
+    except Exception:
+        return False
+
+
+def _action_bar_visible(page: Any) -> bool:
+    bar = page.locator(sel.MESSAGE_ACTION_BAR)
+    try:
+        if bar.count() <= 0:
+            return False
+        return bool(bar.last.is_visible())
+    except Exception:
+        return False
+
+
+def _wait_until(page: Any, *, deadline: float, predicate: Any, label: str) -> None:
+    """Poll DOM until predicate() is true, or raise on crawl deadline / page closed."""
     while time.monotonic() < deadline:
         _assert_no_captcha(page)
         try:
-            flag = box.get_attribute("data-streaming")
-            text = (box.inner_text(timeout=800) or "").strip()
-            if text and flag != "true":
+            if predicate():
                 return
-        except Exception:
-            pass
-        page.wait_for_timeout(500)
+        except DoubaoNeedsHumanOps:
+            raise
+        except Exception as exc:
+            name = type(exc).__name__
+            if "TargetClosed" in name or "closed" in str(exc).lower():
+                raise DoubaoCrawlError(f"page closed while waiting for {label}") from exc
+        try:
+            page.wait_for_timeout(300)
+        except Exception as exc:
+            name = type(exc).__name__
+            if "TargetClosed" in name or "closed" in str(exc).lower():
+                raise DoubaoCrawlError(f"page closed while waiting for {label}") from exc
+            raise
+    raise DoubaoCrawlError(f"timeout waiting for {label}")
 
-    flag = ""
+
+def _wait_generation_done(page: Any, *, settings: Settings, deadline: float) -> None:
+    """Wait for full reply via generating → idle → toolbar (DOM only).
+
+    Doubao may show ``.message-action-button-main`` before the answer finishes.
+    Therefore finish requires having observed a real generating signal first:
+
+      1. 停止按钮 或 任意 ``[data-streaming=true]`` 出现
+      2. 停止消失 且 页面上不再有 ``data-streaming=true``
+      3. ``.message-action-button-main`` 可见 → 再复制
+    """
+    _ = settings
+    saw_generating = False
+
+    def _generating() -> bool:
+        return _stop_button_visible(page) or _any_streaming_true(page)
+
+    def _started() -> bool:
+        nonlocal saw_generating
+        if _generating():
+            saw_generating = True
+            return True
+        return False
+
+    _wait_until(
+        page,
+        deadline=deadline,
+        predicate=_started,
+        label="generation start (stop button or data-streaming=true)",
+    )
+
+    def _finished() -> bool:
+        nonlocal saw_generating
+        if _generating():
+            saw_generating = True
+            return False
+        if not saw_generating:
+            return False
+        return _action_bar_visible(page)
+
+    _wait_until(
+        page,
+        deadline=deadline,
+        predicate=_finished,
+        label="generation end (idle after stop/streaming + action bar)",
+    )
+
+
+def _read_clipboard(page: Any) -> str:
     try:
-        flag = str(box.get_attribute("data-streaming") or "")
+        clip = page.evaluate("navigator.clipboard.readText()")
+    except Exception:
+        logger.debug("clipboard read failed", exc_info=True)
+        return ""
+    return clip.strip() if isinstance(clip, str) else ""
+
+
+def _message_action_bar(page: Any) -> Any | None:
+    """Latest visible ``.message-action-button-main`` under the assistant reply."""
+    bar = page.locator(sel.MESSAGE_ACTION_BAR)
+    try:
+        if bar.count() <= 0:
+            return None
+        target = bar.last
+        target.wait_for(state="visible", timeout=5_000)
+        return target
+    except Exception:
+        return None
+
+
+def _locate_copy_body_button(bar: Any) -> Any | None:
+    """First toolbar button = 复制正文 (sibling before「朗读」when present)."""
+    try:
+        read_aloud = bar.get_by_role("button", name=sel.READ_ALOUD_NAME)
+        if read_aloud.count() > 0:
+            prev = read_aloud.first.locator("xpath=preceding-sibling::button[1]")
+            if prev.count() > 0:
+                return prev.first
     except Exception:
         pass
-    if flag == "true":
-        raise DoubaoCrawlError("generation did not finish before timeout (data-streaming still true)")
-    page.wait_for_timeout(800)
+    try:
+        direct = bar.locator(":scope > button")
+        if direct.count() > 0:
+            return direct.first
+    except Exception:
+        pass
+    return None
 
 
-def _extract_assistant_text(page: Any) -> str:
-    """Prefer Doubao ``md-box-root`` HTML → Markdown; fan-out panel is outside this node."""
+def _copy_assistant_markdown_via_toolbar(page: Any) -> str:
+    """Click 复制正文 once and return clipboard Markdown (call after generation done)."""
+    bar = _message_action_bar(page)
+    if bar is None:
+        return ""
+    copy_btn = _locate_copy_body_button(bar)
+    if copy_btn is None:
+        return ""
+    before = _read_clipboard(page)
+    try:
+        copy_btn.click(timeout=5_000)
+        page.wait_for_timeout(400)
+    except Exception:
+        logger.debug("assistant copy-button click failed", exc_info=True)
+        return ""
+    after = _read_clipboard(page)
+    if not after:
+        return ""
+    if after != before:
+        return after
+    if after.strip().lower().startswith("http") and len(after.strip().split()) == 1:
+        return ""
+    return after
+
+
+def _extract_assistant_text(page: Any, *, deadline: float | None = None) -> str:
+    """Prefer toolbar「复制」→ clipboard Markdown; fallback ``md-box-root``."""
     from aperix_geo.services.providers.doubao_web.extract import md_box_html_to_markdown
+
+    _ = deadline  # reserved; completion is decided in _wait_generation_done
+    copied = _copy_assistant_markdown_via_toolbar(page)
+    if copied.strip():
+        return copied.strip()
 
     for css in sel.MD_BOX_SELECTORS:
         loc = page.locator(css)
@@ -485,7 +627,6 @@ def _extract_assistant_text(page: Any) -> str:
             continue
         if n <= 0:
             continue
-        # Last streamed box is the current assistant reply.
         target = loc.last
         try:
             html = target.evaluate("el => el.outerHTML")
@@ -502,7 +643,6 @@ def _extract_assistant_text(page: Any) -> str:
         if plain:
             return plain
 
-    # Fallback: legacy message containers (no md-box on older shells).
     for css in sel.ASSISTANT_MESSAGE_SELECTORS:
         loc = page.locator(css)
         try:
@@ -796,9 +936,9 @@ def _capture_share_url(page: Any) -> str:
     candidates: list[str] = []
 
     try:
-        clip = page.evaluate("navigator.clipboard.readText()")
-        if isinstance(clip, str) and clip.strip():
-            candidates.append(clip.strip())
+        clip = _read_clipboard(page)
+        if clip:
+            candidates.append(clip)
     except Exception:
         logger.debug("clipboard read failed", exc_info=True)
 

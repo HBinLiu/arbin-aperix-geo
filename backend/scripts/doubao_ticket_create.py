@@ -4,7 +4,7 @@
 Usage:
 
   export DOUBAO_OPS_API_TOKEN=...
-  export DOUBAO_LOGIN_TICKET_ENABLED=true
+  export DOUBAO_OPS_TICKET_ENABLED=true
   python3 scripts/doubao_ticket_create.py --label staging-1 --operator alice
 
   # Complete after headed login:
