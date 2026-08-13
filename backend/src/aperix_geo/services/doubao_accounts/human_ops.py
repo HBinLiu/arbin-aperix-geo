@@ -209,8 +209,9 @@ def _maybe_alert_ops(
     body = "\n".join(
         [
             f"环境：{env}",
-            f"账号 label：{label or '—'}",
+            "账号平台：豆包",
             f"账号 ID：{account_id}",
+            f"账号 label：{label or '—'}",
             f"原因：{reason_cn}（{reason}）",
             "",
             "错误摘要：",
@@ -219,8 +220,6 @@ def _maybe_alert_ops(
             ticket_line,
             "",
             "处理：打开/完成豆包登录工单（noVNC 或上传 storage_state），恢复后账号回 active。",
-            "采样侧本条可走 API 兜底；验证码禁止自动打码。",
-            f"noVNC 配置：{'是' if novnc_configured(settings) else '否（upload fallback）'}",
         ]
     )
     return send_ops_alert_email(
