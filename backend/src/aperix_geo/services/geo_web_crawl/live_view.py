@@ -4,9 +4,11 @@ Enable with ``GEO_WEB_CRAWL_LIVE_VIEW=1`` (crawl container).
 
 1. Prefer Browserless CDP ``Browserless.liveURL`` (view-only stream link).
 2. If that fails (common on open-source images without Hybrid), fall back to
-   periodic screenshots under ``GEO_WEB_CRAWL_LIVE_VIEW_SCREENSHOT_DIR``.
+   **main-thread** screenshots under ``GEO_WEB_CRAWL_LIVE_VIEW_SCREENSHOT_DIR``
+   (start + end only — Sync Playwright is not thread-safe; never shot from a
+   background thread).
 3. Optional ``GEO_WEB_CRAWL_LIVE_VIEW_PAUSE_S`` sleeps after the link is logged
-   so you can open it before automation races ahead.
+   so you can open Debugger / liveURL before automation races ahead.
 
 Rewrite internal Docker hosts with ``GEO_WEB_CRAWL_LIVE_VIEW_BASE_URL``
 (e.g. ``http://127.0.0.1:3001``) when Browserless is published to the host.
@@ -16,7 +18,6 @@ from __future__ import annotations
 
 import logging
 import os
-import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -87,7 +88,7 @@ def try_start_browserless_live_url(page: Any, context: Any) -> str | None:
     except Exception as exc:
         logger.info(
             "live view: Browserless.liveURL unavailable (%s); "
-            "use screenshots / Debugger instead",
+            "use Debugger / start-end screenshots instead",
             type(exc).__name__,
         )
         return None
@@ -99,24 +100,19 @@ def try_start_browserless_live_url(page: Any, context: Any) -> str | None:
     return rewrite_live_url(raw)
 
 
-def _screenshot_loop(
-    page: Any,
-    directory: Path,
-    stop: threading.Event,
-    *,
-    interval_s: float,
-) -> None:
-    directory.mkdir(parents=True, exist_ok=True)
-    idx = 0
-    while not stop.wait(timeout=max(1.0, interval_s)):
-        idx += 1
-        path = directory / f"frame-{idx:04d}.png"
-        try:
-            page.screenshot(path=str(path), full_page=False)
-            logger.info("live view screenshot → %s url=%s", path, getattr(page, "url", ""))
-        except Exception as exc:
-            logger.info("live view screenshot stopped: %s", exc)
-            break
+def _screenshot_once(page: Any, directory: Path, *, label: str) -> None:
+    """Capture one frame on the Playwright worker thread only."""
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / f"{label}.png"
+        page.screenshot(path=str(path), full_page=False)
+        logger.warning(
+            "geo-web-crawl LIVE VIEW screenshot → %s url=%s",
+            path,
+            getattr(page, "url", ""),
+        )
+    except Exception:
+        logger.info("live view screenshot %s failed", label, exc_info=True)
 
 
 @contextmanager
@@ -134,46 +130,33 @@ def maybe_attach_live_view(page: Any, context: Any) -> Iterator[dict[str, Any]]:
         logger.warning("geo-web-crawl LIVE VIEW (open in browser): %s", live_url)
 
     shot_dir = live_view_screenshot_dir()
-    stop = threading.Event()
-    thread: threading.Thread | None = None
     if shot_dir is not None:
         meta["screenshot_dir"] = str(shot_dir)
-        try:
-            interval = float(os.environ.get("GEO_WEB_CRAWL_LIVE_VIEW_SCREENSHOT_S") or "5")
-        except ValueError:
-            interval = 5.0
-        thread = threading.Thread(
-            target=_screenshot_loop,
-            args=(page, shot_dir, stop),
-            kwargs={"interval_s": interval},
-            name="geo-web-crawl-live-shot",
-            daemon=True,
-        )
-        thread.start()
         logger.warning(
-            "geo-web-crawl LIVE VIEW screenshots → %s (every %.0fs)",
+            "geo-web-crawl LIVE VIEW screenshots (main thread start/end only) → %s",
             shot_dir,
-            max(1.0, interval),
         )
 
     if not live_url and shot_dir is None:
         logger.warning(
             "geo-web-crawl LIVE VIEW enabled but no liveURL and no "
-            "GEO_WEB_CRAWL_LIVE_VIEW_SCREENSHOT_DIR; map Browserless port and "
-            "open the container Debugger, or set a screenshot dir"
+            "GEO_WEB_CRAWL_LIVE_VIEW_SCREENSHOT_DIR; open Browserless Debugger at "
+            "GEO_WEB_CRAWL_LIVE_VIEW_BASE_URL (default http://127.0.0.1:3001)"
         )
 
     pause = live_view_pause_s()
     if pause > 0:
         logger.warning(
-            "geo-web-crawl LIVE VIEW pause %.0fs — open the link/Debugger now",
+            "geo-web-crawl LIVE VIEW pause %.0fs — open Debugger / liveURL now",
             pause,
         )
         time.sleep(pause)
 
+    if shot_dir is not None:
+        _screenshot_once(page, shot_dir, label="start")
+
     try:
         yield meta
     finally:
-        stop.set()
-        if thread is not None:
-            thread.join(timeout=2.0)
+        if shot_dir is not None:
+            _screenshot_once(page, shot_dir, label="end")

@@ -57,10 +57,11 @@ docker compose up -d --force-recreate
 | 看什么 | 怎么看 |
 |--------|--------|
 | liveURL | `docker compose logs -f geo-web-crawl` 搜 `LIVE VIEW (open in browser)`（需镜像支持 Hybrid；开源版可能没有） |
-| Browserless UI | `http://127.0.0.1:3001/`（TOKEN 与 `.env` 一致；远程请用 SSH 隧道） |
-| 截图回放 | `docker/geo-web-crawl/live-shots/frame-*.png` |
+| Browserless Debugger | `http://127.0.0.1:3001/`（TOKEN 与 `.env` 一致；远程请用 SSH 隧道）— **推荐** |
+| 截图 | `live-shots/start.png` / `end.png`（仅任务起止各一张；**禁止**后台线程连拍，会弄坏 Sync Playwright） |
 
-关掉：`.env` 改回 `LIVE_VIEW=0`、`PAUSE_S=0`、清空 `SCREENSHOT_DIR`，再 `up -d --force-recreate`。
+关掉：`.env` 改回 `LIVE_VIEW=0`、`PAUSE_S=0`、清空 `SCREENSHOT_DIR`，再 `up -d --force-recreate`。  
+**正式采样请关闭 LIVE_VIEW**，否则 pause 会拖长时间；排障时优先 Debugger，不要依赖连拍。
 
 手动等价：
 
