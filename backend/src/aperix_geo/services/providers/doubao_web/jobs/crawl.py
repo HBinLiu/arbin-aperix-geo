@@ -16,6 +16,7 @@ from aperix_geo.services.providers.doubao_web.errors import (
 )
 from aperix_geo.services.providers.doubao_web.extract import (
     clean_assistant_text,
+    conversation_id_from_url,
     extract_quoted_queries,
     extract_urls,
     filter_http_urls,
@@ -88,7 +89,14 @@ def run_doubao_browser_crawl_on_page(
         assert_logged_in(page)
         assert_no_captcha(page)
         ui_flow._ensure_blank_chat(page, base_url=base_url)
+        prior_conv = conversation_id_from_url(page.url or "")
         ui_flow._fill_and_send(page, prompt)
+        assert_no_captcha(page)
+        # Fail fast if Doubao never created a thread / started generating.
+        send_deadline = min(crawl_deadline, time.monotonic() + 25.0)
+        ui_flow._wait_send_accepted(
+            page, prior_conv_id=prior_conv, deadline=send_deadline
+        )
         assert_no_captcha(page)
         ui_flow._wait_generation_done(
             page, settings=settings, deadline=crawl_deadline

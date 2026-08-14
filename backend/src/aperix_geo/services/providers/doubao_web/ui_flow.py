@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 import time
+from pathlib import Path
 from typing import Any
 
 from aperix_geo.config import Settings
@@ -155,14 +157,132 @@ def _fill_and_send(page: Any, prompt: str) -> None:
     if box is None:
         raise DoubaoCrawlError("chat composer not found")
     box.click()
-    box.fill("")
-    box.fill(prompt)
+    try:
+        box.fill("")
+        box.fill(prompt)
+    except Exception:
+        # Some Doubao builds reject fill() on contenteditable; fall back to typing.
+        logger.debug("composer fill failed; typing prompt", exc_info=True)
+        try:
+            box.press("ControlOrMeta+a")
+            box.press("Backspace")
+        except Exception:
+            pass
+        page.keyboard.type(prompt, delay=15)
+
     send = page.get_by_role("button", name=sel.SEND_NAME)
+    if send.count() == 0:
+        send = page.locator("button").filter(has_text=sel.SEND_NAME)
     if send.count() > 0:
-        send.last.click()
-        return
-    # Fallback: Enter
+        try:
+            send.last.click(timeout=5_000)
+            return
+        except Exception:
+            logger.debug("send button click failed; trying Enter", exc_info=True)
     box.press("Enter")
+
+
+def _page_debug_summary(page: Any) -> str:
+    """Compact page signals for timeout / send failures (safe for logs)."""
+    url = ""
+    try:
+        url = str(getattr(page, "url", "") or "")
+    except Exception:
+        url = ""
+    conv = conversation_id_from_url(url)
+    stop = False
+    streaming = False
+    md_n = 0
+    action = False
+    captcha = False
+    body_head = ""
+    try:
+        stop = _stop_button_visible(page)
+    except Exception:
+        pass
+    try:
+        streaming = _any_streaming_true(page)
+    except Exception:
+        pass
+    try:
+        md_n = int(page.locator(".md-box-root").count())
+    except Exception:
+        md_n = 0
+    try:
+        action = _action_bar_visible(page)
+    except Exception:
+        pass
+    try:
+        from aperix_geo.services.providers.doubao_web.runtime import page_has_captcha
+
+        captcha = bool(page_has_captcha(page))
+    except Exception:
+        pass
+    try:
+        body_head = (page.locator("body").inner_text(timeout=1_500) or "").strip()
+        body_head = re.sub(r"\s+", " ", body_head)[:240]
+    except Exception:
+        body_head = ""
+    return (
+        f"url={url!r} conv_id={conv or '-'} stop={stop} streaming={streaming} "
+        f"md_box={md_n} action_bar={action} captcha={captcha} body={body_head!r}"
+    )
+
+
+def _debug_screenshot(page: Any, *, label: str) -> str:
+    """Best-effort PNG on the Playwright worker thread. Returns path or ''."""
+    raw = (os.environ.get("GEO_WEB_CRAWL_LIVE_VIEW_SCREENSHOT_DIR") or "").strip()
+    if not raw:
+        raw = (os.environ.get("GEO_WEB_CRAWL_DEBUG_SHOT_DIR") or "").strip()
+    # Compose mounts ./live-shots → /tmp/geo-crawl-live; use when present so
+    # timeout diagnostics work without turning on LIVE_VIEW pause.
+    if not raw and Path("/tmp/geo-crawl-live").is_dir():
+        raw = "/tmp/geo-crawl-live"
+    if not raw:
+        return ""
+    try:
+        directory = Path(raw)
+        directory.mkdir(parents=True, exist_ok=True)
+        stamp = time.strftime("%H%M%S")
+        path = directory / f"debug-{label}-{stamp}.png"
+        page.screenshot(path=str(path), full_page=False)
+        logger.warning("doubao crawl debug screenshot → %s", path)
+        return str(path)
+    except Exception:
+        logger.info("doubao crawl debug screenshot failed label=%s", label, exc_info=True)
+        return ""
+
+
+def _wait_send_accepted(page: Any, *, prior_conv_id: str, deadline: float) -> None:
+    """After send: require conversation id and/or generating UI, else fail fast with snapshot."""
+
+    def _accepted() -> bool:
+        conv = conversation_id_from_url(getattr(page, "url", "") or "")
+        if conv and conv != prior_conv_id:
+            return True
+        if _stop_button_visible(page) or _any_streaming_true(page):
+            return True
+        if _action_bar_visible(page):
+            return True
+        try:
+            if page.locator(".md-box-root").count() > 0:
+                return True
+        except Exception:
+            pass
+        return False
+
+    while time.monotonic() < deadline:
+        assert_no_captcha(page)
+        if _accepted():
+            return
+        page.wait_for_timeout(300)
+    shot = _debug_screenshot(page, label="send-not-accepted")
+    detail = _page_debug_summary(page)
+    raise DoubaoCrawlError(
+        "send not accepted (no new conversation id / generating UI); "
+        f"{detail}"
+        + (f" shot={shot}" if shot else "")
+    )
 
 
 def _stop_button_visible(page: Any) -> bool:
@@ -244,7 +364,12 @@ def _wait_until(page: Any, *, deadline: float, predicate: Any, label: str) -> No
             if "TargetClosed" in name or "closed" in str(exc).lower():
                 raise DoubaoCrawlError(f"page closed while waiting for {label}") from exc
             raise
-    raise DoubaoCrawlError(f"timeout waiting for {label}")
+    shot = _debug_screenshot(page, label=label.replace(" ", "-")[:40])
+    detail = _page_debug_summary(page)
+    raise DoubaoCrawlError(
+        f"timeout waiting for {label}; {detail}"
+        + (f" shot={shot}" if shot else "")
+    )
 
 
 def _wait_generation_done(page: Any, *, settings: Settings, deadline: float) -> None:
@@ -253,7 +378,7 @@ def _wait_generation_done(page: Any, *, settings: Settings, deadline: float) -> 
     Doubao may show ``.message-action-button-main`` before the answer finishes.
     Therefore finish requires having observed a real generating signal first:
 
-      1. 停止按钮 或 任意 ``[data-streaming=true]`` 出现
+      1. 停止按钮 / streaming / md-box / action bar 任一出现（生成已开始或已极快结束）
       2. 停止消失 且 页面上不再有 ``data-streaming=true``
       3. ``.message-action-button-main`` 可见 → 再复制
     """
@@ -266,6 +391,16 @@ def _wait_generation_done(page: Any, *, settings: Settings, deadline: float) -> 
     def _started() -> bool:
         nonlocal saw_generating
         if _generating():
+            saw_generating = True
+            return True
+        # Ultra-fast replies may skip a visible stop control.
+        try:
+            if page.locator(".md-box-root").count() > 0:
+                saw_generating = True
+                return True
+        except Exception:
+            pass
+        if _action_bar_visible(page):
             saw_generating = True
             return True
         return False
