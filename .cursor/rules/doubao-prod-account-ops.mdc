@@ -1,0 +1,27 @@
+---
+description: 生产豆包爬虫账号靠心跳+VNC工单邮件，禁止灌号引导
+alwaysApply: true
+---
+
+# 生产爬虫账号：心跳 + VNC 工单（不灌号）
+
+生产环境 **不要** 引导或依赖本机 `doubao_web_login.py` → `crawl_account_upsert.py` 灌号。
+
+## 正确路径
+
+1. 库里有豆包账号行（可先空 cookie / `need_relogin`）
+2. `DOUBAO_HEARTBEAT_ENABLED=true`：心跳探活（含轻量发短会话检行为验证码）
+3. 失败 → `DOUBAO_OPS_TICKET_ENABLED=true` 自动开工单 + **运维邮件**（带 noVNC 链接）
+4. 运维在 VNC 里登录 / 过人机 → 自动关单回写 `storage_state` → 账号回 `active`
+
+生产须配齐：`GEO_CRAWL_OPS_*`（镜像、novnc 反代、`CALLBACK_BASE_URL`）与告警邮件。
+
+## 排查 `no_credentials` 时
+
+- 查账号行是否存在、状态、是否待工单，而不是让运维本机灌 state
+- 推动：开心跳 / 强制跑一轮 heartbeat → 查邮件工单 → VNC 完成
+- `crawl_account_upsert` / 本机 login 仅限 **本地 / staging 调试**，不要写成生产 SOP
+
+## 文档与回复
+
+提到生产入号、登录失效、行为验证码恢复时，默认写 **心跳 + noVNC 工单邮件**；灌号只作开发旁路并标明非生产。

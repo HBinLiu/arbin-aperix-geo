@@ -243,6 +243,34 @@ def test_heartbeat_disabled_noop() -> None:
     db.scalars.assert_not_called()
 
 
+def test_heartbeat_success_reactivates_need_relogin() -> None:
+    row = CrawlAccount(
+        id=uuid4(),
+        label="need",
+        status=STATUS_NEED_RELOGIN,
+        storage_state=_state(),
+        last_ok_at=utc_now() - timedelta(days=1),
+        lease_until=EPOCH,
+        last_error="old",
+    )
+    db = MagicMock()
+    db.scalars.return_value.all.return_value = [row]
+    db.refresh = MagicMock()
+    with patch(
+        "aperix_geo.services.crawl_accounts.heartbeat.probe_account_login",
+        return_value=_state(),
+    ):
+        result = run_crawl_account_heartbeat(
+            db,
+            settings=Settings(doubao_heartbeat_enabled=True),
+            platform="doubao",
+        )
+    assert result["ok_count"] == 1
+    assert result["failed"] == 0
+    assert row.status == STATUS_ACTIVE
+    assert row.last_error == ""
+
+
 def test_accounts_needing_heartbeat_includes_empty_cookies_even_if_fresh() -> None:
     from aperix_geo.services.crawl_accounts.heartbeat import accounts_needing_heartbeat
 

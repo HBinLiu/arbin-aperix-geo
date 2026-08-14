@@ -116,6 +116,9 @@ def run_crawl_account_heartbeat(
             row.storage_state = cookies_only_storage_state(new_state)
             row.last_ok_at = utc_now()
             row.last_error = ""
+            # Probe success must return account to pool (sampling only acquires active).
+            if row.status in (STATUS_NEED_RELOGIN, STATUS_LOGGING_IN):
+                row.status = STATUS_ACTIVE
             revived += 1
         except DoubaoNeedsHumanOps as exc:
             reason = "captcha" if isinstance(exc, DoubaoCaptchaRequired) else "login_expired"
