@@ -124,7 +124,11 @@ def run_doubao_browser_crawl_on_page(
                 f"share_url required but missing: {share_error or 'empty'}"
             ) from share_error
 
-        new_state = context.storage_state()
+        from aperix_geo.services.crawl_accounts.session_cookies import (
+            cookies_only_storage_state,
+        )
+
+        new_state = cookies_only_storage_state(context.storage_state())
         latency_ms = int((time.monotonic() - started) * 1000)
         return {
             "ok": True,

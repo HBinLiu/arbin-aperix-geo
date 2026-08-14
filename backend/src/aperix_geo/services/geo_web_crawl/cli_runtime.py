@@ -81,7 +81,16 @@ def run_geo_web_cli_job(payload: dict[str, Any], *, mode: str = "crawl") -> dict
                     job_mode,
                     headless,
                 )
-                return handler(job_payload, page, context)
+                from aperix_geo.services.geo_web_crawl.live_view import maybe_attach_live_view
+
+                with maybe_attach_live_view(page, context) as live_meta:
+                    result = handler(job_payload, page, context)
+                if isinstance(result, dict) and live_meta.get("enabled"):
+                    if live_meta.get("live_url"):
+                        result["live_url"] = live_meta["live_url"]
+                    if live_meta.get("screenshot_dir"):
+                        result["live_screenshot_dir"] = live_meta["screenshot_dir"]
+                return result
             finally:
                 if context is not None:
                     try:

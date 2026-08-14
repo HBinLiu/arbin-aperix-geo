@@ -80,7 +80,16 @@ def _run_job_sync(payload: dict[str, Any]) -> dict[str, Any]:
             timeout_ms=timeout_ms,
             headless=headless_b,
         ) as (page, context):
-            return handler(payload, page, context)
+            from aperix_geo.services.geo_web_crawl.live_view import maybe_attach_live_view
+
+            with maybe_attach_live_view(page, context) as live_meta:
+                result = handler(payload, page, context)
+            if isinstance(result, dict) and live_meta.get("enabled"):
+                if live_meta.get("live_url"):
+                    result["live_url"] = live_meta["live_url"]
+                if live_meta.get("screenshot_dir"):
+                    result["live_screenshot_dir"] = live_meta["screenshot_dir"]
+            return result
     except Exception as exc:  # noqa: BLE001
         logger.exception("geo-web-crawl job failed platform=%s", platform)
         return _fail(f"{type(exc).__name__}: {exc}", error_type=type(exc).__name__)

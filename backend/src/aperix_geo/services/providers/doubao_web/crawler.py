@@ -78,8 +78,12 @@ def crawl_doubao_chat(
     messages: list[dict[str, str]],
     *,
     settings: Settings | None = None,
+    use_account_pool: bool = True,
 ) -> SamplingChatResult:
-    """Run one Doubao Web sample. Raises DoubaoCrawlError subclasses on failure."""
+    """Run one Doubao Web sample. Raises DoubaoCrawlError subclasses on failure.
+
+    ``use_account_pool=False`` forces ``DOUBAO_CRAWL_STORAGE_STATE_PATH`` (local smoke).
+    """
     settings = settings or get_settings()
     prompt = user_prompt_from_messages(messages)
     if not prompt:
@@ -102,19 +106,30 @@ def crawl_doubao_chat(
     lease: AccountLease | None = None
     storage_state: dict[str, Any] | None = None
     try:
-        try:
-            lease = acquire_account(db, platform=PLATFORM_DOUBAO, settings=settings)
-            if lease is not None:
-                storage_state = lease.storage_state
-            # Commit lease take OR side effects (empty cookies → need_relogin + ticket).
-            db.commit()
-        except Exception:
-            db.rollback()
-            logger.warning("doubao account acquire failed; trying file cold-start", exc_info=True)
-            lease = None
+        if use_account_pool:
+            try:
+                lease = acquire_account(db, platform=PLATFORM_DOUBAO, settings=settings)
+                if lease is not None:
+                    storage_state = lease.storage_state
+                    logger.info(
+                        "doubao crawl credentials source=pool label=%s account_id=%s",
+                        lease.label,
+                        lease.account_id,
+                    )
+                # Commit lease take OR side effects (empty cookies → need_relogin + ticket).
+                db.commit()
+            except Exception:
+                db.rollback()
+                logger.warning("doubao account acquire failed; trying file cold-start", exc_info=True)
+                lease = None
 
         if storage_state is None:
             storage_state = load_storage_state_from_file(settings)
+            if storage_state is not None:
+                logger.info(
+                    "doubao crawl credentials source=file path=%s",
+                    settings.doubao_crawl_storage_state_path,
+                )
         if storage_state is None:
             raise DoubaoCrawlError(
                 "no Doubao credentials (pool empty / stale, or set DOUBAO_CRAWL_STORAGE_STATE_PATH)"

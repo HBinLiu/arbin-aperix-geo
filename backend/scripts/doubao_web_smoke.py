@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Local smoke: one Doubao Web crawl with storage_state (does not touch Celery).
 
+Always uses ``DOUBAO_CRAWL_STORAGE_STATE_PATH`` (skips account pool), so a fresh
+``doubao_web_login.py`` export is what you actually test — even if the DB pool
+has an older active account.
+
 Usage (from backend/):
 
   export PYTHONPATH=src
@@ -39,9 +43,16 @@ def main() -> int:
         )
         return 1
 
-    print(f"Crawling prompt={prompt!r} headless={settings.doubao_crawl_headless}")
+    print(
+        f"Crawling prompt={prompt!r} headless={settings.doubao_crawl_headless} "
+        f"credentials=file:{settings.doubao_crawl_storage_state_path} (pool skipped)"
+    )
     try:
-        result = crawl_doubao_chat([{"role": "user", "content": prompt}], settings=settings)
+        result = crawl_doubao_chat(
+            [{"role": "user", "content": prompt}],
+            settings=settings,
+            use_account_pool=False,
+        )
     except DoubaoNeedsHumanOps as exc:
         kind = "CAPTCHA" if isinstance(exc, DoubaoCaptchaRequired) else "LOGIN"
         print(f"{kind} → human ops (ticket/alert path): {exc}", file=sys.stderr)

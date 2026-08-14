@@ -86,9 +86,13 @@ def run_doubao_login_probe_on_page(
             raise DoubaoLoginExpired("login UI visible")
         if composer.count() == 0:
             raise DoubaoLoginExpired("chat composer not found")
+        from aperix_geo.services.crawl_accounts.session_cookies import (
+            cookies_only_storage_state,
+        )
+
         return {
             "ok": True,
-            "storage_state": context.storage_state(),
+            "storage_state": cookies_only_storage_state(context.storage_state()),
             "error_type": "",
             "error": "",
             "human_ops": False,

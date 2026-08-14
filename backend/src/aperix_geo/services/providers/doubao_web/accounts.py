@@ -42,8 +42,11 @@ def load_storage_state_from_file(settings: Settings) -> dict | None:
 
 
 def save_storage_state(path: Path, state: dict[str, Any]) -> None:
+    from aperix_geo.services.crawl_accounts.session_cookies import cookies_only_storage_state
+
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+    slim = cookies_only_storage_state(state)
+    path.write_text(json.dumps(slim, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def crawl_credentials_available(settings: Settings, db: Session | None = None) -> bool:

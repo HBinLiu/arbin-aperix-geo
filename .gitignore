@@ -15,6 +15,7 @@ backend/cache/
 backend/data/favicons/
 backend/data/doubao_storage_state.json
 backend/data/doubao_*.json
+docker/geo-web-crawl/live-shots/
 # 含密钥：仅本地 / 服务器保留；仓库只提交 .env.example（及无密钥的 frontend 占位）
 backend/.env.development
 backend/.env.production

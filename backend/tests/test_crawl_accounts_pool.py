@@ -68,6 +68,23 @@ def test_storage_state_requires_session_cookies() -> None:
     assert not storage_state_has_cookies(_guest_state())
 
 
+def test_cookies_only_storage_state_drops_origins() -> None:
+    from aperix_geo.services.crawl_accounts.session_cookies import cookies_only_storage_state
+
+    fat = {
+        **_state(),
+        "origins": [
+            {
+                "origin": "https://www.doubao.com",
+                "localStorage": [{"name": "text.huge", "value": "x" * 1000}],
+            }
+        ],
+    }
+    slim = cookies_only_storage_state(fat)
+    assert slim == {"cookies": fat["cookies"]}
+    assert "origins" not in slim
+
+
 def test_effective_lease_covers_crawl_timeout() -> None:
     settings = Settings(doubao_account_lease_ttl_s=300, doubao_crawl_timeout_s=120)
     assert effective_account_lease_ttl_s(settings) == 300

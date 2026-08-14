@@ -21,6 +21,7 @@ from aperix_geo.services.crawl_accounts.pool import (
     STATUS_NEED_RELOGIN,
     storage_state_has_cookies,
 )
+from aperix_geo.services.crawl_accounts.session_cookies import cookies_only_storage_state
 from aperix_geo.services.providers.doubao_web.errors import (
     DoubaoCaptchaRequired,
     DoubaoCrawlError,
@@ -112,7 +113,7 @@ def run_crawl_account_heartbeat(
             new_state = probe_account_login(
                 row.storage_state, platform=plat, settings=settings
             )
-            row.storage_state = new_state
+            row.storage_state = cookies_only_storage_state(new_state)
             row.last_ok_at = utc_now()
             row.last_error = ""
             revived += 1

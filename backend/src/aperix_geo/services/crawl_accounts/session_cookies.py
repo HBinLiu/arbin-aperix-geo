@@ -62,3 +62,14 @@ def storage_state_has_cookies(
 ) -> bool:
     """Alias: requires real session cookies, not guest-only jars."""
     return storage_state_has_session_cookies(state, platform=platform)
+
+
+def cookies_only_storage_state(state: dict[str, Any] | None) -> dict[str, Any]:
+    """Keep Playwright cookies only; drop origins/localStorage (often MB-scale drafts)."""
+    if not isinstance(state, dict):
+        return {"cookies": []}
+    cookies = state.get("cookies")
+    if not isinstance(cookies, list):
+        return {"cookies": []}
+    kept: list[dict[str, Any]] = [c for c in cookies if isinstance(c, dict)]
+    return {"cookies": kept}

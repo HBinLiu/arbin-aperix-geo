@@ -29,13 +29,37 @@ docker compose -f docker/geo-web-crawl/docker-compose.yml up -d --force-recreate
 cd docker/geo-web-crawl && docker compose up -d
 ```
 
-Browserless **默认不映射宿主机端口**（只在 compose 内网给 crawl 用）。若本机调试需要直连：
+Browserless 映射宿主机 **`3001→3000`**（避开常见的 3000 占用），供 Debugger / liveURL；crawl 容器内仍用 `ws://browserless:3000/chromium`。
 
-```yaml
-# docker-compose.yml → browserless
-ports:
-  - "3001:3000"   # 避开已被占用的 3000
+### 实时看浏览器（调试）
+
+默认关闭。开启：
+
+```bash
+cd docker/geo-web-crawl
+GEO_WEB_CRAWL_LIVE_VIEW=1 \
+GEO_WEB_CRAWL_LIVE_VIEW_PAUSE_S=25 \
+GEO_WEB_CRAWL_LIVE_VIEW_SCREENSHOT_DIR=/tmp/geo-crawl-live \
+docker compose up -d --force-recreate
+# 若改过 crawl 代码需先: docker compose build geo-web-crawl
 ```
+
+触发一次豆包采样（或 curl `POST /v1/jobs`）后：
+
+| 看什么 | 怎么看 |
+|--------|--------|
+| liveURL | `docker compose logs -f geo-web-crawl` 搜 `LIVE VIEW (open in browser)`（需镜像支持 Hybrid；开源版可能没有） |
+| Browserless UI | 浏览器打开 `http://127.0.0.1:3001/`（TOKEN 与 compose 一致） |
+| 截图回放 | 宿主机 `docker/geo-web-crawl/live-shots/frame-*.png`（每 5s 一张） |
+
+任务开始会按 `PAUSE_S` 暂停，方便你先打开画面。关掉：
+
+```bash
+GEO_WEB_CRAWL_LIVE_VIEW=0 GEO_WEB_CRAWL_LIVE_VIEW_SCREENSHOT_DIR= \
+  docker compose up -d --force-recreate
+```
+
+相关环境变量（仅 crawl 容器）：`GEO_WEB_CRAWL_LIVE_VIEW`、`LIVE_VIEW_PAUSE_S`、`LIVE_VIEW_BASE_URL`、`LIVE_VIEW_SCREENSHOT_DIR`。
 
 手动等价：
 

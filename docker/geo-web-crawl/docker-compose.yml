@@ -1,14 +1,21 @@
 # Resident GEO web-crawl + self-hosted Browserless (Chromium pool).
-# Usage: docker compose -f docker/geo-web-crawl/docker-compose.yml up -d
-# Or from this directory: docker compose up -d
+# Usage (from this directory):
+#   docker compose up -d
+# Live view (optional):
+#   GEO_WEB_CRAWL_LIVE_VIEW=1 \
+#   GEO_WEB_CRAWL_LIVE_VIEW_PAUSE_S=25 \
+#   GEO_WEB_CRAWL_LIVE_VIEW_SCREENSHOT_DIR=/tmp/geo-crawl-live \
+#   docker compose up -d
+# Then open http://127.0.0.1:3001/ and/or watch ./live-shots/
 
 services:
   browserless:
     image: ghcr.io/browserless/chromium
     shm_size: "2gb"
-    # Do NOT publish 3000 to the host by default — crawl reaches it on the
-    # compose network (ws://browserless:3000/...). Host bind fails when 3000
-    # is already taken; for local debug only: ports: ["3001:3000"]
+    # Host 3000 is often taken (e.g. Payload); use 3001 for Debugger / liveURL.
+    # Crawl still uses the compose network: ws://browserless:3000/chromium
+    ports:
+      - "${BROWSERLESS_HOST_PORT:-3001}:3000"
     environment:
       TOKEN: ${BROWSERLESS_TOKEN:-arbin_aperix_geo_crawl}
       HOST: "0.0.0.0"
@@ -32,6 +39,14 @@ services:
       # Do NOT use /chromium/playwright unless Playwright client == Browserless PW version.
       GEO_WEB_CRAWL_BROWSER_WS_URL: ws://browserless:3000/chromium
       GEO_WEB_CRAWL_BROWSERLESS_TOKEN: ${BROWSERLESS_TOKEN:-arbin_aperix_geo_crawl}
+      # Live view: off by default. Set GEO_WEB_CRAWL_LIVE_VIEW=1 to enable.
+      GEO_WEB_CRAWL_LIVE_VIEW: ${GEO_WEB_CRAWL_LIVE_VIEW:-0}
+      GEO_WEB_CRAWL_LIVE_VIEW_PAUSE_S: ${GEO_WEB_CRAWL_LIVE_VIEW_PAUSE_S:-0}
+      GEO_WEB_CRAWL_LIVE_VIEW_BASE_URL: ${GEO_WEB_CRAWL_LIVE_VIEW_BASE_URL:-http://127.0.0.1:3001}
+      GEO_WEB_CRAWL_LIVE_VIEW_SCREENSHOT_DIR: ${GEO_WEB_CRAWL_LIVE_VIEW_SCREENSHOT_DIR:-}
+      GEO_WEB_CRAWL_LIVE_VIEW_SCREENSHOT_S: ${GEO_WEB_CRAWL_LIVE_VIEW_SCREENSHOT_S:-5}
+    volumes:
+      - ./live-shots:/tmp/geo-crawl-live
     depends_on:
       - browserless
     restart: unless-stopped

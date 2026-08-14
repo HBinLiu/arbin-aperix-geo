@@ -16,7 +16,10 @@ from aperix_geo.config import Settings, get_settings
 from aperix_geo.db.base import utc_now
 from aperix_geo.db.models import EPOCH, CrawlAccount
 from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO, normalize_platform
-from aperix_geo.services.crawl_accounts.session_cookies import storage_state_has_session_cookies
+from aperix_geo.services.crawl_accounts.session_cookies import (
+    cookies_only_storage_state,
+    storage_state_has_session_cookies,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +172,7 @@ def release_account(
         if storage_state is not None and storage_state_has_session_cookies(
             storage_state, platform=plat
         ):
-            row.storage_state = storage_state
+            row.storage_state = cookies_only_storage_state(storage_state)
         elif storage_state is not None:
             row.status = STATUS_NEED_RELOGIN
             row.last_error = "crawl ok but storage_state missing session cookies"
@@ -243,6 +246,7 @@ def upsert_account_from_state(
     plat = normalize_platform(platform)
     if not storage_state_has_session_cookies(storage_state, platform=plat):
         raise ValueError(f"storage_state must include {plat} session cookies")
+    slim = cookies_only_storage_state(storage_state)
     name = (label or "").strip() or f"{plat}-{uuid.uuid4().hex[:8]}"
     existing = db.scalars(
         select(CrawlAccount)
@@ -256,7 +260,7 @@ def upsert_account_from_state(
             platform=plat,
             label=name,
             status=status,
-            storage_state=storage_state,
+            storage_state=slim,
             last_ok_at=now,
             last_error="",
             lease_owner="",
@@ -265,7 +269,7 @@ def upsert_account_from_state(
         db.add(row)
     else:
         row = existing
-        row.storage_state = storage_state
+        row.storage_state = slim
         row.status = status
         row.last_ok_at = now
         row.last_error = ""
