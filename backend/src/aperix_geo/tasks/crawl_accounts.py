@@ -23,7 +23,13 @@ def crawl_account_heartbeat(platform: str = PLATFORM_DOUBAO) -> dict[str, Any]:
         from aperix_geo.services.crawl_accounts.heartbeat import run_crawl_account_heartbeat
 
         result = run_crawl_account_heartbeat(db, platform=platform)
-        if not result.get("skipped"):
+        if result.get("skipped"):
+            logger.info(
+                "crawl heartbeat skipped reason=%s platform=%s",
+                result.get("reason"),
+                platform,
+            )
+        else:
             logger.info(
                 "crawl heartbeat platform=%s checked=%s ok=%s failed=%s",
                 result.get("platform"),

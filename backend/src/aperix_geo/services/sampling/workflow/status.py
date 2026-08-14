@@ -80,7 +80,7 @@ def _running_worker_phase(
     if llm_pending_count > 0:
         return "llm"
     if llm_ready_count > 0:
-        return "crawl"
+        return "page"
     if crawl_ready_count > 0:
         return "parse"
     return None

@@ -95,14 +95,6 @@ def _limit(field: str, default: int = 30) -> Callable[[Settings], int]:
     return lambda s: int(getattr(s, field, default) or default)
 
 
-def _normalize_doubao_sampling_mode(raw: str) -> str:
-    mode = (raw or "api_only").strip().lower()
-    if mode in ("api_only", "crawl_first", "crawl_only"):
-        return mode
-    logger.warning("Unknown DOUBAO_SAMPLING_MODE=%r; falling back to api_only", raw)
-    return "api_only"
-
-
 def _doubao_api_chat(messages: list[dict[str, str]], settings: Settings) -> SamplingChatResult:
     if settings.doubao_web_search_enabled:
         try:
@@ -124,35 +116,30 @@ def _doubao_api_chat(messages: list[dict[str, str]], settings: Settings) -> Samp
     )
 
 
-def try_web_crawl(
-    platform: str,
+def _doubao_chat(settings: Settings) -> Callable[[list[dict[str, str]]], SamplingChatResult]:
+    """API-lane Doubao chat. Account-pool crawl runs on ``sampling_crawl`` workers."""
+
+    def _call(messages: list[dict[str, str]]) -> SamplingChatResult:
+        return _doubao_api_chat(messages, settings)
+
+    return _call
+
+
+def run_doubao_account_crawl(
     messages: list[dict[str, str]],
     *,
-    settings: Settings,
-) -> SamplingChatResult | None:
-    """Attempt platform web crawl via registered handler. None → API fallback."""
-    plat = (platform or "").strip().lower()
-    handler = _WEB_CRAWL_HANDLERS.get(plat)
-    if handler is None:
-        return None
-    return handler(messages, settings=settings)
-
-
-def try_doubao_web_crawl(
-    messages: list[dict[str, str]],
-    *,
-    settings: Settings,
-) -> SamplingChatResult | None:
-    """Attempt Doubao Web crawl. Return None to signal API fallback.
-
-    Soft failures (no credentials, needs human ops / captcha / login, DOM/share) → None.
-    Captcha and login expiry share ticket + alert recovery (never auto-solved).
-    Under crawl_first this sample may API-fallback; account stays out of pool until
-    ops completes the login ticket.
-    Missing Playwright install → None.
-    """
+    settings: Settings | None = None,
+) -> SamplingChatResult:
+    """Account-pool crawl for the dedicated crawl Celery lane (busy→requeue, not API)."""
+    settings = settings or get_settings()
     from aperix_geo.db.session import SessionLocal
-    from aperix_geo.services.providers.doubao_web.accounts import crawl_credentials_available
+    from aperix_geo.services.sampling.backends import crawl_first_mode, crawl_only_mode
+    from aperix_geo.services.sampling.crawl_capacity import (
+        CrawlCapacityBusy,
+        CrawlPoolEmpty,
+        crawl_capacity_slot,
+    )
+    from aperix_geo.services.providers.doubao_web.crawler import crawl_doubao_chat
     from aperix_geo.services.providers.doubao_web.errors import (
         DoubaoCrawlError,
         DoubaoNeedsHumanOps,
@@ -160,82 +147,66 @@ def try_doubao_web_crawl(
 
     db = SessionLocal()
     try:
-        available = crawl_credentials_available(settings, db=db)
-    finally:
+        slot_cm = crawl_capacity_slot(db, "doubao", settings=settings)
+        slot_cm.__enter__()
+    except CrawlPoolEmpty as exc:
+        db.close()
+        logger.warning(
+            "doubao_crawl_fallback reason=no_credentials mode=%s event=sampling_crawl_lane",
+            settings.doubao_sampling_mode,
+        )
+        if crawl_only_mode("doubao", settings=settings):
+            raise SamplingLLMError(str(exc), retryable=False) from exc
+        if crawl_first_mode("doubao", settings=settings):
+            logger.warning(
+                "doubao_crawl_fallback reason=api_fallback mode=crawl_first "
+                "cause=pool_empty event=sampling_crawl_lane"
+            )
+            return _doubao_api_chat(messages, settings)
+        raise SamplingLLMError(str(exc), retryable=False) from exc
+    except CrawlCapacityBusy:
+        db.close()
+        raise
+    except BaseException:
+        db.close()
+        raise
+    else:
         db.close()
 
-    if not available:
-        logger.warning(
-            "doubao_crawl_fallback reason=no_credentials mode=%s",
-            settings.doubao_sampling_mode,
-        )
-        return None
-
     try:
-        from aperix_geo.services.providers.doubao_web.crawler import crawl_doubao_chat
-
-        return crawl_doubao_chat(messages, settings=settings)
-    except DoubaoNeedsHumanOps as exc:
-        logger.error(
-            "doubao_crawl_fallback reason=human_ops type=%s err=%s mode=%s",
-            type(exc).__name__,
-            exc,
-            settings.doubao_sampling_mode,
-        )
-        return None
-    except DoubaoCrawlError as exc:
-        logger.warning(
-            "doubao_crawl_fallback reason=crawl_error err=%s mode=%s",
-            exc,
-            settings.doubao_sampling_mode,
-        )
-        return None
-    except Exception as exc:
-        logger.error(
-            "doubao_crawl_fallback reason=unexpected err=%s mode=%s",
-            exc,
-            settings.doubao_sampling_mode,
-            exc_info=True,
-        )
-        return None
-
-
-_WEB_CRAWL_HANDLERS: dict[str, Callable[..., SamplingChatResult | None]] = {
-    "doubao": try_doubao_web_crawl,
-}
-
-
-def register_web_crawl_handler(
-    platform: str,
-    handler: Callable[..., SamplingChatResult | None],
-) -> None:
-    """Register or replace a platform web-crawl handler (for tests / future platforms)."""
-    _WEB_CRAWL_HANDLERS[(platform or "").strip().lower()] = handler
-
-
-def _doubao_chat(settings: Settings) -> Callable[[list[dict[str, str]]], SamplingChatResult]:
-    def _call(messages: list[dict[str, str]]) -> SamplingChatResult:
-        mode = _normalize_doubao_sampling_mode(settings.doubao_sampling_mode)
-        if mode == "api_only":
-            return _doubao_api_chat(messages, settings)
-
-        crawled = try_web_crawl("doubao", messages, settings=settings)
-        if crawled is not None:
-            return crawled
-        if mode == "crawl_only":
-            raise SamplingLLMError(
-                "Doubao web crawl is not available (crawl_only mode)",
-                retryable=False,
+        try:
+            return crawl_doubao_chat(messages, settings=settings)
+        except DoubaoNeedsHumanOps as exc:
+            logger.error(
+                "doubao_crawl_fallback reason=human_ops type=%s err=%s event=sampling_crawl_lane",
+                type(exc).__name__,
+                exc,
             )
-        # crawl_first: keep API fallback but make it loud for ops grepping.
-        logger.warning(
-            "doubao_crawl_fallback reason=api_fallback mode=%s "
-            "(crawl unavailable; check doubao_crawl_fallback lines above)",
-            mode,
-        )
-        return _doubao_api_chat(messages, settings)
-
-    return _call
+            if crawl_only_mode("doubao", settings=settings):
+                raise SamplingLLMError(str(exc), retryable=False) from exc
+            if crawl_first_mode("doubao", settings=settings):
+                logger.warning(
+                    "doubao_crawl_fallback reason=api_fallback mode=crawl_first "
+                    "cause=human_ops event=sampling_crawl_lane"
+                )
+                return _doubao_api_chat(messages, settings)
+            raise SamplingLLMError(str(exc), retryable=False) from exc
+        except DoubaoCrawlError as exc:
+            logger.warning(
+                "doubao_crawl_fallback reason=crawl_error err=%s event=sampling_crawl_lane",
+                exc,
+            )
+            if crawl_only_mode("doubao", settings=settings):
+                raise SamplingLLMError(str(exc), retryable=False) from exc
+            if crawl_first_mode("doubao", settings=settings):
+                logger.warning(
+                    "doubao_crawl_fallback reason=api_fallback mode=crawl_first "
+                    "cause=crawl_error event=sampling_crawl_lane"
+                )
+                return _doubao_api_chat(messages, settings)
+            raise SamplingLLMError(str(exc), retryable=False) from exc
+    finally:
+        slot_cm.__exit__(None, None, None)
 
 
 def _deepseek_chat(settings: Settings) -> Callable[[list[dict[str, str]]], SamplingChatResult]:

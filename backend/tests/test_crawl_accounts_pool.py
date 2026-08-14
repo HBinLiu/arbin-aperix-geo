@@ -243,6 +243,57 @@ def test_heartbeat_disabled_noop() -> None:
     db.scalars.assert_not_called()
 
 
+def test_heartbeat_skips_during_sampling_window() -> None:
+    db = MagicMock()
+    settings = Settings(
+        doubao_heartbeat_enabled=True,
+        sampling_daily_hour=2,
+        sampling_daily_window_minutes=180,
+    )
+    with patch(
+        "aperix_geo.services.crawl_accounts.heartbeat.in_sampling_heartbeat_quiet_window",
+        return_value=True,
+    ):
+        result = run_crawl_account_heartbeat(db, settings=settings)
+    assert result["skipped"] is True
+    assert result["reason"] == "sampling_window"
+    db.scalars.assert_not_called()
+
+
+def test_heartbeat_manual_bypasses_sampling_quiet() -> None:
+    row = CrawlAccount(
+        id=uuid4(),
+        label="need",
+        status=STATUS_NEED_RELOGIN,
+        storage_state=_state(),
+        last_ok_at=utc_now() - timedelta(days=1),
+        lease_until=EPOCH,
+        last_error="old",
+    )
+    db = MagicMock()
+    db.scalars.return_value.all.return_value = [row]
+    db.refresh = MagicMock()
+    settings = Settings(doubao_heartbeat_enabled=True)
+    with (
+        patch(
+            "aperix_geo.services.crawl_accounts.heartbeat.in_sampling_heartbeat_quiet_window",
+            return_value=True,
+        ),
+        patch(
+            "aperix_geo.services.crawl_accounts.heartbeat.probe_account_login",
+            return_value=_state(),
+        ),
+    ):
+        result = run_crawl_account_heartbeat(
+            db,
+            settings=settings,
+            platform="doubao",
+            respect_sampling_quiet=False,
+        )
+    assert result["skipped"] is False
+    assert result["ok_count"] == 1
+
+
 def test_heartbeat_success_reactivates_need_relogin() -> None:
     row = CrawlAccount(
         id=uuid4(),
@@ -264,6 +315,7 @@ def test_heartbeat_success_reactivates_need_relogin() -> None:
             db,
             settings=Settings(doubao_heartbeat_enabled=True),
             platform="doubao",
+            respect_sampling_quiet=False,
         )
     assert result["ok_count"] == 1
     assert result["failed"] == 0

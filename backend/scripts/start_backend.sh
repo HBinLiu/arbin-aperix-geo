@@ -9,7 +9,7 @@ export PYTHONPATH=src
 WITH_BEAT=1
 WITH_RELOAD=0
 LOGLEVEL="${CELERY_LOGLEVEL:-INFO}"
-# 1=三队列分池（默认）；0=单 worker 消费全部队列（本地轻量调试）
+# 1=分池（默认）；0=单 worker 消费全部队列（本地轻量调试；容量模型变弱）
 CELERY_SPLIT_WORKERS="${CELERY_SPLIT_WORKERS:-1}"
 
 usage() {
@@ -17,13 +17,14 @@ usage() {
 Usage: bash scripts/start_backend.sh [options]
 
   同时启动 uvicorn、Celery worker，以及（默认）Celery beat。
-  默认 CELERY_SPLIT_WORKERS=1：单机起编排 / LLM / Crawl / Parse 四个 worker 进程。
+  默认 CELERY_SPLIT_WORKERS=1：orch / api / crawl / page / parse 五个 worker。
+    api   = HTTP 提供商采样（原 llm）
+    crawl = 账号池浏览器采样（prefetch=1）
+    page  = 引用页抓取（原 crawl 语义）
   Beat 仅在每日采样窗口内（默认北京时间 02:00–05:00）按间隔扫描到期 subject。
-  读取 API_HOST、API_PORT 与 .env.development / .env.production。
-  优先 ENV/APP_ENV；未设置时读 backend/.env.mode。
 
   分机部署：本机只起 API+Beat，另用 scripts/start_celery_worker.sh
-  并设 CELERY_WORKER_ROLE=orch|llm|crawl|parse。
+  并设 CELERY_WORKER_ROLE=orch|api|llm|crawl|page|parse。
 
 Options:
   --no-beat         不启动 Beat（仅 API + Worker）
@@ -48,7 +49,7 @@ done
 API_HOST="${API_HOST:-0.0.0.0}"
 API_PORT="${API_PORT:-8000}"
 ORCH_CONCURRENCY="${CELERY_ORCH_WORKER_CONCURRENCY:-4}"
-LLM_CONCURRENCY="${CELERY_LLM_WORKER_CONCURRENCY:-16}"
+API_CONCURRENCY="${CELERY_API_WORKER_CONCURRENCY:-${CELERY_LLM_WORKER_CONCURRENCY:-16}}"
 PARSE_CONCURRENCY="${CELERY_PARSE_WORKER_CONCURRENCY:-16}"
 UNIFIED_CONCURRENCY="${CELERY_WORKER_CONCURRENCY:-8}"
 
@@ -56,13 +57,15 @@ eval "$(python3 - <<'PY'
 from aperix_geo.config import get_settings
 s = get_settings()
 print(f'DEFAULT_CRAWL_CONCURRENCY={s.celery_crawl_worker_concurrency}')
-print(f'DEFAULT_CRAWL_MAX_TASKS={s.celery_crawl_max_tasks_per_child}')
-print(f'DEFAULT_CRAWL_MAX_MEMORY_KB={s.celery_crawl_max_memory_per_child_kb}')
+print(f'DEFAULT_PAGE_CONCURRENCY={s.celery_page_worker_concurrency}')
+print(f'DEFAULT_PAGE_MAX_TASKS={s.celery_page_max_tasks_per_child}')
+print(f'DEFAULT_PAGE_MAX_MEMORY_KB={s.celery_page_max_memory_per_child_kb}')
 PY
 )"
 CRAWL_CONCURRENCY="${CELERY_CRAWL_WORKER_CONCURRENCY:-$DEFAULT_CRAWL_CONCURRENCY}"
-CRAWL_MAX_TASKS_PER_CHILD="${CELERY_CRAWL_MAX_TASKS_PER_CHILD:-$DEFAULT_CRAWL_MAX_TASKS}"
-CRAWL_MAX_MEMORY_PER_CHILD="${CELERY_CRAWL_MAX_MEMORY_PER_CHILD:-$DEFAULT_CRAWL_MAX_MEMORY_KB}"
+PAGE_CONCURRENCY="${CELERY_PAGE_WORKER_CONCURRENCY:-$DEFAULT_PAGE_CONCURRENCY}"
+PAGE_MAX_TASKS_PER_CHILD="${CELERY_PAGE_MAX_TASKS_PER_CHILD:-${CELERY_CRAWL_MAX_TASKS_PER_CHILD:-$DEFAULT_PAGE_MAX_TASKS}}"
+PAGE_MAX_MEMORY_PER_CHILD="${CELERY_PAGE_MAX_MEMORY_PER_CHILD:-${CELERY_CRAWL_MAX_MEMORY_PER_CHILD:-$DEFAULT_PAGE_MAX_MEMORY_KB}}"
 
 ALL_QUEUES="$(python3 - <<'PY'
 from aperix_geo.celery_queues import celery_worker_queues_for_role
@@ -74,14 +77,19 @@ from aperix_geo.celery_queues import celery_worker_queues_for_role
 print(celery_worker_queues_for_role("orch"))
 PY
 )"
-LLM_QUEUE="$(python3 - <<'PY'
+API_QUEUE="$(python3 - <<'PY'
 from aperix_geo.celery_queues import celery_worker_queues_for_role
-print(celery_worker_queues_for_role("llm"))
+print(celery_worker_queues_for_role("api"))
 PY
 )"
 CRAWL_QUEUE="$(python3 - <<'PY'
 from aperix_geo.celery_queues import celery_worker_queues_for_role
 print(celery_worker_queues_for_role("crawl"))
+PY
+)"
+PAGE_QUEUE="$(python3 - <<'PY'
+from aperix_geo.celery_queues import celery_worker_queues_for_role
+print(celery_worker_queues_for_role("page"))
 PY
 )"
 PARSE_QUEUE="$(python3 - <<'PY'
@@ -127,15 +135,19 @@ start_worker() {
 
 if [[ "$CELERY_SPLIT_WORKERS" == "1" ]]; then
   start_worker orch "$ORCH_QUEUE" "$ORCH_CONCURRENCY"
-  start_worker llm "$LLM_QUEUE" "$LLM_CONCURRENCY"
-  start_worker crawl "$CRAWL_QUEUE" "$CRAWL_CONCURRENCY" \
-    --max-tasks-per-child="$CRAWL_MAX_TASKS_PER_CHILD" \
-    --max-memory-per-child="$CRAWL_MAX_MEMORY_PER_CHILD"
+  start_worker api "$API_QUEUE" "$API_CONCURRENCY"
+  # Account-pool crawl: prefetch=1 so broker holds the real queue.
+  start_worker crawl "$CRAWL_QUEUE" "$CRAWL_CONCURRENCY" --prefetch-multiplier=1
+  start_worker page "$PAGE_QUEUE" "$PAGE_CONCURRENCY" \
+    --max-tasks-per-child="$PAGE_MAX_TASKS_PER_CHILD" \
+    --max-memory-per-child="$PAGE_MAX_MEMORY_PER_CHILD"
   start_worker parse "$PARSE_QUEUE" "$PARSE_CONCURRENCY"
 else
+  echo "WARNING: unified worker weakens crawl capacity isolation; prefer CELERY_SPLIT_WORKERS=1 in production." >&2
   start_worker all "$ALL_QUEUES" "$UNIFIED_CONCURRENCY" \
-    --max-tasks-per-child="$CRAWL_MAX_TASKS_PER_CHILD" \
-    --max-memory-per-child="$CRAWL_MAX_MEMORY_PER_CHILD"
+    --prefetch-multiplier=1 \
+    --max-tasks-per-child="$PAGE_MAX_TASKS_PER_CHILD" \
+    --max-memory-per-child="$PAGE_MAX_MEMORY_PER_CHILD"
 fi
 if [[ "$WITH_BEAT" -eq 1 ]]; then
   echo "Starting Celery beat (sampling window only)..."
@@ -147,7 +159,7 @@ echo ""
 echo "Backend stack running. Ctrl+C to stop all."
 echo "  API:    http://127.0.0.1:${API_PORT}/docs"
 if [[ "$CELERY_SPLIT_WORKERS" == "1" ]]; then
-  echo "  Workers: orch($ORCH_CONCURRENCY) + llm($LLM_CONCURRENCY) + crawl($CRAWL_CONCURRENCY) + parse($PARSE_CONCURRENCY)"
+  echo "  Workers: orch($ORCH_CONCURRENCY) + api($API_CONCURRENCY) + crawl($CRAWL_CONCURRENCY) + page($PAGE_CONCURRENCY) + parse($PARSE_CONCURRENCY)"
 else
   echo "  Worker: unified ($UNIFIED_CONCURRENCY) on $ALL_QUEUES"
 fi

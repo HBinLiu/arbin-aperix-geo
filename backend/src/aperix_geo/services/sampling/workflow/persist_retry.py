@@ -18,11 +18,23 @@ logger = logging.getLogger(__name__)
 
 
 def retry_if_transient(task, exc: BaseException) -> None:
+    from aperix_geo.services.sampling.crawl_capacity import CrawlCapacityBusy
     from aperix_geo.services.sampling.retry_policy import is_llm_timeout_error
 
     if is_llm_timeout_error(exc):
         return
     max_retries = get_settings().sampling_retry_max
+    if isinstance(exc, CrawlCapacityBusy):
+        # Account-pool backlog: allow deeper retries with crawl-timeout-scale backoff.
+        max_retries = max(30, max_retries)
+        settings = get_settings()
+        countdown = min(
+            int(settings.doubao_crawl_timeout_s),
+            max(15, int(settings.doubao_crawl_timeout_s) // 2),
+        )
+        if task.request.retries < max_retries:
+            raise task.retry(exc=exc, countdown=countdown) from exc
+        return
     if task.request.retries < max_retries and is_retryable_sampling_error(exc):
         raise task.retry(
             exc=exc,

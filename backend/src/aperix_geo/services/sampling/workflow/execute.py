@@ -28,13 +28,36 @@ def prepare_sample_chat_result(
     response_id: UUID | None = None,
     cache: bool = False,
 ) -> tuple[SamplingChatResult, bool]:
-    """Call platform LLM once. Returns ``(result, live_call)``; cache hits are not billed."""
+    """Call platform LLM once (API lane). Returns ``(result, live_call)``."""
     if cache and response_id is not None:
         cached = load_cached_llm_result(response_id)
         if cached is not None:
             return cached, False
     with llm_sampling_slot(platform):
         result = chat_for_platform(platform, [{"role": "user", "content": prompt_text}])
+    if cache and response_id is not None:
+        save_cached_llm_result(response_id, result)
+    return result, True
+
+
+def prepare_account_crawl_chat_result(
+    *,
+    platform: str,
+    prompt_text: str,
+    response_id: UUID | None = None,
+    cache: bool = False,
+) -> tuple[SamplingChatResult, bool]:
+    """Account-pool crawl lane for ``platform`` (Celery ``sampling_crawl``)."""
+    if cache and response_id is not None:
+        cached = load_cached_llm_result(response_id)
+        if cached is not None:
+            return cached, False
+    plat = (platform or "").strip().lower()
+    if plat != "doubao":
+        raise RuntimeError(f"account crawl not implemented for platform={platform}")
+    from aperix_geo.services.sampling.llm import run_doubao_account_crawl
+
+    result = run_doubao_account_crawl([{"role": "user", "content": prompt_text}])
     if cache and response_id is not None:
         save_cached_llm_result(response_id, result)
     return result, True

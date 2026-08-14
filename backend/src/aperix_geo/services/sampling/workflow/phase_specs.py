@@ -30,6 +30,7 @@ from aperix_geo.services.sampling.workflow.execute import (
     persist_crawl_sample,
     persist_llm_sample,
     persist_parsed_sample,
+    prepare_account_crawl_chat_result,
     prepare_sample_chat_result,
     soft_skip_pending_llm_responses,
 )
@@ -120,7 +121,82 @@ def build_llm_phase_spec(task, response_id: str) -> SamplingPhaseSpec:
     )
 
 
-def build_crawl_phase_spec(_task, _response_id: str) -> SamplingPhaseSpec:
+def build_account_crawl_phase_spec(task, response_id: str) -> SamplingPhaseSpec:
+    """LLM pipeline phase served by account-pool crawl workers (phase name stays ``llm``)."""
+    rid = UUID(response_id)
+    ctx: dict[str, object] = {"response_id": rid}
+
+    def prepare(db: Session, row: LLMResponse, job: SamplingJob) -> SamplingTaskResult | None:
+        prompt_text = load_prompt_text_cached(db, row.prompt_id)
+        if not prompt_text:
+            mark_response_failed(db, row=row, error_text="missing job or prompt")
+            return {"ok": False, "error": "missing prompt"}
+        if load_subject_with_competitors_cached(db, job.subject_id) is None:
+            mark_response_failed(db, row=row, error_text="missing subject")
+            return {"ok": False, "error": "missing subject"}
+        try:
+            require_active_subscription(db, job.tenant_id)
+        except SubscriptionInactiveError:
+            soft_skip_pending_llm_responses(
+                db, job_id=job.id, reason=SOFT_SKIP_SUBSCRIPTION_INACTIVE
+            )
+            return {
+                "ok": True,
+                "skipped": True,
+                "reason": SOFT_SKIP_SUBSCRIPTION_INACTIVE,
+            }
+        ctx["platform"] = row.platform
+        ctx["prompt_text"] = prompt_text
+        ctx["tenant_id"] = job.tenant_id
+        ctx["subject_id"] = job.subject_id
+        return None
+
+    def work() -> tuple[SamplingChatResult, bool]:
+        return prepare_account_crawl_chat_result(
+            platform=str(ctx["platform"]),
+            prompt_text=str(ctx["prompt_text"]),
+            response_id=rid,
+            cache=True,
+        )
+
+    def on_work_error(db: Session, response_id: UUID, exc: BaseException) -> SamplingTaskResult:
+        from aperix_geo.services.sampling.crawl_capacity import CrawlCapacityBusy
+
+        if isinstance(exc, CrawlCapacityBusy):
+            return {"ok": False, "error": str(exc), "rate_limited": True}
+        if isinstance(exc, SamplingRateLimitError):
+            return {"ok": False, "error": str(exc), "rate_limited": True}
+        if isinstance(exc, SamplingLLMError):
+            mark_response_failed_if_pending(db, response_id=response_id, error_text=str(exc))
+            if is_llm_timeout_error(exc):
+                clear_cached_llm_result(response_id)
+        return {"ok": False, "error": str(exc)}
+
+    return SamplingPhaseSpec(
+        phase="llm",
+        expected_status=phase_expected_status("llm"),
+        prepare=prepare,
+        work=work,
+        persist=lambda db, response_id, work_result: persist_llm_sample(
+            db,
+            response_id=response_id,
+            chat_result=work_result[0],
+            tenant_id=ctx["tenant_id"],  # type: ignore[arg-type]
+            subject_id=ctx["subject_id"],  # type: ignore[arg-type]
+            live_call=work_result[1],
+        ),
+        fail=_fail_pending,
+        on_skipped=lambda: (
+            clear_cached_llm_result(rid),
+            {"ok": True, "skipped": True, "reason": "no_longer_pending"},
+        )[1],
+        on_success=lambda: (clear_cached_llm_result(rid), {"ok": True, "phase": "llm"})[1],
+        on_work_error=on_work_error,
+    )
+
+
+def build_page_phase_spec(_task, _response_id: str) -> SamplingPhaseSpec:
+    """Citation page fetch (former ``crawl`` phase / ``sampling_crawl`` page semantics)."""
     ctx: dict[str, object] = {}
 
     def prepare(db: Session, row: LLMResponse, job: SamplingJob) -> SamplingTaskResult | None:
@@ -146,16 +222,20 @@ def build_crawl_phase_spec(_task, _response_id: str) -> SamplingPhaseSpec:
         return {"ok": False, "error": str(exc)}
 
     return SamplingPhaseSpec(
-        phase="crawl",
-        expected_status=phase_expected_status("crawl"),
+        phase="page",
+        expected_status=phase_expected_status("page"),
         prepare=prepare,
         work=work,
         persist=lambda db, response_id, _work_result: persist_crawl_sample(db, response_id=response_id),
         fail=_fail_llm_ready,
         on_skipped=lambda: {"ok": True, "skipped": True, "reason": "no_longer_llm_ready"},
-        on_success=lambda: {"ok": True, "phase": "crawl"},
+        on_success=lambda: {"ok": True, "phase": "page"},
         on_work_error=on_work_error,
     )
+
+
+# Backward-compatible name used by older imports / tests.
+build_crawl_phase_spec = build_page_phase_spec
 
 
 def build_parse_phase_spec(_task, response_id: str) -> SamplingPhaseSpec:

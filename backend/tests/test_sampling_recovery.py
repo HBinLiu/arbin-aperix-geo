@@ -45,6 +45,29 @@ def test_is_sampling_job_not_stale_when_recent() -> None:
     assert is_sampling_job_stale(job, now=now, stale_seconds=90) is False
 
 
+def test_is_sampling_job_not_stale_with_active_claims() -> None:
+    now = datetime(2026, 6, 2, 12, 0, tzinfo=UTC)
+    job = _job(status=SamplingJobStatus.running, updated_at=now - timedelta(hours=2))
+    assert (
+        is_sampling_job_stale(
+            job,
+            now=now,
+            has_backlog=True,
+            has_active_claims=True,
+        )
+        is False
+    )
+
+
+def test_is_sampling_job_backlog_uses_longer_window() -> None:
+    now = datetime(2026, 6, 2, 12, 0, tzinfo=UTC)
+    job = _job(status=SamplingJobStatus.running, updated_at=now - timedelta(seconds=120))
+    # 120s < backlog window (~1h+) → not stale while work remains
+    assert is_sampling_job_stale(job, now=now, has_backlog=True) is False
+    job_old = _job(status=SamplingJobStatus.running, updated_at=now - timedelta(hours=7))
+    assert is_sampling_job_stale(job_old, now=now, has_backlog=True) is True
+
+
 @patch("aperix_geo.services.sampling.workflow.recovery.finalize_sampling_job_db")
 @patch("aperix_geo.services.sampling.workflow.recovery.response_work_queues")
 def test_reconcile_finalizes_when_no_pending(
@@ -64,14 +87,17 @@ def test_reconcile_finalizes_when_no_pending(
     mock_finalize.assert_not_called()
 
 
+@patch("aperix_geo.services.sampling.workflow.recovery.job_has_active_response_claims", return_value=False)
 @patch("aperix_geo.services.sampling.workflow.dispatch.try_schedule_sampling_job_enqueue")
 @patch("aperix_geo.services.sampling.workflow.recovery.response_work_queues")
 def test_reconcile_resumes_stale_job_with_pending(
     mock_queues: MagicMock,
     mock_debounce: MagicMock,
+    _mock_claims: MagicMock,
 ) -> None:
     now = datetime(2026, 6, 2, 12, 0, tzinfo=UTC)
-    job = _job(status=SamplingJobStatus.running, updated_at=now - timedelta(seconds=120))
+    # Beyond backlog stale window (default capped at 6h)
+    job = _job(status=SamplingJobStatus.running, updated_at=now - timedelta(hours=7))
     db = MagicMock()
     pending = (uuid4(), uuid4(), uuid4())
     mock_queues.return_value = ResponseWorkQueues(pending=pending, llm_ready=(), crawl_ready=())
@@ -98,13 +124,35 @@ def test_reconcile_resumes_stale_job_with_pending(
     mock_resume.assert_called_once_with(job.id)
 
 
+@patch("aperix_geo.services.sampling.workflow.recovery.job_has_active_response_claims", return_value=False)
 @patch("aperix_geo.services.sampling.workflow.dispatch.try_schedule_sampling_job_enqueue")
 @patch("aperix_geo.services.sampling.workflow.recovery.response_work_queues")
-def test_reconcile_skips_fresh_active_job(mock_queues: MagicMock, mock_debounce: MagicMock) -> None:
+def test_reconcile_skips_short_backlog_inactivity(
+    mock_queues: MagicMock,
+    mock_debounce: MagicMock,
+    _mock_claims: MagicMock,
+) -> None:
     now = datetime(2026, 6, 2, 12, 0, tzinfo=UTC)
-    job = _job(status=SamplingJobStatus.running, updated_at=now - timedelta(seconds=10))
+    job = _job(status=SamplingJobStatus.running, updated_at=now - timedelta(seconds=120))
     db = MagicMock()
-    mock_queues.return_value = ResponseWorkQueues(pending=(uuid4(), uuid4()), llm_ready=(), crawl_ready=())
+    mock_queues.return_value = ResponseWorkQueues(pending=(uuid4(),), llm_ready=(), crawl_ready=())
+
+    assert recover_active_sampling_job(db, job, now=now) is False
+    mock_debounce.assert_not_called()
+
+
+@patch("aperix_geo.services.sampling.workflow.recovery.job_has_active_response_claims", return_value=True)
+@patch("aperix_geo.services.sampling.workflow.dispatch.try_schedule_sampling_job_enqueue")
+@patch("aperix_geo.services.sampling.workflow.recovery.response_work_queues")
+def test_reconcile_skips_when_worker_claim_active(
+    mock_queues: MagicMock,
+    mock_debounce: MagicMock,
+    _mock_claims: MagicMock,
+) -> None:
+    now = datetime(2026, 6, 2, 12, 0, tzinfo=UTC)
+    job = _job(status=SamplingJobStatus.running, updated_at=now - timedelta(hours=7))
+    db = MagicMock()
+    mock_queues.return_value = ResponseWorkQueues(pending=(uuid4(),), llm_ready=(), crawl_ready=())
 
     assert recover_active_sampling_job(db, job, now=now) is False
     mock_debounce.assert_not_called()

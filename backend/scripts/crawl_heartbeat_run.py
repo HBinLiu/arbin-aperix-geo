@@ -6,6 +6,9 @@
 立刻跑一轮 ``run_crawl_account_heartbeat``：探活 active / need_relogin 等账号；
 失败时按配置开登录工单（需 ``DOUBAO_OPS_TICKET_ENABLED``）。
 
+直跑会绕过「每日采样窗口内自动心跳静默」；``--celery`` 仍走 Beat 同款逻辑
+（采样窗口内可能 ``skipped: sampling_window``）。
+
 用法
 ----
   cd backend
@@ -42,7 +45,10 @@ def main() -> int:
     parser.add_argument(
         "--celery",
         action="store_true",
-        help="经 Celery 异步执行（受 HEARTBEAT_ENABLED 约束；--force 仅对直跑有效）",
+        help=(
+            "经 Celery 异步执行（受 HEARTBEAT_ENABLED 与采样窗口静默约束；"
+            "--force / 绕过静默仅对直跑有效）"
+        ),
     )
     args = parser.parse_args()
     platform = (args.platform or "doubao").strip().lower() or "doubao"
@@ -64,7 +70,13 @@ def main() -> int:
 
     db = SessionLocal()
     try:
-        result = run_crawl_account_heartbeat(db, settings=settings, platform=platform)
+        # Manual ops: always allowed during sampling enqueue window.
+        result = run_crawl_account_heartbeat(
+            db,
+            settings=settings,
+            platform=platform,
+            respect_sampling_quiet=False,
+        )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         if result.get("skipped"):
             print(

@@ -39,6 +39,23 @@ def _lease_active(row: CrawlAccount, *, now: datetime) -> bool:
     return bool(row.lease_until and row.lease_until > now)
 
 
+def in_sampling_heartbeat_quiet_window(
+    settings: Settings,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """True during Beijing SAMPLING_DAILY_* enqueue window (auto-heartbeat should idle)."""
+    from zoneinfo import ZoneInfo
+
+    from aperix_geo.services.sampling.workflow.schedule import (
+        SAMPLING_TIMEZONE,
+        is_within_sampling_enqueue_window,
+    )
+
+    local_now = (now or utc_now()).astimezone(ZoneInfo(SAMPLING_TIMEZONE))
+    return is_within_sampling_enqueue_window(local_now, settings=settings)
+
+
 def accounts_needing_heartbeat(
     rows: list[CrawlAccount],
     *,
@@ -77,11 +94,31 @@ def run_crawl_account_heartbeat(
     *,
     platform: str = PLATFORM_DOUBAO,
     settings: Settings | None = None,
+    respect_sampling_quiet: bool = True,
 ) -> dict[str, Any]:
-    """Probe pool accounts for one platform; on failure open human ticket + alert."""
+    """Probe pool accounts for one platform; on failure open human ticket + alert.
+
+    Celery Beat keeps ``respect_sampling_quiet=True`` and always skips during the
+    daily sampling enqueue window (``SAMPLING_DAILY_HOUR`` + window minutes).
+    Manual ``crawl_heartbeat_run.py`` passes ``respect_sampling_quiet=False``.
+    """
     settings = settings or get_settings()
     if not settings.doubao_heartbeat_enabled:
         return {"ok": True, "skipped": True, "reason": "disabled"}
+    if respect_sampling_quiet and in_sampling_heartbeat_quiet_window(settings):
+        logger.info(
+            "crawl heartbeat skipped reason=sampling_window "
+            "daily_hour=%s window_min=%s",
+            settings.sampling_daily_hour,
+            settings.sampling_daily_window_minutes,
+        )
+        return {
+            "ok": True,
+            "skipped": True,
+            "reason": "sampling_window",
+            "sampling_daily_hour": settings.sampling_daily_hour,
+            "sampling_daily_window_minutes": settings.sampling_daily_window_minutes,
+        }
 
     plat = normalize_platform(platform)
     now = utc_now()

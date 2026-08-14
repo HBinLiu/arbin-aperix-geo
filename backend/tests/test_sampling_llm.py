@@ -88,66 +88,64 @@ def test_doubao_api_only_calls_responses_api(mock_responses):
     mock_responses.assert_called_once()
 
 
-@patch("aperix_geo.services.sampling.llm.try_web_crawl", return_value=None)
 @patch("aperix_geo.services.sampling.llm.doubao_responses_chat")
-def test_doubao_crawl_first_falls_back_to_api_when_crawl_missing(mock_responses, _mock_crawl):
-    mock_responses.return_value = SamplingChatResult(text="fallback", usage={}, latency_ms=3)
+def test_doubao_chat_for_platform_always_uses_api_lane(mock_responses):
+    """API Celery lane never embeds account crawl (even if mode is crawl_first)."""
+    mock_responses.return_value = SamplingChatResult(text="api", usage={}, latency_ms=3)
     s = _settings(
         doubao_api_key="sk-b",
         doubao_sampling_mode="crawl_first",
         doubao_web_search_enabled=True,
     )
     result = chat_for_platform("doubao", [{"role": "user", "content": "hi"}], settings=s)
-    assert result.text == "fallback"
+    assert result.text == "api"
     mock_responses.assert_called_once()
 
 
-@patch("aperix_geo.services.sampling.llm.try_web_crawl", return_value=None)
 @patch("aperix_geo.services.sampling.llm.doubao_responses_chat")
-def test_doubao_crawl_only_raises_when_crawl_unavailable(mock_responses, _mock_crawl):
+def test_doubao_crawl_only_api_lane_still_calls_api(mock_responses):
+    """crawl_only only applies to sampling_crawl workers; API lane stays HTTP."""
+    mock_responses.return_value = SamplingChatResult(text="api", usage={}, latency_ms=3)
     s = _settings(doubao_api_key="sk-b", doubao_sampling_mode="crawl_only")
-    try:
-        chat_for_platform("doubao", [{"role": "user", "content": "hi"}], settings=s)
-        assert False, "expected SamplingLLMError"
-    except SamplingLLMError as exc:
-        assert "crawl" in str(exc).lower()
-    mock_responses.assert_not_called()
-
-
-@patch("aperix_geo.services.sampling.llm.try_web_crawl")
-@patch("aperix_geo.services.sampling.llm.doubao_responses_chat")
-def test_doubao_crawl_first_uses_crawl_when_available(mock_responses, mock_crawl):
-    mock_crawl.return_value = SamplingChatResult(
-        text="crawled",
-        usage={},
-        latency_ms=90,
-        web_search_mode="doubao_web_crawl",
-        share_url="https://www.doubao.com/share/x",
-    )
-    s = _settings(doubao_api_key="sk-b", doubao_sampling_mode="crawl_first")
     result = chat_for_platform("doubao", [{"role": "user", "content": "hi"}], settings=s)
-    assert result.text == "crawled"
-    assert result.share_url.startswith("https://")
-    mock_responses.assert_not_called()
+    assert result.text == "api"
 
 
-@patch(
-    "aperix_geo.services.crawl_accounts.pool.count_fresh_active_accounts",
-    return_value=0,
-)
+def test_resolve_sampling_backend_modes():
+    from aperix_geo.services.sampling.backends import resolve_sampling_backend
+
+    assert resolve_sampling_backend("doubao", settings=_settings(doubao_sampling_mode="api_only")) == "api"
+    assert resolve_sampling_backend("doubao", settings=_settings(doubao_sampling_mode="crawl_first")) == "crawl"
+    assert resolve_sampling_backend("deepseek", settings=_settings(deepseek_api_key="x")) == "api"
+
+
+@patch("aperix_geo.services.sampling.llm._doubao_api_chat")
 @patch("aperix_geo.db.session.SessionLocal")
-@patch("aperix_geo.services.providers.doubao_web.crawler.crawl_doubao_chat")
-def test_try_doubao_web_crawl_skips_without_storage_state(mock_crawl, mock_session, _mock_count):
-    from aperix_geo.services.sampling.llm import try_doubao_web_crawl
+@patch("aperix_geo.services.sampling.crawl_capacity.crawl_capacity_slot")
+def test_run_doubao_account_crawl_pool_empty_api_fallback(mock_slot, mock_session, mock_api):
+    from aperix_geo.services.sampling.crawl_capacity import CrawlPoolEmpty
+    from aperix_geo.services.sampling.llm import run_doubao_account_crawl
 
     mock_session.return_value = MagicMock()
-    s = _settings(doubao_api_key="sk-b", doubao_crawl_storage_state_path="")
-    assert try_doubao_web_crawl([{"role": "user", "content": "hi"}], settings=s) is None
-    mock_crawl.assert_not_called()
+    mock_slot.side_effect = CrawlPoolEmpty("doubao pool empty")
+    mock_api.return_value = SamplingChatResult(text="api", usage={}, latency_ms=1)
+    s = _settings(doubao_api_key="sk-b", doubao_sampling_mode="crawl_first")
+    result = run_doubao_account_crawl([{"role": "user", "content": "hi"}], settings=s)
+    assert result.text == "api"
+    mock_api.assert_called_once()
 
 
-def test_try_web_crawl_unknown_platform_returns_none() -> None:
-    from aperix_geo.services.sampling.llm import try_web_crawl
+@patch("aperix_geo.db.session.SessionLocal")
+@patch("aperix_geo.services.sampling.crawl_capacity.crawl_capacity_slot")
+def test_run_doubao_account_crawl_busy_never_api(mock_slot, mock_session):
+    from aperix_geo.services.sampling.crawl_capacity import CrawlCapacityBusy
+    from aperix_geo.services.sampling.llm import run_doubao_account_crawl
 
-    s = _settings(doubao_api_key="sk-b")
-    assert try_web_crawl("deepseek", [{"role": "user", "content": "hi"}], settings=s) is None
+    mock_session.return_value = MagicMock()
+    mock_slot.side_effect = CrawlCapacityBusy("doubao busy")
+    s = _settings(doubao_api_key="sk-b", doubao_sampling_mode="crawl_first")
+    try:
+        run_doubao_account_crawl([{"role": "user", "content": "hi"}], settings=s)
+        raise AssertionError("expected CrawlCapacityBusy")
+    except CrawlCapacityBusy:
+        pass

@@ -10,7 +10,7 @@ from aperix_geo.services.billing.exceptions import SubscriptionInactiveError
 from aperix_geo.services.providers.result import SamplingChatResult
 from aperix_geo.services.sampling.parsed import ParsedSamplingResult
 from aperix_geo.services.sampling.workflow.phase_specs import build_llm_phase_spec
-from aperix_geo.tasks.sampling import sampling_crawl, sampling_llm, sampling_parse
+from aperix_geo.tasks.sampling import sampling_llm, sampling_page, sampling_parse
 
 
 def _pending_row() -> LLMResponse:
@@ -137,7 +137,7 @@ def test_sample_llm_prompt_releases_claim_after_success(
 @patch("aperix_geo.services.sampling.workflow.phase.try_claim_response", return_value=True)
 @patch("aperix_geo.services.sampling.workflow.phase_specs.load_subject_with_competitors_cached")
 @patch("aperix_geo.services.sampling.workflow.phase.SessionLocal")
-def test_sample_crawl_response_runs_crawl_phase(
+def test_sample_page_response_runs_page_phase(
     mock_session_local: MagicMock,
     mock_subject: MagicMock,
     _mock_claim: MagicMock,
@@ -162,9 +162,9 @@ def test_sample_crawl_response_runs_crawl_phase(
     db.get.return_value = job
     mock_session_local.return_value = db
 
-    out = sampling_crawl.run(str(row.id))
+    out = sampling_page.run(str(row.id))
 
-    assert out == {"ok": True, "phase": "crawl"}
+    assert out == {"ok": True, "phase": "page"}
     mock_crawl.assert_called_once()
     mock_persist.assert_called_once()
     mock_release.assert_called_once()

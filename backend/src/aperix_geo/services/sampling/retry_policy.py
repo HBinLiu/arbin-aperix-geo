@@ -9,6 +9,7 @@ from aperix_geo.services.providers.errors import (
 )
 from aperix_geo.services.sampling.llm import SamplingLLMError
 from aperix_geo.services.sampling.llm_limits import SamplingRateLimitError
+from aperix_geo.services.sampling.crawl_capacity import CrawlCapacityBusy
 from aperix_geo.services.crawl.limits import CrawlRateLimitError
 from aperix_geo.utils.cache import SingleFlightWaitTimeout
 from aperix_geo.utils.db_retry import is_retryable_db_error
@@ -35,7 +36,10 @@ def is_llm_timeout_error(exc: BaseException) -> bool:
 
 def is_retryable_sampling_error(exc: BaseException) -> bool:
     """True for rate limits and other likely-transient provider failures (not LLM timeouts)."""
-    if isinstance(exc, (SamplingRateLimitError, CrawlRateLimitError, SingleFlightWaitTimeout)):
+    if isinstance(
+        exc,
+        (SamplingRateLimitError, CrawlRateLimitError, SingleFlightWaitTimeout, CrawlCapacityBusy),
+    ):
         return True
     if is_llm_timeout_error(exc):
         return False

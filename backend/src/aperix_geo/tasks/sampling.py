@@ -15,8 +15,9 @@ from aperix_geo.services.sampling.workflow.active_job import run_active_job
 from aperix_geo.services.sampling.workflow.jobs import SamplingJobError, enqueue_subject_sampling
 from aperix_geo.services.sampling.workflow.phase import run_sampling_phase
 from aperix_geo.services.sampling.workflow.phase_specs import (
-    build_crawl_phase_spec,
+    build_account_crawl_phase_spec,
     build_llm_phase_spec,
+    build_page_phase_spec,
     build_parse_phase_spec,
 )
 from aperix_geo.services.sampling.workflow.recovery import recover_stale_sampling_jobs
@@ -28,19 +29,34 @@ logger = logging.getLogger(__name__)
 
 @celery_app.task(bind=True, max_retries=get_settings().sampling_retry_max)
 def sampling_llm(self, response_id: str) -> SamplingTaskResult:
-    """Phase 1: call platform LLM and persist raw output."""
+    """API lane: call platform HTTP LLM and persist raw output."""
     return run_sampling_phase(self, response_id, build_llm_phase_spec(self, response_id))
 
 
-@celery_app.task(bind=True, max_retries=get_settings().sampling_retry_max)
+# Alias for ops/docs that prefer the api name.
+sampling_api = sampling_llm
+
+
+@celery_app.task(
+    bind=True,
+    max_retries=max(30, get_settings().sampling_retry_max),
+    soft_time_limit=int(get_settings().doubao_crawl_timeout_s) + 120,
+    time_limit=int(get_settings().doubao_crawl_timeout_s) + 180,
+)
 def sampling_crawl(self, response_id: str) -> SamplingTaskResult:
-    """Phase 2a: fetch citation source pages (IO-bound crawl workers)."""
-    return run_sampling_phase(self, response_id, build_crawl_phase_spec(self, response_id))
+    """Account-pool browser sampling (capacity-bounded crawl workers)."""
+    return run_sampling_phase(self, response_id, build_account_crawl_phase_spec(self, response_id))
+
+
+@celery_app.task(bind=True, max_retries=get_settings().sampling_retry_max)
+def sampling_page(self, response_id: str) -> SamplingTaskResult:
+    """Citation source page fetch (IO-bound page workers)."""
+    return run_sampling_phase(self, response_id, build_page_phase_spec(self, response_id))
 
 
 @celery_app.task(bind=True, max_retries=get_settings().sampling_retry_max)
 def sampling_parse(self, response_id: str) -> SamplingTaskResult:
-    """Phase 2b: ABSA + citation merge from cached pages (parse workers)."""
+    """ABSA + citation merge from cached pages (parse workers)."""
     return run_sampling_phase(self, response_id, build_parse_phase_spec(self, response_id))
 
 
@@ -48,8 +64,9 @@ def sampling_parse(self, response_id: str) -> SamplingTaskResult:
 def sampling_fill(job_id: str, phase: str) -> None:
     """Debounced refill for stream dispatch (one phase)."""
     from aperix_geo.services.sampling.workflow.fill import fill_phase
+    from aperix_geo.services.sampling.workflow.phases import normalize_sampling_phase
 
-    fill_phase(job_id, phase)
+    fill_phase(job_id, normalize_sampling_phase(phase))
 
 
 def _run_sampling_finalize(job_id: str) -> None:

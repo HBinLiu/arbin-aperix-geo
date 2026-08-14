@@ -99,17 +99,70 @@ class Settings(BaseSettings):
     # 各平台同时进行中的 LLM HTTP 请求上限（与每分钟 quota 互补）
     sampling_llm_max_inflight: int = Field(default=15, ge=1, le=256)
     sampling_llm_inflight_ttl_s: int = Field(default=600, ge=60, le=7200)
-    # Celery 队列：编排 / LLM / Parse 分池（分机部署时各机器只消费对应 -Q）
+    # Celery 队列：编排 / API / 账号池 crawl / 引用页 page / Parse
     celery_default_queue: str = "aperix"
-    celery_sampling_llm_queue: str = "sampling.llm"
-    celery_sampling_crawl_queue: str = "sampling.crawl"
+    celery_sampling_api_queue: str = Field(
+        default="sampling.api",
+        validation_alias=AliasChoices(
+            "celery_sampling_api_queue",
+            "CELERY_SAMPLING_API_QUEUE",
+            "celery_sampling_llm_queue",
+            "CELERY_SAMPLING_LLM_QUEUE",
+        ),
+    )
+    celery_sampling_crawl_queue: str = "sampling.crawl"  # account-pool browser sampling
+    celery_sampling_page_queue: str = Field(
+        default="sampling.page",
+        validation_alias=AliasChoices(
+            "celery_sampling_page_queue",
+            "CELERY_SAMPLING_PAGE_QUEUE",
+        ),
+    )
     celery_sampling_parse_queue: str = "sampling.parse"
     celery_orch_worker_concurrency: int = Field(default=4, ge=1, le=64)
-    celery_llm_worker_concurrency: int = Field(default=16, ge=1, le=128)
-    celery_crawl_worker_concurrency: int = Field(default=8, ge=1, le=128)
-    celery_crawl_max_tasks_per_child: int = Field(default=80, ge=1, le=10_000)
-    # Celery --max-memory-per-child 单位为 KiB；子进程 RSS 超限后回收（释放 Crawl4AI 等残留）
-    celery_crawl_max_memory_per_child_kb: int = Field(default=400_000, ge=64_000, le=4_000_000)
+    celery_api_worker_concurrency: int = Field(
+        default=16,
+        ge=1,
+        le=128,
+        validation_alias=AliasChoices(
+            "celery_api_worker_concurrency",
+            "CELERY_API_WORKER_CONCURRENCY",
+            "celery_llm_worker_concurrency",
+            "CELERY_LLM_WORKER_CONCURRENCY",
+        ),
+    )
+    celery_crawl_worker_concurrency: int = Field(default=1, ge=1, le=128)  # ≤ account capacity
+    celery_page_worker_concurrency: int = Field(
+        default=8,
+        ge=1,
+        le=128,
+        validation_alias=AliasChoices(
+            "celery_page_worker_concurrency",
+            "CELERY_PAGE_WORKER_CONCURRENCY",
+        ),
+    )
+    celery_page_max_tasks_per_child: int = Field(
+        default=80,
+        ge=1,
+        le=10_000,
+        validation_alias=AliasChoices(
+            "celery_page_max_tasks_per_child",
+            "CELERY_PAGE_MAX_TASKS_PER_CHILD",
+            "celery_crawl_max_tasks_per_child",
+            "CELERY_CRAWL_MAX_TASKS_PER_CHILD",
+        ),
+    )
+    celery_page_max_memory_per_child_kb: int = Field(
+        default=400_000,
+        ge=64_000,
+        le=4_000_000,
+        validation_alias=AliasChoices(
+            "celery_page_max_memory_per_child_kb",
+            "CELERY_PAGE_MAX_MEMORY_PER_CHILD_KB",
+            "celery_crawl_max_memory_per_child_kb",
+            "CELERY_CRAWL_MAX_MEMORY_PER_CHILD_KB",
+        ),
+    )
     celery_parse_worker_concurrency: int = Field(default=16, ge=1, le=128)
     celery_redis_socket_timeout_s: float = Field(default=30.0, ge=5.0, le=120.0)
     celery_redis_connect_timeout_s: float = Field(default=10.0, ge=1.0, le=60.0)
@@ -356,6 +409,24 @@ class Settings(BaseSettings):
 
     # favicon 本地持久化目录（按域名子目录保存全部成功抓取的图标）
     favicon_storage_dir: str = Field(default=str(_BACKEND_DIR / "data" / "favicons"))
+
+    @property
+    def celery_sampling_llm_queue(self) -> str:
+        """Alias for ``celery_sampling_api_queue`` (legacy name)."""
+        return self.celery_sampling_api_queue
+
+    @property
+    def celery_llm_worker_concurrency(self) -> int:
+        return self.celery_api_worker_concurrency
+
+    @property
+    def celery_crawl_max_tasks_per_child(self) -> int:
+        """Legacy name: citation page worker recycle (now page lane)."""
+        return self.celery_page_max_tasks_per_child
+
+    @property
+    def celery_crawl_max_memory_per_child_kb(self) -> int:
+        return self.celery_page_max_memory_per_child_kb
 
 
 @lru_cache

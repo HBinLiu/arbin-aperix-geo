@@ -62,6 +62,18 @@ def count_fresh_active_accounts(
     settings: Settings | None = None,
 ) -> int:
     settings = settings or get_settings()
+    snap = account_pool_capacity_snapshot(db, platform=platform, settings=settings)
+    return snap["free"]
+
+
+def account_pool_capacity_snapshot(
+    db: Session,
+    *,
+    platform: str = PLATFORM_DOUBAO,
+    settings: Settings | None = None,
+) -> dict[str, int]:
+    """Fresh active accounts with session cookies: free (acquirable) vs leased (busy)."""
+    settings = settings or get_settings()
     plat = normalize_platform(platform)
     now = utc_now()
     fresh_cutoff = now - timedelta(seconds=int(settings.doubao_heartbeat_fresh_s))
@@ -72,17 +84,21 @@ def count_fresh_active_accounts(
                 CrawlAccount.platform == plat,
                 CrawlAccount.status == STATUS_ACTIVE,
                 CrawlAccount.last_ok_at >= fresh_cutoff,
-                CrawlAccount.lease_until < now,
             )
             .order_by(CrawlAccount.last_ok_at.desc())
             .limit(50)
         ).all()
     )
-    return sum(
-        1
-        for row in rows
-        if storage_state_has_session_cookies(row.storage_state, platform=plat)
-    )
+    free = 0
+    leased = 0
+    for row in rows:
+        if not storage_state_has_session_cookies(row.storage_state, platform=plat):
+            continue
+        if row.lease_until and row.lease_until > now:
+            leased += 1
+        else:
+            free += 1
+    return {"free": free, "leased": leased, "total": free + leased}
 
 
 def acquire_account(
