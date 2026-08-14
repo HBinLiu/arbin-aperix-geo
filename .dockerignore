@@ -1,0 +1,5 @@
+# Keep crawl image COPY of backend/src lean and reproducible.
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/*.egg-info/

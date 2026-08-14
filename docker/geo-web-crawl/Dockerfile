@@ -63,11 +63,27 @@ class Block:
 
 sys.meta_path.insert(0, Block())
 from datetime import UTC  # noqa: F401
+from pathlib import Path
+from importlib import import_module
 from playwright.sync_api import sync_playwright  # noqa: F401
+
+jobs_dir = Path("/app/src/aperix_geo/services/providers/doubao_web/jobs")
+expected = ("__init__.py", "crawl.py", "probe.py", "http.py", "share.py", "sign.py")
+missing = [name for name in expected if not (jobs_dir / name).is_file()]
+if missing:
+    raise SystemExit(
+        f"geo-web-crawl image missing jobs modules {missing}; "
+        f"present={sorted(p.name for p in jobs_dir.iterdir())}"
+    )
+
 from aperix_geo.services.geo_web_crawl.registry import ensure_handlers_loaded
-from aperix_geo.services.providers.doubao_web.jobs import crawl as _crawl_job  # noqa: F401
-from aperix_geo.services.providers.doubao_web.jobs import probe as _probe_job  # noqa: F401
-from aperix_geo.services.providers.doubao_web import crawler as _crawler  # noqa: F401
+
+for _mod in (
+    "aperix_geo.services.providers.doubao_web.jobs.crawl",
+    "aperix_geo.services.providers.doubao_web.jobs.probe",
+    "aperix_geo.services.providers.doubao_web.crawler",
+):
+    import_module(_mod)
 
 ensure_handlers_loaded()
 print("geo-web-crawl lean import check ok")

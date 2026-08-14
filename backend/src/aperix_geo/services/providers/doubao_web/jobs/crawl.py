@@ -1,4 +1,4 @@
-"""Isolated Doubao browser crawl job (runs in-process or inside a spawn child)."""
+"""Isolated Doubao browser crawl job (full UI: chat → panel → share)."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import time
 from typing import Any
 
 from aperix_geo.config import Settings
+from aperix_geo.services.crawl_accounts.session_cookies import cookies_only_storage_state
 from aperix_geo.services.providers.doubao_web import selectors as sel
 from aperix_geo.services.providers.doubao_web.errors import (
     DoubaoCrawlError,
@@ -20,8 +21,22 @@ from aperix_geo.services.providers.doubao_web.extract import (
     filter_http_urls,
     panel_present,
 )
+from aperix_geo.services.providers.doubao_web.runtime import (
+    assert_logged_in,
+    assert_no_captcha,
+    job_error,
+    job_ok,
+)
 
 logger = logging.getLogger(__name__)
+
+_EMPTY = {
+    "text": "",
+    "latency_ms": 0,
+    "source_urls": [],
+    "search_queries": [],
+    "share_url": "",
+}
 
 
 def settings_from_crawl_payload(payload: dict[str, Any]) -> Settings:
@@ -39,6 +54,7 @@ def build_crawl_payload(
     settings: Settings,
 ) -> dict[str, Any]:
     return {
+        "mode": "crawl",
         "prompt": prompt,
         "storage_state": storage_state,
         "timeout_s": float(settings.doubao_crawl_timeout_s),
@@ -47,38 +63,20 @@ def build_crawl_payload(
     }
 
 
-def _job_error(exc: BaseException, *, human_ops: bool = False) -> dict[str, Any]:
-    return {
-        "ok": False,
-        "error_type": type(exc).__name__,
-        "error": str(exc),
-        "human_ops": human_ops,
-        "storage_state": None,
-    }
-
-
-def _validate_payload(payload: dict[str, Any]) -> tuple[str, dict[str, Any]] | dict[str, Any]:
-    prompt = str(payload.get("prompt") or "").strip()
-    storage_state = payload.get("storage_state")
-    if not prompt:
-        return _job_error(DoubaoCrawlError("empty user prompt"))
-    if not isinstance(storage_state, dict):
-        return _job_error(DoubaoCrawlError("storage_state missing"))
-    return prompt, storage_state
-
-
 def run_doubao_browser_crawl_on_page(
     page: Any,
     context: Any,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    """Run chat→reply→panel→share on an already-open Playwright page/context."""
-    from aperix_geo.services.providers.doubao_web import crawler as crawl_mod
+    from aperix_geo.services.providers.doubao_web import ui_flow
 
-    validated = _validate_payload(payload)
-    if isinstance(validated, dict):
-        return validated
-    prompt, _storage_state = validated
+    prompt = str(payload.get("prompt") or "").strip()
+    storage_state = payload.get("storage_state")
+    if not prompt:
+        return job_error(DoubaoCrawlError("empty user prompt"), **_EMPTY)
+    if not isinstance(storage_state, dict):
+        return job_error(DoubaoCrawlError("storage_state missing"), **_EMPTY)
+
     settings = settings_from_crawl_payload(payload)
     timeout_ms = int(settings.doubao_crawl_timeout_s * 1000)
     started = time.monotonic()
@@ -87,25 +85,21 @@ def run_doubao_browser_crawl_on_page(
     try:
         crawl_deadline = time.monotonic() + settings.doubao_crawl_timeout_s
         page.goto(base_url, wait_until="domcontentloaded", timeout=timeout_ms)
-        crawl_mod._assert_logged_in(page)
-        crawl_mod._assert_no_captcha(page)
-        crawl_mod._ensure_blank_chat(page, base_url=base_url)
-        crawl_mod._fill_and_send(page, prompt)
-        crawl_mod._assert_no_captcha(page)
-        crawl_mod._wait_generation_done(
-            page,
-            settings=settings,
-            deadline=crawl_deadline,
+        assert_logged_in(page)
+        assert_no_captcha(page)
+        ui_flow._ensure_blank_chat(page, base_url=base_url)
+        ui_flow._fill_and_send(page, prompt)
+        assert_no_captcha(page)
+        ui_flow._wait_generation_done(
+            page, settings=settings, deadline=crawl_deadline
         )
-        crawl_mod._assert_no_captcha(page)
+        assert_no_captcha(page)
 
-        raw_text = crawl_mod._extract_assistant_text(page, deadline=crawl_deadline)
-        panel_text, panel_hrefs = crawl_mod._extract_search_panel(page)
+        raw_text = ui_flow._extract_assistant_text(page, deadline=crawl_deadline)
+        panel_text, panel_hrefs = ui_flow._extract_search_panel(page)
         queries = extract_quoted_queries(panel_text) if panel_present(panel_text) else ()
         text = clean_assistant_text(
-            raw_text,
-            user_prompt=prompt,
-            search_queries=queries,
+            raw_text, user_prompt=prompt, search_queries=queries
         )
         if not text.strip():
             raise DoubaoCrawlError("empty assistant reply")
@@ -115,37 +109,26 @@ def run_doubao_browser_crawl_on_page(
         share_url = ""
         share_error: Exception | None = None
         try:
-            share_url = crawl_mod._capture_share_url(page)
+            share_url = ui_flow.capture_share_url(page)
         except Exception as exc:  # noqa: BLE001
             share_error = exc
-
         if not share_url:
             raise DoubaoShareError(
                 f"share_url required but missing: {share_error or 'empty'}"
             ) from share_error
 
-        from aperix_geo.services.crawl_accounts.session_cookies import (
-            cookies_only_storage_state,
+        return job_ok(
+            text=text.strip(),
+            latency_ms=int((time.monotonic() - started) * 1000),
+            source_urls=list(source_urls),
+            search_queries=list(queries),
+            share_url=share_url,
+            storage_state=cookies_only_storage_state(context.storage_state()),
         )
-
-        new_state = cookies_only_storage_state(context.storage_state())
-        latency_ms = int((time.monotonic() - started) * 1000)
-        return {
-            "ok": True,
-            "text": text.strip(),
-            "latency_ms": latency_ms,
-            "source_urls": list(source_urls),
-            "search_queries": list(queries),
-            "share_url": share_url,
-            "storage_state": new_state,
-            "error_type": "",
-            "error": "",
-            "human_ops": False,
-        }
     except DoubaoNeedsHumanOps as exc:
-        return _job_error(exc, human_ops=True)
+        return job_error(exc, human_ops=True, **_EMPTY)
     except DoubaoCrawlError as exc:
-        return _job_error(exc)
+        return job_error(exc, **_EMPTY)
     except Exception as exc:  # noqa: BLE001
         logger.exception("doubao browser crawl on_page unexpected error")
-        return _job_error(exc)
+        return job_error(exc, **_EMPTY)
