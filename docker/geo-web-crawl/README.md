@@ -23,23 +23,31 @@ docker compose -f docker/geo-web-crawl/docker-compose.yml up -d --force-recreate
 
 ## Compose（Browserless + crawl）
 
-见同目录 [`docker-compose.yml`](./docker-compose.yml)：
+见同目录 [`docker-compose.yml`](./docker-compose.yml)。配置用 **`.env`**（从 [`.env.example`](./.env.example) 复制；compose 自动加载）：
 
 ```bash
-cd docker/geo-web-crawl && docker compose up -d
+cd docker/geo-web-crawl
+cp -n .env.example .env   # 已有 .env 则跳过
+# 按需改 TOKEN / LIVE_VIEW 等
+docker compose up -d
 ```
 
 Browserless 映射宿主机 **`3001→3000`**（避开常见的 3000 占用），供 Debugger / liveURL；crawl 容器内仍用 `ws://browserless:3000/chromium`。
 
 ### 实时看浏览器（调试）
 
-默认关闭。开启：
+编辑 `.env`：
+
+```text
+GEO_WEB_CRAWL_LIVE_VIEW=1
+GEO_WEB_CRAWL_LIVE_VIEW_PAUSE_S=25
+GEO_WEB_CRAWL_LIVE_VIEW_SCREENSHOT_DIR=/tmp/geo-crawl-live
+GEO_WEB_CRAWL_LIVE_VIEW_BASE_URL=http://127.0.0.1:3001
+```
+
+然后：
 
 ```bash
-cd docker/geo-web-crawl
-GEO_WEB_CRAWL_LIVE_VIEW=1 \
-GEO_WEB_CRAWL_LIVE_VIEW_PAUSE_S=25 \
-GEO_WEB_CRAWL_LIVE_VIEW_SCREENSHOT_DIR=/tmp/geo-crawl-live \
 docker compose up -d --force-recreate
 # 若改过 crawl 代码需先: docker compose build geo-web-crawl
 ```
@@ -49,17 +57,10 @@ docker compose up -d --force-recreate
 | 看什么 | 怎么看 |
 |--------|--------|
 | liveURL | `docker compose logs -f geo-web-crawl` 搜 `LIVE VIEW (open in browser)`（需镜像支持 Hybrid；开源版可能没有） |
-| Browserless UI | 浏览器打开 `http://127.0.0.1:3001/`（TOKEN 与 compose 一致） |
-| 截图回放 | 宿主机 `docker/geo-web-crawl/live-shots/frame-*.png`（每 5s 一张） |
+| Browserless UI | `http://127.0.0.1:3001/`（TOKEN 与 `.env` 一致；远程请用 SSH 隧道） |
+| 截图回放 | `docker/geo-web-crawl/live-shots/frame-*.png` |
 
-任务开始会按 `PAUSE_S` 暂停，方便你先打开画面。关掉：
-
-```bash
-GEO_WEB_CRAWL_LIVE_VIEW=0 GEO_WEB_CRAWL_LIVE_VIEW_SCREENSHOT_DIR= \
-  docker compose up -d --force-recreate
-```
-
-相关环境变量（仅 crawl 容器）：`GEO_WEB_CRAWL_LIVE_VIEW`、`LIVE_VIEW_PAUSE_S`、`LIVE_VIEW_BASE_URL`、`LIVE_VIEW_SCREENSHOT_DIR`。
+关掉：`.env` 改回 `LIVE_VIEW=0`、`PAUSE_S=0`、清空 `SCREENSHOT_DIR`，再 `up -d --force-recreate`。
 
 手动等价：
 
