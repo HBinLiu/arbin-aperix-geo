@@ -1,4 +1,4 @@
-"""Lightweight geo crawl account heartbeat (login probe + cookie refresh)."""
+"""Geo crawl account heartbeat (login probe + optional light send for captcha)."""
 
 from __future__ import annotations
 
@@ -177,7 +177,7 @@ def probe_account_login(
     if not storage_state_has_cookies(storage_state, platform=plat):
         raise DoubaoLoginExpired(f"storage_state missing {plat} session cookies")
 
-    from aperix_geo.services.providers.doubao_web.probe_job import build_probe_payload
+    from aperix_geo.services.providers.doubao_web.jobs.probe import build_probe_payload
     from aperix_geo.services.geo_web_crawl.spawn import run_geo_web_crawl_spawn
 
     payload = build_probe_payload(storage_state=storage_state, settings=settings)

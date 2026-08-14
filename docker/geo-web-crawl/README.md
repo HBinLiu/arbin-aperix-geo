@@ -113,7 +113,19 @@ Browserless 相关变量配在 **crawl 容器**（不是 Celery），见 compose
 - `GET /healthz` → `{ ok, platforms, concurrency, browser_backend }`（`browserless` | `local`）
 - `POST /v1/jobs`  
   Header: `Authorization: Bearer <GEO_WEB_CRAWL_TOKEN>`  
-  Body: `{ "platform": "doubao", "mode": "crawl"|"probe", "storage_state": {...}, ... }`
+  Body: `{ "platform": "doubao", "mode": "<mode>", "storage_state": {...}, ... }`
+
+豆包 `mode`：
+
+| mode | 作用 |
+|------|------|
+| `crawl` | 整页 UI：对话 → 扇出 → `share_url`（默认） |
+| `probe` | 登录心跳；默认轻量发短会话检行为验证码（不等全文），结束后删除该会话 |
+| `sign` | 页内 `frontierSign` → `a_bogus` / fingerprint |
+| `http` | 页内 `fetch` 打 samantha completion（正文/扇出；无 share） |
+| `share` | 短 UI：打开会话只取 `share_url` |
+
+Hybrid 采样（backend）：`DOUBAO_WEB_HTTP_ENABLED=true` + `DOUBAO_CRAWL_TRANSPORT=hybrid` → `http` + `share`。默认仍为 `ui`（整页 `crawl`）。仅借鉴协议/签名思路，**不**提供 OpenAI 兼容网关。
 
 ## 扩展平台
 

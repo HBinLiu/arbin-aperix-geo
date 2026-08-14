@@ -65,7 +65,8 @@ sys.meta_path.insert(0, Block())
 from datetime import UTC  # noqa: F401
 from playwright.sync_api import sync_playwright  # noqa: F401
 from aperix_geo.services.geo_web_crawl.registry import ensure_handlers_loaded
-from aperix_geo.services.providers.doubao_web import browser_crawl_job, probe_job  # noqa: F401
+from aperix_geo.services.providers.doubao_web.jobs import crawl as _crawl_job  # noqa: F401
+from aperix_geo.services.providers.doubao_web.jobs import probe as _probe_job  # noqa: F401
 from aperix_geo.services.providers.doubao_web import crawler as _crawler  # noqa: F401
 
 ensure_handlers_loaded()

@@ -17,6 +17,9 @@ SHARE_MENU_HINT = re.compile(r"置顶|重命名|举报|删除")
 # Header "⋯" / more actions (share lives inside this menu on current Doubao Web).
 MORE_MENU_NAME = re.compile(r"更多|更多操作|更多选项|菜单|More")
 COPY_LINK_NAME = re.compile(r"复制链接|复制分享链接|^复制$")
+# Delete current thread (heartbeat probe must remove its own chat).
+DELETE_CHAT_NAME = re.compile(r"^删除$|删除对话|删除聊天|删除会话")
+CONFIRM_DELETE_NAME = re.compile(r"^确定$|^确认$|确认删除|删除对话")
 LOGIN_HINT = re.compile(r"登录|登陆|验证码|扫码")
 # Assistant message toolbar (copy / 朗读 / …). First direct ``button`` copies Markdown body.
 MESSAGE_ACTION_BAR = ".message-action-button-main"

@@ -208,6 +208,18 @@ class Settings(BaseSettings):
     doubao_responses_timeout_s: float = Field(default=120.0, ge=10.0, le=600.0)
     # 豆包采样路径：api_only（默认现网）| crawl_first | crawl_only（见 docs/09）
     doubao_sampling_mode: str = "api_only"
+    # Crawl transport: ui (full Playwright chat) | hybrid (Web HTTP + short share UI).
+    # hybrid only applies when doubao_web_http_enabled=True; otherwise forced to ui.
+    doubao_crawl_transport: str = "ui"
+    doubao_web_http_enabled: bool = False
+    # browser = in-page fetch via geo-web-crawl mode=http; httpx = sign + out-of-browser POST
+    doubao_web_http_via: str = "browser"
+    doubao_web_bot_id: str = "7338286299411103781"  # same default as web_http.protocol.DEFAULT_BOT_ID
+    # Optional static fingerprints for httpx/sign path (from a real browser request).
+    doubao_web_device_id: str = ""
+    doubao_web_fp: str = ""
+    doubao_web_web_id: str = ""
+    doubao_web_tea_uuid: str = ""
     doubao_crawl_timeout_s: float = Field(default=120.0, ge=30.0, le=900.0)
     doubao_crawl_concurrency: int = Field(default=2, ge=1, le=16)
     doubao_crawl_headless: bool = True
@@ -225,6 +237,11 @@ class Settings(BaseSettings):
     doubao_heartbeat_enabled: bool = False
     doubao_heartbeat_interval_min: int = Field(default=45, ge=5, le=1440)
     doubao_heartbeat_fresh_s: int = Field(default=21600, ge=300, le=604800)
+    # Heartbeat login probe also sends a short chat to surface behavior captcha.
+    doubao_heartbeat_send_probe: bool = True
+    doubao_heartbeat_probe_prompt: str = "你好"
+    # Max seconds to watch after send (captcha / generating start); no full reply required.
+    doubao_heartbeat_send_wait_s: float = Field(default=20.0, ge=5.0, le=120.0)
     doubao_ops_ticket_enabled: bool = False
     doubao_ops_ticket_ttl_min: int = Field(default=15, ge=5, le=120)
     # Ops API token for /ops/geo-crawl/*. Empty ⇒ 503.

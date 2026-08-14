@@ -243,11 +243,11 @@ def run_geo_web_crawl_spawn(
     base_url: str | None = None,
     token: str | None = None,
 ) -> dict[str, Any]:
-    """Run crawl/probe via resident HTTP service, else local CLI (or ephemeral docker)."""
+    """Run crawl/probe/sign/http/share via resident HTTP, else local CLI."""
+    from aperix_geo.services.providers.doubao_web.runtime import normalize_doubao_job_mode
+
     join_timeout = max(60.0, float(timeout_s) + 60.0)
-    job_mode = (mode or "crawl").strip().lower() or "crawl"
-    if job_mode not in ("crawl", "probe"):
-        job_mode = "crawl"
+    job_mode = normalize_doubao_job_mode(mode)
     payload = {
         **payload,
         "mode": job_mode,

@@ -131,7 +131,10 @@ def test_doubao_crawl_first_uses_crawl_when_available(mock_responses, mock_crawl
     mock_responses.assert_not_called()
 
 
-@patch("aperix_geo.services.providers.doubao_web.accounts.count_fresh_active_accounts", return_value=0)
+@patch(
+    "aperix_geo.services.crawl_accounts.pool.count_fresh_active_accounts",
+    return_value=0,
+)
 @patch("aperix_geo.db.session.SessionLocal")
 @patch("aperix_geo.services.providers.doubao_web.crawler.crawl_doubao_chat")
 def test_try_doubao_web_crawl_skips_without_storage_state(mock_crawl, mock_session, _mock_count):

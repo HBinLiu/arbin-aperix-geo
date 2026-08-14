@@ -42,7 +42,7 @@ def test_cli_runtime_crawl_mode(monkeypatch) -> None:
     cm.__exit__.return_value = False
 
     monkeypatch.setattr(
-        "aperix_geo.services.providers.doubao_web.browser_crawl_job.run_doubao_browser_crawl_on_page",
+        "aperix_geo.services.providers.doubao_web.jobs.crawl.run_doubao_browser_crawl_on_page",
         lambda p, c, payload: {
             "ok": True,
             "text": "hi",
@@ -80,7 +80,7 @@ def test_cli_runtime_probe_mode(monkeypatch) -> None:
     cm.__exit__.return_value = False
 
     monkeypatch.setattr(
-        "aperix_geo.services.providers.doubao_web.probe_job.run_doubao_login_probe_on_page",
+        "aperix_geo.services.providers.doubao_web.jobs.probe.run_doubao_login_probe_on_page",
         lambda p, c, payload: {
             "ok": True,
             "storage_state": {"cookies": [{"name": "sessionid"}]},

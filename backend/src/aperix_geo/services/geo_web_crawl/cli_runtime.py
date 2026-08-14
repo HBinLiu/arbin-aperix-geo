@@ -9,17 +9,15 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from aperix_geo.services.geo_web_crawl.result import crawl_fail
+from aperix_geo.services.providers.doubao_web.runtime import normalize_doubao_job_mode
+
 logger = logging.getLogger(__name__)
 
 
-def _fail(message: str, *, error_type: str = "CrawlError") -> dict[str, Any]:
-    return {
-        "ok": False,
-        "error_type": error_type,
-        "error": message,
-        "human_ops": False,
-        "storage_state": None,
-    }
+def _default_context_timeout_ms(timeout_s: float) -> int:
+    """Playwright default timeout for the context; allow full job budget (cap 15m)."""
+    return max(10_000, min(900_000, int(float(timeout_s) * 1000)))
 
 
 def run_geo_web_cli_job(payload: dict[str, Any], *, mode: str = "crawl") -> dict[str, Any]:
@@ -28,28 +26,28 @@ def run_geo_web_cli_job(payload: dict[str, Any], *, mode: str = "crawl") -> dict
     from aperix_geo.services.providers.doubao_web.browser import prepare_sync_playwright_runtime
 
     ensure_handlers_loaded()
-    job_mode = (mode or "crawl").strip().lower() or "crawl"
-    if job_mode not in ("crawl", "probe"):
-        job_mode = "crawl"
+    job_mode = normalize_doubao_job_mode(mode)
 
     platform = str(payload.get("platform") or "doubao").strip().lower() or "doubao"
     handler = get_handler(platform)
     if handler is None:
-        return _fail(f"unknown platform: {platform}", error_type="PlatformNotImplemented")
+        return crawl_fail(
+            f"unknown platform: {platform}", error_type="PlatformNotImplemented"
+        )
 
     storage_state = payload.get("storage_state")
     if not isinstance(storage_state, dict):
-        return _fail("storage_state missing")
+        return crawl_fail("storage_state missing")
 
     headless = bool(payload.get("headless", True))
     timeout_s = float(payload.get("timeout_s") or (60 if job_mode == "probe" else 120))
-    timeout_ms = min(60_000, int(timeout_s * 1000))
+    timeout_ms = _default_context_timeout_ms(timeout_s)
     job_payload = {**payload, "mode": job_mode, "platform": platform}
 
     try:
         from playwright.sync_api import sync_playwright
     except ImportError as exc:
-        return _fail(f"playwright is not installed: {exc}")
+        return crawl_fail(f"playwright is not installed: {exc}")
 
     prepare_sync_playwright_runtime()
     try:
@@ -58,7 +56,7 @@ def run_geo_web_cli_job(payload: dict[str, Any], *, mode: str = "crawl") -> dict
                 browser = playwright.chromium.launch(headless=headless)
             except Exception as exc:
                 logger.exception("sync chromium.launch failed")
-                return _fail(
+                return crawl_fail(
                     f"chromium.launch failed: {type(exc).__name__}: {exc}. "
                     "Use geo-web-crawl Docker or: python -m playwright install chromium"
                 )
@@ -105,4 +103,4 @@ def run_geo_web_cli_job(payload: dict[str, Any], *, mode: str = "crawl") -> dict
         logger.exception(
             "geo-web-crawl-cli sync session failed platform=%s mode=%s", platform, job_mode
         )
-        return _fail(f"{type(exc).__name__}: {exc}", error_type=type(exc).__name__)
+        return crawl_fail(f"{type(exc).__name__}: {exc}", error_type=type(exc).__name__)

@@ -60,7 +60,7 @@ def test_run_job_sync_doubao_probe(monkeypatch) -> None:
         lambda **kwargs: _CM(),
     )
     monkeypatch.setattr(
-        "aperix_geo.services.providers.doubao_web.probe_job.run_doubao_login_probe_on_page",
+        "aperix_geo.services.providers.doubao_web.jobs.probe.run_doubao_login_probe_on_page",
         lambda page, context, payload: {
             "ok": True,
             "storage_state": {"cookies": [{"name": "sessionid"}]},
