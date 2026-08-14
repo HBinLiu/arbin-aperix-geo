@@ -1,4 +1,4 @@
-"""Geo crawl account heartbeat (login probe + optional light send for captcha)."""
+"""Geo crawl account heartbeat (real login proof via short send + cookie refresh)."""
 
 from __future__ import annotations
 
@@ -113,7 +113,12 @@ def run_crawl_account_heartbeat(
             new_state = probe_account_login(
                 row.storage_state, platform=plat, settings=settings
             )
-            row.storage_state = cookies_only_storage_state(new_state)
+            cleaned = cookies_only_storage_state(new_state)
+            if not storage_state_has_cookies(cleaned, platform=plat):
+                raise DoubaoLoginExpired(
+                    "heartbeat probe returned storage_state without session cookies"
+                )
+            row.storage_state = cleaned
             row.last_ok_at = utc_now()
             row.last_error = ""
             # Probe success must return account to pool (sampling only acquires active).

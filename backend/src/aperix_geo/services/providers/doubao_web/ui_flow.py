@@ -253,11 +253,19 @@ def _debug_screenshot(page: Any, *, label: str) -> str:
         return ""
 
 
-def _wait_send_accepted(page: Any, *, prior_conv_id: str, deadline: float) -> None:
+def _wait_send_accepted(
+    page: Any,
+    *,
+    prior_conv_id: str,
+    deadline: float,
+    require_new_conversation: bool = False,
+) -> None:
     """After send: require conversation id and/or generating UI, else fail fast with snapshot."""
 
     def _accepted() -> bool:
         conv = conversation_id_from_url(getattr(page, "url", "") or "")
+        if require_new_conversation:
+            return bool(conv and conv != prior_conv_id)
         if conv and conv != prior_conv_id:
             return True
         if _stop_button_visible(page) or _any_streaming_true(page):
@@ -272,6 +280,9 @@ def _wait_send_accepted(page: Any, *, prior_conv_id: str, deadline: float) -> No
         return False
 
     while time.monotonic() < deadline:
+        from aperix_geo.services.providers.doubao_web.runtime import assert_logged_in
+
+        assert_logged_in(page)
         assert_no_captcha(page)
         if _accepted():
             return
@@ -347,6 +358,10 @@ def _action_bar_visible(page: Any) -> bool:
 def _wait_until(page: Any, *, deadline: float, predicate: Any, label: str) -> None:
     """Poll DOM until predicate() is true, or raise on crawl deadline / page closed."""
     while time.monotonic() < deadline:
+        # Session can die mid-wait (Doubao lands on ?from_logout=1).
+        from aperix_geo.services.providers.doubao_web.runtime import assert_logged_in
+
+        assert_logged_in(page)
         assert_no_captcha(page)
         try:
             if predicate():
@@ -393,7 +408,10 @@ def _wait_generation_done(page: Any, *, settings: Settings, deadline: float) -> 
         if _generating():
             saw_generating = True
             return True
-        # Ultra-fast replies may skip a visible stop control.
+        # Require a real thread id before treating md-box / action bar as "started"
+        # (guest landing can look busy without a conversation).
+        if not conversation_id_from_url(getattr(page, "url", "") or ""):
+            return False
         try:
             if page.locator(".md-box-root").count() > 0:
                 saw_generating = True

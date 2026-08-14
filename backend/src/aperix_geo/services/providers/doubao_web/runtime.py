@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, Literal
 
 from aperix_geo.config import Settings
@@ -126,13 +127,66 @@ def _composer(page: Any) -> Any | None:
 
 
 def assert_logged_in(page: Any) -> None:
+    """Raise DoubaoLoginExpired when the chat UI is not an authenticated session.
+
+    Guest landing often still shows a composer; a visible「登录」CTA or
+    ``from_logout=1`` is enough to treat storage_state as unusable.
+    """
     url = (page.url or "").lower()
     if "login" in url or "passport" in url:
         raise DoubaoLoginExpired(f"redirected to login: {page.url}")
-    login_btn = page.get_by_role("button", name=sel.LOGIN_HINT)
-    composer = _composer(page)
-    if login_btn.count() > 0 and composer is None:
-        raise DoubaoLoginExpired("login UI visible; storage_state expired")
+    if "from_logout" in url:
+        raise DoubaoLoginExpired(f"logged out landing: {page.url}")
+
+    for role in ("button", "link"):
+        loc = page.get_by_role(role, name=sel.LOGIN_HINT)
+        try:
+            n = min(int(loc.count()), 12)
+        except Exception:
+            n = 0
+        for i in range(n):
+            try:
+                el = loc.nth(i)
+                if not el.is_visible():
+                    continue
+                label = ""
+                try:
+                    label = (el.inner_text(timeout=800) or "").strip()
+                except Exception:
+                    label = ""
+                # Ignore captcha-only chrome; require login/scan CTA.
+                if re.search(r"登录|登陆|扫码", label) or not label:
+                    raise DoubaoLoginExpired(
+                        f"login UI visible ({role}={label or 'login'}); storage_state expired"
+                    )
+            except DoubaoLoginExpired:
+                raise
+            except Exception:
+                continue
+
+    # Header「登录」often appears as plain text on guest shell (see end.png / body dump).
+    try:
+        login_text = page.get_by_text(re.compile(r"^\s*登录\s*$"))
+        for i in range(min(login_text.count(), 8)):
+            if login_text.nth(i).is_visible():
+                raise DoubaoLoginExpired("login text visible; storage_state expired")
+    except DoubaoLoginExpired:
+        raise
+    except Exception:
+        pass
+
+    try:
+        body = page.locator("body").inner_text(timeout=1_500) or ""
+    except Exception:
+        body = ""
+    # Compact guest chrome: "…下载豆包电脑版 登录 有什么我能帮你的吗？"
+    if re.search(r"(电脑版|关于豆包)\s*登录\s+", body) or re.search(
+        r"\s登录\s+有什么我能帮你的吗", body
+    ):
+        raise DoubaoLoginExpired("guest shell copy with 登录; storage_state expired")
+
+    if _composer(page) is None:
+        raise DoubaoLoginExpired("chat composer not found; storage_state expired")
 
 
 def page_has_captcha(page: Any) -> bool:
