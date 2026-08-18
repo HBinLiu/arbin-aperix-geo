@@ -25,10 +25,17 @@ _SESSION_COOKIE_NAMES: dict[str, frozenset[str]] = {
         }
     ),
 }
+_LOGIN_PROOF_COOKIE_NAMES: dict[str, frozenset[str]] = {
+    PLATFORM_DOUBAO: frozenset({"sessionid", "sessionid_ss", "sid_guard"}),
+}
 
 
 def session_cookie_names_for_platform(platform: str) -> frozenset[str]:
     return _SESSION_COOKIE_NAMES.get(normalize_platform(platform), frozenset())
+
+
+def login_proof_cookie_names_for_platform(platform: str) -> frozenset[str]:
+    return _LOGIN_PROOF_COOKIE_NAMES.get(normalize_platform(platform), frozenset())
 
 
 def session_cookie_names(

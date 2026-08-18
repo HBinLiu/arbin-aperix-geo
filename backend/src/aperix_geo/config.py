@@ -278,7 +278,7 @@ class Settings(BaseSettings):
     doubao_crawl_storage_state_path: str = ""
     doubao_chat_base_url: str = "https://www.doubao.com/chat/"
 
-    # Backend → resident geo-web-crawl HTTP (per-account Chrome profiles).
+    # Backend → resident geo-web-crawl HTTP (per-account Chrome profiles + noVNC).
     geo_web_crawl_base_url: str = ""
     geo_web_crawl_token: str = ""
 
@@ -290,23 +290,18 @@ class Settings(BaseSettings):
     doubao_heartbeat_send_wait_s: float = Field(default=20.0, ge=5.0, le=120.0)
     doubao_ops_ticket_enabled: bool = False
     doubao_ops_ticket_ttl_min: int = Field(default=15, ge=5, le=120)
-    # Host directory shared with geo-web-crawl + geo-crawl-ops (one Chrome profile per account).
+    # Host directory shared with geo-web-crawl (one Chrome profile per account).
     # Production must set this. Empty is local smoke only (ephemeral Chrome + storage_state).
     geo_crawl_profile_root: str = ""
-    # After noVNC login, keep the account leased so crawl/heartbeat cannot open a
-    # second Chromium on the same sessionid while the ops container is still dying.
+    # After noVNC login, keep the account leased while crawl closes the headed Chrome.
     doubao_ops_handoff_s: int = Field(default=90, ge=0, le=600)
     # Ops API token for /ops/geo-crawl/*. Empty ⇒ 503.
     geo_crawl_ops_api_token: str = ""
     # Account pool lease floor (seconds). Effective lease = max(this, crawl_timeout+60).
     doubao_account_lease_ttl_s: int = Field(default=300, ge=60, le=3600)
 
-    # Shared crawl-ops remote desktop (noVNC).
+    # noVNC URL template; ``{port}`` is filled from the crawl instance (GEO_WEB_CRAWL_NOVNC_PUBLIC_PORT).
     geo_crawl_ops_novnc_base_url: str = ""
-    geo_crawl_ops_docker_image: str = ""
-    # Rare: only if ops must join a named Docker network (e.g. internal service DNS).
-    # Not needed when CALLBACK_BASE_URL is a public domain.
-    geo_crawl_ops_docker_network: str = ""
     geo_crawl_ops_callback_base_url: str = ""
 
     # --- 大模型：阿里云 · 通义千问（DashScope Generation API 采样）---

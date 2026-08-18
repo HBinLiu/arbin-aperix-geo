@@ -1,4 +1,4 @@
-"""Geo crawl account tickets: create / complete / cancel (geo-crawl-ops noVNC or upload)."""
+"""Geo crawl account tickets: create / complete / cancel (geo-web-crawl noVNC or upload)."""
 
 from __future__ import annotations
 
@@ -15,8 +15,12 @@ from sqlalchemy.orm import Session
 from aperix_geo.config import Settings, get_settings
 from aperix_geo.db.base import utc_now
 from aperix_geo.db.models import EPOCH, ZERO_UUID, CrawlAccount, CrawlLoginTicket
+from aperix_geo.services.crawl_accounts.cookies import (
+    storage_state_has_session_cookies,
+)
 from aperix_geo.services.crawl_accounts.platforms import (
     PLATFORM_DOUBAO,
+    normalize_login_reason,
     normalize_platform,
     platform_start_url,
 )
@@ -28,30 +32,51 @@ from aperix_geo.services.crawl_accounts.pool import (
     ensure_account_for_ops,
     upsert_account_from_state,
 )
-from aperix_geo.services.crawl_accounts.cookies import (
-    storage_state_has_session_cookies,
+from aperix_geo.services.crawl_accounts.ticket_urls import (
+    advertised_vnc_port,
+    build_complete_callback_url,
+    build_login_url,
+    rewrite_loopback_callback_url,
 )
-from aperix_geo.services.geo_crawl_ops import (
-    GeoCrawlOpsDockerError,
-    geo_crawl_ops_ready,
-    ops_session_running,
-    spawn_ops_session,
-    stop_ops_session,
+from aperix_geo.services.crawl_browser.client import (
+    CrawlLoginClientError,
+    crawl_login_session_running,
+    start_crawl_login_session,
+    stop_crawl_login_session,
 )
 
 logger = logging.getLogger(__name__)
 
 TICKET_PENDING = "pending"
 TICKET_SUCCEEDED = "succeeded"
-TICKET_FAILED = "failed"
 TICKET_EXPIRED = "expired"
 TICKET_CANCELLED = "cancelled"
 
 
 def novnc_configured(settings: Settings | None = None) -> bool:
-    """Tickets can use shared geo-crawl-ops noVNC when ticket flag + GEO_CRAWL_OPS_* are set."""
+    """True when tickets can open headed Chrome via geo-web-crawl noVNC."""
     settings = settings or get_settings()
-    return bool(settings.doubao_ops_ticket_enabled and geo_crawl_ops_ready(settings))
+    return bool(
+        settings.doubao_ops_ticket_enabled
+        and (settings.geo_web_crawl_base_url or "").strip()
+        and (settings.geo_crawl_ops_novnc_base_url or "").strip()
+    )
+
+
+def _ticket_account_id(ticket: CrawlLoginTicket) -> str:
+    if ticket.account_id == ZERO_UUID:
+        return ""
+    return str(ticket.account_id)
+
+
+def _ticket_session_id(ticket: CrawlLoginTicket) -> str:
+    """Login session id stored in the historical ``container_id`` column."""
+    return (ticket.container_id or "").strip()
+
+
+def _clear_ticket_session(ticket: CrawlLoginTicket) -> None:
+    ticket.container_id = ""
+    ticket.login_url = ""
 
 
 def _release_logging_in_account(db: Session, ticket: CrawlLoginTicket, *, error: str) -> None:
@@ -72,24 +97,12 @@ def _expire_if_needed(db: Session, ticket: CrawlLoginTicket) -> bool:
     if ticket.expires_at <= utc_now():
         ticket.status = TICKET_EXPIRED
         ticket.error_text = "ticket expired"
-        if (ticket.container_id or "").strip():
-            stop_ops_session(ticket.container_id)
-            ticket.container_id = ""
-            ticket.login_url = ""
+        if _ticket_session_id(ticket):
+            _stop_ticket_desktop(ticket)
+            _clear_ticket_session(ticket)
         _release_logging_in_account(db, ticket, error="login ticket expired")
         return True
     return False
-
-
-def list_accounts(
-    db: Session,
-    *,
-    platform: str | None = None,
-) -> list[CrawlAccount]:
-    stmt = select(CrawlAccount).order_by(CrawlAccount.updated_at.desc()).limit(200)
-    if platform is not None and str(platform).strip():
-        stmt = stmt.where(CrawlAccount.platform == normalize_platform(platform))
-    return list(db.scalars(stmt).all())
 
 
 def list_pending_tickets(
@@ -109,26 +122,7 @@ def list_pending_tickets(
     return list(db.scalars(stmt).all())
 
 
-def account_to_dict(row: CrawlAccount) -> dict[str, Any]:
-    cookies = row.storage_state.get("cookies") if isinstance(row.storage_state, dict) else None
-    cookie_count = len(cookies) if isinstance(cookies, list) else 0
-    return {
-        "id": str(row.id),
-        "platform": row.platform,
-        "label": row.label,
-        "status": row.status,
-        "cookie_count": cookie_count,
-        "last_ok_at": row.last_ok_at.isoformat(),
-        "last_error": row.last_error,
-        "lease_owner": row.lease_owner,
-        "lease_until": row.lease_until.isoformat(),
-        "created_at": row.created_at.isoformat(),
-        "updated_at": row.updated_at.isoformat(),
-    }
-
-
-def ticket_to_dict(ticket: CrawlLoginTicket, *, settings: Settings | None = None) -> dict[str, Any]:
-    _ = settings or get_settings()
+def ticket_to_dict(ticket: CrawlLoginTicket) -> dict[str, Any]:
     return {
         "id": str(ticket.id),
         "platform": ticket.platform,
@@ -166,9 +160,7 @@ def create_login_ticket(
         )
 
     plat = normalize_platform(platform)
-    ops_reason = (reason or "login_expired").strip().lower()
-    if ops_reason not in ("login_expired", "captcha"):
-        ops_reason = "login_expired"
+    reason = normalize_login_reason(reason)
 
     account: CrawlAccount | None = None
     resolved_label = (label or "").strip()
@@ -183,7 +175,6 @@ def create_login_ticket(
         resolved_account_id = account.id
         resolved_label = account.label or resolved_label
         storage_state = dict(account.storage_state or {})
-        account.status = STATUS_LOGGING_IN
         account.lease_owner = ""
         account.lease_until = EPOCH
 
@@ -225,10 +216,10 @@ def create_login_ticket(
     )
 
     if novnc_configured(settings):
-        _spawn_ops_onto_ticket(
+        _start_login_onto_ticket(
             ticket,
             storage_state=storage_state,
-            ops_reason=ops_reason,
+            reason=reason,
             ttl_min=ttl_min,
             settings=settings,
         )
@@ -256,13 +247,15 @@ def ensure_pending_ticket_session(
     if not novnc_configured(settings):
         return False
 
-    cid = (ticket.container_id or "").strip()
-    if cid and ops_session_running(cid):
+    account_id = _ticket_account_id(ticket)
+    if crawl_login_session_running(
+        account_id,
+        base_url=settings.geo_web_crawl_base_url,
+        token=settings.geo_web_crawl_token,
+    ):
         return False
 
-    ops_reason = (reason or "login_expired").strip().lower()
-    if ops_reason not in ("login_expired", "captcha"):
-        ops_reason = "login_expired"
+    reason = normalize_login_reason(reason)
 
     storage_state: dict[str, Any] | None = None
     if ticket.account_id != ZERO_UUID:
@@ -272,60 +265,91 @@ def ensure_pending_ticket_session(
             if account.status != STATUS_LOGGING_IN:
                 account.status = STATUS_LOGGING_IN
 
-    if cid:
-        stop_ops_session(cid)
+    if _ticket_session_id(ticket):
+        _stop_ticket_desktop(ticket, settings=settings)
 
     ttl_min = int(settings.doubao_ops_ticket_ttl_min)
     ticket.expires_at = utc_now() + timedelta(minutes=ttl_min)
-    _spawn_ops_onto_ticket(
+    _start_login_onto_ticket(
         ticket,
         storage_state=storage_state,
-        ops_reason=ops_reason,
+        reason=reason,
         ttl_min=ttl_min,
         settings=settings,
     )
     db.flush()
     logger.warning(
-        "geo-crawl-ops session respawned for pending ticket=%s container=%s url=%s",
+        "geo-web-crawl login respawned for pending ticket=%s session=%s url=%s",
         ticket.id,
-        (ticket.container_id or "")[:12],
+        _ticket_session_id(ticket)[:32],
         (ticket.login_url or "")[:80],
     )
     return True
 
 
-def _spawn_ops_onto_ticket(
+def _stop_ticket_desktop(
+    ticket: CrawlLoginTicket,
+    *,
+    settings: Settings | None = None,
+) -> None:
+    """Close the headed login Chrome (VNC desktop stays)."""
+    settings = settings or get_settings()
+    account_id = _ticket_account_id(ticket)
+    if not account_id:
+        return
+    stop_crawl_login_session(
+        account_id,
+        base_url=settings.geo_web_crawl_base_url,
+        token=settings.geo_web_crawl_token,
+    )
+
+
+def _start_login_onto_ticket(
     ticket: CrawlLoginTicket,
     *,
     storage_state: dict[str, Any] | None,
-    ops_reason: str,
+    reason: str,
     ttl_min: int,
     settings: Settings,
 ) -> None:
     plat = normalize_platform(ticket.platform)
     start_url = platform_start_url(plat, settings=settings)
+    complete_url = rewrite_loopback_callback_url(
+        build_complete_callback_url(settings.geo_crawl_ops_callback_base_url)
+    )
     try:
-        session = spawn_ops_session(
-            ticket_token=ticket.token,
+        data = start_crawl_login_session(
+            account_id=str(ticket.account_id),
             platform=plat,
             start_url=start_url,
+            ticket_token=ticket.token,
+            complete_url=complete_url,
             ttl_min=ttl_min,
-            storage_state=storage_state,
-            ops_reason=ops_reason,
-            settings=settings,
-            account_id=ticket.account_id,
+            reason=reason,
+            baseline_storage_state=storage_state,
+            base_url=settings.geo_web_crawl_base_url,
+            token=settings.geo_web_crawl_token,
         )
-        ticket.container_id = session.container_id
-        ticket.login_url = session.login_url
+        session_id = str(data.get("session_id") or "").strip() or (
+            f"crawl-login:{ticket.account_id}"
+        )
+        ticket.container_id = session_id
+        ticket.login_url = build_login_url(
+            settings.geo_crawl_ops_novnc_base_url,
+            ticket_token=ticket.token,
+            host_port=advertised_vnc_port(data.get("vnc_port")),
+        )
         ticket.error_text = (
-            f"geo_crawl_ops_session: platform={plat} reason={ops_reason} "
-            f"port={session.host_port} name={session.name}"
+            f"crawl_login: platform={plat} reason={reason} session={session_id}"
         )
-    except GeoCrawlOpsDockerError as exc:
-        logger.warning("geo-crawl-ops spawn failed; upload fallback ticket=%s: %s", ticket.id, exc)
-        ticket.login_url = ""
-        ticket.container_id = ""
-        ticket.error_text = f"novnc_spawn_failed: {exc}; complete via storage_state upload"
+    except CrawlLoginClientError as exc:
+        logger.warning(
+            "geo-web-crawl login start failed; upload fallback ticket=%s: %s",
+            ticket.id,
+            exc,
+        )
+        _clear_ticket_session(ticket)
+        ticket.error_text = f"novnc_start_failed: {exc}; complete via storage_state upload"
 
 
 def get_ticket(db: Session, ticket_id: UUID) -> CrawlLoginTicket:
@@ -368,12 +392,11 @@ def cancel_ticket(db: Session, ticket_id: UUID) -> CrawlLoginTicket:
     ticket = get_ticket(db, ticket_id)
     if ticket.status != TICKET_PENDING:
         raise HTTPException(status_code=409, detail=f"Ticket not pending ({ticket.status})")
-    if (ticket.container_id or "").strip():
-        stop_ops_session(ticket.container_id)
+    if _ticket_session_id(ticket):
+        _stop_ticket_desktop(ticket)
     ticket.status = TICKET_CANCELLED
     ticket.error_text = "cancelled"
-    ticket.container_id = ""
-    ticket.login_url = ""
+    _clear_ticket_session(ticket)
     _release_logging_in_account(db, ticket, error="login ticket cancelled")
     db.flush()
     return ticket
@@ -412,12 +435,9 @@ def _complete_pending_ticket(
     plat = normalize_platform(ticket.platform)
     require_session_storage_state(storage_state, platform=plat)
 
-    # Kill the noVNC Chromium *before* the account is acquirable. Completing first
-    # then docker-rm leaves a window where crawl opens the same user-data-dir.
-    cid = (ticket.container_id or "").strip()
-    if cid:
-        stop_ops_session(cid)
-
+    # Login Chrome is in geo-web-crawl. The watcher POSTs this endpoint then
+    # closes Chromium itself — do not join/stop that thread here (deadlock).
+    had_session = bool(_ticket_session_id(ticket))
     account = upsert_account_from_state(
         db,
         label=ticket.label,
@@ -425,13 +445,12 @@ def _complete_pending_ticket(
         platform=plat,
         status=STATUS_ACTIVE,
     )
-    if cid:
+    if had_session:
         apply_ops_handoff_lease(account)
     ticket.account_id = account.id
     ticket.status = TICKET_SUCCEEDED
     ticket.completed_at = utc_now()
     ticket.error_text = ""
-    ticket.login_url = ""
-    ticket.container_id = ""
+    _clear_ticket_session(ticket)
     db.flush()
     return ticket, account

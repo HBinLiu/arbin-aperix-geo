@@ -1,4 +1,4 @@
-"""Minimal geo-web-crawl failure envelope (CLI / jobs / runtime)."""
+"""Minimal crawl-browser failure envelope (CLI / jobs / HTTP client)."""
 
 from __future__ import annotations
 

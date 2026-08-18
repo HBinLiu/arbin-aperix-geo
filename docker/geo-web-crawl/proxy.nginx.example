@@ -1,0 +1,36 @@
+# noVNC 反代：按宿主机端口分流（多 crawl 容器时每个实例一个 PUBLIC 端口）
+#
+# backend:
+#   GEO_CRAWL_OPS_NOVNC_BASE_URL=https://ops-novnc.example/p/{port}/vnc.html?autoconnect=1&resize=scale&path=p/{port}/websockify
+# {port} 来自该 crawl 实例 healthz / login-session 的 vnc_port
+#   = GEO_WEB_CRAWL_NOVNC_PUBLIC_PORT（单容器默认 6080）
+#
+# 单容器也可写成不含 {port} 的固定路径，反代到那一台的宿主机端口。
+
+# --- nginx ---
+# map $http_upgrade $connection_upgrade {
+#     default upgrade;
+#     ''      close;
+# }
+#
+# server {
+#     listen 443 ssl http2;
+#     server_name ops-novnc.example;
+#     # ssl_certificate ...;
+#     # allow 10.0.0.0/8;
+#     # deny all;
+#
+#     location ~ ^/p/(?<novnc_port>[0-9]+)/(.*)$ {
+#         proxy_pass http://127.0.0.1:$novnc_port/$2;
+#         proxy_http_version 1.1;
+#         proxy_set_header Host $host;
+#         proxy_set_header Upgrade $http_upgrade;
+#         proxy_set_header Connection $connection_upgrade;
+#         proxy_set_header X-Real-IP $remote_addr;
+#         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#         proxy_set_header X-Forwarded-Proto $scheme;
+#         proxy_read_timeout 3600s;
+#         proxy_send_timeout 3600s;
+#         proxy_buffering off;
+#     }
+# }

@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from typing import Any, Iterator
 
 from aperix_geo.config import Settings
-from aperix_geo.services.geo_web_crawl.browser_pool import prepare_sync_playwright_runtime
+from aperix_geo.services.crawl_browser.browser_pool import prepare_sync_playwright_runtime
 
 logger = logging.getLogger(__name__)
 

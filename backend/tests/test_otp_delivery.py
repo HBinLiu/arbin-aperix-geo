@@ -9,7 +9,7 @@ import pytest
 from aperix_geo.config import Settings
 from aperix_geo.services.auth.email import send_verification_email
 from aperix_geo.services.auth.otp import email_use_dev_stub, send_code, sms_use_dev_stub
-from aperix_geo.services.mail.smtp import smtp_configured
+from aperix_geo.services.notifications.smtp import smtp_configured
 
 
 def _settings(**kwargs) -> Settings:

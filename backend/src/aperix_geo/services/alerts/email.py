@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from aperix_geo.config import Settings
-from aperix_geo.services.mail.smtp import send_smtp_email
+from aperix_geo.services.notifications.smtp import send_smtp_email
 
 logger = logging.getLogger(__name__)
 

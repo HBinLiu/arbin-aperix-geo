@@ -3,8 +3,8 @@
 
 用途
 ----
-主动开一张 pending 工单。若已配置 GEO_CRAWL_OPS_* 且本机 Docker 可用，
-会顺带拉起 geo-crawl-ops 远程桌面，并返回 login_url 供浏览器登录/过验证码。
+主动开一张 pending 工单。若已配置 GEO_WEB_CRAWL_BASE_URL 与 noVNC 反代，
+会在 geo-web-crawl 容器里打开 headed Chromium，并返回 login_url。
 
 与采样的关系
 ------------
@@ -14,7 +14,7 @@
 账号池
 ------
 生产 Cookie 存在 tb_crawl_accounts，本脚本不需要本地 storage_state 文件。
-可选传入 --account-id，会把该账号已有 Cookie 注入远程桌面，便于重登/过码。
+可选传入 --account-id，用该账号已有 profile / Cookie 指纹做关单 baseline。
 
 用法
 ----
@@ -26,7 +26,7 @@
   ./.venv/bin/python scripts/crawl_ops_create.py \\
       --platform doubao --label prod-1 --operator alice --api-base http://127.0.0.1:8000
 
-  # 直写数据库并 spawn
+  # 直写数据库并打开 crawl 登录会话
   ./.venv/bin/python scripts/crawl_ops_create.py \\
       --platform doubao --label prod-1 --operator alice --local
 

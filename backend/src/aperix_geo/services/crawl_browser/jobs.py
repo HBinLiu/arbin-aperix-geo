@@ -1,4 +1,4 @@
-"""Execute one geo-web-crawl job on a worker thread."""
+"""Execute one crawl-browser job (HTTP worker thread or local CLI)."""
 
 from __future__ import annotations
 
@@ -8,9 +8,9 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from aperix_geo.services.geo_web_crawl import browser_pool
-from aperix_geo.services.geo_web_crawl.registry import ensure_handlers_loaded, get_handler
-from aperix_geo.services.geo_web_crawl.result import context_timeout_ms, crawl_fail
+from aperix_geo.services.crawl_browser import browser_pool
+from aperix_geo.services.crawl_browser.registry import ensure_handlers_loaded, get_handler
+from aperix_geo.services.crawl_browser.result import context_timeout_ms, crawl_fail
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +32,9 @@ def get_executor() -> ThreadPoolExecutor:
             size = _concurrency()
             _executor = ThreadPoolExecutor(
                 max_workers=size,
-                thread_name_prefix="geo-web-crawl",
+                thread_name_prefix="crawl-browser",
             )
-            logger.info("geo-web-crawl: thread pool size=%s", size)
+            logger.info("crawl-browser: thread pool size=%s", size)
         return _executor
 
 
@@ -46,8 +46,10 @@ def shutdown_executor() -> None:
             _executor = None
 
 
-def _run_job_sync(payload: dict[str, Any]) -> dict[str, Any]:
+def run_job_sync(payload: dict[str, Any], *, mode: str | None = None) -> dict[str, Any]:
+    """Launch Chromium once and run the registered platform handler."""
     ensure_handlers_loaded()
+    job_mode = str(mode or payload.get("mode") or "crawl").strip().lower() or "crawl"
     try:
         account_id, storage_state, platform = browser_pool.parse_job_session(payload)
     except ValueError as exc:
@@ -60,8 +62,9 @@ def _run_job_sync(payload: dict[str, Any]) -> dict[str, Any]:
             error_type="PlatformNotImplemented",
         )
 
-    timeout_s = float(payload.get("timeout_s") or 120)
+    timeout_s = float(payload.get("timeout_s") or (60 if job_mode == "probe" else 120))
     timeout_ms = context_timeout_ms(timeout_s)
+    job_payload = {**payload, "mode": job_mode, "platform": platform}
 
     try:
         with browser_pool.page_session(
@@ -70,15 +73,17 @@ def _run_job_sync(payload: dict[str, Any]) -> dict[str, Any]:
             account_id=account_id,
             platform=platform,
         ) as (page, context):
-            return handler(payload, page, context)
+            return handler(job_payload, page, context)
+    except browser_pool.AccountBusy as exc:
+        return crawl_fail(str(exc), error_type="AccountBusy")
     except Exception as exc:  # noqa: BLE001
-        logger.exception("geo-web-crawl job failed platform=%s", platform)
+        logger.exception("crawl-browser job failed platform=%s mode=%s", platform, job_mode)
         return crawl_fail(f"{type(exc).__name__}: {exc}", error_type=type(exc).__name__)
 
 
 def submit_job(payload: dict[str, Any]) -> dict[str, Any]:
     """Run job on the crawl thread pool (blocking)."""
-    fut = get_executor().submit(_run_job_sync, payload)
+    fut = get_executor().submit(run_job_sync, payload)
     timeout_s = float(payload.get("timeout_s") or 120) + 60.0
     try:
         return fut.result(timeout=timeout_s)

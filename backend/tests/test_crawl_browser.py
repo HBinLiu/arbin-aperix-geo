@@ -1,4 +1,4 @@
-"""Tests for geo-web-crawl registry, client, spawn, and browser pool."""
+"""Tests for crawl-browser registry, client, jobs, and browser pool."""
 
 from __future__ import annotations
 
@@ -6,14 +6,13 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from aperix_geo.services.geo_web_crawl.client import run_geo_web_crawl_job
-from aperix_geo.services.geo_web_crawl.jobs import _run_job_sync
-from aperix_geo.services.geo_web_crawl.registry import (
+from aperix_geo.services.crawl_browser.client import run_crawl_job
+from aperix_geo.services.crawl_browser.jobs import run_job_sync
+from aperix_geo.services.crawl_browser.registry import (
     ensure_handlers_loaded,
     get_handler,
     list_platforms,
 )
-from aperix_geo.services.geo_web_crawl.spawn import run_geo_web_crawl_spawn
 
 
 def test_registry_loads_platforms() -> None:
@@ -35,7 +34,7 @@ def test_deepseek_stub_handler() -> None:
 
 def test_run_job_sync_unknown_platform(monkeypatch) -> None:
     monkeypatch.delenv("GEO_CRAWL_PROFILE_ROOT", raising=False)
-    out = _run_job_sync(
+    out = run_job_sync(
         {"platform": "nope", "storage_state": {"cookies": []}, "mode": "crawl"}
     )
     assert out["ok"] is False
@@ -54,7 +53,7 @@ def test_run_job_sync_doubao_probe(monkeypatch) -> None:
             return False
 
     monkeypatch.setattr(
-        "aperix_geo.services.geo_web_crawl.browser_pool.page_session",
+        "aperix_geo.services.crawl_browser.browser_pool.page_session",
         lambda **kwargs: _CM(),
     )
     monkeypatch.setattr(
@@ -67,7 +66,7 @@ def test_run_job_sync_doubao_probe(monkeypatch) -> None:
             "human_ops": False,
         },
     )
-    out = _run_job_sync(
+    out = run_job_sync(
         {
             "platform": "doubao",
             "mode": "probe",
@@ -100,8 +99,8 @@ def test_client_posts_job(monkeypatch) -> None:
             assert headers["Authorization"].startswith("Bearer ")
             return _Resp()
 
-    monkeypatch.setattr("aperix_geo.services.geo_web_crawl.client.httpx.Client", _Client)
-    out = run_geo_web_crawl_job(
+    monkeypatch.setattr("aperix_geo.services.crawl_browser.client.httpx.Client", _Client)
+    out = run_crawl_job(
         {"mode": "crawl", "storage_state": {"cookies": []}, "prompt": "x"},
         base_url="http://crawl:9410",
         token="secret",
@@ -115,10 +114,10 @@ def test_spawn_prefers_http_base_url(monkeypatch) -> None:
     monkeypatch.setenv("GEO_WEB_CRAWL_BASE_URL", "http://127.0.0.1:9410")
 
     with patch(
-        "aperix_geo.services.geo_web_crawl.client.run_geo_web_crawl_job",
+        "aperix_geo.services.crawl_browser.client._post_job",
         return_value={"ok": True, "text": "via-http"},
     ) as http_job:
-        out = run_geo_web_crawl_spawn(
+        out = run_crawl_job(
             {"prompt": "hi", "storage_state": {"cookies": []}},
             timeout_s=30,
         )
@@ -141,10 +140,10 @@ def test_spawn_local_subprocess_when_no_base_url(monkeypatch) -> None:
         return MagicMock(returncode=0, stdout="", stderr="")
 
     with patch(
-        "aperix_geo.services.geo_web_crawl.spawn.subprocess.run",
+        "aperix_geo.services.crawl_browser.client.subprocess.run",
         side_effect=fake_run,
     ):
-        out = run_geo_web_crawl_spawn(
+        out = run_crawl_job(
             {"prompt": "hi", "storage_state": {"cookies": []}},
             timeout_s=30,
         )
@@ -155,7 +154,7 @@ def test_spawn_local_subprocess_when_no_base_url(monkeypatch) -> None:
 def test_healthz_app() -> None:
     from fastapi.testclient import TestClient
 
-    from aperix_geo.services.geo_web_crawl.server import create_app
+    from aperix_geo.services.crawl_browser.server import create_app
 
     client = TestClient(create_app())
     resp = client.get("/healthz")
@@ -164,10 +163,11 @@ def test_healthz_app() -> None:
     assert body["ok"] is True
     assert "doubao" in body["platforms"]
     assert body["browser_backend"] in {"local", "profile"}
+    assert "vnc" in body
 
 
 def test_browser_backend_profile(monkeypatch) -> None:
-    from aperix_geo.services.geo_web_crawl.browser_pool import browser_backend
+    from aperix_geo.services.crawl_browser.browser_pool import browser_backend
 
     monkeypatch.delenv("GEO_CRAWL_PROFILE_ROOT", raising=False)
     assert browser_backend() == "local"
@@ -176,7 +176,7 @@ def test_browser_backend_profile(monkeypatch) -> None:
 
 
 def test_page_session_requires_ready_profile(tmp_path, monkeypatch) -> None:
-    from aperix_geo.services.geo_web_crawl.browser_pool import page_session
+    from aperix_geo.services.crawl_browser.browser_pool import page_session
 
     monkeypatch.setenv("GEO_CRAWL_PROFILE_ROOT", str(tmp_path))
     try:
@@ -191,7 +191,7 @@ def test_page_session_requires_ready_profile(tmp_path, monkeypatch) -> None:
 
 
 def test_page_session_ephemeral_local(monkeypatch) -> None:
-    from aperix_geo.services.geo_web_crawl import browser_pool
+    from aperix_geo.services.crawl_browser import browser_pool
 
     monkeypatch.delenv("GEO_CRAWL_PROFILE_ROOT", raising=False)
 
@@ -220,3 +220,84 @@ def test_page_session_ephemeral_local(monkeypatch) -> None:
     playwright.chromium.launch.assert_called()
     context.close.assert_called()
     browser.close.assert_called()
+
+
+def test_occupy_account_rejects_second_holder() -> None:
+    from aperix_geo.services.crawl_browser.browser_pool import AccountBusy, occupy_account
+
+    aid = "11111111-1111-1111-1111-111111111111"
+    with occupy_account(aid, "login"):
+        try:
+            with occupy_account(aid, "job"):
+                raise AssertionError("expected busy")
+        except AccountBusy as exc:
+            assert "login" in str(exc)
+
+
+def test_vnc_forces_headed(monkeypatch) -> None:
+    from aperix_geo.services.crawl_browser import browser_pool
+
+    monkeypatch.setenv("GEO_WEB_CRAWL_HEADLESS", "true")
+    monkeypatch.delenv("GEO_WEB_CRAWL_VNC", raising=False)
+    assert browser_pool._headless() is True
+    monkeypatch.setenv("GEO_WEB_CRAWL_VNC", "true")
+    assert browser_pool._headless() is False
+    assert browser_pool.vnc_enabled() is True
+
+
+def test_novnc_ports_from_env(monkeypatch) -> None:
+    from aperix_geo.services.crawl_browser import browser_pool
+
+    monkeypatch.delenv("GEO_WEB_CRAWL_NOVNC_PORT", raising=False)
+    monkeypatch.delenv("GEO_WEB_CRAWL_NOVNC_PUBLIC_PORT", raising=False)
+    assert browser_pool.novnc_listen_port() == 6080
+    assert browser_pool.novnc_public_port() == 6080
+    monkeypatch.setenv("GEO_WEB_CRAWL_NOVNC_PORT", "6080")
+    monkeypatch.setenv("GEO_WEB_CRAWL_NOVNC_PUBLIC_PORT", "6091")
+    assert browser_pool.novnc_listen_port() == 6080
+    assert browser_pool.novnc_public_port() == 6091
+
+
+def test_parse_login_session_id() -> None:
+    from aperix_geo.services.crawl_browser.login_session import parse_login_session_id
+
+    assert parse_login_session_id("crawl-login:abc") == "abc"
+    assert parse_login_session_id("not-a-session") == ""
+
+
+def test_login_client_start(monkeypatch) -> None:
+    from aperix_geo.services.crawl_browser.client import start_crawl_login_session
+
+    class _Resp:
+        status_code = 200
+
+        def json(self):
+            return {"ok": True, "session_id": "crawl-login-x", "vnc_port": 6080}
+
+    class _Client:
+        def __init__(self, *a, **k):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def post(self, url, json=None, headers=None):
+            assert url.endswith("/v1/login-sessions")
+            assert json["account_id"] == "acc-1"
+            return _Resp()
+
+    monkeypatch.setattr("aperix_geo.services.crawl_browser.client.httpx.Client", _Client)
+    out = start_crawl_login_session(
+        account_id="acc-1",
+        platform="doubao",
+        start_url="https://www.doubao.com/chat/",
+        ticket_token="tok",
+        complete_url="https://app.example/api/v1/ops/geo-crawl/tickets/complete-by-token",
+        ttl_min=15,
+        base_url="http://crawl:9410",
+        token="secret",
+    )
+    assert out["session_id"] == "crawl-login-x"

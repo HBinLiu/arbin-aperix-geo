@@ -22,7 +22,7 @@ def _settings() -> Settings:
 
 
 @patch("aperix_geo.db.session.SessionLocal")
-@patch("aperix_geo.services.geo_web_crawl.spawn.run_geo_web_crawl_spawn")
+@patch("aperix_geo.services.crawl_browser.client.run_crawl_job")
 @patch("aperix_geo.services.providers.doubao_web.hybrid_crawl.complete_web_http")
 @patch(
     "aperix_geo.services.providers.doubao_web.accounts.load_storage_state_from_file"
@@ -58,7 +58,7 @@ def test_hybrid_success(mock_load, mock_http, mock_spawn, mock_db):
 
 
 @patch("aperix_geo.db.session.SessionLocal")
-@patch("aperix_geo.services.geo_web_crawl.spawn.run_geo_web_crawl_spawn")
+@patch("aperix_geo.services.crawl_browser.client.run_crawl_job")
 @patch("aperix_geo.services.providers.doubao_web.hybrid_crawl.complete_web_http")
 @patch(
     "aperix_geo.services.providers.doubao_web.accounts.load_storage_state_from_file"
@@ -95,7 +95,7 @@ def test_hybrid_share_failure_keeps_http_body(mock_load, mock_http, mock_spawn, 
 
 
 @patch("aperix_geo.db.session.SessionLocal")
-@patch("aperix_geo.services.geo_web_crawl.spawn.run_geo_web_crawl_spawn")
+@patch("aperix_geo.services.crawl_browser.client.run_crawl_job")
 @patch("aperix_geo.services.providers.doubao_web.hybrid_crawl.complete_web_http")
 @patch(
     "aperix_geo.services.providers.doubao_web.accounts.load_storage_state_from_file"

@@ -1,4 +1,4 @@
-"""Platform handler registry for geo-web-crawl jobs."""
+"""Platform handler registry for crawl-browser jobs."""
 
 from __future__ import annotations
 
@@ -28,6 +28,6 @@ def list_platforms() -> list[str]:
 
 def ensure_handlers_loaded() -> None:
     """Import handler modules so they register themselves."""
-    from aperix_geo.services.geo_web_crawl.handlers import doubao as _doubao  # noqa: F401
-    from aperix_geo.services.geo_web_crawl.handlers import deepseek as _deepseek  # noqa: F401
-    from aperix_geo.services.geo_web_crawl.handlers import qianwen as _qianwen  # noqa: F401
+    from aperix_geo.services.crawl_browser.handlers import doubao as _doubao  # noqa: F401
+    from aperix_geo.services.crawl_browser.handlers import deepseek as _deepseek  # noqa: F401
+    from aperix_geo.services.crawl_browser.handlers import qianwen as _qianwen  # noqa: F401

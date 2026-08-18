@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from aperix_geo.services.geo_web_crawl.registry import register_platform
+from aperix_geo.services.crawl_browser.registry import register_platform
 
 
 def handle_deepseek(payload: dict[str, Any], page: Any, context: Any) -> dict[str, Any]:

@@ -477,7 +477,7 @@ def test_probe_on_page_profile_ok_without_cookie_dump() -> None:
 def test_probe_account_login_uses_spawn_ok() -> None:
     settings = Settings()
     with patch(
-        "aperix_geo.services.geo_web_crawl.spawn.run_geo_web_crawl_spawn",
+        "aperix_geo.services.crawl_browser.client.run_crawl_job",
         return_value={"ok": True, "storage_state": {"cookies": [{"name": "sessionid"}]}},
     ) as spawn:
         state = probe_account_login(_session_state(), settings=settings)
@@ -488,7 +488,7 @@ def test_probe_account_login_uses_spawn_ok() -> None:
 def test_probe_account_login_maps_captcha() -> None:
     settings = Settings()
     with patch(
-        "aperix_geo.services.geo_web_crawl.spawn.run_geo_web_crawl_spawn",
+        "aperix_geo.services.crawl_browser.client.run_crawl_job",
         return_value={
             "ok": False,
             "error_type": "DoubaoCaptchaRequired",
@@ -503,7 +503,7 @@ def test_probe_account_login_maps_captcha() -> None:
 def test_probe_account_login_maps_generic_error() -> None:
     settings = Settings()
     with patch(
-        "aperix_geo.services.geo_web_crawl.spawn.run_geo_web_crawl_spawn",
+        "aperix_geo.services.crawl_browser.client.run_crawl_job",
         return_value={
             "ok": False,
             "error_type": "DoubaoCrawlError",
@@ -520,7 +520,7 @@ def test_probe_account_login_maps_generic_error() -> None:
 def test_probe_account_login_generic_error_without_session_alive() -> None:
     settings = Settings()
     with patch(
-        "aperix_geo.services.geo_web_crawl.spawn.run_geo_web_crawl_spawn",
+        "aperix_geo.services.crawl_browser.client.run_crawl_job",
         return_value={
             "ok": False,
             "error_type": "DoubaoCrawlError",
@@ -544,7 +544,7 @@ def test_probe_account_login_with_account_id_skips_cookie_gate(tmp_path) -> None
     aid = uuid4()
     (tmp_path / "doubao" / str(aid) / "Default").mkdir(parents=True)
     with patch(
-        "aperix_geo.services.geo_web_crawl.spawn.run_geo_web_crawl_spawn",
+        "aperix_geo.services.crawl_browser.client.run_crawl_job",
         return_value={"ok": True, "storage_state": {"cookies": []}},
     ) as spawn:
         state = probe_account_login(

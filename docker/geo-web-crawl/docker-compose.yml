@@ -2,8 +2,9 @@
 # Env: copy .env.example → .env
 #   cp .env.example .env && docker compose up -d
 #
-# The host path GEO_CRAWL_PROFILE_ROOT must be the same directory backend uses
-# when spawning geo-crawl-ops (one Chrome user-data-dir per account).
+# Login / heartbeat / sampling share GEO_CRAWL_PROFILE_ROOT.
+# Deploy once (compose up). Tickets open Chrome in this process; they do not docker run.
+# noVNC defaults 6080:6080. Override PUBLIC only if the host mapping differs.
 
 services:
   geo-web-crawl:
@@ -14,12 +15,20 @@ services:
       dockerfile: docker/geo-web-crawl/Dockerfile
     shm_size: "2gb"
     ports:
-      - "9410:9410"
+      - "${GEO_WEB_CRAWL_PUBLISH_PORT:-9410}:${GEO_WEB_CRAWL_PORT:-9410}"
+      - "${GEO_WEB_CRAWL_NOVNC_PUBLIC_PORT:-6080}:${GEO_WEB_CRAWL_NOVNC_PORT:-6080}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       GEO_WEB_CRAWL_CONCURRENCY: ${GEO_WEB_CRAWL_CONCURRENCY:-1}
       GEO_WEB_CRAWL_TOKEN: ${GEO_WEB_CRAWL_TOKEN:-change-me}
+      GEO_WEB_CRAWL_PORT: ${GEO_WEB_CRAWL_PORT:-9410}
       GEO_CRAWL_PROFILE_ROOT: /data/crawl-profiles
-      GEO_WEB_CRAWL_HEADLESS: ${GEO_WEB_CRAWL_HEADLESS:-true}
+      GEO_WEB_CRAWL_VNC: ${GEO_WEB_CRAWL_VNC:-true}
+      GEO_WEB_CRAWL_HEADLESS: ${GEO_WEB_CRAWL_HEADLESS:-false}
+      GEO_WEB_CRAWL_NOVNC_PORT: ${GEO_WEB_CRAWL_NOVNC_PORT:-6080}
+      GEO_WEB_CRAWL_NOVNC_PUBLIC_PORT: ${GEO_WEB_CRAWL_NOVNC_PUBLIC_PORT:-6080}
+      DISPLAY: ":1"
     volumes:
       - ${GEO_CRAWL_PROFILE_ROOT:-/var/lib/aperix/crawl-profiles}:/data/crawl-profiles
     restart: unless-stopped

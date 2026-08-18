@@ -17,7 +17,7 @@ from aperix_geo.api.deps import DbSession
 from aperix_geo.config import get_settings
 from aperix_geo.services.crawl_accounts import tickets as ticket_svc
 from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO, normalize_platform
-from aperix_geo.services.crawl_accounts.pool import upsert_account_from_state
+from aperix_geo.services.crawl_accounts.pool import account_to_dict, list_accounts, upsert_account_from_state
 
 router = APIRouter(prefix="/ops/geo-crawl", tags=["ops-geo-crawl"])
 _ops_bearer = HTTPBearer(auto_error=False)
@@ -74,8 +74,8 @@ def ops_list_accounts(
     db: DbSession,
     platform: str | None = Query(default=None),
 ) -> dict[str, Any]:
-    rows = ticket_svc.list_accounts(db, platform=platform)
-    return {"items": [ticket_svc.account_to_dict(r) for r in rows]}
+    rows = list_accounts(db, platform=platform)
+    return {"items": [account_to_dict(r) for r in rows]}
 
 
 @router.post("/accounts")
@@ -88,7 +88,7 @@ def ops_upsert_account(_: OpsAuth, db: DbSession, body: UpsertAccountBody) -> di
     )
     db.commit()
     db.refresh(row)
-    return ticket_svc.account_to_dict(row)
+    return account_to_dict(row)
 
 
 @router.post("/tickets")
@@ -128,13 +128,13 @@ def ops_complete_ticket(
     db.commit()
     return {
         "ticket": ticket_svc.ticket_to_dict(ticket),
-        "account": ticket_svc.account_to_dict(account),
+        "account": account_to_dict(account),
     }
 
 
 @router.post("/tickets/complete-by-token")
 def ops_complete_ticket_by_token(db: DbSession, body: CompleteByTokenBody) -> dict[str, Any]:
-    """Public to geo-crawl-ops containers: auth is possession of the pending ticket token."""
+    """Public to geo-web-crawl login watcher: auth is possession of the pending ticket token."""
     ticket, account = ticket_svc.complete_ticket_by_token(
         db,
         body.token,
@@ -143,7 +143,7 @@ def ops_complete_ticket_by_token(db: DbSession, body: CompleteByTokenBody) -> di
     db.commit()
     return {
         "ticket": ticket_svc.ticket_to_dict(ticket),
-        "account": ticket_svc.account_to_dict(account),
+        "account": account_to_dict(account),
     }
 
 

@@ -33,7 +33,7 @@ def main() -> int:
 
     from aperix_geo.config import get_settings, resolve_settings_env_mode
     from aperix_geo.services.alerts.email import send_alert_email
-    from aperix_geo.services.mail.smtp import smtp_configured
+    from aperix_geo.services.notifications.smtp import smtp_configured
     from aperix_geo.utils.cache.redis_kv import shared_redis_client
 
     settings = get_settings()

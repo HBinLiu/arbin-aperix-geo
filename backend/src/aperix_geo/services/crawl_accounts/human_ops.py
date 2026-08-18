@@ -252,7 +252,7 @@ def sweep_stale_login_tickets(
     db.flush()
     if expired or respawned or reopened:
         logger.warning(
-            "geo crawl ops sweep platform=%s expired=%s respawned=%s reopened=%s",
+            "geo crawl ticket sweep platform=%s expired=%s respawned=%s reopened=%s",
             plat,
             expired,
             respawned,

@@ -4,7 +4,7 @@
 用途
 ----
 把「人工登录后」的 Playwright Cookie（storage_state JSON）提交给工单，
-使对应账号回池为 active，工单变为 succeeded，并回收 noVNC 容器（若有）。
+使对应账号回池为 active，工单变为 succeeded。headed Chrome 由 crawl 登录 watcher 自行关闭。
 
 何时需要本脚本
 --------------
@@ -74,6 +74,7 @@ def main() -> int:
     if args.local:
         from aperix_geo.db.session import SessionLocal
         from aperix_geo.services.crawl_accounts import tickets as ticket_svc
+        from aperix_geo.services.crawl_accounts.pool import account_to_dict
 
         db = SessionLocal()
         try:
@@ -87,7 +88,7 @@ def main() -> int:
                 json.dumps(
                     {
                         "ticket": ticket_svc.ticket_to_dict(ticket),
-                        "account": ticket_svc.account_to_dict(account),
+                        "account": account_to_dict(account),
                     },
                     ensure_ascii=False,
                     indent=2,

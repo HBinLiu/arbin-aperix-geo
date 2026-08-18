@@ -17,7 +17,6 @@ def _settings(**kwargs) -> Settings:
         "doubao_ops_ticket_enabled": True,
         "doubao_ops_ticket_ttl_min": 15,
         "geo_crawl_ops_novnc_base_url": "",
-        "geo_crawl_ops_docker_image": "",
         "provider_alert_enabled": True,
         "provider_alert_email_to": "ops@example.com",
         "provider_alert_cooldown_seconds": 60,

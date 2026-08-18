@@ -1,4 +1,4 @@
-"""Tests for crawl login tickets (upload fallback; no Docker)."""
+"""Tests for crawl login tickets (upload fallback; geo-web-crawl HTTP)."""
 
 from __future__ import annotations
 
@@ -31,8 +31,8 @@ def _settings(**kwargs) -> Settings:
     base = {
         "doubao_ops_ticket_enabled": True,
         "doubao_ops_ticket_ttl_min": 15,
+        "geo_web_crawl_base_url": "",
         "geo_crawl_ops_novnc_base_url": "",
-        "geo_crawl_ops_docker_image": "",
         "geo_crawl_ops_api_token": "ops-secret",
     }
     base.update(kwargs)
@@ -57,12 +57,17 @@ def _state() -> dict:
     }
 
 
-def test_novnc_configured_requires_all_flags() -> None:
+def test_novnc_configured_requires_crawl_vnc() -> None:
     assert not novnc_configured(_settings())
-    assert novnc_configured(
+    assert not novnc_configured(
         _settings(
             geo_crawl_ops_novnc_base_url="https://novnc.example",
-            geo_crawl_ops_docker_image="aperix/geo-crawl-ops:latest",
+        )
+    )
+    assert novnc_configured(
+        _settings(
+            geo_web_crawl_base_url="http://127.0.0.1:9410",
+            geo_crawl_ops_novnc_base_url="https://novnc.example",
         )
     )
 
@@ -89,26 +94,50 @@ def test_create_ticket_upload_fallback() -> None:
 def test_create_ticket_with_novnc_spawn() -> None:
     db = MagicMock()
     db.scalars.return_value.first.return_value = None
-    fake = MagicMock()
-    fake.container_id = "cid"
-    fake.login_url = "https://novnc.example/?ticket=tok"
-    fake.host_port = 60123
-    fake.name = "geo-crawl-ops-doubao-tok"
     with patch(
-        "aperix_geo.services.crawl_accounts.tickets.spawn_ops_session",
-        return_value=fake,
-    ):
+        "aperix_geo.services.crawl_accounts.tickets.start_crawl_login_session",
+        return_value={
+            "ok": True,
+            "session_id": "crawl-login-x",
+            "vnc_port": 6080,
+            "watching": True,
+        },
+    ) as start:
         ticket = create_login_ticket(
             db,
             label="n1",
             settings=_settings(
+                geo_web_crawl_base_url="http://127.0.0.1:9410",
                 geo_crawl_ops_novnc_base_url="https://novnc.example",
-                geo_crawl_ops_docker_image="aperix/geo-crawl-ops:latest",
             ),
         )
-    assert ticket.login_url == "https://novnc.example/?ticket=tok"
-    assert ticket.container_id == "cid"
-    assert "geo_crawl_ops_session" in ticket.error_text
+    assert ticket.login_url == f"https://novnc.example/?ticket={ticket.token}"
+    assert ticket.container_id == "crawl-login-x"
+    assert "crawl_login" in ticket.error_text
+    start.assert_called_once()
+
+
+def test_create_ticket_login_url_uses_advertised_vnc_port() -> None:
+    db = MagicMock()
+    db.scalars.return_value.first.return_value = None
+    with patch(
+        "aperix_geo.services.crawl_accounts.tickets.start_crawl_login_session",
+        return_value={
+            "ok": True,
+            "session_id": "crawl-login-x",
+            "vnc_port": 6091,
+            "watching": True,
+        },
+    ):
+        ticket = create_login_ticket(
+            db,
+            label="n-port",
+            settings=_settings(
+                geo_web_crawl_base_url="http://127.0.0.1:9410",
+                geo_crawl_ops_novnc_base_url="https://novnc.example/p/{port}/vnc.html",
+            ),
+        )
+    assert ticket.login_url == "https://novnc.example/p/6091/vnc.html"
 
 
 def test_get_ticket_expires() -> None:
@@ -196,37 +225,30 @@ def test_complete_ticket_upserts_account() -> None:
     db.add.assert_called()
 
 
-def test_complete_ticket_stops_ops_before_account_is_acquirable() -> None:
+def test_complete_ticket_does_not_stop_login_chrome() -> None:
+    """Watcher is blocked on this HTTP call; stopping the thread would deadlock."""
+    aid = uuid4()
     ticket = CrawlLoginTicket(
         id=uuid4(),
-        account_id=ZERO_UUID,
+        account_id=aid,
         label="staging-1",
         token="tok",
         status=TICKET_PENDING,
-        container_id="cidabc123",
+        container_id=f"crawl-login:{aid}",
         expires_at=utc_now() + timedelta(minutes=10),
         completed_at=EPOCH,
     )
     db = MagicMock()
     db.get.return_value = ticket
     account = MagicMock()
-    order: list[str] = []
-
-    def _stop(cid: str) -> None:
-        order.append(f"stop:{cid}")
-
-    def _upsert(*_a, **_k):
-        order.append("upsert")
-        return account
 
     with (
         patch(
-            "aperix_geo.services.crawl_accounts.tickets.stop_ops_session",
-            side_effect=_stop,
+            "aperix_geo.services.crawl_accounts.tickets.stop_crawl_login_session",
         ) as stop,
         patch(
             "aperix_geo.services.crawl_accounts.tickets.upsert_account_from_state",
-            side_effect=_upsert,
+            return_value=account,
         ),
         patch(
             "aperix_geo.services.crawl_accounts.tickets.apply_ops_handoff_lease"
@@ -238,8 +260,7 @@ def test_complete_ticket_stops_ops_before_account_is_acquirable() -> None:
             storage_state=_state(),
         )
 
-    assert order == ["stop:cidabc123", "upsert"]
-    stop.assert_called_once_with("cidabc123")
+    stop.assert_not_called()
     handoff.assert_called_once_with(account)
     assert out_ticket.status == TICKET_SUCCEEDED
     assert out_ticket.container_id == ""
@@ -315,7 +336,7 @@ def test_sweep_respawns_dead_novnc_and_reopens_expired() -> None:
         label="dead",
         token="tok-dead",
         status=TICKET_PENDING,
-        container_id="cid-dead",
+        container_id=f"crawl-login:{aid_dead}",
         login_url="https://old",
         expires_at=utc_now() + timedelta(minutes=10),
         completed_at=EPOCH,
@@ -335,25 +356,25 @@ def test_sweep_respawns_dead_novnc_and_reopens_expired() -> None:
     db = MagicMock()
     db.scalars.return_value.all.return_value = [dead, expired]
     settings = _settings(
+        geo_web_crawl_base_url="http://127.0.0.1:9410",
         geo_crawl_ops_novnc_base_url="https://novnc.example",
-        geo_crawl_ops_docker_image="aperix/geo-crawl-ops:latest",
     )
-    fake = MagicMock()
-    fake.container_id = "cid-new"
-    fake.login_url = "https://novnc.example/?ticket=new"
-    fake.host_port = 60123
-    fake.name = "geo-crawl-ops-doubao-new"
     with (
         patch(
-            "aperix_geo.services.crawl_accounts.tickets.ops_session_running",
+            "aperix_geo.services.crawl_accounts.tickets.crawl_login_session_running",
             return_value=False,
         ),
         patch(
-            "aperix_geo.services.crawl_accounts.tickets.stop_ops_session",
+            "aperix_geo.services.crawl_accounts.tickets.stop_crawl_login_session",
         ),
         patch(
-            "aperix_geo.services.crawl_accounts.tickets.spawn_ops_session",
-            return_value=fake,
+            "aperix_geo.services.crawl_accounts.tickets.start_crawl_login_session",
+            return_value={
+                "ok": True,
+                "session_id": "crawl-login-new",
+                "vnc_port": 6080,
+                "watching": True,
+            },
         ),
         patch(
             "aperix_geo.services.crawl_accounts.human_ops.request_human_intervention",
@@ -364,8 +385,8 @@ def test_sweep_respawns_dead_novnc_and_reopens_expired() -> None:
     ):
         out = sweep_stale_login_tickets(db, settings=settings)
     assert out == {"expired": 1, "respawned": 1, "reopened": 1}
-    assert dead.container_id == "cid-new"
-    assert dead.login_url == "https://novnc.example/?ticket=new"
+    assert dead.container_id == "crawl-login-new"
+    assert dead.login_url.startswith("https://novnc.example/?ticket=")
     assert expired.status == TICKET_EXPIRED
     reopen.assert_called_once()
     assert reopen.call_args.kwargs["account_id"] == aid_exp

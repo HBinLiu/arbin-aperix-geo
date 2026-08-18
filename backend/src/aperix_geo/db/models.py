@@ -1293,6 +1293,7 @@ class CrawlLoginTicket(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending", server_default="pending")
     operator: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
     login_url: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    # Historical column name: stores geo-web-crawl login session id (`crawl-login:{account_id}`).
     container_id: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
     expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=EPOCH, server_default=sa_text("'1970-01-01T00:00:00+00:00'")

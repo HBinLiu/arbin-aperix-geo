@@ -75,8 +75,8 @@ def spawn_doubao_job(
     mode: str,
     timeout_s: float | None = None,
 ) -> dict[str, Any]:
-    """Run a Doubao geo-web-crawl job with settings-derived spawn kwargs."""
-    from aperix_geo.services.geo_web_crawl.spawn import run_geo_web_crawl_spawn
+    """Run a Doubao crawl-browser job with settings-derived kwargs."""
+    from aperix_geo.services.crawl_browser.client import run_crawl_job
 
     timeout = float(
         timeout_s
@@ -84,7 +84,7 @@ def spawn_doubao_job(
         else payload.get("timeout_s")
         or settings.doubao_crawl_timeout_s
     )
-    return run_geo_web_crawl_spawn(
+    return run_crawl_job(
         payload,
         timeout_s=timeout,
         mode=mode,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from aperix_geo.services.geo_web_crawl.cli_runtime import run_geo_web_cli_job
+from aperix_geo.services.crawl_browser.jobs import run_job_sync
 from aperix_geo.services.providers.doubao_web import browser as bp
 
 
@@ -58,7 +58,7 @@ def test_cli_runtime_crawl_mode(monkeypatch) -> None:
     )
 
     with patch("playwright.sync_api.sync_playwright", return_value=pw_cm):
-        out = run_geo_web_cli_job(
+        out = run_job_sync(
             {"prompt": "x", "storage_state": {"cookies": []}, "headless": True},
             mode="crawl",
         )
@@ -92,7 +92,7 @@ def test_cli_runtime_probe_mode(monkeypatch) -> None:
     )
 
     with patch("playwright.sync_api.sync_playwright", return_value=pw_cm):
-        out = run_geo_web_cli_job(
+        out = run_job_sync(
             {"storage_state": {"cookies": [{"name": "sessionid"}]}, "headless": True},
             mode="probe",
         )

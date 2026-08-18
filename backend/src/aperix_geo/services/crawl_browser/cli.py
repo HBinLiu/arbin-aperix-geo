@@ -1,8 +1,6 @@
-"""CLI entry for geo-web-crawl Playwright jobs (Docker / host subprocess).
+"""CLI entry for crawl-browser Playwright jobs (host subprocess / image).
 
 Modes: crawl | probe | sign | http | share (see doubao_web.runtime).
-
-Uses Sync Playwright in an isolated process (geo-web-crawl image has modern glibc).
 """
 
 from __future__ import annotations
@@ -13,7 +11,8 @@ import logging
 import sys
 from pathlib import Path
 
-from aperix_geo.services.geo_web_crawl.result import crawl_fail
+from aperix_geo.services.crawl_browser.jobs import run_job_sync
+from aperix_geo.services.crawl_browser.result import crawl_fail
 from aperix_geo.services.providers.doubao_web.runtime import (
     DOUBAO_JOB_MODES,
     normalize_doubao_job_mode,
@@ -27,7 +26,7 @@ def _write_result(out_path: Path, result: dict) -> None:
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     mode_choices = tuple(sorted(DOUBAO_JOB_MODES))
-    parser = argparse.ArgumentParser(description="GEO web Playwright job")
+    parser = argparse.ArgumentParser(description="crawl-browser Playwright job")
     parser.add_argument("--in", dest="in_path", required=True, help="Input JSON payload path")
     parser.add_argument("--out", dest="out_path", required=True, help="Output JSON result path")
     parser.add_argument(
@@ -51,14 +50,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     mode = normalize_doubao_job_mode(str(payload.get("mode") or args.mode or "crawl"))
-
-    from aperix_geo.services.geo_web_crawl.cli_runtime import run_geo_web_cli_job
-
-    logging.getLogger(__name__).info("geo-web-crawl-cli: mode=%s sync_playwright", mode)
-    result = run_geo_web_cli_job(payload, mode=mode)
+    logging.getLogger(__name__).info("crawl-browser-cli: mode=%s sync_playwright", mode)
+    result = run_job_sync(payload, mode=mode)
     if not result.get("ok"):
         logging.getLogger(__name__).error(
-            "geo-web-crawl-cli failed mode=%s type=%s err=%s",
+            "crawl-browser-cli failed mode=%s type=%s err=%s",
             mode,
             result.get("error_type"),
             str(result.get("error") or "")[:500],

@@ -1,5 +1,5 @@
-# Headless GEO web-crawl resident service (platform handlers + HTTP API).
-# Chromium is installed in this image; each account uses a persistent user-data-dir.
+# Resident GEO web-crawl: HTTP jobs + optional headed desktop (noVNC).
+# Chromium user-data-dir is per account. Login / heartbeat / sampling share it.
 #
 # Build from repo root:
 #   docker build -t aperix/geo-web-crawl:latest -f docker/geo-web-crawl/Dockerfile .
@@ -14,35 +14,50 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
     DEBIAN_FRONTEND=noninteractive \
+    DISPLAY=:1 \
     GEO_WEB_CRAWL_HOST=0.0.0.0 \
     GEO_WEB_CRAWL_PORT=9410 \
     GEO_WEB_CRAWL_CONCURRENCY=1 \
-    GEO_WEB_CRAWL_HEADLESS=true
+    GEO_WEB_CRAWL_HEADLESS=true \
+    GEO_WEB_CRAWL_VNC=false \
+    GEO_WEB_CRAWL_CHROME_BIN=/usr/bin/chromium
 
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates \
-      libglib2.0-0 \
-      libnss3 \
-      libnspr4 \
-      libdbus-1-3 \
-      libatk1.0-0 \
+      chromium \
+      fluxbox \
+      fonts-noto-cjk \
+      libasound2 \
       libatk-bridge2.0-0 \
+      libatk1.0-0 \
       libcups2 \
+      libdbus-1-3 \
       libdrm2 \
-      libxkbcommon0 \
+      libgbm1 \
+      libglib2.0-0 \
+      libnspr4 \
+      libnss3 \
       libxcomposite1 \
       libxdamage1 \
       libxfixes3 \
+      libxkbcommon0 \
       libxrandr2 \
-      libgbm1 \
-      libasound2 \
-      fonts-noto-cjk \
+      novnc \
+      procps \
+      websockify \
+      x11-utils \
+      x11-xserver-utils \
+      x11vnc \
+      xauth \
+      xvfb \
     && rm -rf /var/lib/apt/lists/*
 
 COPY docker/geo-web-crawl/requirements.txt /app/requirements.txt
 COPY backend/src /app/src
+COPY docker/geo-web-crawl/entrypoint.sh /usr/local/bin/geo-web-crawl-entrypoint.sh
+RUN chmod +x /usr/local/bin/geo-web-crawl-entrypoint.sh
 
 ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
 ARG PIP_TRUSTED_HOST=mirrors.aliyun.com
@@ -78,12 +93,13 @@ if missing:
         f"present={sorted(p.name for p in jobs_dir.iterdir())}"
     )
 
-from aperix_geo.services.geo_web_crawl.registry import ensure_handlers_loaded
+from aperix_geo.services.crawl_browser.registry import ensure_handlers_loaded
 
 for _mod in (
     "aperix_geo.services.providers.doubao_web.jobs.crawl",
     "aperix_geo.services.providers.doubao_web.jobs.probe",
     "aperix_geo.services.providers.doubao_web.crawler",
+    "aperix_geo.services.crawl_browser.login_session",
 ):
     import_module(_mod)
 
@@ -91,6 +107,6 @@ ensure_handlers_loaded()
 print("geo-web-crawl lean import check ok")
 PY
 
-EXPOSE 9410
+EXPOSE 9410 6080
 WORKDIR /app
-CMD ["python", "-m", "aperix_geo.services.geo_web_crawl"]
+ENTRYPOINT ["/usr/local/bin/geo-web-crawl-entrypoint.sh"]

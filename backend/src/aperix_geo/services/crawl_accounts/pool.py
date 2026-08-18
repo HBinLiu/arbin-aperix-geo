@@ -38,7 +38,7 @@ def _lease_held(row: CrawlAccount, now) -> bool:
 
 
 def pending_login_subquery(platform: str):
-    """Account ids with an open noVNC / login ticket (must not share cookies)."""
+    """Account ids with an open login ticket (must not share the Chrome profile)."""
     plat = normalize_platform(platform)
     return select(CrawlLoginTicket.account_id).where(
         CrawlLoginTicket.platform == plat,
@@ -83,6 +83,35 @@ def ensure_account_for_ops(
     return row
 
 
+def list_accounts(
+    db: Session,
+    *,
+    platform: str | None = None,
+) -> list[CrawlAccount]:
+    stmt = select(CrawlAccount).order_by(CrawlAccount.updated_at.desc()).limit(200)
+    if platform is not None and str(platform).strip():
+        stmt = stmt.where(CrawlAccount.platform == normalize_platform(platform))
+    return list(db.scalars(stmt).all())
+
+
+def account_to_dict(row: CrawlAccount) -> dict[str, Any]:
+    cookies = row.storage_state.get("cookies") if isinstance(row.storage_state, dict) else None
+    cookie_count = len(cookies) if isinstance(cookies, list) else 0
+    return {
+        "id": str(row.id),
+        "platform": row.platform,
+        "label": row.label,
+        "status": row.status,
+        "cookie_count": cookie_count,
+        "last_ok_at": row.last_ok_at.isoformat(),
+        "last_error": row.last_error,
+        "lease_owner": row.lease_owner,
+        "lease_until": row.lease_until.isoformat(),
+        "created_at": row.created_at.isoformat(),
+        "updated_at": row.updated_at.isoformat(),
+    }
+
+
 def apply_ops_handoff_lease(
     row: CrawlAccount,
     *,
@@ -96,7 +125,7 @@ def apply_ops_handoff_lease(
     row.lease_owner = LEASE_OWNER_OPS_HANDOFF
     row.lease_until = utc_now() + timedelta(seconds=handoff_s)
     logger.warning(
-        "geo-crawl-ops handoff lease id=%s label=%s until=%s s=%s",
+        "crawl login handoff lease id=%s label=%s until=%s s=%s",
         row.id,
         row.label,
         row.lease_until.isoformat(),
@@ -105,7 +134,7 @@ def apply_ops_handoff_lease(
 
 
 def cookies_in_use(row: CrawlAccount, *, now, pending_ids: set[uuid.UUID]) -> bool:
-    """True if VNC, a pending ticket, or a crawl/heartbeat lease holds this jar."""
+    """True if a login ticket or crawl/heartbeat lease holds this account."""
     if (row.status or "").strip() == STATUS_LOGGING_IN:
         return True
     if row.id in pending_ids:

@@ -1,7 +1,7 @@
-"""Run resident geo-web-crawl HTTP server.
+"""Run resident crawl-browser HTTP server.
 
-  PYTHONPATH=src python -m aperix_geo.services.geo_web_crawl
-  # or: uvicorn aperix_geo.services.geo_web_crawl.server:app --host 0.0.0.0 --port 9410
+  PYTHONPATH=src python -m aperix_geo.services.crawl_browser
+  # or: uvicorn aperix_geo.services.crawl_browser.server:app --host 0.0.0.0 --port 9410
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ def main() -> None:
     import uvicorn
 
     uvicorn.run(
-        "aperix_geo.services.geo_web_crawl.server:app",
+        "aperix_geo.services.crawl_browser.server:app",
         host=host,
         port=port,
         log_level=(os.environ.get("GEO_WEB_CRAWL_LOG_LEVEL") or "info").lower(),

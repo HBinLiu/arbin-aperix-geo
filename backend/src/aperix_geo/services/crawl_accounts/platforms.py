@@ -10,14 +10,22 @@ PLATFORM_QIANWEN = "qianwen"
 
 KNOWN_PLATFORMS = frozenset({PLATFORM_DOUBAO, PLATFORM_DEEPSEEK, PLATFORM_QIANWEN})
 
+LOGIN_REASONS = frozenset({"login_expired", "captcha"})
+DEFAULT_LOGIN_REASON = "login_expired"
+
 
 def normalize_platform(raw: str | None) -> str:
     p = (raw or "").strip().lower() or PLATFORM_DOUBAO
     return p
 
 
+def normalize_login_reason(raw: str | None) -> str:
+    value = (raw or DEFAULT_LOGIN_REASON).strip().lower()
+    return value if value in LOGIN_REASONS else DEFAULT_LOGIN_REASON
+
+
 def platform_start_url(platform: str, *, settings: Settings | None = None) -> str:
-    """Chat / home URL opened in ops noVNC for the platform."""
+    """Chat / home URL opened in the crawl noVNC desktop for the platform."""
     settings = settings or get_settings()
     p = normalize_platform(platform)
     if p == PLATFORM_DOUBAO:
