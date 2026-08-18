@@ -28,6 +28,8 @@ from aperix_geo.services.providers.doubao_web.runtime import assert_no_captcha
 
 logger = logging.getLogger(__name__)
 
+_STABLE_IDLE_POLLS = 10  # ~3s of unchanged assistant text when stop/streaming is missing
+
 
 def _ensure_blank_chat(page: Any, *, base_url: str, attempts: int = 2) -> None:
     """Open a blank session and hard-validate before sending the sample prompt.
@@ -381,39 +383,58 @@ def _wait_until(page: Any, *, deadline: float, predicate: Any, label: str) -> No
     )
 
 
-def _wait_generation_done(page: Any, *, settings: Settings, deadline: float) -> None:
-    """Wait for full reply via generating → idle → toolbar (DOM only).
+def _last_assistant_md_text(page: Any, *, user_prompt: str = "") -> str:
+    """Last ``.md-box-root`` body that is not just the user prompt echo."""
+    prompt = (user_prompt or "").strip()
+    try:
+        loc = page.locator(".md-box-root")
+        n = int(loc.count())
+    except Exception:
+        return ""
+    for i in range(n - 1, -1, -1):
+        try:
+            text = (loc.nth(i).inner_text(timeout=800) or "").strip()
+        except Exception:
+            continue
+        if not text:
+            continue
+        if prompt and text == prompt:
+            continue
+        return text
+    return ""
 
-    Doubao may show ``.message-action-button-main`` before the answer finishes.
-    Therefore finish requires having observed a real generating signal first:
 
-      1. 停止按钮 / streaming / md-box / action bar 任一出现（生成已开始或已极快结束）
-      2. 停止消失 且 页面上不再有 ``data-streaming=true``
-      3. ``.message-action-button-main`` 可见 → 再复制
+def _wait_generation_done(
+    page: Any,
+    *,
+    settings: Settings,
+    deadline: float,
+    user_prompt: str = "",
+) -> None:
+    """Wait until the assistant reply is actually idle — not the user-message toolbar.
+
+    Doubao shows ``.message-action-button-main`` on the *user* bubble right after
+    send. Treating that as "generation finished" copies an empty/prompt clipboard
+    and raises ``empty assistant reply``.
+
+    Finish requires assistant ``.md-box-root`` text (not equal to the prompt) and
+    either: stop/streaming went idle, or that text stayed unchanged for ~3s.
     """
     _ = settings
-    saw_generating = False
-
-    def _generating() -> bool:
-        return _stop_button_visible(page) or _any_streaming_true(page)
+    saw_generating_ui = False
+    last_text = ""
+    stable_polls = 0
 
     def _started() -> bool:
-        nonlocal saw_generating
-        if _generating():
-            saw_generating = True
+        nonlocal saw_generating_ui, last_text
+        generating = _stop_button_visible(page) or _any_streaming_true(page)
+        text = _last_assistant_md_text(page, user_prompt=user_prompt)
+        if generating:
+            saw_generating_ui = True
+            last_text = text
             return True
-        # Require a real thread id before treating md-box / action bar as "started"
-        # (guest landing can look busy without a conversation).
-        if not conversation_id_from_url(getattr(page, "url", "") or ""):
-            return False
-        try:
-            if page.locator(".md-box-root").count() > 0:
-                saw_generating = True
-                return True
-        except Exception:
-            pass
-        if _action_bar_visible(page):
-            saw_generating = True
+        if text:
+            last_text = text
             return True
         return False
 
@@ -421,23 +442,35 @@ def _wait_generation_done(page: Any, *, settings: Settings, deadline: float) -> 
         page,
         deadline=deadline,
         predicate=_started,
-        label="generation start (stop button or data-streaming=true)",
+        label="generation start (stop button, streaming, or assistant md-box)",
     )
 
     def _finished() -> bool:
-        nonlocal saw_generating
-        if _generating():
-            saw_generating = True
+        nonlocal saw_generating_ui, last_text, stable_polls
+        generating = _stop_button_visible(page) or _any_streaming_true(page)
+        text = _last_assistant_md_text(page, user_prompt=user_prompt)
+        if generating:
+            saw_generating_ui = True
+            last_text = text
+            stable_polls = 0
             return False
-        if not saw_generating:
+        if not text:
+            stable_polls = 0
             return False
-        return _action_bar_visible(page)
+        if saw_generating_ui:
+            return True
+        if text == last_text:
+            stable_polls += 1
+        else:
+            last_text = text
+            stable_polls = 0
+        return stable_polls >= _STABLE_IDLE_POLLS
 
     _wait_until(
         page,
         deadline=deadline,
         predicate=_finished,
-        label="generation end (idle after stop/streaming + action bar)",
+        label="generation end (idle after stop/streaming + assistant text)",
     )
 
 
@@ -507,38 +540,47 @@ def _copy_assistant_markdown_via_toolbar(page: Any) -> str:
     return after
 
 
-def _extract_assistant_text(page: Any, *, deadline: float | None = None) -> str:
+def _extract_assistant_text(
+    page: Any,
+    *,
+    deadline: float | None = None,
+    user_prompt: str = "",
+) -> str:
     """Prefer toolbar「复制」→ clipboard Markdown; fallback ``md-box-root``."""
     from aperix_geo.services.providers.doubao_web.extract import md_box_html_to_markdown
 
     _ = deadline  # reserved; completion is decided in _wait_generation_done
+    prompt = (user_prompt or "").strip()
     copied = _copy_assistant_markdown_via_toolbar(page)
-    if copied.strip():
+    if copied.strip() and copied.strip() != prompt:
         return copied.strip()
 
-    for css in sel.MD_BOX_SELECTORS:
-        loc = page.locator(css)
-        try:
-            n = loc.count()
-        except Exception:
-            continue
-        if n <= 0:
-            continue
-        target = loc.last
-        try:
-            html = target.evaluate("el => el.outerHTML")
-        except Exception:
-            html = ""
-        if isinstance(html, str) and html.strip():
-            md = md_box_html_to_markdown(html)
-            if md.strip():
-                return md
-        try:
-            plain = (target.inner_text(timeout=5_000) or "").strip()
-        except Exception:
-            plain = ""
-        if plain:
-            return plain
+    boxed = _last_assistant_md_text(page, user_prompt=prompt)
+    if boxed:
+        for css in sel.MD_BOX_SELECTORS:
+            loc = page.locator(css)
+            try:
+                n = loc.count()
+            except Exception:
+                continue
+            if n <= 0:
+                continue
+            target = loc.last
+            try:
+                html = target.evaluate("el => el.outerHTML")
+            except Exception:
+                html = ""
+            if isinstance(html, str) and html.strip():
+                md = md_box_html_to_markdown(html)
+                if md.strip() and md.strip() != prompt:
+                    return md
+            try:
+                plain = (target.inner_text(timeout=5_000) or "").strip()
+            except Exception:
+                plain = ""
+            if plain and plain != prompt:
+                return plain
+        return boxed
 
     for css in sel.ASSISTANT_MESSAGE_SELECTORS:
         loc = page.locator(css)
@@ -552,9 +594,9 @@ def _extract_assistant_text(page: Any, *, deadline: float | None = None) -> str:
             text = (loc.last.inner_text(timeout=5_000) or "").strip()
         except Exception:
             continue
-        if text:
+        if text and text != prompt:
             return text
-    return (page.inner_text("body") or "").strip()
+    return ""
 
 
 def _panel_root(hint: Any) -> Any:

@@ -99,18 +99,23 @@ def run_doubao_browser_crawl_on_page(
         )
         assert_no_captcha(page)
         ui_flow._wait_generation_done(
-            page, settings=settings, deadline=crawl_deadline
+            page, settings=settings, deadline=crawl_deadline, user_prompt=prompt
         )
         assert_no_captcha(page)
 
-        raw_text = ui_flow._extract_assistant_text(page, deadline=crawl_deadline)
+        raw_text = ui_flow._extract_assistant_text(
+            page, deadline=crawl_deadline, user_prompt=prompt
+        )
         panel_text, panel_hrefs = ui_flow._extract_search_panel(page)
         queries = extract_quoted_queries(panel_text) if panel_present(panel_text) else ()
         text = clean_assistant_text(
             raw_text, user_prompt=prompt, search_queries=queries
         )
         if not text.strip():
-            raise DoubaoCrawlError("empty assistant reply")
+            raise DoubaoCrawlError(
+                "empty assistant reply; "
+                f"raw_len={len(raw_text or '')} {ui_flow._page_debug_summary(page)}"
+            )
 
         source_urls = filter_http_urls(list(panel_hrefs) + list(extract_urls(panel_text)))
 

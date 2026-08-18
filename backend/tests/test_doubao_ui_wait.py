@@ -1,0 +1,117 @@
+"""Wait-for-reply must not treat the user-message toolbar as generation end."""
+
+from __future__ import annotations
+
+from unittest.mock import MagicMock, patch
+
+from aperix_geo.config import Settings
+from aperix_geo.services.providers.doubao_web.ui_flow import (
+    _extract_assistant_text,
+    _last_assistant_md_text,
+    _wait_generation_done,
+)
+
+
+class _Box:
+    def __init__(self, text: str) -> None:
+        self._text = text
+
+    def inner_text(self, timeout: int = 0) -> str:
+        return self._text
+
+
+class _Boxes:
+    def __init__(self, texts: list[str]) -> None:
+        self._texts = texts
+
+    def count(self) -> int:
+        return len(self._texts)
+
+    def nth(self, i: int) -> _Box:
+        return _Box(self._texts[i])
+
+    @property
+    def last(self) -> _Box:
+        return _Box(self._texts[-1] if self._texts else "")
+
+
+class _Page:
+    def __init__(self) -> None:
+        self.url = "https://www.doubao.com/chat/thread1"
+        self.stop = False
+        self.streaming = False
+        self.md_texts: list[str] = []
+        self.body = "shell"
+        self.waits = 0
+
+    def locator(self, css: str) -> _Boxes | MagicMock:
+        if css == ".md-box-root":
+            return _Boxes(self.md_texts)
+        return MagicMock(count=lambda: 0)
+
+    def wait_for_timeout(self, _ms: int) -> None:
+        self.waits += 1
+        if self.waits == 2 and not self.md_texts:
+            self.md_texts = ["助手正文"]
+            self.stop = False
+            self.streaming = False
+
+    def inner_text(self, _sel: str) -> str:
+        return self.body
+
+    def evaluate(self, *_a, **_k) -> str:
+        return ""
+
+    def get_by_role(self, *_a, **_k) -> MagicMock:
+        empty = MagicMock()
+        empty.count.return_value = 0
+        return empty
+
+
+def test_last_assistant_md_skips_prompt_echo() -> None:
+    page = _Page()
+    page.md_texts = ["今天天气怎么样", "今天多云。"]
+    assert _last_assistant_md_text(page, user_prompt="今天天气怎么样") == "今天多云。"
+
+
+def test_wait_generation_ignores_user_toolbar_until_assistant_text() -> None:
+    page = _Page()
+    settings = Settings(doubao_crawl_timeout_s=30)
+    with (
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._stop_button_visible",
+            side_effect=lambda _p: page.stop,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._any_streaming_true",
+            side_effect=lambda _p: page.streaming,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._action_bar_visible",
+            return_value=True,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.runtime.assert_logged_in",
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow.assert_no_captcha",
+        ),
+    ):
+        _wait_generation_done(
+            page,
+            settings=settings,
+            deadline=__import__("time").monotonic() + 5,
+            user_prompt="问一句",
+        )
+    assert page.md_texts == ["助手正文"]
+    assert page.waits >= 2
+
+
+def test_extract_skips_prompt_only_clipboard() -> None:
+    page = _Page()
+    page.md_texts = ["问一句"]
+    with patch(
+        "aperix_geo.services.providers.doubao_web.ui_flow._copy_assistant_markdown_via_toolbar",
+        return_value="问一句",
+    ):
+        assert _extract_assistant_text(page, user_prompt="问一句") == ""

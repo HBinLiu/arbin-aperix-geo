@@ -166,10 +166,16 @@ def parse_job_session(payload: dict[str, Any]) -> tuple[str, dict[str, Any], str
 
 def _apply_context_defaults(context: Any, *, timeout_ms: int) -> None:
     context.set_default_timeout(max(1_000, int(timeout_ms)))
+    perms = ["clipboard-read", "clipboard-write"]
     try:
-        context.grant_permissions(["clipboard-read", "clipboard-write"])
+        context.grant_permissions(perms)
     except Exception:
         logger.debug("clipboard permission grant skipped", exc_info=True)
+    for origin in ("https://www.doubao.com", "https://doubao.com"):
+        try:
+            context.grant_permissions(perms, origin=origin)
+        except Exception:
+            logger.debug("clipboard permission grant skipped origin=%s", origin, exc_info=True)
 
 
 @contextmanager
