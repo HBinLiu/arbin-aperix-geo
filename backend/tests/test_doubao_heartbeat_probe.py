@@ -12,6 +12,7 @@ from aperix_geo.services.providers.doubao_web.errors import (
     DoubaoCaptchaRequired,
     DoubaoCrawlError,
     DoubaoLoginExpired,
+    DoubaoNeedsHumanOps,
 )
 from aperix_geo.services.providers.doubao_web.jobs.probe import (
     build_probe_payload,
@@ -41,6 +42,25 @@ def test_build_probe_payload_always_sends() -> None:
     assert payload["storage_state"]["cookies"]
 
 
+def test_wait_until_logged_in_retries_guest_flash() -> None:
+    from aperix_geo.services.providers.doubao_web.errors import DoubaoLoginExpired
+    from aperix_geo.services.providers.doubao_web.runtime import wait_until_logged_in
+
+    class Page:
+        url = "https://www.doubao.com/chat/"
+        calls = 0
+
+        def wait_for_timeout(self, *_a, **_k):
+            return None
+
+    page = Page()
+    with patch(
+        "aperix_geo.services.providers.doubao_web.runtime.assert_logged_in",
+        side_effect=[DoubaoLoginExpired("login text visible"), None],
+    ):
+        wait_until_logged_in(page, timeout_s=2.0)
+
+
 def test_chat_url_is_logged_out() -> None:
     from aperix_geo.services.providers.doubao_web.runtime import chat_url_is_logged_out
 
@@ -49,6 +69,83 @@ def test_chat_url_is_logged_out() -> None:
     assert chat_url_is_logged_out("https://www.doubao.com/login")
     assert not chat_url_is_logged_out("https://www.doubao.com/chat/abc")
     assert not chat_url_is_logged_out("https://www.doubao.com/chat/?utm=login_hint")
+
+
+def test_wait_until_logged_in_fails_fast_on_passport() -> None:
+    from aperix_geo.services.providers.doubao_web.errors import DoubaoLoginExpired
+    from aperix_geo.services.providers.doubao_web.runtime import wait_until_logged_in
+
+    class Page:
+        url = "https://www.doubao.com/passport/web/login"
+
+        def wait_for_timeout(self, *_a, **_k):
+            raise AssertionError("must not wait on passport redirect")
+
+    with pytest.raises(DoubaoLoginExpired, match="redirected to login"):
+        wait_until_logged_in(Page(), timeout_s=12.0)
+
+
+class _EmptyLoc:
+    def count(self) -> int:
+        return 0
+
+    def nth(self, _i: int) -> "_EmptyLoc":
+        return self
+
+    def is_visible(self) -> bool:
+        return False
+
+    def inner_text(self, timeout: int = 0) -> str:
+        return ""
+
+    @property
+    def first(self) -> "_EmptyLoc":
+        return self
+
+    @property
+    def last(self) -> "_EmptyLoc":
+        return self
+
+
+class _SlowChatPage:
+    url = "https://www.doubao.com/chat/"
+
+    def wait_for_timeout(self, *_a, **_k) -> None:
+        return None
+
+    def get_by_role(self, *_a, **_k) -> _EmptyLoc:
+        return _EmptyLoc()
+
+    def get_by_text(self, *_a, **_k) -> _EmptyLoc:
+        return _EmptyLoc()
+
+    def locator(self, _sel: str) -> _EmptyLoc:
+        return _EmptyLoc()
+
+
+def test_wait_until_logged_in_retries_slow_composer() -> None:
+    from aperix_geo.services.providers.doubao_web.runtime import wait_until_logged_in
+
+    class Page:
+        url = "https://www.doubao.com/chat/"
+
+        def wait_for_timeout(self, *_a, **_k):
+            return None
+
+    with patch(
+        "aperix_geo.services.providers.doubao_web.runtime.assert_logged_in",
+        side_effect=[DoubaoCrawlError("chat UI not ready", session_alive=True), None],
+    ):
+        wait_until_logged_in(Page(), timeout_s=2.0)
+
+
+def test_wait_until_logged_in_slow_load_is_not_login_expired() -> None:
+    from aperix_geo.services.providers.doubao_web.runtime import wait_until_logged_in
+
+    with pytest.raises(DoubaoCrawlError, match="not ready") as ei:
+        wait_until_logged_in(_SlowChatPage(), timeout_s=0.6)
+    assert ei.value.session_alive is True
+    assert not isinstance(ei.value, DoubaoNeedsHumanOps)
 
 
 def test_probe_on_page_login_redirect() -> None:
@@ -86,6 +183,10 @@ def test_probe_on_page_send_detects_captcha() -> None:
             return _session_state()
 
     with (
+        patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe.wait_until_logged_in",
+            return_value=None,
+        ),
         patch(
             "aperix_geo.services.providers.doubao_web.jobs.probe.assert_logged_in",
             return_value=None,
@@ -139,6 +240,10 @@ def test_probe_on_page_send_fail_keeps_session_alive() -> None:
 
     with (
         patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe.wait_until_logged_in",
+            return_value=None,
+        ),
+        patch(
             "aperix_geo.services.providers.doubao_web.jobs.probe.assert_logged_in",
             return_value=None,
         ),
@@ -186,6 +291,10 @@ def test_probe_on_page_real_send_success() -> None:
             return _session_state()
 
     with (
+        patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe.wait_until_logged_in",
+            return_value=None,
+        ),
         patch(
             "aperix_geo.services.providers.doubao_web.jobs.probe.assert_logged_in",
             return_value=None,
@@ -251,6 +360,10 @@ def test_probe_keeps_injected_cookies_when_export_empty() -> None:
 
     injected = _session_state()
     with (
+        patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe.wait_until_logged_in",
+            return_value=None,
+        ),
         patch(
             "aperix_geo.services.providers.doubao_web.jobs.probe.assert_logged_in",
             return_value=None,

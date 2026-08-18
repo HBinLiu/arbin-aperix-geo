@@ -89,7 +89,10 @@ def test_cookies_only_storage_state_drops_origins() -> None:
 
 
 def test_playwright_cookies_omit_session_expires_and_drop_stale() -> None:
-    from aperix_geo.services.crawl_accounts.session_cookies import playwright_cookies_for_context
+    from aperix_geo.services.crawl_accounts.session_cookies import (
+        playwright_cookies_for_context,
+        playwright_cookies_with_url,
+    )
 
     now = 1_700_000_000.0
     cookies = playwright_cookies_for_context(
@@ -135,6 +138,10 @@ def test_playwright_cookies_omit_session_expires_and_drop_stale() -> None:
     assert by_name["sid_guard"]["sameSite"] == "Lax"
     assert "partitionKey" not in by_name["sid_guard"]
     assert by_name["sid_tt"]["path"] == "/"
+    url_cookies = playwright_cookies_with_url(cookies)
+    by_url = {c["name"]: c for c in url_cookies}
+    assert by_url["sessionid"]["url"] == "https://doubao.com/"
+    assert by_url["sessionid"]["domain"] == ".doubao.com"
 
 
 def test_keep_session_storage_state_falls_back_on_empty_export() -> None:

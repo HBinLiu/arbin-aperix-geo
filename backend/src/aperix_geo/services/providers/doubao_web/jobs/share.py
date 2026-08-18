@@ -20,10 +20,10 @@ from aperix_geo.services.providers.doubao_web.errors import (
 )
 from aperix_geo.services.providers.doubao_web.extract import conversation_id_from_url
 from aperix_geo.services.providers.doubao_web.runtime import (
-    assert_logged_in,
     assert_no_captcha,
     job_error,
     job_ok,
+    wait_until_logged_in,
 )
 
 logger = logging.getLogger(__name__)
@@ -86,7 +86,7 @@ def run_doubao_share_on_page(
             wait_until="domcontentloaded",
             timeout=timeout_ms,
         )
-        assert_logged_in(page)
+        wait_until_logged_in(page)
         assert_no_captcha(page)
         page.wait_for_timeout(800)
 

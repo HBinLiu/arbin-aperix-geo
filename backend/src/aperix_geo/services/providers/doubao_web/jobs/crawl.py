@@ -22,10 +22,10 @@ from aperix_geo.services.providers.doubao_web.extract import (
     panel_present,
 )
 from aperix_geo.services.providers.doubao_web.runtime import (
-    assert_logged_in,
     assert_no_captcha,
     job_error,
     job_ok,
+    wait_until_logged_in,
 )
 
 logger = logging.getLogger(__name__)
@@ -85,7 +85,7 @@ def run_doubao_browser_crawl_on_page(
     try:
         crawl_deadline = time.monotonic() + settings.doubao_crawl_timeout_s
         page.goto(base_url, wait_until="domcontentloaded", timeout=timeout_ms)
-        assert_logged_in(page)
+        wait_until_logged_in(page)
         assert_no_captcha(page)
         ui_flow._ensure_blank_chat(page, base_url=base_url)
         prior_conv = conversation_id_from_url(page.url or "")

@@ -20,10 +20,10 @@ from aperix_geo.services.providers.doubao_web.errors import (
     DoubaoNeedsHumanOps,
 )
 from aperix_geo.services.providers.doubao_web.runtime import (
-    assert_logged_in,
     assert_no_captcha,
     job_error,
     job_ok,
+    wait_until_logged_in,
 )
 from aperix_geo.services.providers.doubao_web.web_http.map_result import map_sse_events_to_fields
 from aperix_geo.services.providers.doubao_web.web_http.protocol import (
@@ -88,7 +88,7 @@ def run_doubao_web_http_on_page(
 
     try:
         page.goto(base_url, wait_until="domcontentloaded", timeout=timeout_ms)
-        assert_logged_in(page)
+        wait_until_logged_in(page)
         assert_no_captcha(page)
         page.wait_for_function(
             "() => typeof window.fetch === 'function'",

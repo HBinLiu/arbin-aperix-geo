@@ -18,10 +18,10 @@ from aperix_geo.services.providers.doubao_web.errors import (
     DoubaoNeedsHumanOps,
 )
 from aperix_geo.services.providers.doubao_web.runtime import (
-    assert_logged_in,
     assert_no_captcha,
     job_error,
     job_ok,
+    wait_until_logged_in,
 )
 
 logger = logging.getLogger(__name__)
@@ -129,7 +129,7 @@ def run_doubao_sign_on_page(
     try:
         page.on("request", _on_request)
         page.goto(base_url, wait_until="domcontentloaded", timeout=timeout_ms)
-        assert_logged_in(page)
+        wait_until_logged_in(page)
         assert_no_captcha(page)
 
         page.wait_for_function(

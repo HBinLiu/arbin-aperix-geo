@@ -150,6 +150,25 @@ def playwright_cookies_for_context(
     return out
 
 
+def playwright_cookies_with_url(
+    cookies: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """CDP ``Network.setCookie`` often ignores domain-only cookies; give each a URL.
+
+    Keep ``domain`` so ``.doubao.com`` still covers ``www.doubao.com``. Popping it
+    would make a host-only cookie on ``doubao.com`` that chat never sends.
+    """
+    out: list[dict[str, Any]] = []
+    for raw in cookies:
+        cookie = dict(raw)
+        if not cookie.get("url"):
+            domain = str(cookie.get("domain") or "").lstrip(".")
+            if domain:
+                cookie["url"] = f"https://{domain}/"
+        out.append(cookie)
+    return out
+
+
 def playwright_storage_state_for_context(
     storage_state: dict[str, Any] | None,
     *,

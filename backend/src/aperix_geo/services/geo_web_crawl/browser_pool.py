@@ -129,29 +129,49 @@ def open_browser_context(
     storage_state: dict[str, Any],
     timeout_ms: int,
 ) -> Any:
-    """Create a context and force-apply cookies (CDP/Browserless often drops storage_state)."""
+    """Create or reuse a context and force-apply cookies.
+
+    Browserless CDP (``connect_over_cdp``) already has a default context;
+    ``new_context(storage_state=)`` often looks successful while Chrome never
+    sends the session cookies. Reuse ``contexts[0]`` and always ``add_cookies``.
+    """
     from aperix_geo.services.crawl_accounts.session_cookies import (
         playwright_cookies_for_context,
+        playwright_cookies_with_url,
         playwright_storage_state_for_context,
     )
 
     cookies = playwright_cookies_for_context(storage_state)
     slim = playwright_storage_state_for_context(storage_state)
+    borrowed = False
     try:
-        context = browser.new_context(
-            storage_state=slim,
-            locale="zh-CN",
-            viewport={"width": 1440, "height": 900},
-        )
+        existing_n = len(browser.contexts)
     except Exception:
-        logger.warning(
-            "new_context(storage_state=) failed; retrying empty context + add_cookies",
-            exc_info=True,
-        )
-        context = browser.new_context(
-            locale="zh-CN",
-            viewport={"width": 1440, "height": 900},
-        )
+        existing_n = 0
+    if existing_n:
+        context = browser.contexts[0]
+        borrowed = True
+        logger.info("geo-web-crawl cookie inject reuse existing CDP context")
+    else:
+        try:
+            context = browser.new_context(
+                storage_state=slim,
+                locale="zh-CN",
+                viewport={"width": 1440, "height": 900},
+            )
+        except Exception:
+            logger.warning(
+                "new_context(storage_state=) failed; retrying empty context + add_cookies",
+                exc_info=True,
+            )
+            context = browser.new_context(
+                locale="zh-CN",
+                viewport={"width": 1440, "height": 900},
+            )
+    try:
+        context._aperix_borrowed = borrowed
+    except Exception:
+        pass
     context.set_default_timeout(max(1_000, int(timeout_ms)))
     try:
         context.grant_permissions(["clipboard-read", "clipboard-write"])
@@ -160,26 +180,64 @@ def open_browser_context(
     if cookies:
         applied: set[str] = set()
         try:
-            applied = _cookie_names(context.cookies())
+            context.add_cookies(cookies)
         except Exception:
-            logger.debug("context.cookies() after new_context failed", exc_info=True)
-        missing = _cookie_names(cookies) - applied
-        if missing or not applied:
+            logger.warning("geo-web-crawl add_cookies(domain) failed; retry url", exc_info=True)
             try:
-                context.add_cookies(cookies)
-                after = _cookie_names(context.cookies())
-                logger.info(
-                    "geo-web-crawl cookie inject add_cookies wanted=%s applied=%s",
-                    sorted(_cookie_names(cookies)),
-                    sorted(after),
-                )
+                context.add_cookies(playwright_cookies_with_url(cookies))
             except Exception:
                 logger.warning(
-                    "geo-web-crawl add_cookies failed names=%s",
+                    "geo-web-crawl add_cookies(url) failed names=%s",
                     sorted(_cookie_names(cookies)),
                     exc_info=True,
                 )
+        try:
+            applied = _cookie_names(context.cookies())
+        except Exception:
+            logger.debug("context.cookies() after add_cookies failed", exc_info=True)
+        wanted = _cookie_names(cookies)
+        missing = wanted - applied
+        logger.info(
+            "geo-web-crawl cookie inject borrowed=%s wanted=%s applied=%s missing=%s",
+            borrowed,
+            sorted(wanted),
+            sorted(applied),
+            sorted(missing),
+        )
+        if missing:
+            try:
+                context.add_cookies(playwright_cookies_with_url(cookies))
+                applied = _cookie_names(context.cookies())
+                logger.info(
+                    "geo-web-crawl cookie inject url-retry applied=%s",
+                    sorted(applied),
+                )
+            except Exception:
+                logger.warning(
+                    "geo-web-crawl cookie inject url-retry failed missing=%s",
+                    sorted(missing),
+                    exc_info=True,
+                )
     return context
+
+
+def _close_job_context(context: Any) -> None:
+    borrowed = bool(getattr(context, "_aperix_borrowed", False))
+    if borrowed:
+        try:
+            pages = list(context.pages)
+        except Exception:
+            pages = []
+        for page in pages:
+            try:
+                page.close()
+            except Exception:
+                logger.debug("borrowed context page close failed", exc_info=True)
+        return
+    try:
+        context.close()
+    except Exception:
+        logger.debug("context close failed", exc_info=True)
 
 
 @contextmanager
@@ -212,10 +270,7 @@ def _page_session_browserless(
         yield page, context
     finally:
         if context is not None:
-            try:
-                context.close()
-            except Exception:
-                logger.debug("browserless context close failed", exc_info=True)
+            _close_job_context(context)
         if browser is not None:
             try:
                 browser.close()
@@ -240,11 +295,7 @@ def _page_session_local(
     try:
         yield page, context
     finally:
-        try:
-            context.close()
-        except Exception:
-            logger.debug("context close failed", exc_info=True)
-            _teardown_thread_browser()
+        _close_job_context(context)
 
 
 @contextmanager

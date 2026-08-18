@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import time
 from typing import Any, Literal, NoReturn
 
 from aperix_geo.config import Settings
@@ -61,6 +62,10 @@ def chat_url_is_logged_out(url: str) -> bool:
     """True for passport / ``/login`` / ``from_logout`` — not a generic ``login`` substring."""
     lowered = (url or "").lower()
     return "passport" in lowered or "/login" in lowered or "from_logout" in lowered
+
+
+# Accessible-name match for a real login / scan CTA (not 验证码 — that is captcha).
+_LOGIN_CTA = re.compile(r"登录|登陆|扫码")
 
 
 def spawn_doubao_job(
@@ -161,17 +166,13 @@ def _composer(page: Any) -> Any | None:
     return None
 
 
-def assert_logged_in(page: Any) -> None:
-    """Raise DoubaoLoginExpired when the chat UI is not an authenticated session.
-
-    Guest landing often still shows a composer; a visible「登录」CTA or
-    ``from_logout=1`` is enough to treat storage_state as unusable.
-    """
+def _visible_login_reason(page: Any) -> str:
+    """Guest-chrome evidence, or empty if none. Does not inspect the composer."""
     if chat_url_is_logged_out(page.url or ""):
-        raise DoubaoLoginExpired(f"redirected to login: {page.url}")
+        return f"redirected to login: {page.url}"
 
     for role in ("button", "link"):
-        loc = page.get_by_role(role, name=sel.LOGIN_HINT)
+        loc = page.get_by_role(role, name=_LOGIN_CTA)
         try:
             n = min(int(loc.count()), 12)
         except Exception:
@@ -186,13 +187,8 @@ def assert_logged_in(page: Any) -> None:
                     label = (el.inner_text(timeout=800) or "").strip()
                 except Exception:
                     label = ""
-                # Ignore captcha-only chrome; require login/scan CTA.
-                if re.search(r"登录|登陆|扫码", label) or not label:
-                    raise DoubaoLoginExpired(
-                        f"login UI visible ({role}={label or 'login'}); storage_state expired"
-                    )
-            except DoubaoLoginExpired:
-                raise
+                if _LOGIN_CTA.search(label):
+                    return f"login UI visible ({role}={label or 'login'}); storage_state expired"
             except Exception:
                 continue
 
@@ -201,9 +197,7 @@ def assert_logged_in(page: Any) -> None:
         login_text = page.get_by_text(re.compile(r"^\s*登录\s*$"))
         for i in range(min(login_text.count(), 8)):
             if login_text.nth(i).is_visible():
-                raise DoubaoLoginExpired("login text visible; storage_state expired")
-    except DoubaoLoginExpired:
-        raise
+                return "login text visible; storage_state expired"
     except Exception:
         pass
 
@@ -215,10 +209,75 @@ def assert_logged_in(page: Any) -> None:
     if re.search(r"(电脑版|关于豆包)\s*登录\s+", body) or re.search(
         r"\s登录\s+有什么我能帮你的吗", body
     ):
-        raise DoubaoLoginExpired("guest shell copy with 登录; storage_state expired")
+        return "guest shell copy with 登录; storage_state expired"
+    return ""
 
+
+def inspect_login(page: Any) -> tuple[str, str]:
+    """``ok`` / ``out`` (logged out) / ``pending`` (SPA still hydrating)."""
+    reason = _visible_login_reason(page)
+    if reason:
+        return "out", reason
     if _composer(page) is None:
-        raise DoubaoLoginExpired("chat composer not found; storage_state expired")
+        return "pending", "chat UI not ready (composer missing)"
+    return "ok", ""
+
+
+def wait_until_logged_in(page: Any, *, timeout_s: float = 20.0) -> None:
+    """Wait for session hydrate after goto; fail immediately on passport / ``/login``.
+
+    Guest chrome can flash「登录」on ``/chat/`` before cookies apply. A real
+    redirect to passport is not a flash — raise without waiting.
+
+    A slow blank shell (no composer, no login CTA) is **not** login expiry:
+    timeout raises ``DoubaoCrawlError`` so heartbeat keeps the cookie jar.
+    """
+    if chat_url_is_logged_out(page.url or ""):
+        raise DoubaoLoginExpired(f"redirected to login: {page.url}")
+    wait_load = getattr(page, "wait_for_load_state", None)
+    if callable(wait_load):
+        try:
+            wait_load("load", timeout=min(8_000, int(max(0.5, float(timeout_s)) * 1000)))
+        except Exception:
+            pass
+        if chat_url_is_logged_out(page.url or ""):
+            raise DoubaoLoginExpired(f"redirected to login: {page.url}")
+    deadline = time.monotonic() + max(0.5, float(timeout_s))
+    last: BaseException | None = None
+    while time.monotonic() < deadline:
+        try:
+            assert_logged_in(page)
+            return
+        except DoubaoLoginExpired as exc:
+            last = exc
+            if chat_url_is_logged_out(page.url or ""):
+                raise
+        except DoubaoCrawlError as exc:
+            last = exc
+        try:
+            page.wait_for_timeout(400)
+        except Exception as wait_exc:
+            if last is not None:
+                raise last from wait_exc
+            raise
+    if last is not None:
+        raise last
+    assert_logged_in(page)
+
+
+def assert_logged_in(page: Any) -> None:
+    """Raise when the chat UI is not an authenticated session.
+
+    Guest landing often still shows a composer; a visible「登录」CTA or
+    ``from_logout=1`` is login expiry. A missing composer on ``/chat/`` is
+    treated as not-ready (``DoubaoCrawlError``), not a dead session.
+    """
+    state, reason = inspect_login(page)
+    if state == "ok":
+        return
+    if state == "pending":
+        raise DoubaoCrawlError(reason, session_alive=True)
+    raise DoubaoLoginExpired(reason)
 
 
 def page_has_captcha(page: Any) -> bool:

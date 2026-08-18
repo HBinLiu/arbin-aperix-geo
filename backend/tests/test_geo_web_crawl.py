@@ -339,8 +339,9 @@ def test_open_browser_context_add_cookies_when_storage_state_dropped() -> None:
 
     browser = MagicMock()
     context = MagicMock()
+    browser.contexts = []
     browser.new_context.return_value = context
-    context.cookies.side_effect = [[], [{"name": "sessionid", "value": "x"}]]
+    context.cookies.return_value = [{"name": "sessionid", "value": "x"}]
 
     state = {
         "cookies": [
@@ -360,3 +361,57 @@ def test_open_browser_context_add_cookies_when_storage_state_dropped() -> None:
     injected = context.add_cookies.call_args[0][0]
     assert injected[0]["name"] == "sessionid"
     assert "expires" not in injected[0]
+
+
+def test_open_browser_context_reuses_cdp_default_context() -> None:
+    from aperix_geo.services.geo_web_crawl.browser_pool import open_browser_context
+
+    browser = MagicMock()
+    existing = MagicMock()
+    browser.contexts = [existing]
+    existing.cookies.return_value = [{"name": "sessionid", "value": "x"}]
+    state = {
+        "cookies": [
+            {
+                "name": "sessionid",
+                "value": "x",
+                "domain": ".doubao.com",
+                "path": "/",
+                "expires": -1,
+            }
+        ]
+    }
+    got = open_browser_context(browser, storage_state=state, timeout_ms=5000)
+    assert got is existing
+    browser.new_context.assert_not_called()
+    existing.add_cookies.assert_called()
+    assert existing._aperix_borrowed is True
+
+
+def test_open_browser_context_url_retry_when_jar_missing_session() -> None:
+    from aperix_geo.services.geo_web_crawl.browser_pool import open_browser_context
+
+    browser = MagicMock()
+    context = MagicMock()
+    browser.contexts = []
+    browser.new_context.return_value = context
+    context.cookies.side_effect = [
+        [{"name": "odin_tt", "value": "guest"}],
+        [{"name": "sessionid", "value": "x"}],
+    ]
+    state = {
+        "cookies": [
+            {
+                "name": "sessionid",
+                "value": "x",
+                "domain": ".doubao.com",
+                "path": "/",
+                "expires": -1,
+            }
+        ]
+    }
+    open_browser_context(browser, storage_state=state, timeout_ms=5000)
+    assert context.add_cookies.call_count == 2
+    retry = context.add_cookies.call_args_list[1][0][0]
+    assert retry[0]["url"] == "https://doubao.com/"
+    assert retry[0]["domain"] == ".doubao.com"

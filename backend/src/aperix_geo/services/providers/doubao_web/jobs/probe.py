@@ -24,6 +24,7 @@ from aperix_geo.services.providers.doubao_web.runtime import (
     assert_no_captcha,
     job_error,
     job_ok,
+    wait_until_logged_in,
 )
 
 logger = logging.getLogger(__name__)
@@ -143,7 +144,7 @@ def run_doubao_login_probe_on_page(
     seen_login = False
     try:
         page.goto(base_url, wait_until="domcontentloaded", timeout=timeout_ms)
-        assert_logged_in(page)
+        wait_until_logged_in(page)
         seen_login = True
         assert_no_captcha(page)
 
