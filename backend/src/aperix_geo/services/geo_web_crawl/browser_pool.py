@@ -135,7 +135,7 @@ def open_browser_context(
     ``new_context(storage_state=)`` often looks successful while Chrome never
     sends the session cookies. Reuse ``contexts[0]`` and always ``add_cookies``.
     """
-        from aperix_geo.services.crawl_accounts.cookies import (
+    from aperix_geo.services.crawl_accounts.cookies import (
         playwright_cookies_for_context,
         playwright_cookies_with_url,
         playwright_storage_state_for_context,
