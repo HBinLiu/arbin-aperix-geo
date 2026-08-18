@@ -9,6 +9,9 @@ CHAT_URL = "https://www.doubao.com/chat/"
 
 # Role / accessible-name patterns (Playwright get_by_role / get_by_text).
 NEW_CHAT_NAME = re.compile(r"新对话|新聊天|新建对话|开启新对话")
+# Landing /chat may default to「工作」; sample/probe must switch to「对话」first.
+CHAT_TAB_NAME = re.compile(r"^对话$")
+WORK_TAB_NAME = re.compile(r"^工作$")
 SEND_NAME = re.compile(r"发送消息|^\s*发送\s*$")
 STOP_NAME = re.compile(r"停止生成|停止回答|停止输出|^停止$|Stop generating")
 SHARE_NAME = re.compile(r"^\s*分享\s*$")
