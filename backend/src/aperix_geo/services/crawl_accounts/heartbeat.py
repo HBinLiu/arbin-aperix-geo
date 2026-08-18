@@ -110,8 +110,16 @@ def run_crawl_account_heartbeat(
     Manual ``crawl_heartbeat_run.py`` passes ``respect_sampling_quiet=False``.
     """
     settings = settings or get_settings()
+    plat = normalize_platform(platform)
+    ops_sweep = {"expired": 0, "respawned": 0, "reopened": 0}
+    if settings.doubao_ops_ticket_enabled:
+        from aperix_geo.services.crawl_accounts.human_ops import sweep_stale_login_tickets
+
+        ops_sweep = sweep_stale_login_tickets(db, platform=plat, settings=settings)
+        db.commit()
+
     if not settings.doubao_heartbeat_enabled:
-        return {"ok": True, "skipped": True, "reason": "disabled"}
+        return {"ok": True, "skipped": True, "reason": "disabled", "ops_sweep": ops_sweep}
     if respect_sampling_quiet and in_sampling_heartbeat_quiet_window(settings):
         logger.info(
             "crawl heartbeat skipped reason=sampling_window "
@@ -125,9 +133,9 @@ def run_crawl_account_heartbeat(
             "reason": "sampling_window",
             "sampling_daily_hour": settings.sampling_daily_hour,
             "sampling_daily_window_minutes": settings.sampling_daily_window_minutes,
+            "ops_sweep": ops_sweep,
         }
 
-    plat = normalize_platform(platform)
     now = utc_now()
     pool_rows = list(
         db.scalars(
@@ -284,6 +292,7 @@ def run_crawl_account_heartbeat(
         "failed": failed,
         "skipped_leased": skipped_busy,
         "failures": failures,
+        "ops_sweep": ops_sweep,
     }
 
 

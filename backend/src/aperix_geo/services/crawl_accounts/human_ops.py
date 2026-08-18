@@ -11,14 +11,16 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from aperix_geo.config import Settings, get_settings
-from aperix_geo.db.models import CrawlAccount, CrawlLoginTicket
+from aperix_geo.db.models import ZERO_UUID, CrawlAccount, CrawlLoginTicket
 from aperix_geo.services.alerts.email import send_alert_email
 from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO, normalize_platform
 from aperix_geo.services.crawl_accounts.pool import mark_need_relogin
 from aperix_geo.services.crawl_accounts.tickets import (
+    TICKET_EXPIRED,
     TICKET_PENDING,
     create_login_ticket,
     ensure_pending_ticket_session,
+    list_pending_tickets,
 )
 
 logger = logging.getLogger(__name__)
@@ -195,6 +197,68 @@ def _ensure_pending_ticket(
         reason,
     )
     return ticket, True
+
+
+def sweep_stale_login_tickets(
+    db: Session,
+    *,
+    platform: str = PLATFORM_DOUBAO,
+    settings: Settings | None = None,
+) -> dict[str, int]:
+    """Unstick logging_in + pending when noVNC died or the ticket TTL elapsed.
+
+    Heartbeat must skip live VNC sessions, so dead sessions would otherwise
+    sit forever. Beat should call this even when the login probe is skipped.
+    """
+    settings = settings or get_settings()
+    plat = normalize_platform(platform)
+    if not settings.doubao_ops_ticket_enabled:
+        return {"expired": 0, "respawned": 0, "reopened": 0}
+
+    expired = 0
+    respawned = 0
+    reopened = 0
+    tickets = list_pending_tickets(db, platform=plat)
+    for ticket in tickets:
+        if ensure_pending_ticket_session(
+            db, ticket, reason="login_expired", settings=settings
+        ):
+            respawned += 1
+            account = db.get(CrawlAccount, ticket.account_id)
+            _maybe_alert_ops(
+                account_id=ticket.account_id,
+                label=(account.label if account is not None else ticket.label) or ticket.label,
+                platform=plat,
+                reason="login_expired",
+                error="noVNC session ended; restarted remote desktop",
+                ticket=ticket,
+                settings=settings,
+            )
+            continue
+        if ticket.status != TICKET_EXPIRED:
+            continue
+        expired += 1
+        if ticket.account_id == ZERO_UUID:
+            continue
+        request_human_intervention(
+            db,
+            account_id=ticket.account_id,
+            reason="login_expired",
+            error="login ticket expired; opened a new noVNC session",
+            settings=settings,
+        )
+        reopened += 1
+
+    db.flush()
+    if expired or respawned or reopened:
+        logger.warning(
+            "geo crawl ops sweep platform=%s expired=%s respawned=%s reopened=%s",
+            plat,
+            expired,
+            respawned,
+            reopened,
+        )
+    return {"expired": expired, "respawned": respawned, "reopened": reopened}
 
 
 def _maybe_alert_ops(

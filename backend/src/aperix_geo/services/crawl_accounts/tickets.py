@@ -54,7 +54,19 @@ def novnc_configured(settings: Settings | None = None) -> bool:
     return bool(settings.doubao_ops_ticket_enabled and geo_crawl_ops_ready(settings))
 
 
-def _expire_if_needed(ticket: CrawlLoginTicket) -> bool:
+def _release_logging_in_account(db: Session, ticket: CrawlLoginTicket, *, error: str) -> None:
+    """Pending ticket is gone: account must leave logging_in so heartbeat can reopen."""
+    if ticket.account_id == ZERO_UUID:
+        return
+    account = db.get(CrawlAccount, ticket.account_id)
+    if account is None:
+        return
+    if account.status == STATUS_LOGGING_IN:
+        account.status = STATUS_NEED_RELOGIN
+        account.last_error = (error or account.last_error or "login ticket closed").strip()[:2000]
+
+
+def _expire_if_needed(db: Session, ticket: CrawlLoginTicket) -> bool:
     if ticket.status != TICKET_PENDING:
         return False
     if ticket.expires_at <= utc_now():
@@ -64,6 +76,7 @@ def _expire_if_needed(ticket: CrawlLoginTicket) -> bool:
             stop_ops_session(ticket.container_id)
             ticket.container_id = ""
             ticket.login_url = ""
+        _release_logging_in_account(db, ticket, error="login ticket expired")
         return True
     return False
 
@@ -76,6 +89,23 @@ def list_accounts(
     stmt = select(CrawlAccount).order_by(CrawlAccount.updated_at.desc()).limit(200)
     if platform is not None and str(platform).strip():
         stmt = stmt.where(CrawlAccount.platform == normalize_platform(platform))
+    return list(db.scalars(stmt).all())
+
+
+def list_pending_tickets(
+    db: Session,
+    *,
+    platform: str | None = None,
+    limit: int = 50,
+) -> list[CrawlLoginTicket]:
+    stmt = (
+        select(CrawlLoginTicket)
+        .where(CrawlLoginTicket.status == TICKET_PENDING)
+        .order_by(CrawlLoginTicket.created_at.asc())
+        .limit(max(1, int(limit)))
+    )
+    if platform is not None and str(platform).strip():
+        stmt = stmt.where(CrawlLoginTicket.platform == normalize_platform(platform))
     return list(db.scalars(stmt).all())
 
 
@@ -218,7 +248,7 @@ def ensure_pending_ticket_session(
     settings: Settings | None = None,
 ) -> bool:
     settings = settings or get_settings()
-    if _expire_if_needed(ticket):
+    if _expire_if_needed(db, ticket):
         db.flush()
         return False
     if ticket.status != TICKET_PENDING:
@@ -302,7 +332,7 @@ def get_ticket(db: Session, ticket_id: UUID) -> CrawlLoginTicket:
     ticket = db.get(CrawlLoginTicket, ticket_id)
     if ticket is None:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    if _expire_if_needed(ticket):
+    if _expire_if_needed(db, ticket):
         db.flush()
     return ticket
 
@@ -316,7 +346,7 @@ def get_ticket_by_token(db: Session, token: str) -> CrawlLoginTicket:
     ).first()
     if ticket is None:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    if _expire_if_needed(ticket):
+    if _expire_if_needed(db, ticket):
         db.flush()
     return ticket
 
@@ -344,10 +374,7 @@ def cancel_ticket(db: Session, ticket_id: UUID) -> CrawlLoginTicket:
     ticket.error_text = "cancelled"
     ticket.container_id = ""
     ticket.login_url = ""
-    if ticket.account_id != ZERO_UUID:
-        account = db.get(CrawlAccount, ticket.account_id)
-        if account is not None and account.status == STATUS_LOGGING_IN:
-            account.status = STATUS_NEED_RELOGIN
+    _release_logging_in_account(db, ticket, error="login ticket cancelled")
     db.flush()
     return ticket
 

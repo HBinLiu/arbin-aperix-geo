@@ -11,7 +11,8 @@ from fastapi import HTTPException
 
 from aperix_geo.config import Settings
 from aperix_geo.db.base import utc_now
-from aperix_geo.db.models import EPOCH, ZERO_UUID, CrawlLoginTicket
+from aperix_geo.db.models import EPOCH, ZERO_UUID, CrawlAccount, CrawlLoginTicket
+from aperix_geo.services.crawl_accounts.pool import STATUS_LOGGING_IN, STATUS_NEED_RELOGIN
 from aperix_geo.services.crawl_accounts.tickets import (
     TICKET_CANCELLED,
     TICKET_EXPIRED,
@@ -124,6 +125,34 @@ def test_get_ticket_expires() -> None:
     db.get.return_value = ticket
     out = get_ticket(db, ticket.id)
     assert out.status == TICKET_EXPIRED
+
+
+def test_get_ticket_expires_unsticks_logging_in_account() -> None:
+    aid = uuid4()
+    account = CrawlAccount(
+        id=aid,
+        label="stuck",
+        status=STATUS_LOGGING_IN,
+        storage_state={},
+        last_ok_at=EPOCH,
+        last_error="",
+        lease_owner="",
+        lease_until=EPOCH,
+    )
+    ticket = CrawlLoginTicket(
+        id=uuid4(),
+        account_id=aid,
+        label="stuck",
+        token="tok",
+        status=TICKET_PENDING,
+        expires_at=utc_now() - timedelta(minutes=1),
+        completed_at=EPOCH,
+    )
+    db = MagicMock()
+    db.get.side_effect = lambda _model, key: ticket if key == ticket.id else account
+    out = get_ticket(db, ticket.id)
+    assert out.status == TICKET_EXPIRED
+    assert account.status == STATUS_NEED_RELOGIN
 
 
 def test_cancel_ticket() -> None:
@@ -272,3 +301,90 @@ def test_complete_rejects_guest_cookies() -> None:
             },
         )
     assert exc.value.status_code == 400
+
+
+def test_sweep_respawns_dead_novnc_and_reopens_expired() -> None:
+    from aperix_geo.services.crawl_accounts.human_ops import sweep_stale_login_tickets
+
+    aid_dead = uuid4()
+    aid_exp = uuid4()
+    dead = CrawlLoginTicket(
+        id=uuid4(),
+        platform="doubao",
+        account_id=aid_dead,
+        label="dead",
+        token="tok-dead",
+        status=TICKET_PENDING,
+        container_id="cid-dead",
+        login_url="https://old",
+        expires_at=utc_now() + timedelta(minutes=10),
+        completed_at=EPOCH,
+    )
+    expired = CrawlLoginTicket(
+        id=uuid4(),
+        platform="doubao",
+        account_id=aid_exp,
+        label="exp",
+        token="tok-exp",
+        status=TICKET_PENDING,
+        container_id="cid-exp",
+        login_url="https://old2",
+        expires_at=utc_now() - timedelta(minutes=1),
+        completed_at=EPOCH,
+    )
+    db = MagicMock()
+    db.scalars.return_value.all.return_value = [dead, expired]
+    settings = _settings(
+        geo_crawl_ops_novnc_base_url="https://novnc.example",
+        geo_crawl_ops_docker_image="aperix/geo-crawl-ops:latest",
+    )
+    fake = MagicMock()
+    fake.container_id = "cid-new"
+    fake.login_url = "https://novnc.example/?ticket=new"
+    fake.host_port = 60123
+    fake.name = "geo-crawl-ops-doubao-new"
+    with (
+        patch(
+            "aperix_geo.services.crawl_accounts.tickets.ops_session_running",
+            return_value=False,
+        ),
+        patch(
+            "aperix_geo.services.crawl_accounts.tickets.stop_ops_session",
+        ),
+        patch(
+            "aperix_geo.services.crawl_accounts.tickets.spawn_ops_session",
+            return_value=fake,
+        ),
+        patch(
+            "aperix_geo.services.crawl_accounts.human_ops.request_human_intervention",
+        ) as reopen,
+        patch(
+            "aperix_geo.services.crawl_accounts.human_ops._maybe_alert_ops",
+        ) as alert,
+    ):
+        out = sweep_stale_login_tickets(db, settings=settings)
+    assert out == {"expired": 1, "respawned": 1, "reopened": 1}
+    assert dead.container_id == "cid-new"
+    assert dead.login_url == "https://novnc.example/?ticket=new"
+    assert expired.status == TICKET_EXPIRED
+    reopen.assert_called_once()
+    assert reopen.call_args.kwargs["account_id"] == aid_exp
+    alert.assert_called_once()
+
+
+def test_heartbeat_sweeps_ops_even_when_probe_disabled() -> None:
+    from aperix_geo.services.crawl_accounts.heartbeat import run_crawl_account_heartbeat
+
+    db = MagicMock()
+    settings = _settings(doubao_heartbeat_enabled=False, doubao_ops_ticket_enabled=True)
+    with patch(
+        "aperix_geo.services.crawl_accounts.human_ops.sweep_stale_login_tickets",
+        return_value={"expired": 1, "respawned": 0, "reopened": 1},
+    ) as sweep:
+        result = run_crawl_account_heartbeat(db, settings=settings)
+    assert result["skipped"] is True
+    assert result["reason"] == "disabled"
+    assert result["ops_sweep"]["reopened"] == 1
+    sweep.assert_called_once()
+    db.commit.assert_called()
+
