@@ -31,6 +31,24 @@ _HEADED_ARGS = [
     "--window-size=1440,900",
 ]
 
+
+def _proxy_launch_args() -> list[str]:
+    """Chromium does not always honor HTTP_PROXY; pass --proxy-server when set."""
+    raw = (
+        os.environ.get("HTTPS_PROXY")
+        or os.environ.get("HTTP_PROXY")
+        or os.environ.get("https_proxy")
+        or os.environ.get("http_proxy")
+        or ""
+    ).strip()
+    if not raw:
+        return []
+    args = [f"--proxy-server={raw}"]
+    bypass = (os.environ.get("NO_PROXY") or os.environ.get("no_proxy") or "").strip()
+    if bypass:
+        args.append(f"--proxy-bypass-list={bypass.replace(',', ';')}")
+    return args
+
 _occupancy_lock = threading.Lock()
 _occupancy: dict[str, str] = {}
 
@@ -211,7 +229,7 @@ def _stop_playwright(pw_cm: Any) -> None:
 def _chromium_launch_kwargs(*, want_headless: bool) -> dict[str, Any]:
     kwargs: dict[str, Any] = {
         "headless": want_headless,
-        "args": list(_LAUNCH_ARGS if want_headless else _HEADED_ARGS),
+        "args": list(_LAUNCH_ARGS if want_headless else _HEADED_ARGS) + _proxy_launch_args(),
     }
     chrome = chrome_executable()
     if not want_headless and chrome:

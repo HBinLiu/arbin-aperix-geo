@@ -29,6 +29,12 @@ services:
       GEO_WEB_CRAWL_NOVNC_PORT: ${GEO_WEB_CRAWL_NOVNC_PORT:-6080}
       GEO_WEB_CRAWL_NOVNC_PUBLIC_PORT: ${GEO_WEB_CRAWL_NOVNC_PUBLIC_PORT:-6080}
       DISPLAY: ":1"
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,host.docker.internal}
+      http_proxy: ${HTTP_PROXY:-}
+      https_proxy: ${HTTPS_PROXY:-}
+      no_proxy: ${NO_PROXY:-localhost,127.0.0.1,host.docker.internal}
     volumes:
       - ${GEO_CRAWL_PROFILE_ROOT:-/var/lib/aperix/crawl-profiles}:/data/crawl-profiles
     restart: unless-stopped
