@@ -25,12 +25,15 @@ ENV DEBIAN_FRONTEND=noninteractive \
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     chromium \
+    fluxbox \
     fonts-noto-cjk \
     novnc \
     procps \
     python3 \
     python3-pip \
     websockify \
+    x11-utils \
+    x11-xserver-utils \
     x11vnc \
     xauth \
     xvfb \

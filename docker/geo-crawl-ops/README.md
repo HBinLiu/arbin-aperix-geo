@@ -34,6 +34,14 @@ Cookie 来源：优先读 launch 进程写入的 `/tmp/ops-live-storage-state.js
 
 登录浏览器使用 **Playwright persistent user-data-dir**（`GEO_CRAWL_OPS_PROFILE_DIR`，与 geo-web-crawl 共用宿主机目录）。不要再把另一台 Chrome 的 Cookie JSON 灌进来。
 
+黑屏：VNC 已连上但 Chromium 没画出来。常见原因是上次 `docker rm -f` 留下 `SingletonLock`，或新版 Chrome 未强制 X11。镜像会清锁、起 fluxbox、`--ozone-platform=x11`。改完后必须 **重建 ops 镜像** 再开新工单。
+
+```bash
+docker build -t aperix/geo-crawl-ops:latest docker/geo-crawl-ops
+docker logs "$(docker ps -qf label=aperix.geo_crawl_ops=1)" --tail 80
+docker exec "$(docker ps -qf label=aperix.geo_crawl_ops=1)" cat /tmp/launch_browser.log
+```
+
 ## 后端配置
 
 ```text

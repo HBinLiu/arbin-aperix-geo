@@ -51,13 +51,29 @@ def _launch_args(cdp_port: int) -> list[str]:
         "--no-sandbox",
         "--disable-dev-shm-usage",
         "--disable-gpu",
+        "--ozone-platform=x11",
+        "--use-gl=angle",
+        "--use-angle=swiftshader",
         "--window-size=1440,900",
         f"--remote-debugging-port={cdp_port}",
         "--remote-debugging-address=127.0.0.1",
     ]
 
 
+def _clear_chrome_singleton_locks(profile_dir: Path) -> None:
+    """docker rm -f leaves SingletonLock; next VNC Chromium then fails → black Xvfb."""
+    for name in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
+        path = profile_dir / name
+        try:
+            if path.is_symlink() or path.exists():
+                path.unlink()
+                _log(f"removed leftover {name}")
+        except OSError as exc:
+            _log(f"could not remove {name}: {exc}")
+
+
 def main() -> int:
+    os.environ.setdefault("DISPLAY", ":1")
     start_url = (os.environ.get("GEO_CRAWL_OPS_START_URL") or "https://www.doubao.com/chat/").strip()
     profile_dir = (os.environ.get("GEO_CRAWL_OPS_PROFILE_DIR") or "").strip()
     cdp_port = int(os.environ.get("GEO_CRAWL_OPS_CDP_PORT") or "9222")
@@ -81,17 +97,26 @@ def main() -> int:
     if not profile_dir:
         _log("GEO_CRAWL_OPS_PROFILE_DIR unset; refusing ephemeral Chrome (would from_logout)")
         return 1
-    Path(profile_dir).mkdir(parents=True, exist_ok=True)
+    profile_path = Path(profile_dir)
+    profile_path.mkdir(parents=True, exist_ok=True)
+    _clear_chrome_singleton_locks(profile_path)
 
     with sync_playwright() as playwright:
-        _log(f"launch_persistent_context dir={profile_dir} cdp={cdp_port}")
-        context = playwright.chromium.launch_persistent_context(
-            profile_dir,
-            headless=False,
-            locale="zh-CN",
-            viewport={"width": 1440, "height": 900},
-            args=_launch_args(cdp_port),
+        _log(
+            f"launch_persistent_context dir={profile_dir} cdp={cdp_port} "
+            f"display={os.environ.get('DISPLAY')}"
         )
+        try:
+            context = playwright.chromium.launch_persistent_context(
+                str(profile_path),
+                headless=False,
+                locale="zh-CN",
+                viewport={"width": 1440, "height": 900},
+                args=_launch_args(cdp_port),
+            )
+        except Exception as exc:  # noqa: BLE001
+            _log(f"chromium launch failed: {exc}")
+            return 1
         page = context.pages[0] if context.pages else context.new_page()
         try:
             page.goto(start_url, wait_until="domcontentloaded", timeout=120_000)
