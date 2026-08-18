@@ -84,4 +84,10 @@ def run_geo_web_crawl_job(
         return crawl_fail(f"geo-web-crawl invalid JSON: {exc}")
     if not isinstance(data, dict):
         return crawl_fail(f"geo-web-crawl returned non-dict: {type(data)!r}")
+    if not data.get("ok"):
+        logger.warning(
+            "geo-web-crawl job ok=false type=%s err=%s",
+            data.get("error_type"),
+            str(data.get("error") or "")[:400],
+        )
     return data

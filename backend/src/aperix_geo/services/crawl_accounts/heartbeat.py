@@ -151,6 +151,7 @@ def run_crawl_account_heartbeat(
     revived = 0
     failed = 0
     skipped_leased = 0
+    failures: list[dict[str, Any]] = []
     for row in rows:
         db.refresh(row)
         if _lease_active(row, now=utc_now()):
@@ -200,12 +201,23 @@ def run_crawl_account_heartbeat(
                 settings=settings,
             )
             failed += 1
+            failures.append(
+                {
+                    "id": str(row.id),
+                    "label": row.label,
+                    "reason": reason,
+                    "error_type": type(exc).__name__,
+                    "error": str(exc)[:500],
+                }
+            )
             logger.warning(
-                "geo crawl heartbeat needs human ops id=%s label=%s platform=%s reason=%s",
+                "geo crawl heartbeat needs human ops id=%s label=%s platform=%s "
+                "reason=%s err=%s",
                 row.id,
                 row.label,
                 plat,
                 reason,
+                str(exc)[:400],
             )
         except DoubaoCrawlError as exc:
             row.last_error = str(exc)[:2000]
@@ -214,6 +226,16 @@ def run_crawl_account_heartbeat(
                 row.last_ok_at = utc_now()
             clear_account_lease(db, account_id=row.id, lease_owner=owner)
             failed += 1
+            failures.append(
+                {
+                    "id": str(row.id),
+                    "label": row.label,
+                    "reason": "probe_error",
+                    "error_type": type(exc).__name__,
+                    "error": str(exc)[:500],
+                    "session_alive": bool(exc.session_alive),
+                }
+            )
             logger.warning(
                 "geo crawl heartbeat probe error (keep cookies) id=%s label=%s "
                 "platform=%s session_alive=%s err=%s",
@@ -227,6 +249,15 @@ def run_crawl_account_heartbeat(
             row.last_error = str(exc)[:2000]
             clear_account_lease(db, account_id=row.id, lease_owner=owner)
             failed += 1
+            failures.append(
+                {
+                    "id": str(row.id),
+                    "label": row.label,
+                    "reason": "error",
+                    "error_type": type(exc).__name__,
+                    "error": str(exc)[:500],
+                }
+            )
             logger.warning(
                 "geo crawl heartbeat failed id=%s label=%s platform=%s: %s",
                 row.id,
@@ -244,6 +275,7 @@ def run_crawl_account_heartbeat(
         "ok_count": revived,
         "failed": failed,
         "skipped_leased": skipped_leased,
+        "failures": failures,
     }
 
 
