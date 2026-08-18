@@ -165,6 +165,51 @@ def test_request_human_intervention_respawns_dead_session_and_alerts() -> None:
     assert "https://ops.example/p/new/vnc.html" in send_mail.call_args.kwargs["body"]
 
 
+def test_request_human_intervention_skips_empty_url_when_novnc_configured() -> None:
+    account_id = uuid4()
+    account = CrawlAccount(
+        id=account_id,
+        label="acc-1",
+        status="active",
+        storage_state={"cookies": []},
+        last_error="",
+    )
+    db = MagicMock()
+    db.get.return_value = account
+    db.scalars.return_value.first.return_value = None
+    created = CrawlLoginTicket(
+        id=uuid4(),
+        account_id=account_id,
+        label="acc-1",
+        token="tok",
+        status=TICKET_PENDING,
+        login_url="",
+        error_text="novnc_start_failed: HTTP 401",
+    )
+    with (
+        patch(
+            "aperix_geo.services.crawl_accounts.human_ops.create_login_ticket",
+            return_value=created,
+        ),
+        patch(
+            "aperix_geo.services.crawl_accounts.human_ops.send_alert_email",
+        ) as send_mail,
+    ):
+        out = request_human_intervention(
+            db,
+            account_id=account_id,
+            reason="login_expired",
+            error="chrome profile missing",
+            settings=_settings(
+                geo_web_crawl_base_url="http://127.0.0.1:9410",
+                geo_crawl_ops_novnc_base_url="https://novnc.example/p/{port}/vnc.html",
+            ),
+        )
+    assert out["ticket_id"] == str(created.id)
+    assert out["alerted"] is False
+    send_mail.assert_not_called()
+
+
 def test_request_human_intervention_skips_ticket_when_disabled() -> None:
     account_id = uuid4()
     account = CrawlAccount(id=account_id, label="acc-1", status="active", storage_state={}, last_error="")

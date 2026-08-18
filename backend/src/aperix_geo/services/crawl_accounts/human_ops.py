@@ -21,6 +21,7 @@ from aperix_geo.services.crawl_accounts.tickets import (
     create_login_ticket,
     ensure_pending_ticket_session,
     list_pending_tickets,
+    novnc_configured,
 )
 
 logger = logging.getLogger(__name__)
@@ -182,7 +183,7 @@ def _ensure_pending_ticket(
             reason,
             exc_info=True,
         )
-        return None, True
+        return None, _should_alert_ticket(None, settings)
 
     prefix = f"auto:{reason}"
     detail = (error or "").strip()
@@ -196,7 +197,7 @@ def _ensure_pending_ticket(
         platform,
         reason,
     )
-    return ticket, True
+    return ticket, _should_alert_ticket(ticket, settings)
 
 
 def sweep_stale_login_tickets(
@@ -224,16 +225,18 @@ def sweep_stale_login_tickets(
             db, ticket, reason="login_expired", settings=settings
         ):
             respawned += 1
-            account = db.get(CrawlAccount, ticket.account_id)
-            _maybe_alert_ops(
-                account_id=ticket.account_id,
-                label=(account.label if account is not None else ticket.label) or ticket.label,
-                platform=plat,
-                reason="login_expired",
-                error="noVNC session ended; restarted remote desktop",
-                ticket=ticket,
-                settings=settings,
-            )
+            if _should_alert_ticket(ticket, settings):
+                account = db.get(CrawlAccount, ticket.account_id)
+                _maybe_alert_ops(
+                    account_id=ticket.account_id,
+                    label=(account.label if account is not None else ticket.label)
+                    or ticket.label,
+                    platform=plat,
+                    reason="login_expired",
+                    error="noVNC session ended; restarted remote desktop",
+                    ticket=ticket,
+                    settings=settings,
+                )
             continue
         if ticket.status != TICKET_EXPIRED:
             continue
@@ -261,6 +264,21 @@ def sweep_stale_login_tickets(
     return {"expired": expired, "respawned": respawned, "reopened": reopened}
 
 
+def _ticket_login_url(ticket: CrawlLoginTicket | None) -> str:
+    if ticket is None:
+        return ""
+    return (ticket.login_url or "").strip()
+
+
+def _should_alert_ticket(ticket: CrawlLoginTicket | None, settings: Settings) -> bool:
+    """Skip the empty-URL mail when noVNC is configured; retry until the desktop is up."""
+    if ticket is None:
+        return not novnc_configured(settings)
+    if _ticket_login_url(ticket):
+        return True
+    return not novnc_configured(settings)
+
+
 def _maybe_alert_ops(
     *,
     account_id: uuid.UUID,
@@ -271,6 +289,13 @@ def _maybe_alert_ops(
     ticket: CrawlLoginTicket | None,
     settings: Settings,
 ) -> bool:
+    if not _should_alert_ticket(ticket, settings):
+        logger.warning(
+            "ops alert skipped (waiting for noVNC url) account=%s ticket=%s",
+            account_id,
+            None if ticket is None else ticket.id,
+        )
+        return False
     reason_cn = _REASON_LABEL.get(reason, reason)
     env = (getattr(settings, "env", None) or "unknown").strip() or "unknown"
     subject = f"[Aperix GEO] 爬虫账号需人工处理：{platform}/{reason_cn} ({env})"

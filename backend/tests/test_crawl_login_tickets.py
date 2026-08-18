@@ -22,6 +22,7 @@ from aperix_geo.services.crawl_accounts.tickets import (
     complete_ticket_by_token,
     complete_ticket_with_storage_state,
     create_login_ticket,
+    ensure_pending_ticket_session,
     get_ticket,
     novnc_configured,
 )
@@ -138,6 +139,49 @@ def test_create_ticket_login_url_uses_advertised_vnc_port() -> None:
             ),
         )
     assert ticket.login_url == "https://novnc.example/p/6091/vnc.html"
+
+
+def test_ensure_pending_session_false_when_login_start_fails() -> None:
+    from aperix_geo.services.crawl_browser.client import CrawlLoginClientError
+
+    aid = uuid4()
+    ticket = CrawlLoginTicket(
+        id=uuid4(),
+        platform="doubao",
+        account_id=aid,
+        label="n1",
+        token="tok",
+        status=TICKET_PENDING,
+        container_id="",
+        login_url="",
+        expires_at=utc_now() + timedelta(minutes=10),
+        completed_at=EPOCH,
+    )
+    account = CrawlAccount(id=aid, label="n1", status=STATUS_NEED_RELOGIN, storage_state={})
+    db = MagicMock()
+    db.get.return_value = account
+    with (
+        patch(
+            "aperix_geo.services.crawl_accounts.tickets.crawl_login_session_running",
+            return_value=False,
+        ),
+        patch(
+            "aperix_geo.services.crawl_accounts.tickets.start_crawl_login_session",
+            side_effect=CrawlLoginClientError("HTTP 401: invalid crawl token"),
+        ),
+    ):
+        started = ensure_pending_ticket_session(
+            db,
+            ticket,
+            settings=_settings(
+                geo_web_crawl_base_url="http://127.0.0.1:9410",
+                geo_crawl_ops_novnc_base_url="https://novnc.example",
+            ),
+        )
+    assert started is False
+    assert ticket.login_url == ""
+    assert ticket.status == TICKET_PENDING
+    assert "novnc_start_failed" in ticket.error_text
 
 
 def test_get_ticket_expires() -> None:

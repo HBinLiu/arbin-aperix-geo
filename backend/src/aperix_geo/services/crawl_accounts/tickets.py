@@ -270,7 +270,7 @@ def ensure_pending_ticket_session(
 
     ttl_min = int(settings.doubao_ops_ticket_ttl_min)
     ticket.expires_at = utc_now() + timedelta(minutes=ttl_min)
-    _start_login_onto_ticket(
+    started = _start_login_onto_ticket(
         ticket,
         storage_state=storage_state,
         reason=reason,
@@ -278,6 +278,8 @@ def ensure_pending_ticket_session(
         settings=settings,
     )
     db.flush()
+    if not started:
+        return False
     logger.warning(
         "geo-web-crawl login respawned for pending ticket=%s session=%s url=%s",
         ticket.id,
@@ -311,7 +313,7 @@ def _start_login_onto_ticket(
     reason: str,
     ttl_min: int,
     settings: Settings,
-) -> None:
+) -> bool:
     plat = normalize_platform(ticket.platform)
     start_url = platform_start_url(plat, settings=settings)
     complete_url = rewrite_loopback_callback_url(
@@ -342,14 +344,16 @@ def _start_login_onto_ticket(
         ticket.error_text = (
             f"crawl_login: platform={plat} reason={reason} session={session_id}"
         )
+        return bool((ticket.login_url or "").strip())
     except CrawlLoginClientError as exc:
         logger.warning(
-            "geo-web-crawl login start failed; upload fallback ticket=%s: %s",
+            "geo-web-crawl login start failed; retry later ticket=%s: %s",
             ticket.id,
             exc,
         )
         _clear_ticket_session(ticket)
-        ticket.error_text = f"novnc_start_failed: {exc}; complete via storage_state upload"
+        ticket.error_text = f"novnc_start_failed: {exc}"
+        return False
 
 
 def get_ticket(db: Session, ticket_id: UUID) -> CrawlLoginTicket:
