@@ -24,17 +24,20 @@ from aperix_geo.services.crawl_accounts.profiles import account_profile_dir, pro
 logger = logging.getLogger(__name__)
 
 VIEWPORT = {"width": 1440, "height": 900}
-_LAUNCH_ARGS = ["--no-sandbox", "--disable-dev-shm-usage"]
+_LAUNCH_ARGS = ["--no-sandbox", "--disable-dev-shm-usage", "--disable-quic"]
 _HEADED_ARGS = [
     "--no-sandbox",
     "--disable-dev-shm-usage",
     "--disable-gpu",
+    "--disable-quic",
     "--window-size=1440,900",
 ]
 
 
-_WEBRTC_PROXY_ARGS = [
-    # HTTP_PROXY does not cover STUN; Doubao then flashes captcha →「换个网络」.
+# HTTP CONNECT does not carry QUIC/STUN/IPv6. Captcha sprites then fail with
+# 「图片加载失败，请刷新重试或换个网络」 even though the chat page loaded.
+_PROXY_LOCKDOWN_ARGS = [
+    "--disable-quic",
     "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
     "--webrtc-ip-handling-policy=disable_non_proxied_udp",
     "--disable-ipv6",
@@ -85,7 +88,7 @@ def _chromium_launch_kwargs(*, want_headless: bool) -> dict[str, Any]:
     args = list(_LAUNCH_ARGS if want_headless else _HEADED_ARGS)
     proxy = _playwright_proxy()
     if proxy:
-        args.extend(_WEBRTC_PROXY_ARGS)
+        args.extend(_PROXY_LOCKDOWN_ARGS)
     kwargs: dict[str, Any] = {
         "headless": want_headless,
         "args": args,

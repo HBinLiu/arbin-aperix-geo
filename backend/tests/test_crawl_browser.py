@@ -334,4 +334,5 @@ def test_chromium_launch_locks_webrtc_when_proxied(monkeypatch) -> None:
     kw = bp._chromium_launch_kwargs(want_headless=True)
     assert kw["proxy"]["server"] == "http://proxy.example:8000"
     assert "--disable-ipv6" in kw["args"]
+    assert "--disable-quic" in kw["args"]
     assert "--force-webrtc-ip-handling-policy=disable_non_proxied_udp" in kw["args"]

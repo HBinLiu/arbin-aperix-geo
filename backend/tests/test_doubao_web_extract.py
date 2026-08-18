@@ -152,6 +152,7 @@ def test_page_looks_like_captcha() -> None:
     assert page_looks_like_captcha("请选择所有符合上文描述的图片，并拖拽到下方\n拖拽到这里")
     assert page_looks_like_captcha("请完成行为验证后继续")
     assert page_looks_like_captcha("当前环境异常，请换个网络后再试")
+    assert page_looks_like_captcha("图片加载失败，请刷新重试或换个网络")
     assert not page_looks_like_captcha("适合小团队的 CRM 有哪些\nZoho CRM 推荐")
 
 
