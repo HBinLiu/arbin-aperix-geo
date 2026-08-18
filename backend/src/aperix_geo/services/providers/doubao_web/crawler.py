@@ -9,10 +9,7 @@ from contextlib import contextmanager
 from typing import Iterator
 
 from aperix_geo.config import Settings, get_settings
-from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO
-from aperix_geo.services.providers.doubao_web.accounts import open_credential_session
 from aperix_geo.services.providers.doubao_web.errors import DoubaoCrawlError
-from aperix_geo.services.providers.doubao_web.jobs.crawl import build_crawl_payload
 from aperix_geo.services.providers.doubao_web.runtime import (
     raise_from_job,
     resolve_crawl_transport,
@@ -91,6 +88,11 @@ def _crawl_doubao_chat_ui(
     prompt = user_prompt_from_messages(messages)
     if not prompt:
         raise DoubaoCrawlError("empty user prompt")
+
+    # Pool/SQLAlchemy stays out of geo-web-crawl image startup (lean import check).
+    from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO
+    from aperix_geo.services.providers.doubao_web.accounts import open_credential_session
+    from aperix_geo.services.providers.doubao_web.jobs.crawl import build_crawl_payload
 
     session = open_credential_session(settings)
     started = time.monotonic()

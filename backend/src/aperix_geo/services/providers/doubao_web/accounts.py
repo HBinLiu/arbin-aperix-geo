@@ -9,13 +9,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from aperix_geo.config import Settings
-from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO
-from aperix_geo.services.crawl_accounts.pool import (
-    AccountLease,
-    acquire_account,
-    count_fresh_active_accounts,
-    release_account,
-)
 from aperix_geo.services.crawl_accounts.session_cookies import (
     cookies_only_storage_state,
     storage_state_has_session_cookies,
@@ -25,6 +18,7 @@ from aperix_geo.services.providers.doubao_web.runtime import is_human_ops_job
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+    from aperix_geo.services.crawl_accounts.pool import AccountLease
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +63,9 @@ def crawl_credentials_available(settings: Settings, db: Session | None = None) -
     if db is None:
         return False
     try:
+        from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO
+        from aperix_geo.services.crawl_accounts.pool import count_fresh_active_accounts
+
         return count_fresh_active_accounts(db, platform=PLATFORM_DOUBAO, settings=settings) > 0
     except Exception:
         logger.debug("doubao account pool check failed", exc_info=True)
@@ -87,6 +84,9 @@ class DoubaoCredentialSession:
     def acquire(self, *, use_account_pool: bool) -> dict[str, Any]:
         if use_account_pool:
             try:
+                from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO
+                from aperix_geo.services.crawl_accounts.pool import acquire_account
+
                 self.lease = acquire_account(
                     self.db, platform=PLATFORM_DOUBAO, settings=self.settings
                 )
@@ -144,6 +144,8 @@ class DoubaoCredentialSession:
         self.lease = None
 
     def release_ok(self, storage_state: dict[str, Any] | None) -> None:
+        from aperix_geo.services.crawl_accounts.pool import release_account
+
         if self.lease is not None:
             release_account(
                 self.db,
@@ -165,6 +167,8 @@ class DoubaoCredentialSession:
     def release_fail(self, error: str) -> None:
         if self.lease is None:
             return
+        from aperix_geo.services.crawl_accounts.pool import release_account
+
         release_account(
             self.db,
             account_id=self.lease.account_id,

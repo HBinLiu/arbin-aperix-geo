@@ -219,7 +219,7 @@ def test_load_storage_state_rejects_guest_cookies(tmp_path: Path) -> None:
 
 
 @patch("aperix_geo.services.providers.doubao_web.accounts.load_storage_state_from_file")
-@patch("aperix_geo.services.providers.doubao_web.accounts.acquire_account", return_value=None)
+@patch("aperix_geo.services.crawl_accounts.pool.acquire_account", return_value=None)
 def test_pool_acquire_does_not_fall_back_to_file(mock_acquire, mock_file) -> None:
     from aperix_geo.services.providers.doubao_web.accounts import DoubaoCredentialSession
     from aperix_geo.services.providers.doubao_web.errors import DoubaoCrawlError
