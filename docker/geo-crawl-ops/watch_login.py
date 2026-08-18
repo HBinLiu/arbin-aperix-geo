@@ -48,6 +48,11 @@ _DOUBAO_SESSION = frozenset(
         "uid_tt_ss",
     }
 )
+# Guest Doubao often has uid_tt / sid_tt before login. Completing on those
+# docker-rm's the VNC session while the operator is still typing.
+_DOUBAO_LOGIN_PROOF = frozenset({"sessionid", "sessionid_ss", "sid_guard"})
+_LOGIN_CTA = re.compile(r"登录")
+_LOGGED_OUT_URL = re.compile(r"/passport|/login(?:/|\?|$)|from_logout=1", re.I)
 
 _CAPTCHA_TEXT = re.compile(
     r"拖拽到这里|请选择所有符合|行为验证|人机验证|安全验证|滑动验证|"
@@ -65,6 +70,40 @@ _CAPTCHA_SELECTORS = (
 
 def _log(msg: str) -> None:
     print(f"[geo-crawl-ops-watch] {msg}", flush=True)
+
+
+def login_proof_cookie_names(platform: str, state: dict[str, Any]) -> list[str]:
+    names = session_cookie_names(platform, state)
+    if platform != "doubao":
+        return names
+    return [n for n in names if n in _DOUBAO_LOGIN_PROOF]
+
+
+def page_shows_login_ui(page: Any) -> bool:
+    """True while the operator is still on a login / guest shell."""
+    if page is None:
+        return True
+    url = str(getattr(page, "url", "") or "")
+    if _LOGGED_OUT_URL.search(url):
+        return True
+    try:
+        for role in ("button", "link"):
+            loc = page.get_by_role(role, name=_LOGIN_CTA)
+            n = min(int(loc.count()), 8)
+            for i in range(n):
+                el = loc.nth(i)
+                if not el.is_visible():
+                    continue
+                label = ""
+                try:
+                    label = (el.inner_text(timeout=800) or "").strip()
+                except Exception:
+                    label = ""
+                if re.search(r"^\s*登录\s*$", label or "登录"):
+                    return True
+    except Exception:
+        pass
+    return False
 
 
 def session_cookie_names(platform: str, state: dict[str, Any]) -> list[str]:
@@ -252,7 +291,10 @@ def ready_for_complete(
     captcha_visible: bool,
     saw_captcha: bool,
     grace_elapsed: bool,
+    login_ui_visible: bool = False,
 ) -> bool:
+    if login_ui_visible:
+        return False
     if not has_session:
         return False
     if reason == "captcha":
@@ -339,7 +381,8 @@ def main() -> int:
                     continue
 
                 ctx, state, names, fp, state_src = resolve_storage_state(browser, platform)
-                has_session = bool(names)
+                proof_names = login_proof_cookie_names(platform, state)
+                has_session = bool(proof_names)
                 poll_i += 1
 
                 page = None
@@ -349,6 +392,7 @@ def main() -> int:
                 else:
                     page = _pick_page(browser)
                 captcha_visible = page_has_captcha(page) if page is not None else False
+                login_ui_visible = page_shows_login_ui(page)
                 if captcha_visible:
                     saw_captcha = True
 
@@ -359,7 +403,8 @@ def main() -> int:
                     _log(
                         f"heartbeat poll={poll_i} contexts={len(contexts)} "
                         f"src={state_src} cookies={cookie_n} "
-                        f"session={','.join(names) or '-'} captcha={captcha_visible}"
+                        f"session={','.join(names) or '-'} proof={','.join(proof_names) or '-'} "
+                        f"login_ui={login_ui_visible} captcha={captcha_visible}"
                     )
 
                 grace_elapsed = connected_at is not None and (now - connected_at) >= captcha_grace_s
@@ -372,12 +417,13 @@ def main() -> int:
                     captcha_visible=captcha_visible,
                     saw_captcha=saw_captcha,
                     grace_elapsed=grace_elapsed,
+                    login_ui_visible=login_ui_visible,
                 )
 
                 if ok:
                     stable_hit += 1
                     _log(
-                        f"ready names={','.join(names)} captcha={captcha_visible} "
+                        f"ready names={','.join(proof_names)} captcha={captcha_visible} "
                         f"saw_captcha={saw_captcha} stable={stable_hit}/2"
                     )
                     if stable_hit >= 2:
@@ -393,10 +439,10 @@ def main() -> int:
                         return 0
                 else:
                     stable_hit = 0
-                    if has_session or captcha_visible:
+                    if has_session or captcha_visible or login_ui_visible:
                         _log(
-                            f"wait reason={reason} session={','.join(names) or '-'} "
-                            f"captcha={captcha_visible} saw={saw_captcha} "
+                            f"wait reason={reason} proof={','.join(proof_names) or '-'} "
+                            f"login_ui={login_ui_visible} captcha={captcha_visible} saw={saw_captcha} "
                             f"fp_changed={fp != login_baseline if reason == 'login_expired' else 'n/a'}"
                         )
             except Exception as exc:  # noqa: BLE001

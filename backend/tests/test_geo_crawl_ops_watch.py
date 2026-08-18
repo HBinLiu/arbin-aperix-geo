@@ -54,6 +54,29 @@ def test_ready_login_empty_baseline() -> None:
     )
 
 
+def test_ready_login_blocks_while_login_ui_visible() -> None:
+    w = _load_watch()
+    assert not w.ready_for_complete(
+        reason="login_expired",
+        has_session=True,
+        fingerprint=(("sessionid", "x"),),
+        baseline=(),
+        captcha_visible=False,
+        saw_captcha=False,
+        grace_elapsed=True,
+        login_ui_visible=True,
+    )
+
+
+def test_login_proof_ignores_guest_uid_tt() -> None:
+    w = _load_watch()
+    guest = {"cookies": [{"name": "uid_tt", "value": "x"}, {"name": "sid_tt", "value": "y"}]}
+    assert w.session_cookie_names("doubao", guest) == ["sid_tt", "uid_tt"]
+    assert w.login_proof_cookie_names("doubao", guest) == []
+    logged = {"cookies": [{"name": "sessionid", "value": "s"}, {"name": "uid_tt", "value": "x"}]}
+    assert w.login_proof_cookie_names("doubao", logged) == ["sessionid"]
+
+
 def test_ready_captcha_requires_gone() -> None:
     w = _load_watch()
     assert not w.ready_for_complete(

@@ -47,17 +47,21 @@ def _dump_live_state(context: object) -> int:
 
 
 def _launch_args(cdp_port: int) -> list[str]:
+    # Same flags as the pre-refactor headed session (Debian Chromium + Xvfb).
+    # Playwright's bundled Chrome + SwiftShader crashed on keyboard input.
     return [
         "--no-sandbox",
         "--disable-dev-shm-usage",
         "--disable-gpu",
-        "--ozone-platform=x11",
-        "--use-gl=angle",
-        "--use-angle=swiftshader",
         "--window-size=1440,900",
         f"--remote-debugging-port={cdp_port}",
         "--remote-debugging-address=127.0.0.1",
     ]
+
+
+def _chrome_executable() -> str | None:
+    raw = (os.environ.get("GEO_CRAWL_OPS_CHROME_BIN") or "/usr/bin/chromium").strip()
+    return raw if raw and Path(raw).exists() else None
 
 
 def _clear_chrome_singleton_locks(profile_dir: Path) -> None:
@@ -102,13 +106,15 @@ def main() -> int:
     _clear_chrome_singleton_locks(profile_path)
 
     with sync_playwright() as playwright:
+        chrome = _chrome_executable()
         _log(
             f"launch_persistent_context dir={profile_dir} cdp={cdp_port} "
-            f"display={os.environ.get('DISPLAY')}"
+            f"display={os.environ.get('DISPLAY')} chrome={chrome or 'playwright'}"
         )
         try:
             context = playwright.chromium.launch_persistent_context(
                 str(profile_path),
+                executable_path=chrome,
                 headless=False,
                 locale="zh-CN",
                 viewport={"width": 1440, "height": 900},
