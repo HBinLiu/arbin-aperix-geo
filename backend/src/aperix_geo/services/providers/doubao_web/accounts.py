@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from aperix_geo.config import Settings
-from aperix_geo.services.crawl_accounts.session_cookies import (
+from aperix_geo.services.crawl_accounts.cookies import (
     cookies_only_storage_state,
     storage_state_has_session_cookies,
 )

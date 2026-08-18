@@ -8,7 +8,7 @@ from typing import Any
 
 from aperix_geo.config import Settings, get_settings
 from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO
-from aperix_geo.services.crawl_accounts.session_cookies import keep_session_storage_state
+from aperix_geo.services.crawl_accounts.cookies import keep_session_storage_state
 from aperix_geo.services.providers.doubao_web.accounts import open_credential_session
 from aperix_geo.services.providers.doubao_web.crawler import (
     concurrency_slot,

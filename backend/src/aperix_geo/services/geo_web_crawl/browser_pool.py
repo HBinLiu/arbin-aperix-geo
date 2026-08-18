@@ -135,7 +135,7 @@ def open_browser_context(
     ``new_context(storage_state=)`` often looks successful while Chrome never
     sends the session cookies. Reuse ``contexts[0]`` and always ``add_cookies``.
     """
-    from aperix_geo.services.crawl_accounts.session_cookies import (
+        from aperix_geo.services.crawl_accounts.cookies import (
         playwright_cookies_for_context,
         playwright_cookies_with_url,
         playwright_storage_state_for_context,
@@ -152,6 +152,15 @@ def open_browser_context(
         context = browser.contexts[0]
         borrowed = True
         logger.info("geo-web-crawl cookie inject reuse existing CDP context")
+        try:
+            for page in list(context.pages):
+                page.close()
+        except Exception:
+            logger.debug("borrowed context leftover page close failed", exc_info=True)
+        try:
+            context.clear_cookies()
+        except Exception:
+            logger.debug("borrowed context clear_cookies failed", exc_info=True)
     else:
         try:
             context = browser.new_context(

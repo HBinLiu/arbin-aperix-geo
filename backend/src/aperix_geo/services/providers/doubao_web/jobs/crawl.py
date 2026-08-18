@@ -7,7 +7,7 @@ import time
 from typing import Any
 
 from aperix_geo.config import Settings
-from aperix_geo.services.crawl_accounts.session_cookies import storage_state_from_context
+from aperix_geo.services.crawl_accounts.cookies import storage_state_from_context
 from aperix_geo.services.providers.doubao_web import selectors as sel
 from aperix_geo.services.providers.doubao_web.errors import (
     DoubaoCrawlError,

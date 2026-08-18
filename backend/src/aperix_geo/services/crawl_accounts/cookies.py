@@ -1,4 +1,4 @@
-"""Per-platform session-cookie helpers for crawl account pool / tickets / heartbeat."""
+"""Playwright storage_state cookie helpers for the crawl account pool."""
 
 from __future__ import annotations
 

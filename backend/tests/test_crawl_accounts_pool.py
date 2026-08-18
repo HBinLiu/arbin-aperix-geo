@@ -24,7 +24,7 @@ from aperix_geo.services.crawl_accounts.pool import (
     try_lease_account,
     upsert_account_from_state,
 )
-from aperix_geo.services.crawl_accounts.session_cookies import storage_state_has_session_cookies
+from aperix_geo.services.crawl_accounts.cookies import storage_state_has_session_cookies
 
 
 def _state() -> dict:
@@ -72,7 +72,7 @@ def test_storage_state_requires_session_cookies() -> None:
 
 
 def test_cookies_only_storage_state_drops_origins() -> None:
-    from aperix_geo.services.crawl_accounts.session_cookies import cookies_only_storage_state
+    from aperix_geo.services.crawl_accounts.cookies import cookies_only_storage_state
 
     fat = {
         **_state(),
@@ -89,7 +89,7 @@ def test_cookies_only_storage_state_drops_origins() -> None:
 
 
 def test_playwright_cookies_omit_session_expires_and_drop_stale() -> None:
-    from aperix_geo.services.crawl_accounts.session_cookies import (
+    from aperix_geo.services.crawl_accounts.cookies import (
         playwright_cookies_for_context,
         playwright_cookies_with_url,
     )
@@ -145,7 +145,7 @@ def test_playwright_cookies_omit_session_expires_and_drop_stale() -> None:
 
 
 def test_keep_session_storage_state_falls_back_on_empty_export() -> None:
-    from aperix_geo.services.crawl_accounts.session_cookies import keep_session_storage_state
+    from aperix_geo.services.crawl_accounts.cookies import keep_session_storage_state
 
     kept = keep_session_storage_state({"cookies": []}, fallback=_state())
     assert kept["cookies"][0]["name"] == "sessionid"
@@ -700,3 +700,61 @@ def test_accounts_needing_heartbeat_includes_need_relogin() -> None:
         now=now,
     )
     assert [r.label for r in selected] == ["need"]
+
+
+def test_accounts_needing_heartbeat_skips_logging_in_and_pending_ticket() -> None:
+    from aperix_geo.services.crawl_accounts.heartbeat import accounts_needing_heartbeat
+    from aperix_geo.services.crawl_accounts.pool import STATUS_LOGGING_IN
+
+    now = utc_now()
+    logging_in = CrawlAccount(
+        id=uuid4(),
+        label="vnc",
+        status=STATUS_LOGGING_IN,
+        storage_state=_state(),
+        last_ok_at=now - timedelta(days=1),
+        lease_until=EPOCH,
+    )
+    ticketed = CrawlAccount(
+        id=uuid4(),
+        label="ticketed",
+        status=STATUS_NEED_RELOGIN,
+        storage_state=_state(),
+        last_ok_at=now - timedelta(days=1),
+        lease_until=EPOCH,
+    )
+    stale_ok = CrawlAccount(
+        id=uuid4(),
+        label="stale",
+        status=STATUS_ACTIVE,
+        storage_state=_state(),
+        last_ok_at=now - timedelta(hours=4),
+        lease_until=EPOCH,
+    )
+    selected = accounts_needing_heartbeat(
+        [logging_in, ticketed, stale_ok],
+        stale_before=now - timedelta(hours=3),
+        now=now,
+        pending_ticket_account_ids={ticketed.id},
+    )
+    assert [r.label for r in selected] == ["stale"]
+
+
+def test_heartbeat_skips_fresh_login() -> None:
+    from aperix_geo.services.crawl_accounts.heartbeat import accounts_needing_heartbeat
+
+    now = utc_now()
+    just_logged_in = CrawlAccount(
+        id=uuid4(),
+        label="fresh-login",
+        status=STATUS_ACTIVE,
+        storage_state=_state(),
+        last_ok_at=now,
+        lease_until=EPOCH,
+    )
+    selected = accounts_needing_heartbeat(
+        [just_logged_in],
+        now=now,
+        settings=Settings(doubao_heartbeat_fresh_s=21600),
+    )
+    assert selected == []

@@ -1,22 +1,8 @@
 #!/usr/bin/env python3
-"""Crawl ops：手动触发一次账号池心跳（登录探活）。
+"""Manually run one crawl-account heartbeat round.
 
-用途
-----
-立刻跑一轮 ``run_crawl_account_heartbeat``：探活 active / need_relogin 等账号；
-失败时按配置开登录工单（需 ``DOUBAO_OPS_TICKET_ENABLED``）。
-
-直跑会绕过「每日采样窗口内自动心跳静默」；``--celery`` 仍走 Beat 同款逻辑
-（采样窗口内可能 ``skipped: sampling_window``）。
-
-用法
-----
-  cd backend
-  export PYTHONPATH=src
-
-  ./.venv/bin/python scripts/crawl_heartbeat_run.py --platform doubao
-  ./.venv/bin/python scripts/crawl_heartbeat_run.py --platform doubao --force
-  ./.venv/bin/python scripts/crawl_heartbeat_run.py --platform doubao --celery
+--force turns HEARTBEAT on and skips the sampling-window quiet period.
+Accounts in VNC / pending ticket / an active lease are never probed.
 """
 
 from __future__ import annotations
@@ -32,23 +18,16 @@ sys.path.insert(0, str(ROOT / "src"))
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="手动触发一次爬虫账号心跳探活")
-    parser.add_argument(
-        "--platform",
-        default="doubao",
-        help="平台 id（doubao / deepseek / qianwen；默认 doubao）",
-    )
+    parser.add_argument("--platform", default="doubao")
     parser.add_argument(
         "--force",
         action="store_true",
-        help="忽略 DOUBAO_HEARTBEAT_ENABLED=false，本轮强制探活",
+        help="忽略 DOUBAO_HEARTBEAT_ENABLED=false；仍跳过登录中的号",
     )
     parser.add_argument(
         "--celery",
         action="store_true",
-        help=(
-            "经 Celery 异步执行（受 HEARTBEAT_ENABLED 与采样窗口静默约束；"
-            "--force / 绕过静默仅对直跑有效）"
-        ),
+        help="经 Celery 入队（仍受开关与采样窗口约束）",
     )
     args = parser.parse_args()
     platform = (args.platform or "doubao").strip().lower() or "doubao"
@@ -70,7 +49,6 @@ def main() -> int:
 
     db = SessionLocal()
     try:
-        # Manual ops: always allowed during sampling enqueue window.
         result = run_crawl_account_heartbeat(
             db,
             settings=settings,

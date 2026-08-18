@@ -9,7 +9,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 from aperix_geo.config import Settings
-from aperix_geo.services.crawl_accounts.session_cookies import (
+from aperix_geo.services.crawl_accounts.cookies import (
     storage_state_from_context,
     storage_state_has_session_cookies,
 )

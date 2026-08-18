@@ -20,11 +20,13 @@ from aperix_geo.services.crawl_accounts.pool import (
     STATUS_LOGGING_IN,
     STATUS_NEED_RELOGIN,
     clear_account_lease,
+    cookies_in_use,
     heartbeat_lease_ttl_s,
+    pending_login_account_ids,
     release_account,
     try_lease_account,
 )
-from aperix_geo.services.crawl_accounts.session_cookies import (
+from aperix_geo.services.crawl_accounts.cookies import (
     cookies_only_storage_state,
     session_cookie_names,
     storage_state_has_session_cookies,
@@ -41,10 +43,6 @@ logger = logging.getLogger(__name__)
 
 _HEARTBEAT_SCAN_LIMIT = 100
 _HEARTBEAT_CHECK_LIMIT = 20
-
-
-def _lease_active(row: CrawlAccount, *, now: datetime) -> bool:
-    return bool(row.lease_until and row.lease_until > now)
 
 
 def in_sampling_heartbeat_quiet_window(
@@ -67,34 +65,35 @@ def in_sampling_heartbeat_quiet_window(
 def accounts_needing_heartbeat(
     rows: list[CrawlAccount],
     *,
-    stale_before: datetime,
+    stale_before: datetime | None = None,
     now: datetime | None = None,
     limit: int = _HEARTBEAT_CHECK_LIMIT,
+    pending_ticket_account_ids: set[UUID] | None = None,
+    settings: Settings | None = None,
 ) -> list[CrawlAccount]:
+    """Probe if cookies look dead or last_ok_at is old. Skip VNC / ticket / lease."""
+    settings = settings or Settings()
     now = now or utc_now()
-    priority: list[CrawlAccount] = []
-    stale: list[CrawlAccount] = []
+    pending = pending_ticket_account_ids or set()
+    if stale_before is None:
+        stale_before = now - timedelta(
+            seconds=max(60, int(settings.doubao_heartbeat_fresh_s) // 2)
+        )
+    out: list[CrawlAccount] = []
     for row in rows:
-        if _lease_active(row, now=now):
+        if cookies_in_use(row, now=now, pending_ids=pending):
             continue
         plat = normalize_platform(row.platform)
         status = (row.status or "").strip()
-        if status in (STATUS_NEED_RELOGIN, STATUS_LOGGING_IN):
-            priority.append(row)
-        elif not storage_state_has_session_cookies(row.storage_state, platform=plat):
-            priority.append(row)
-        elif status == STATUS_ACTIVE and row.last_ok_at < stale_before:
-            stale.append(row)
-    selected: list[CrawlAccount] = []
-    seen: set[UUID] = set()
-    for row in priority + stale:
-        if row.id in seen:
-            continue
-        seen.add(row.id)
-        selected.append(row)
-        if len(selected) >= limit:
+        stale = status == STATUS_ACTIVE and row.last_ok_at < stale_before
+        broken = status == STATUS_NEED_RELOGIN or not storage_state_has_session_cookies(
+            row.storage_state, platform=plat
+        )
+        if broken or stale:
+            out.append(row)
+        if len(out) >= limit:
             break
-    return selected
+    return out
 
 
 def run_crawl_account_heartbeat(
@@ -130,7 +129,6 @@ def run_crawl_account_heartbeat(
 
     plat = normalize_platform(platform)
     now = utc_now()
-    stale_before = now - timedelta(seconds=max(60, int(settings.doubao_heartbeat_fresh_s) // 2))
     pool_rows = list(
         db.scalars(
             select(CrawlAccount)
@@ -144,22 +142,28 @@ def run_crawl_account_heartbeat(
             .limit(_HEARTBEAT_SCAN_LIMIT)
         ).all()
     )
-    rows = accounts_needing_heartbeat(pool_rows, stale_before=stale_before, now=now)
+    pending_ids = pending_login_account_ids(db, plat)
+    rows = accounts_needing_heartbeat(
+        pool_rows,
+        now=now,
+        pending_ticket_account_ids=pending_ids,
+        settings=settings,
+    )
     ttl_s = heartbeat_lease_ttl_s(settings)
 
     checked = 0
     revived = 0
     failed = 0
-    skipped_leased = 0
+    skipped_busy = 0
     failures: list[dict[str, Any]] = []
     for row in rows:
         db.refresh(row)
-        if _lease_active(row, now=utc_now()):
-            skipped_leased += 1
+        if cookies_in_use(row, now=utc_now(), pending_ids=pending_ids):
+            skipped_busy += 1
             continue
         owner = f"heartbeat:{row.id.hex}"
         if not try_lease_account(db, account_id=row.id, lease_owner=owner, ttl_s=ttl_s):
-            skipped_leased += 1
+            skipped_busy += 1
             db.commit()
             continue
         db.commit()
@@ -274,7 +278,7 @@ def run_crawl_account_heartbeat(
         "checked": checked,
         "ok_count": revived,
         "failed": failed,
-        "skipped_leased": skipped_leased,
+        "skipped_leased": skipped_busy,
         "failures": failures,
     }
 

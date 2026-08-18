@@ -384,6 +384,7 @@ def test_open_browser_context_reuses_cdp_default_context() -> None:
     got = open_browser_context(browser, storage_state=state, timeout_ms=5000)
     assert got is existing
     browser.new_context.assert_not_called()
+    existing.clear_cookies.assert_called()
     existing.add_cookies.assert_called()
     assert existing._aperix_borrowed is True
 

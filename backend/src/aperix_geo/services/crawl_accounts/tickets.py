@@ -26,7 +26,7 @@ from aperix_geo.services.crawl_accounts.pool import (
     STATUS_NEED_RELOGIN,
     upsert_account_from_state,
 )
-from aperix_geo.services.crawl_accounts.session_cookies import (
+from aperix_geo.services.crawl_accounts.cookies import (
     storage_state_has_session_cookies,
 )
 from aperix_geo.services.geo_crawl_ops import (

@@ -14,9 +14,9 @@ from sqlalchemy.orm import Session
 
 from aperix_geo.config import Settings, get_settings
 from aperix_geo.db.base import utc_now
-from aperix_geo.db.models import EPOCH, CrawlAccount
+from aperix_geo.db.models import EPOCH, ZERO_UUID, CrawlAccount, CrawlLoginTicket
 from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO, normalize_platform
-from aperix_geo.services.crawl_accounts.session_cookies import (
+from aperix_geo.services.crawl_accounts.cookies import (
     cookies_only_storage_state,
     storage_state_has_session_cookies,
 )
@@ -27,6 +27,36 @@ STATUS_ACTIVE = "active"
 STATUS_NEED_RELOGIN = "need_relogin"
 STATUS_LOGGING_IN = "logging_in"
 STATUS_BLOCKED = "blocked"
+
+_TICKET_PENDING = "pending"
+
+
+def _lease_held(row: CrawlAccount, now) -> bool:
+    return bool(row.lease_until and row.lease_until > now)
+
+
+def pending_login_subquery(platform: str):
+    """Account ids with an open noVNC / login ticket (must not share cookies)."""
+    plat = normalize_platform(platform)
+    return select(CrawlLoginTicket.account_id).where(
+        CrawlLoginTicket.platform == plat,
+        CrawlLoginTicket.status == _TICKET_PENDING,
+        CrawlLoginTicket.account_id != ZERO_UUID,
+    )
+
+
+def pending_login_account_ids(db: Session, platform: str) -> set[uuid.UUID]:
+    return {aid for aid in db.scalars(pending_login_subquery(platform)).all() if aid}
+
+
+def cookies_in_use(row: CrawlAccount, *, now, pending_ids: set[uuid.UUID]) -> bool:
+    """True if VNC, a pending ticket, or a crawl/heartbeat lease holds this jar."""
+    if (row.status or "").strip() == STATUS_LOGGING_IN:
+        return True
+    if row.id in pending_ids:
+        return True
+    return _lease_held(row, now)
+
 
 _ACQUIRE_ATTEMPTS = 8
 _LEASE_TIMEOUT_BUFFER_S = 60
@@ -102,7 +132,7 @@ def account_pool_capacity_snapshot(
     for row in rows:
         if not storage_state_has_session_cookies(row.storage_state, platform=plat):
             continue
-        if row.lease_until and row.lease_until > now:
+        if _lease_held(row, now):
             leased += 1
         else:
             free += 1
@@ -132,6 +162,7 @@ def acquire_account(
                 CrawlAccount.status == STATUS_ACTIVE,
                 CrawlAccount.last_ok_at >= fresh_cutoff,
                 CrawlAccount.lease_until < now,
+                CrawlAccount.id.notin_(pending_login_subquery(plat)),
             )
             .order_by(CrawlAccount.last_ok_at.desc())
             .limit(1)

@@ -1,7 +1,7 @@
 """Multi-platform crawl account pool.
 
 Keep this ``__init__`` import-light: geo-web-crawl only needs
-``session_cookies`` / ``platforms`` and must not pull Redis/Celery/email via
+``cookies`` / ``platforms`` and must not pull Redis/Celery/email via
 eager package imports.
 """
 
