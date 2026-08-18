@@ -17,7 +17,8 @@ _LOGIN_CTA = re.compile(r"登录")
 _LOGGED_OUT_URL = re.compile(r"/passport|/login(?:/|\?|$)|from_logout=1", re.I)
 _CAPTCHA_TEXT = re.compile(
     r"拖拽到这里|请选择所有符合|行为验证|人机验证|安全验证|滑动验证|"
-    r"选中所有|拖拽到下方|完成验证后继续"
+    r"选中所有|拖拽到下方|完成验证后继续|"
+    r"换个网络|更换网络|切换网络|请更换网络|请切换网络"
 )
 _CAPTCHA_SELECTORS = (
     "text=拖拽到这里",
@@ -25,6 +26,8 @@ _CAPTCHA_SELECTORS = (
     "text=行为验证",
     "text=人机验证",
     "text=安全验证",
+    "text=换个网络",
+    "text=更换网络",
 )
 
 

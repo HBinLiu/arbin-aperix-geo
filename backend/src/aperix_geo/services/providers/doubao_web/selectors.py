@@ -47,7 +47,8 @@ SHARE_PATH = re.compile(r"/(?:share|thread)/", re.IGNORECASE)
 # Behavior captcha / 人机验证（must be human-solved; never auto-bypass）.
 CAPTCHA_TEXT = re.compile(
     r"拖拽到这里|请选择所有符合|行为验证|人机验证|安全验证|滑动验证|"
-    r"选中所有|拖拽到下方|完成验证后继续"
+    r"选中所有|拖拽到下方|完成验证后继续|"
+    r"换个网络|更换网络|切换网络|请更换网络|请切换网络"
 )
 CAPTCHA_DOM_SELECTORS = (
     "text=拖拽到这里",
@@ -55,6 +56,8 @@ CAPTCHA_DOM_SELECTORS = (
     "text=行为验证",
     "text=人机验证",
     "text=安全验证",
+    "text=换个网络",
+    "text=更换网络",
 )
 
 # Composer: textarea or contenteditable (ordered fallbacks).

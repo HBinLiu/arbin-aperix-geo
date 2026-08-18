@@ -17,6 +17,7 @@ import threading
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
+from urllib.parse import unquote, urlparse
 
 from aperix_geo.services.crawl_accounts.profiles import account_profile_dir, profile_is_ready
 
@@ -32,22 +33,70 @@ _HEADED_ARGS = [
 ]
 
 
-def _proxy_launch_args() -> list[str]:
-    """Chromium does not always honor HTTP_PROXY; pass --proxy-server when set."""
-    raw = (
+_WEBRTC_PROXY_ARGS = [
+    # HTTP_PROXY does not cover STUN; Doubao then flashes captcha →「换个网络」.
+    "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+    "--webrtc-ip-handling-policy=disable_non_proxied_udp",
+    "--disable-ipv6",
+]
+
+
+def _proxy_env_url() -> str:
+    return (
         os.environ.get("HTTPS_PROXY")
         or os.environ.get("HTTP_PROXY")
         or os.environ.get("https_proxy")
         or os.environ.get("http_proxy")
         or ""
     ).strip()
+
+
+def _playwright_proxy() -> dict[str, str] | None:
+    """Playwright ``proxy=`` (Chromium ignores HTTP_PROXY; --proxy-server skips auth)."""
+    raw = _proxy_env_url()
     if not raw:
-        return []
-    args = [f"--proxy-server={raw}"]
+        return None
+    parsed = urlparse(raw if "://" in raw else f"http://{raw}")
+    host = parsed.hostname
+    if not host:
+        logger.warning("geo-web-crawl proxy URL has no host; ignored")
+        return None
+    scheme = (parsed.scheme or "http").lower()
+    port = parsed.port
+    if scheme in {"socks5", "socks5h"}:
+        server = f"socks5://{host}:{port or 1080}"
+    elif scheme == "socks4":
+        server = f"socks4://{host}:{port or 1080}"
+    else:
+        server = f"http://{host}:{port or 8080}"
+    cfg: dict[str, str] = {"server": server}
+    if parsed.username:
+        cfg["username"] = unquote(parsed.username)
+    if parsed.password:
+        cfg["password"] = unquote(parsed.password)
     bypass = (os.environ.get("NO_PROXY") or os.environ.get("no_proxy") or "").strip()
     if bypass:
-        args.append(f"--proxy-bypass-list={bypass.replace(',', ';')}")
-    return args
+        cfg["bypass"] = bypass
+    logger.info("geo-web-crawl chromium proxy=%s", server)
+    return cfg
+
+
+def _chromium_launch_kwargs(*, want_headless: bool) -> dict[str, Any]:
+    args = list(_LAUNCH_ARGS if want_headless else _HEADED_ARGS)
+    proxy = _playwright_proxy()
+    if proxy:
+        args.extend(_WEBRTC_PROXY_ARGS)
+    kwargs: dict[str, Any] = {
+        "headless": want_headless,
+        "args": args,
+    }
+    if proxy:
+        kwargs["proxy"] = proxy
+    chrome = chrome_executable()
+    if not want_headless and chrome:
+        kwargs["executable_path"] = chrome
+    return kwargs
+
 
 _occupancy_lock = threading.Lock()
 _occupancy: dict[str, str] = {}
@@ -224,17 +273,6 @@ def _stop_playwright(pw_cm: Any) -> None:
         pw_cm.__exit__(None, None, None)
     except Exception:
         logger.debug("playwright exit failed", exc_info=True)
-
-
-def _chromium_launch_kwargs(*, want_headless: bool) -> dict[str, Any]:
-    kwargs: dict[str, Any] = {
-        "headless": want_headless,
-        "args": list(_LAUNCH_ARGS if want_headless else _HEADED_ARGS) + _proxy_launch_args(),
-    }
-    chrome = chrome_executable()
-    if not want_headless and chrome:
-        kwargs["executable_path"] = chrome
-    return kwargs
 
 
 def persistent_launch_kwargs(*, want_headless: bool) -> dict[str, Any]:

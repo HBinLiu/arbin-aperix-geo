@@ -499,6 +499,6 @@ def page_has_captcha(page: Any) -> bool:
 def assert_no_captcha(page: Any) -> None:
     if page_has_captcha(page):
         raise DoubaoCaptchaRequired(
-            "behavior captcha detected; account needs human ticket/alert recovery "
-            "(no auto-solve; sampling may API-fallback)"
+            "behavior captcha / 换个网络; account needs human ticket/alert recovery "
+            "(no auto-solve; sampling may API-fallback; same proxy IP often cannot retry)"
         )

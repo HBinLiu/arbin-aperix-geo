@@ -23,7 +23,7 @@ docker compose -f docker/geo-web-crawl/docker-compose.yml up -d --force-recreate
 
 headed 登录用镜像里的 Debian `/usr/bin/chromium`（不要 Playwright 自带 Chrome + SwiftShader）。
 
-出网代理写在 `docker/geo-web-crawl/.env`（`HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY`）。代理在宿主机上时用 `http://host.docker.internal:<port>`，不要写 `127.0.0.1`（那是容器自己）。`NO_PROXY` 须含 `host.docker.internal`，否则关单回调也会走代理。改完 `up -d --force-recreate` 即可，不必 rebuild 镜像。
+出网代理写在 `docker/geo-web-crawl/.env`（`HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY`）。代理在宿主机上时用 `http://host.docker.internal:<port>`，不要写 `127.0.0.1`（那是容器自己）。`NO_PROXY` 须含 `host.docker.internal`，否则关单回调也会走代理。SOCKS5 必须写成 `socks5://host:port`（写成 `http://` 时 Chromium 仍走 HTTP CONNECT，豆包会闪验证码再提示换网络）。改代理协议后需 **rebuild** crawl 镜像（WebRTC/IPv6 泄漏修复在镜像源码里）；只改 `.env` 地址则 `up -d --force-recreate` 即可。
 
 ## Compose
 

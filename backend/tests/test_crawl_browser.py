@@ -301,3 +301,37 @@ def test_login_client_start(monkeypatch) -> None:
         token="secret",
     )
     assert out["session_id"] == "crawl-login-x"
+
+
+def test_playwright_proxy_http_socks_and_auth(monkeypatch) -> None:
+    from aperix_geo.services.crawl_browser.browser_pool import _playwright_proxy
+
+    monkeypatch.setenv("HTTPS_PROXY", "http://tunpool.example:10842")
+    monkeypatch.setenv("NO_PROXY", "localhost,127.0.0.1")
+    cfg = _playwright_proxy()
+    assert cfg is not None
+    assert cfg["server"] == "http://tunpool.example:10842"
+    assert cfg["bypass"] == "localhost,127.0.0.1"
+
+    monkeypatch.setenv("HTTPS_PROXY", "socks5://tunpool.example:10842")
+    cfg = _playwright_proxy()
+    assert cfg is not None
+    assert cfg["server"] == "socks5://tunpool.example:10842"
+
+    monkeypatch.setenv("HTTPS_PROXY", "http://user:pass@proxy.example:8000")
+    cfg = _playwright_proxy()
+    assert cfg is not None
+    assert cfg["server"] == "http://proxy.example:8000"
+    assert cfg["username"] == "user"
+    assert cfg["password"] == "pass"
+
+
+def test_chromium_launch_locks_webrtc_when_proxied(monkeypatch) -> None:
+    from aperix_geo.services.crawl_browser import browser_pool as bp
+
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.example:8000")
+    monkeypatch.setattr(bp, "chrome_executable", lambda: None)
+    kw = bp._chromium_launch_kwargs(want_headless=True)
+    assert kw["proxy"]["server"] == "http://proxy.example:8000"
+    assert "--disable-ipv6" in kw["args"]
+    assert "--force-webrtc-ip-handling-policy=disable_non_proxied_udp" in kw["args"]
