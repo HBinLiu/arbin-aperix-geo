@@ -13,11 +13,7 @@ from aperix_geo.services.geo_web_crawl.registry import (
     get_handler,
     list_platforms,
 )
-from aperix_geo.services.geo_web_crawl.spawn import (
-    resolve_geo_web_crawl_docker_image,
-    run_geo_web_crawl_spawn,
-    should_use_geo_web_crawl_docker,
-)
+from aperix_geo.services.geo_web_crawl.spawn import run_geo_web_crawl_spawn
 
 
 def test_registry_loads_platforms() -> None:
@@ -37,7 +33,8 @@ def test_deepseek_stub_handler() -> None:
     assert out["error_type"] == "PlatformNotImplemented"
 
 
-def test_run_job_sync_unknown_platform() -> None:
+def test_run_job_sync_unknown_platform(monkeypatch) -> None:
+    monkeypatch.delenv("GEO_CRAWL_PROFILE_ROOT", raising=False)
     out = _run_job_sync(
         {"platform": "nope", "storage_state": {"cookies": []}, "mode": "crawl"}
     )
@@ -46,6 +43,7 @@ def test_run_job_sync_unknown_platform() -> None:
 
 
 def test_run_job_sync_doubao_probe(monkeypatch) -> None:
+    monkeypatch.delenv("GEO_CRAWL_PROFILE_ROOT", raising=False)
     ensure_handlers_loaded()
 
     class _CM:
@@ -113,19 +111,8 @@ def test_client_posts_job(monkeypatch) -> None:
     assert out["text"] == "hi"
 
 
-def test_docker_image_resolution(monkeypatch) -> None:
-    monkeypatch.delenv("GEO_WEB_CRAWL_DOCKER_IMAGE", raising=False)
-    assert resolve_geo_web_crawl_docker_image("") == ""
-    assert should_use_geo_web_crawl_docker() is False
-    monkeypatch.setenv("GEO_WEB_CRAWL_DOCKER_IMAGE", "aperix/geo-web-crawl:latest")
-    assert resolve_geo_web_crawl_docker_image() == "aperix/geo-web-crawl:latest"
-    assert should_use_geo_web_crawl_docker() is True
-    assert resolve_geo_web_crawl_docker_image("custom:tag") == "custom:tag"
-
-
 def test_spawn_prefers_http_base_url(monkeypatch) -> None:
     monkeypatch.setenv("GEO_WEB_CRAWL_BASE_URL", "http://127.0.0.1:9410")
-    monkeypatch.delenv("GEO_WEB_CRAWL_DOCKER_EPHEMERAL", raising=False)
 
     with patch(
         "aperix_geo.services.geo_web_crawl.client.run_geo_web_crawl_job",
@@ -144,8 +131,6 @@ def test_spawn_prefers_http_base_url(monkeypatch) -> None:
 
 def test_spawn_local_subprocess_when_no_base_url(monkeypatch) -> None:
     monkeypatch.delenv("GEO_WEB_CRAWL_BASE_URL", raising=False)
-    monkeypatch.delenv("GEO_WEB_CRAWL_DOCKER_IMAGE", raising=False)
-    monkeypatch.delenv("GEO_WEB_CRAWL_DOCKER_EPHEMERAL", raising=False)
 
     def fake_run(cmd, **kwargs):
         out_path = cmd[cmd.index("--out") + 1]
@@ -167,100 +152,6 @@ def test_spawn_local_subprocess_when_no_base_url(monkeypatch) -> None:
     assert out["text"] == "local"
 
 
-def test_ephemeral_docker_when_enabled(monkeypatch) -> None:
-    monkeypatch.delenv("GEO_WEB_CRAWL_BASE_URL", raising=False)
-    monkeypatch.setenv("GEO_WEB_CRAWL_DOCKER_IMAGE", "aperix/geo-web-crawl:test")
-    monkeypatch.setenv("GEO_WEB_CRAWL_DOCKER_EPHEMERAL", "1")
-    payload = {"headless": True, "prompt": "hi", "storage_state": {"cookies": []}}
-
-    def fake_run(cmd, **kwargs):
-        assert cmd[0] == "docker"
-        assert "run" in cmd
-        assert "--shm-size=1g" in cmd
-        assert "aperix/geo-web-crawl:test" in cmd
-        vol = next(x for x in cmd if isinstance(x, str) and x.endswith(":/data"))
-        host_dir = Path(vol.split(":", 1)[0])
-        (host_dir / "out.json").write_text(
-            json.dumps({"ok": True, "text": "from-docker", "storage_state": {"cookies": []}}),
-            encoding="utf-8",
-        )
-        return MagicMock(returncode=0, stdout="", stderr="")
-
-    with (
-        patch(
-            "aperix_geo.services.geo_web_crawl.spawn.shutil.which",
-            return_value="/usr/bin/docker",
-        ),
-        patch(
-            "aperix_geo.services.geo_web_crawl.spawn.subprocess.run",
-            side_effect=fake_run,
-        ),
-    ):
-        out = run_geo_web_crawl_spawn(payload, timeout_s=30)
-
-    assert out["ok"] is True
-    assert out["text"] == "from-docker"
-
-
-def test_ephemeral_docker_missing_cli(monkeypatch) -> None:
-    monkeypatch.delenv("GEO_WEB_CRAWL_BASE_URL", raising=False)
-    monkeypatch.setenv("GEO_WEB_CRAWL_DOCKER_IMAGE", "aperix/geo-web-crawl:test")
-    monkeypatch.setenv("GEO_WEB_CRAWL_DOCKER_EPHEMERAL", "1")
-    with patch(
-        "aperix_geo.services.geo_web_crawl.spawn.shutil.which",
-        return_value=None,
-    ):
-        out = run_geo_web_crawl_spawn(
-            {"prompt": "x", "storage_state": {"cookies": []}},
-            timeout_s=10,
-        )
-    assert out["ok"] is False
-    assert "docker CLI not found" in out["error"]
-
-
-def test_ephemeral_docker_probe_mode(monkeypatch) -> None:
-    monkeypatch.delenv("GEO_WEB_CRAWL_BASE_URL", raising=False)
-    monkeypatch.setenv("GEO_WEB_CRAWL_DOCKER_IMAGE", "aperix/geo-web-crawl:test")
-    monkeypatch.setenv("GEO_WEB_CRAWL_DOCKER_EPHEMERAL", "1")
-
-    def fake_run(cmd, **kwargs):
-        assert "--mode" in cmd
-        assert cmd[cmd.index("--mode") + 1] == "probe"
-        vol = next(x for x in cmd if isinstance(x, str) and x.endswith(":/data"))
-        host_dir = Path(vol.split(":", 1)[0])
-        (host_dir / "out.json").write_text(
-            json.dumps(
-                {
-                    "ok": True,
-                    "storage_state": {"cookies": [{"name": "sessionid"}]},
-                    "error_type": "",
-                    "error": "",
-                    "human_ops": False,
-                }
-            ),
-            encoding="utf-8",
-        )
-        return MagicMock(returncode=0, stdout="", stderr="")
-
-    with (
-        patch(
-            "aperix_geo.services.geo_web_crawl.spawn.shutil.which",
-            return_value="/usr/bin/docker",
-        ),
-        patch(
-            "aperix_geo.services.geo_web_crawl.spawn.subprocess.run",
-            side_effect=fake_run,
-        ),
-    ):
-        out = run_geo_web_crawl_spawn(
-            {"storage_state": {"cookies": [{"name": "sessionid"}]}},
-            timeout_s=30,
-            mode="probe",
-        )
-    assert out["ok"] is True
-    assert out["storage_state"]["cookies"]
-
-
 def test_healthz_app() -> None:
     from fastapi.testclient import TestClient
 
@@ -272,36 +163,37 @@ def test_healthz_app() -> None:
     body = resp.json()
     assert body["ok"] is True
     assert "doubao" in body["platforms"]
-    assert body["browser_backend"] in {"local", "browserless"}
+    assert body["browser_backend"] in {"local", "profile"}
 
 
-def test_resolve_browser_ws_url_appends_token(monkeypatch) -> None:
-    from aperix_geo.services.geo_web_crawl.browser_pool import (
-        browser_backend,
-        resolve_browser_ws_url,
-    )
+def test_browser_backend_profile(monkeypatch) -> None:
+    from aperix_geo.services.geo_web_crawl.browser_pool import browser_backend
 
-    monkeypatch.delenv("GEO_WEB_CRAWL_BROWSER_WS_URL", raising=False)
-    assert resolve_browser_ws_url() == ""
+    monkeypatch.delenv("GEO_CRAWL_PROFILE_ROOT", raising=False)
     assert browser_backend() == "local"
-
-    monkeypatch.setenv(
-        "GEO_WEB_CRAWL_BROWSER_WS_URL",
-        "ws://browserless:3000/chromium/playwright",
-    )
-    monkeypatch.setenv("GEO_WEB_CRAWL_BROWSERLESS_TOKEN", "secret")
-    url = resolve_browser_ws_url()
-    assert "token=secret" in url
-    assert browser_backend() == "browserless"
+    monkeypatch.setenv("GEO_CRAWL_PROFILE_ROOT", "/data/crawl-profiles")
+    assert browser_backend() == "profile"
 
 
-def test_page_session_browserless_connect(monkeypatch) -> None:
+def test_page_session_requires_ready_profile(tmp_path, monkeypatch) -> None:
+    from aperix_geo.services.geo_web_crawl.browser_pool import page_session
+
+    monkeypatch.setenv("GEO_CRAWL_PROFILE_ROOT", str(tmp_path))
+    try:
+        with page_session(
+            storage_state={"cookies": []},
+            timeout_ms=5000,
+            account_id="11111111-1111-1111-1111-111111111111",
+        ):
+            raise AssertionError("expected missing profile")
+    except RuntimeError as exc:
+        assert "chrome profile missing" in str(exc)
+
+
+def test_page_session_ephemeral_local(monkeypatch) -> None:
     from aperix_geo.services.geo_web_crawl import browser_pool
 
-    monkeypatch.setenv(
-        "GEO_WEB_CRAWL_BROWSER_WS_URL",
-        "ws://browserless:3000/chromium/playwright?token=t",
-    )
+    monkeypatch.delenv("GEO_CRAWL_PROFILE_ROOT", raising=False)
 
     browser = MagicMock()
     context = MagicMock()
@@ -310,109 +202,21 @@ def test_page_session_browserless_connect(monkeypatch) -> None:
     context.new_page.return_value = page
 
     playwright = MagicMock()
-    playwright.chromium.connect.return_value = browser
-    playwright.chromium.connect_over_cdp.return_value = browser
+    playwright.chromium.launch.return_value = browser
 
     pw_cm = MagicMock()
     pw_cm.start.return_value = playwright
 
-    monkeypatch.setattr(
-        "playwright.sync_api.sync_playwright",
-        lambda: pw_cm,
-    )
+    monkeypatch.setattr("playwright.sync_api.sync_playwright", lambda: pw_cm)
 
     with browser_pool.page_session(
-        storage_state={"cookies": []},
+        storage_state={"cookies": [{"name": "sessionid", "value": "x"}]},
         timeout_ms=5000,
+        account_id="",
     ) as (got_page, got_ctx):
         assert got_page is page
         assert got_ctx is context
 
-    assert playwright.chromium.connect.called
-    assert not playwright.chromium.connect_over_cdp.called
+    playwright.chromium.launch.assert_called()
     context.close.assert_called()
     browser.close.assert_called()
-
-
-def test_open_browser_context_add_cookies_when_storage_state_dropped() -> None:
-    from aperix_geo.services.geo_web_crawl.browser_pool import open_browser_context
-
-    browser = MagicMock()
-    context = MagicMock()
-    browser.contexts = []
-    browser.new_context.return_value = context
-    context.cookies.return_value = [{"name": "sessionid", "value": "x"}]
-
-    state = {
-        "cookies": [
-            {
-                "name": "sessionid",
-                "value": "x",
-                "domain": ".doubao.com",
-                "path": "/",
-                "expires": -1,
-                "sameSite": "Lax",
-            }
-        ]
-    }
-    got = open_browser_context(browser, storage_state=state, timeout_ms=5000)
-    assert got is context
-    context.add_cookies.assert_called_once()
-    injected = context.add_cookies.call_args[0][0]
-    assert injected[0]["name"] == "sessionid"
-    assert "expires" not in injected[0]
-
-
-def test_open_browser_context_reuses_cdp_default_context() -> None:
-    from aperix_geo.services.geo_web_crawl.browser_pool import open_browser_context
-
-    browser = MagicMock()
-    existing = MagicMock()
-    browser.contexts = [existing]
-    existing.cookies.return_value = [{"name": "sessionid", "value": "x"}]
-    state = {
-        "cookies": [
-            {
-                "name": "sessionid",
-                "value": "x",
-                "domain": ".doubao.com",
-                "path": "/",
-                "expires": -1,
-            }
-        ]
-    }
-    got = open_browser_context(browser, storage_state=state, timeout_ms=5000)
-    assert got is existing
-    browser.new_context.assert_not_called()
-    existing.clear_cookies.assert_called()
-    existing.add_cookies.assert_called()
-    assert existing._aperix_borrowed is True
-
-
-def test_open_browser_context_url_retry_when_jar_missing_session() -> None:
-    from aperix_geo.services.geo_web_crawl.browser_pool import open_browser_context
-
-    browser = MagicMock()
-    context = MagicMock()
-    browser.contexts = []
-    browser.new_context.return_value = context
-    context.cookies.side_effect = [
-        [{"name": "odin_tt", "value": "guest"}],
-        [{"name": "sessionid", "value": "x"}],
-    ]
-    state = {
-        "cookies": [
-            {
-                "name": "sessionid",
-                "value": "x",
-                "domain": ".doubao.com",
-                "path": "/",
-                "expires": -1,
-            }
-        ]
-    }
-    open_browser_context(browser, storage_state=state, timeout_ms=5000)
-    assert context.add_cookies.call_count == 2
-    retry = context.add_cookies.call_args_list[1][0][0]
-    assert retry[0]["url"] == "https://doubao.com/"
-    assert retry[0]["domain"] == ".doubao.com"

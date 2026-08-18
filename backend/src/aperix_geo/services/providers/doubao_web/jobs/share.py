@@ -8,6 +8,8 @@ from typing import Any
 
 from aperix_geo.config import Settings
 from aperix_geo.services.crawl_accounts.cookies import (
+    job_payload_storage_state,
+    job_requires_injected_session_cookies,
     storage_state_from_context,
     storage_state_has_session_cookies,
 )
@@ -43,7 +45,6 @@ def build_share_payload(
         "storage_state": storage_state,
         "timeout_s": timeout_s,
         "chat_base_url": (settings.doubao_chat_base_url or sel.CHAT_URL).strip() or sel.CHAT_URL,
-        "headless": bool(settings.doubao_crawl_headless),
         "conversation_id": (conversation_id or "").strip(),
     }
 
@@ -65,10 +66,12 @@ def run_doubao_share_on_page(
 ) -> dict[str, Any]:
     from aperix_geo.services.providers.doubao_web.ui_flow import try_capture_share_url
 
-    storage_state = payload.get("storage_state")
-    if not isinstance(storage_state, dict):
+    storage_state = job_payload_storage_state(payload)
+    if storage_state is None:
         return job_error(DoubaoCrawlError("storage_state missing"), **_EMPTY)
-    if not storage_state_has_session_cookies(storage_state):
+    if job_requires_injected_session_cookies(payload) and not storage_state_has_session_cookies(
+        storage_state
+    ):
         return job_error(
             DoubaoLoginExpired("storage_state missing Doubao session cookies"),
             **_EMPTY,

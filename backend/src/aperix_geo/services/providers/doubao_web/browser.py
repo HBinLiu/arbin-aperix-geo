@@ -1,67 +1,23 @@
 """Sync Playwright helpers for local scripts only (login helper / smoke).
 
-Production sampling and heartbeat use ``geo-web-crawl`` (HTTP service or ``geo_web_crawl.cli``).
+Production sampling and heartbeat use geo-web-crawl (HTTP service).
 """
 
 from __future__ import annotations
 
-import atexit
 import logging
-import os
 from contextlib import contextmanager
 from typing import Any, Iterator
 
 from aperix_geo.config import Settings
+from aperix_geo.services.geo_web_crawl.browser_pool import prepare_sync_playwright_runtime
 
 logger = logging.getLogger(__name__)
 
-
-def discard_browser_pool_inherited() -> None:
-    """No-op retained for Celery fork hooks / older call sites."""
-    return
-
-
-def prepare_sync_playwright_runtime() -> None:
-    """Clear stale asyncio loop so Sync Playwright can start (local scripts)."""
-    import asyncio
-
-    discard_browser_pool_inherited()
-    try:
-        try:
-            asyncio.get_running_loop()
-            logger.warning(
-                "doubao sync Playwright: asyncio loop already running; may fail"
-            )
-            return
-        except RuntimeError:
-            pass
-        asyncio.set_event_loop(None)
-    except Exception:
-        logger.debug("prepare_sync_playwright_runtime failed", exc_info=True)
-
-
-def reset_browser_pool() -> None:
-    """Compatibility no-op."""
-    return
-
-
-def _open_context(
-    browser: Any,
-    *,
-    storage_state: dict[str, Any],
-    default_timeout_ms: int,
-) -> Any:
-    context = browser.new_context(
-        storage_state=storage_state,
-        locale="zh-CN",
-        viewport={"width": 1440, "height": 900},
-    )
-    context.set_default_timeout(max(1_000, int(default_timeout_ms)))
-    try:
-        context.grant_permissions(["clipboard-read", "clipboard-write"])
-    except Exception:
-        logger.debug("clipboard permission grant skipped", exc_info=True)
-    return context
+__all__ = [
+    "browser_page_session",
+    "prepare_sync_playwright_runtime",
+]
 
 
 @contextmanager
@@ -84,13 +40,17 @@ def browser_page_session(
         browser = playwright.chromium.launch(headless=headless)
         context = None
         try:
-            context = _open_context(
-                browser,
+            context = browser.new_context(
                 storage_state=storage_state,
-                default_timeout_ms=timeout_ms,
+                locale="zh-CN",
+                viewport={"width": 1440, "height": 900},
             )
-            page = context.new_page()
-            yield page, context
+            context.set_default_timeout(max(1_000, int(timeout_ms)))
+            try:
+                context.grant_permissions(["clipboard-read", "clipboard-write"])
+            except Exception:
+                logger.debug("clipboard permission grant skipped", exc_info=True)
+            yield context.new_page(), context
         finally:
             if context is not None:
                 try:
@@ -101,16 +61,3 @@ def browser_page_session(
                 browser.close()
             except Exception:
                 logger.debug("browser close failed", exc_info=True)
-
-
-def _register_fork_hook() -> None:
-    if not hasattr(os, "register_at_fork"):
-        return
-    try:
-        os.register_at_fork(after_in_child=discard_browser_pool_inherited)
-    except Exception:
-        logger.debug("register_at_fork for doubao browser failed", exc_info=True)
-
-
-_register_fork_hook()
-atexit.register(reset_browser_pool)

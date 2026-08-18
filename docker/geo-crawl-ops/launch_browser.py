@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Launch headed Chromium on DISPLAY with optional Playwright storage_state + CDP.
+"""Launch headed Chromium on DISPLAY with a persistent user-data-dir + CDP.
 
-Periodically dumps the *owning* BrowserContext storage_state to
-``/tmp/ops-live-storage-state.json`` so watch_login can complete tickets.
-CDP ``connect_over_cdp`` often sees an empty cookie jar on this Chromium
-setup even after a successful human login in the headed window.
+The Doubao session lives in GEO_CRAWL_OPS_PROFILE_DIR (same directory crawl uses).
+Do not inject storage_state JSON from another Chrome — that is what from_logout=1 is.
+
+Periodically dumps storage_state to ``/tmp/ops-live-storage-state.json`` so
+watch_login can complete tickets.
 """
 
 from __future__ import annotations
@@ -45,26 +46,22 @@ def _dump_live_state(context: object) -> int:
     return len(cookies)
 
 
+def _launch_args(cdp_port: int) -> list[str]:
+    return [
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--window-size=1440,900",
+        f"--remote-debugging-port={cdp_port}",
+        "--remote-debugging-address=127.0.0.1",
+    ]
+
+
 def main() -> int:
     start_url = (os.environ.get("GEO_CRAWL_OPS_START_URL") or "https://www.doubao.com/chat/").strip()
-    state_path = (os.environ.get("GEO_CRAWL_OPS_STORAGE_STATE_PATH") or "").strip()
+    profile_dir = (os.environ.get("GEO_CRAWL_OPS_PROFILE_DIR") or "").strip()
     cdp_port = int(os.environ.get("GEO_CRAWL_OPS_CDP_PORT") or "9222")
-    chrome = (os.environ.get("GEO_CRAWL_OPS_CHROME_BIN") or "/usr/bin/chromium").strip()
     dump_every_s = float(os.environ.get("GEO_CRAWL_OPS_LIVE_STATE_EVERY_S") or "2")
-
-    storage_state = None
-    if state_path and Path(state_path).is_file():
-        try:
-            raw = json.loads(Path(state_path).read_text(encoding="utf-8"))
-            if isinstance(raw, dict) and isinstance(raw.get("cookies"), list) and raw["cookies"]:
-                storage_state = raw
-                _log(f"loading storage_state cookies={len(raw['cookies'])} from {state_path}")
-            else:
-                _log(f"storage_state unusable at {state_path}; starting clean")
-        except (OSError, json.JSONDecodeError) as exc:
-            _log(f"storage_state read failed: {exc}; starting clean")
-    else:
-        _log("no storage_state; starting clean browser")
 
     try:
         from playwright.sync_api import sync_playwright
@@ -81,25 +78,21 @@ def main() -> int:
     signal.signal(signal.SIGTERM, _stop)
     signal.signal(signal.SIGINT, _stop)
 
+    if not profile_dir:
+        _log("GEO_CRAWL_OPS_PROFILE_DIR unset; refusing ephemeral Chrome (would from_logout)")
+        return 1
+    Path(profile_dir).mkdir(parents=True, exist_ok=True)
+
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(
-            executable_path=chrome if Path(chrome).exists() else None,
+        _log(f"launch_persistent_context dir={profile_dir} cdp={cdp_port}")
+        context = playwright.chromium.launch_persistent_context(
+            profile_dir,
             headless=False,
-            args=[
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-gpu",
-                "--window-size=1440,900",
-                f"--remote-debugging-port={cdp_port}",
-                "--remote-debugging-address=127.0.0.1",
-            ],
-        )
-        context = browser.new_context(
-            storage_state=storage_state,
             locale="zh-CN",
             viewport={"width": 1440, "height": 900},
+            args=_launch_args(cdp_port),
         )
-        page = context.new_page()
+        page = context.pages[0] if context.pages else context.new_page()
         try:
             page.goto(start_url, wait_until="domcontentloaded", timeout=120_000)
         except Exception as exc:  # noqa: BLE001
@@ -117,7 +110,11 @@ def main() -> int:
                     _log(f"live state cookies={n}")
                     last_logged_n = n
             time.sleep(0.5)
-            if not browser.is_connected():
+            try:
+                if not context.pages:
+                    _log("browser pages gone")
+                    break
+            except Exception:
                 _log("browser disconnected")
                 break
 
@@ -126,7 +123,7 @@ def main() -> int:
         except Exception:
             pass
         try:
-            browser.close()
+            context.close()
         except Exception:
             pass
     return 0

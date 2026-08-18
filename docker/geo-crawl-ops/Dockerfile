@@ -35,8 +35,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xauth \
     xvfb \
     && rm -rf /var/lib/apt/lists/* \
-    && pip3 install --break-system-packages playwright \
-    && python3 -c "import playwright; print('playwright ok')"
+    && pip3 install --break-system-packages playwright==1.49.1 \
+    && python3 -m playwright install chromium \
+    && python3 -c "from playwright.sync_api import sync_playwright; print('playwright ok')"
 
 COPY entrypoint.sh /usr/local/bin/geo-crawl-ops-entrypoint.sh
 COPY launch_browser.py /usr/local/bin/geo-crawl-ops-launch-browser.py

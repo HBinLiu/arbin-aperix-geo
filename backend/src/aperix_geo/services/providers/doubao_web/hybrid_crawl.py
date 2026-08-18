@@ -10,15 +10,13 @@ from aperix_geo.config import Settings, get_settings
 from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO
 from aperix_geo.services.crawl_accounts.cookies import keep_session_storage_state
 from aperix_geo.services.providers.doubao_web.accounts import open_credential_session
-from aperix_geo.services.providers.doubao_web.crawler import (
-    concurrency_slot,
-    user_prompt_from_messages,
-)
+from aperix_geo.services.providers.doubao_web.crawler import user_prompt_from_messages
 from aperix_geo.services.providers.doubao_web.errors import DoubaoCrawlError, DoubaoNeedsHumanOps
 from aperix_geo.services.providers.doubao_web.jobs.share import build_share_payload
 from aperix_geo.services.providers.doubao_web.runtime import (
     is_human_ops_job,
     raise_from_job,
+    resolve_web_http_via,
     spawn_doubao_job,
 )
 from aperix_geo.services.providers.doubao_web.web_http.client import complete_web_http
@@ -45,13 +43,21 @@ def hybrid_crawl_doubao_chat(
     started = time.monotonic()
     try:
         storage_state = session.acquire(use_account_pool=use_account_pool)
+        account_fields = session.job_account_fields()
+        # Profile jobs open Chrome on disk; do not ship the DB jar. httpx still needs it.
+        browser_state = {"cookies": []} if account_fields else storage_state
+        http_state = (
+            storage_state if resolve_web_http_via(settings) == "httpx" else browser_state
+        )
 
         try:
-            with concurrency_slot(settings):
-                logger.info("doubao crawl transport=hybrid step=http")
-                http_job = complete_web_http(
-                    prompt=prompt, storage_state=storage_state, settings=settings
-                )
+            logger.info("doubao crawl transport=hybrid step=http")
+            http_job = complete_web_http(
+                prompt=prompt,
+                storage_state=http_state,
+                settings=settings,
+                extra=account_fields,
+            )
         except DoubaoNeedsHumanOps as exc:
             session.request_human_ops(type(exc).__name__, str(exc))
             raise
@@ -66,18 +72,18 @@ def hybrid_crawl_doubao_chat(
             )
 
         share_payload = build_share_payload(
-            storage_state=storage_state,
+            storage_state=browser_state,
             settings=settings,
             conversation_id=str(http_job.get("conversation_id") or "").strip(),
         )
         share_payload["platform"] = PLATFORM_DOUBAO
+        share_payload.update(account_fields)
 
-        with concurrency_slot(settings):
-            logger.info(
-                "doubao crawl transport=hybrid step=share conversation_id=%s",
-                share_payload.get("conversation_id") or "-",
-            )
-            share_job = spawn_doubao_job(share_payload, settings=settings, mode="share")
+        logger.info(
+            "doubao crawl transport=hybrid step=share conversation_id=%s",
+            share_payload.get("conversation_id") or "-",
+        )
+        share_job = spawn_doubao_job(share_payload, settings=settings, mode="share")
 
         if is_human_ops_job(share_job):
             session.handle_failed_job(share_job)

@@ -1,12 +1,9 @@
-"""Doubao Web crawler entry: transport dispatch + concurrency (UI lives in ui_flow)."""
+"""Doubao Web crawler entry: transport dispatch (UI lives in ui_flow)."""
 
 from __future__ import annotations
 
 import logging
-import threading
 import time
-from contextlib import contextmanager
-from typing import Iterator
 
 from aperix_geo.config import Settings, get_settings
 from aperix_geo.services.providers.doubao_web.errors import DoubaoCrawlError
@@ -18,31 +15,6 @@ from aperix_geo.services.providers.doubao_web.runtime import (
 from aperix_geo.services.providers.result import SamplingChatResult
 
 logger = logging.getLogger(__name__)
-
-_SEM_LOCK = threading.Lock()
-_SEM: threading.Semaphore | None = None
-_SEM_LIMIT = 0
-
-
-def _crawl_semaphore(limit: int) -> threading.Semaphore:
-    global _SEM, _SEM_LIMIT
-    limit = max(1, int(limit))
-    with _SEM_LOCK:
-        if _SEM is None or _SEM_LIMIT != limit:
-            _SEM = threading.Semaphore(limit)
-            _SEM_LIMIT = limit
-        return _SEM
-
-
-@contextmanager
-def concurrency_slot(settings: Settings) -> Iterator[None]:
-    sem = _crawl_semaphore(settings.doubao_crawl_concurrency)
-    if not sem.acquire(blocking=True, timeout=settings.doubao_crawl_timeout_s):
-        raise DoubaoCrawlError("doubao crawl concurrency slot timeout")
-    try:
-        yield
-    finally:
-        sem.release()
 
 
 def user_prompt_from_messages(messages: list[dict[str, str]]) -> str:
@@ -98,19 +70,22 @@ def _crawl_doubao_chat_ui(
     started = time.monotonic()
     try:
         storage_state = session.acquire(use_account_pool=use_account_pool)
+        account_fields = session.job_account_fields()
         payload = build_crawl_payload(
-            prompt=prompt, storage_state=storage_state, settings=settings
+            prompt=prompt,
+            storage_state={"cookies": []} if account_fields else storage_state,
+            settings=settings,
         )
         payload["platform"] = PLATFORM_DOUBAO
+        payload.update(account_fields)
 
-        with concurrency_slot(settings):
-            logger.info("doubao crawl transport=ui")
-            job = spawn_doubao_job(
-                payload,
-                settings=settings,
-                mode="crawl",
-                timeout_s=float(settings.doubao_crawl_timeout_s),
-            )
+        logger.info("doubao crawl transport=ui")
+        job = spawn_doubao_job(
+            payload,
+            settings=settings,
+            mode="crawl",
+            timeout_s=float(settings.doubao_crawl_timeout_s),
+        )
 
         if not job.get("ok"):
             session.handle_failed_job(job)

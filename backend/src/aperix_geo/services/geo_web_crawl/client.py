@@ -41,7 +41,6 @@ def run_geo_web_crawl_job(
         timeout_s
         if timeout_s is not None
         else payload.get("timeout_s")
-        or os.environ.get("GEO_WEB_CRAWL_TIMEOUT_S")
         or 180
     )
     # HTTP client timeout must exceed job timeout (server holds the request).

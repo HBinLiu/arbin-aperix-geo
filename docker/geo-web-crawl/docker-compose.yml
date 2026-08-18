@@ -1,51 +1,25 @@
-# Resident GEO web-crawl + self-hosted Browserless (Chromium pool).
-# Env: copy .env.example → .env（compose 自动加载本目录 .env）
+# Resident GEO web-crawl with per-account Chromium profiles.
+# Env: copy .env.example → .env
 #   cp .env.example .env && docker compose up -d
-# Live view: 在 .env 里设 GEO_WEB_CRAWL_LIVE_VIEW=1 等，再
-#   docker compose up -d --force-recreate
-# 然后打开 http://127.0.0.1:3001/ 和/或看 ./live-shots/
+#
+# The host path GEO_CRAWL_PROFILE_ROOT must be the same directory backend uses
+# when spawning geo-crawl-ops (one Chrome user-data-dir per account).
 
 services:
-  browserless:
-    container_name: geo-web-crawl-browserless
-    image: ghcr.io/browserless/chromium
-    shm_size: "2gb"
-    # Host 3000 is often taken (e.g. Payload); use 3001 for Debugger / liveURL.
-    # Crawl still uses the compose network: ws://browserless:3000/chromium
-    ports:
-      - "${BROWSERLESS_HOST_PORT:-3001}:3000"
-    environment:
-      TOKEN: ${BROWSERLESS_TOKEN:-change-me}
-      HOST: "0.0.0.0"
-      CONCURRENT: ${BROWSERLESS_CONCURRENT:-4}
-      QUEUED: ${BROWSERLESS_QUEUED:-8}
-      # Crawl jobs often need minutes; default Browserless TIMEOUT is 30s.
-      TIMEOUT: ${BROWSERLESS_TIMEOUT_MS:-600000}
-    restart: unless-stopped
-
   geo-web-crawl:
     container_name: geo-web-crawl-server
     image: ${GEO_WEB_CRAWL_IMAGE:-aperix/geo-web-crawl:latest}
     build:
       context: ../..
       dockerfile: docker/geo-web-crawl/Dockerfile
+    shm_size: "2gb"
     ports:
       - "9410:9410"
     environment:
-      GEO_WEB_CRAWL_CONCURRENCY: ${GEO_WEB_CRAWL_CONCURRENCY:-2}
+      GEO_WEB_CRAWL_CONCURRENCY: ${GEO_WEB_CRAWL_CONCURRENCY:-1}
       GEO_WEB_CRAWL_TOKEN: ${GEO_WEB_CRAWL_TOKEN:-change-me}
-      # CDP endpoint (connect_over_cdp) — version-tolerant vs Browserless latest.
-      # Do NOT use /chromium/playwright unless Playwright client == Browserless PW version.
-      GEO_WEB_CRAWL_BROWSER_WS_URL: ws://browserless:3000/chromium
-      GEO_WEB_CRAWL_BROWSERLESS_TOKEN: ${BROWSERLESS_TOKEN:-change-me}
-      # Live view: off by default. Set GEO_WEB_CRAWL_LIVE_VIEW=1 to enable.
-      GEO_WEB_CRAWL_LIVE_VIEW: ${GEO_WEB_CRAWL_LIVE_VIEW:-0}
-      GEO_WEB_CRAWL_LIVE_VIEW_PAUSE_S: ${GEO_WEB_CRAWL_LIVE_VIEW_PAUSE_S:-0}
-      GEO_WEB_CRAWL_LIVE_VIEW_BASE_URL: ${GEO_WEB_CRAWL_LIVE_VIEW_BASE_URL:-http://127.0.0.1:3001}
-      GEO_WEB_CRAWL_LIVE_VIEW_SCREENSHOT_DIR: ${GEO_WEB_CRAWL_LIVE_VIEW_SCREENSHOT_DIR:-}
-      GEO_WEB_CRAWL_LIVE_VIEW_SCREENSHOT_S: ${GEO_WEB_CRAWL_LIVE_VIEW_SCREENSHOT_S:-5}
+      GEO_CRAWL_PROFILE_ROOT: /data/crawl-profiles
+      GEO_WEB_CRAWL_HEADLESS: ${GEO_WEB_CRAWL_HEADLESS:-true}
     volumes:
-      - ./live-shots:/tmp/geo-crawl-live
-    depends_on:
-      - browserless
+      - ${GEO_CRAWL_PROFILE_ROOT:-/var/lib/aperix/crawl-profiles}:/data/crawl-profiles
     restart: unless-stopped

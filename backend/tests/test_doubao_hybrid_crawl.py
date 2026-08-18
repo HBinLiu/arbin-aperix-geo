@@ -17,7 +17,6 @@ def _settings() -> Settings:
         doubao_web_http_enabled=True,
         doubao_crawl_transport="hybrid",
         doubao_crawl_storage_state_path="",
-        doubao_crawl_concurrency=2,
         doubao_crawl_timeout_s=60,
     )
 

@@ -8,6 +8,8 @@ from typing import Any
 
 from aperix_geo.config import Settings
 from aperix_geo.services.crawl_accounts.cookies import (
+    job_payload_storage_state,
+    job_requires_injected_session_cookies,
     storage_state_from_context,
     storage_state_has_session_cookies,
 )
@@ -37,7 +39,7 @@ def build_probe_payload(
     storage_state: dict[str, Any],
     settings: Settings,
 ) -> dict[str, Any]:
-    # Heartbeat must prove a real session: always light-send (setting only tunes prompt/wait).
+    # Heartbeat must prove a real session: always light-send.
     timeout_s = min(90.0, float(settings.doubao_crawl_timeout_s))
     prompt = (settings.doubao_heartbeat_probe_prompt or "").strip() or _DEFAULT_PROBE_PROMPT
     return {
@@ -45,8 +47,6 @@ def build_probe_payload(
         "storage_state": storage_state,
         "timeout_s": timeout_s,
         "chat_base_url": (settings.doubao_chat_base_url or sel.CHAT_URL).strip() or sel.CHAT_URL,
-        "headless": bool(settings.doubao_crawl_headless),
-        "send_probe": True,
         "probe_prompt": prompt,
         "send_wait_s": float(settings.doubao_heartbeat_send_wait_s),
     }
@@ -107,9 +107,16 @@ def _try_cleanup_probe_after_failure(page: Any, *, probe_conv_id: str) -> None:
         logger.warning("probe cleanup after failure failed", exc_info=True)
 
 
-def _final_storage_state(context: Any, *, fallback: dict[str, Any]) -> dict[str, Any]:
+def _final_storage_state(
+    context: Any,
+    *,
+    fallback: dict[str, Any],
+    payload: dict[str, Any],
+) -> dict[str, Any]:
     state = storage_state_from_context(context, fallback=fallback, log_event="probe")
     if storage_state_has_session_cookies(state):
+        return state
+    if not job_requires_injected_session_cookies(payload):
         return state
     raise DoubaoLoginExpired(
         "probe finished but storage_state lost Doubao session cookies"
@@ -126,10 +133,12 @@ def run_doubao_login_probe_on_page(
     Success means Doubao accepted a message on this session. Guest / from_logout /
     send-no-op must fail as DoubaoLoginExpired / DoubaoCrawlError (human_ops).
     """
-    storage_state = payload.get("storage_state")
-    if not isinstance(storage_state, dict):
+    storage_state = job_payload_storage_state(payload)
+    if storage_state is None:
         return job_error(DoubaoCrawlError("storage_state missing"))
-    if not storage_state_has_session_cookies(storage_state):
+    if job_requires_injected_session_cookies(payload) and not storage_state_has_session_cookies(
+        storage_state
+    ):
         return job_error(
             DoubaoLoginExpired("storage_state missing Doubao session cookies"),
         )
@@ -177,7 +186,7 @@ def run_doubao_login_probe_on_page(
         _cleanup_probe_conversation(page, had_conversation=True)
         assert_logged_in(page)
 
-        return job_ok(storage_state=_final_storage_state(context, fallback=storage_state))
+        return job_ok(storage_state=_final_storage_state(context, fallback=storage_state, payload=payload))
     except DoubaoNeedsHumanOps as exc:
         _try_cleanup_probe_after_failure(page, probe_conv_id=probe_conv_id)
         return job_error(exc, session_alive=seen_login)

@@ -28,6 +28,8 @@ STATUS_NEED_RELOGIN = "need_relogin"
 STATUS_LOGGING_IN = "logging_in"
 STATUS_BLOCKED = "blocked"
 
+LEASE_OWNER_OPS_HANDOFF = "ops-handoff"
+
 _TICKET_PENDING = "pending"
 
 
@@ -47,6 +49,59 @@ def pending_login_subquery(platform: str):
 
 def pending_login_account_ids(db: Session, platform: str) -> set[uuid.UUID]:
     return {aid for aid in db.scalars(pending_login_subquery(platform)).all() if aid}
+
+
+def ensure_account_for_ops(
+    db: Session,
+    *,
+    platform: str,
+    label: str,
+) -> CrawlAccount:
+    """Get or create the pool row so a Chrome profile path can be keyed by account id."""
+    plat = normalize_platform(platform)
+    name = (label or "").strip() or f"{plat}-{uuid.uuid4().hex[:8]}"
+    existing = db.scalars(
+        select(CrawlAccount)
+        .where(CrawlAccount.platform == plat, CrawlAccount.label == name)
+        .limit(1)
+    ).first()
+    if existing is not None:
+        return existing
+    row = CrawlAccount(
+        id=uuid.uuid4(),
+        platform=plat,
+        label=name,
+        status=STATUS_LOGGING_IN,
+        storage_state={"cookies": []},
+        last_ok_at=EPOCH,
+        last_error="",
+        lease_owner="",
+        lease_until=EPOCH,
+    )
+    db.add(row)
+    db.flush()
+    return row
+
+
+def apply_ops_handoff_lease(
+    row: CrawlAccount,
+    *,
+    settings: Settings | None = None,
+) -> None:
+    """Block acquire/heartbeat until the noVNC Chromium is gone from Doubao's side."""
+    settings = settings or get_settings()
+    handoff_s = int(settings.doubao_ops_handoff_s or 0)
+    if handoff_s <= 0:
+        return
+    row.lease_owner = LEASE_OWNER_OPS_HANDOFF
+    row.lease_until = utc_now() + timedelta(seconds=handoff_s)
+    logger.warning(
+        "geo-crawl-ops handoff lease id=%s label=%s until=%s s=%s",
+        row.id,
+        row.label,
+        row.lease_until.isoformat(),
+        handoff_s,
+    )
 
 
 def cookies_in_use(row: CrawlAccount, *, now, pending_ids: set[uuid.UUID]) -> bool:
@@ -70,14 +125,6 @@ class AccountLease:
     platform: str
     storage_state: dict[str, Any]
     lease_owner: str
-
-
-def storage_state_has_cookies(
-    state: dict[str, Any] | None,
-    *,
-    platform: str = PLATFORM_DOUBAO,
-) -> bool:
-    return storage_state_has_session_cookies(state, platform=platform)
 
 
 def effective_account_lease_ttl_s(settings: Settings) -> int:
@@ -104,13 +151,42 @@ def count_fresh_active_accounts(
     return snap["free"]
 
 
+def account_session_ready(row: CrawlAccount, *, settings: Settings) -> bool:
+    """True when this row can be leased without opening a login ticket.
+
+    Production (``GEO_CRAWL_PROFILE_ROOT``): Chromium profile on disk is the session.
+    Local smoke (no root): DB session cookies.
+    """
+    plat = normalize_platform(row.platform)
+    root = (settings.geo_crawl_profile_root or "").strip()
+    if root:
+        from aperix_geo.services.crawl_accounts.profiles import (
+            account_profile_dir,
+            profile_is_ready,
+        )
+
+        return profile_is_ready(account_profile_dir(plat, row.id, root=root))
+    return storage_state_has_session_cookies(row.storage_state, platform=plat)
+
+
+def _acquire_not_ready_error(row: CrawlAccount, *, settings: Settings) -> str:
+    plat = normalize_platform(row.platform)
+    root = (settings.geo_crawl_profile_root or "").strip()
+    if root:
+        from aperix_geo.services.crawl_accounts.profiles import account_profile_dir
+
+        profile_dir = account_profile_dir(plat, row.id, root=root)
+        return f"chrome profile missing; noVNC login required dir={profile_dir}"
+    return f"storage_state missing {plat} session cookies"
+
+
 def account_pool_capacity_snapshot(
     db: Session,
     *,
     platform: str = PLATFORM_DOUBAO,
     settings: Settings | None = None,
 ) -> dict[str, int]:
-    """Fresh active accounts with session cookies: free (acquirable) vs leased (busy)."""
+    """Fresh active accounts that can be leased: free vs busy."""
     settings = settings or get_settings()
     plat = normalize_platform(platform)
     now = utc_now()
@@ -130,7 +206,7 @@ def account_pool_capacity_snapshot(
     free = 0
     leased = 0
     for row in rows:
-        if not storage_state_has_session_cookies(row.storage_state, platform=plat):
+        if not account_session_ready(row, settings=settings):
             continue
         if _lease_held(row, now):
             leased += 1
@@ -171,9 +247,9 @@ def acquire_account(
         row = db.scalars(stmt).first()
         if row is None:
             return None
-        if not storage_state_has_session_cookies(row.storage_state, platform=plat):
+        if not account_session_ready(row, settings=settings):
             row.status = STATUS_NEED_RELOGIN
-            row.last_error = f"storage_state missing {plat} session cookies"
+            row.last_error = _acquire_not_ready_error(row, settings=settings)
             db.flush()
             from aperix_geo.services.crawl_accounts.human_ops import request_human_intervention
 

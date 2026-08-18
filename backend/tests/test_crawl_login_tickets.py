@@ -75,16 +75,19 @@ def test_create_ticket_disabled() -> None:
 
 def test_create_ticket_upload_fallback() -> None:
     db = MagicMock()
+    db.scalars.return_value.first.return_value = None
     ticket = create_login_ticket(db, label="staging-1", operator="alice", settings=_settings())
     assert ticket.status == TICKET_PENDING
     assert ticket.label == "staging-1"
     assert ticket.login_url == ""
     assert "novnc_unavailable" in ticket.error_text
-    db.add.assert_called_once()
+    assert ticket.account_id != ZERO_UUID
+    assert db.add.call_count >= 2
 
 
 def test_create_ticket_with_novnc_spawn() -> None:
     db = MagicMock()
+    db.scalars.return_value.first.return_value = None
     fake = MagicMock()
     fake.container_id = "cid"
     fake.login_url = "https://novnc.example/?ticket=tok"
@@ -162,6 +165,56 @@ def test_complete_ticket_upserts_account() -> None:
     assert account.label == "staging-1"
     assert account.status == "active"
     db.add.assert_called()
+
+
+def test_complete_ticket_stops_ops_before_account_is_acquirable() -> None:
+    ticket = CrawlLoginTicket(
+        id=uuid4(),
+        account_id=ZERO_UUID,
+        label="staging-1",
+        token="tok",
+        status=TICKET_PENDING,
+        container_id="cidabc123",
+        expires_at=utc_now() + timedelta(minutes=10),
+        completed_at=EPOCH,
+    )
+    db = MagicMock()
+    db.get.return_value = ticket
+    account = MagicMock()
+    order: list[str] = []
+
+    def _stop(cid: str) -> None:
+        order.append(f"stop:{cid}")
+
+    def _upsert(*_a, **_k):
+        order.append("upsert")
+        return account
+
+    with (
+        patch(
+            "aperix_geo.services.crawl_accounts.tickets.stop_ops_session",
+            side_effect=_stop,
+        ) as stop,
+        patch(
+            "aperix_geo.services.crawl_accounts.tickets.upsert_account_from_state",
+            side_effect=_upsert,
+        ),
+        patch(
+            "aperix_geo.services.crawl_accounts.tickets.apply_ops_handoff_lease"
+        ) as handoff,
+    ):
+        out_ticket, out_account = complete_ticket_with_storage_state(
+            db,
+            ticket.id,
+            storage_state=_state(),
+        )
+
+    assert order == ["stop:cidabc123", "upsert"]
+    stop.assert_called_once_with("cidabc123")
+    handoff.assert_called_once_with(account)
+    assert out_ticket.status == TICKET_SUCCEEDED
+    assert out_ticket.container_id == ""
+    assert out_account is account
 
 
 def test_complete_ticket_by_token() -> None:

@@ -11,6 +11,7 @@ import pytest
 from aperix_geo.config import Settings
 from aperix_geo.db.base import utc_now
 from aperix_geo.db.models import EPOCH, CrawlAccount
+from aperix_geo.services.crawl_accounts.cookies import storage_state_has_session_cookies
 from aperix_geo.services.crawl_accounts.heartbeat import run_crawl_account_heartbeat
 from aperix_geo.services.crawl_accounts.pool import (
     STATUS_ACTIVE,
@@ -20,11 +21,9 @@ from aperix_geo.services.crawl_accounts.pool import (
     effective_account_lease_ttl_s,
     heartbeat_lease_ttl_s,
     release_account,
-    storage_state_has_cookies,
     try_lease_account,
     upsert_account_from_state,
 )
-from aperix_geo.services.crawl_accounts.cookies import storage_state_has_session_cookies
 
 
 def _state() -> dict:
@@ -64,11 +63,10 @@ def _guest_state() -> dict:
 
 
 def test_storage_state_requires_session_cookies() -> None:
-    assert storage_state_has_cookies(_state())
     assert storage_state_has_session_cookies(_state())
-    assert not storage_state_has_cookies({})
-    assert not storage_state_has_cookies({"cookies": []})
-    assert not storage_state_has_cookies(_guest_state())
+    assert not storage_state_has_session_cookies({})
+    assert not storage_state_has_session_cookies({"cookies": []})
+    assert not storage_state_has_session_cookies(_guest_state())
 
 
 def test_cookies_only_storage_state_drops_origins() -> None:
@@ -86,62 +84,6 @@ def test_cookies_only_storage_state_drops_origins() -> None:
     slim = cookies_only_storage_state(fat)
     assert slim == {"cookies": fat["cookies"]}
     assert "origins" not in slim
-
-
-def test_playwright_cookies_omit_session_expires_and_drop_stale() -> None:
-    from aperix_geo.services.crawl_accounts.cookies import (
-        playwright_cookies_for_context,
-        playwright_cookies_with_url,
-    )
-
-    now = 1_700_000_000.0
-    cookies = playwright_cookies_for_context(
-        {
-            "cookies": [
-                {
-                    "name": "sessionid",
-                    "value": "live",
-                    "domain": ".doubao.com",
-                    "path": "/",
-                    "expires": -1,
-                    "sameSite": "Lax",
-                },
-                {
-                    "name": "sid_tt",
-                    "value": "zero",
-                    "domain": ".doubao.com",
-                    "expires": 0,
-                },
-                {
-                    "name": "stale",
-                    "value": "old",
-                    "domain": ".doubao.com",
-                    "expires": now - 10,
-                },
-                {
-                    "name": "sid_guard",
-                    "value": "ok",
-                    "domain": ".doubao.com",
-                    "expires": now + 3600,
-                    "sameSite": "bogus",
-                    "partitionKey": {"topLevelSite": "https://www.doubao.com"},
-                },
-            ]
-        },
-        now=now,
-    )
-    by_name = {c["name"]: c for c in cookies}
-    assert "stale" not in by_name
-    assert "expires" not in by_name["sessionid"]
-    assert "expires" not in by_name["sid_tt"]
-    assert by_name["sid_guard"]["expires"] == now + 3600
-    assert by_name["sid_guard"]["sameSite"] == "Lax"
-    assert "partitionKey" not in by_name["sid_guard"]
-    assert by_name["sid_tt"]["path"] == "/"
-    url_cookies = playwright_cookies_with_url(cookies)
-    by_url = {c["name"]: c for c in url_cookies}
-    assert by_url["sessionid"]["url"] == "https://doubao.com/"
-    assert by_url["sessionid"]["domain"] == ".doubao.com"
 
 
 def test_keep_session_storage_state_falls_back_on_empty_export() -> None:
@@ -166,6 +108,40 @@ def test_effective_lease_covers_crawl_timeout() -> None:
 def test_heartbeat_lease_covers_probe_budget() -> None:
     settings = Settings(doubao_crawl_timeout_s=120, doubao_heartbeat_send_wait_s=20)
     assert heartbeat_lease_ttl_s(settings) == 140  # min(90,120)+20+30
+
+
+def test_ops_handoff_lease_blocks_acquire() -> None:
+    from aperix_geo.services.crawl_accounts.pool import (
+        LEASE_OWNER_OPS_HANDOFF,
+        apply_ops_handoff_lease,
+    )
+
+    settings = Settings(
+        doubao_ops_handoff_s=90,
+        doubao_heartbeat_fresh_s=21600,
+        doubao_account_lease_ttl_s=300,
+        doubao_crawl_timeout_s=120,
+    )
+    row = CrawlAccount(
+        id=uuid4(),
+        label="t1",
+        status=STATUS_ACTIVE,
+        storage_state=_state(),
+        last_ok_at=utc_now(),
+        last_error="",
+        lease_owner="",
+        lease_until=EPOCH,
+    )
+    apply_ops_handoff_lease(row, settings=settings)
+    assert row.lease_owner == LEASE_OWNER_OPS_HANDOFF
+    assert row.lease_until > utc_now()
+
+    db = MagicMock()
+    db.scalars.return_value.first.return_value = None
+    assert acquire_account(db, settings=settings, lease_owner="sampler") is None
+    assert try_lease_account(db, account_id=row.id, lease_owner="heartbeat:x", ttl_s=90) is False
+    db.scalars.return_value.first.return_value = row
+    assert try_lease_account(db, account_id=row.id, lease_owner="heartbeat:x", ttl_s=90) is False
 
 
 def test_upsert_and_acquire_release(db_session=None) -> None:
@@ -487,6 +463,43 @@ def test_heartbeat_success_reactivates_need_relogin() -> None:
     assert row.last_error == ""
 
 
+def test_heartbeat_success_without_cookie_dump_still_active() -> None:
+    row = CrawlAccount(
+        id=uuid4(),
+        label="need",
+        status=STATUS_NEED_RELOGIN,
+        storage_state={},
+        last_ok_at=utc_now() - timedelta(days=1),
+        lease_until=EPOCH,
+        last_error="old",
+    )
+    db = MagicMock()
+    db.scalars.return_value.all.return_value = [row]
+    db.refresh = MagicMock()
+    db.get.return_value = row
+    with (
+        patch(
+            "aperix_geo.services.crawl_accounts.heartbeat.try_lease_account",
+            return_value=True,
+        ),
+        patch(
+            "aperix_geo.services.crawl_accounts.heartbeat.probe_account_login",
+            return_value={"cookies": []},
+        ),
+    ):
+        result = run_crawl_account_heartbeat(
+            db,
+            settings=Settings(doubao_heartbeat_enabled=True),
+            platform="doubao",
+            respect_sampling_quiet=False,
+        )
+    assert result["ok_count"] == 1
+    assert result["failed"] == 0
+    assert row.status == STATUS_ACTIVE
+    assert row.last_error == ""
+    assert row.storage_state == {}
+
+
 def test_heartbeat_crawl_error_does_not_mark_expired() -> None:
     from aperix_geo.services.providers.doubao_web.errors import DoubaoCrawlError
 
@@ -643,6 +656,31 @@ def test_accounts_needing_heartbeat_includes_empty_cookies_even_if_fresh() -> No
         now=now,
     )
     assert [r.label for r in selected] == ["empty", "stale"]
+
+
+def test_accounts_needing_heartbeat_skips_empty_cookies_when_profile_ready(
+    tmp_path,
+) -> None:
+    from aperix_geo.services.crawl_accounts.heartbeat import accounts_needing_heartbeat
+
+    now = utc_now()
+    aid = uuid4()
+    (tmp_path / "doubao" / str(aid) / "Default").mkdir(parents=True)
+    empty_ready = CrawlAccount(
+        id=aid,
+        label="empty-ready",
+        status=STATUS_ACTIVE,
+        storage_state={},
+        last_ok_at=now,
+        lease_until=EPOCH,
+    )
+    selected = accounts_needing_heartbeat(
+        [empty_ready],
+        stale_before=now - timedelta(hours=3),
+        now=now,
+        settings=Settings(geo_crawl_profile_root=str(tmp_path)),
+    )
+    assert selected == []
 
 
 def test_accounts_needing_heartbeat_skips_leased() -> None:

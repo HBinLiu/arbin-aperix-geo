@@ -1,4 +1,4 @@
-"""Execute one geo-web-crawl job on a worker thread with a warm browser."""
+"""Execute one geo-web-crawl job on a worker thread."""
 
 from __future__ import annotations
 
@@ -20,9 +20,9 @@ _executor_lock = threading.Lock()
 
 def _concurrency() -> int:
     try:
-        return max(1, min(16, int(os.environ.get("GEO_WEB_CRAWL_CONCURRENCY") or "2")))
+        return max(1, min(16, int(os.environ.get("GEO_WEB_CRAWL_CONCURRENCY") or "1")))
     except ValueError:
-        return 2
+        return 1
 
 
 def get_executor() -> ThreadPoolExecutor:
@@ -44,12 +44,15 @@ def shutdown_executor() -> None:
         if _executor is not None:
             _executor.shutdown(wait=False, cancel_futures=True)
             _executor = None
-    browser_pool.shutdown_all_browsers()
 
 
 def _run_job_sync(payload: dict[str, Any]) -> dict[str, Any]:
     ensure_handlers_loaded()
-    platform = str(payload.get("platform") or "doubao").strip().lower() or "doubao"
+    try:
+        account_id, storage_state, platform = browser_pool.parse_job_session(payload)
+    except ValueError as exc:
+        return crawl_fail(str(exc))
+
     handler = get_handler(platform)
     if handler is None:
         return crawl_fail(
@@ -57,31 +60,17 @@ def _run_job_sync(payload: dict[str, Any]) -> dict[str, Any]:
             error_type="PlatformNotImplemented",
         )
 
-    storage_state = payload.get("storage_state")
-    if not isinstance(storage_state, dict):
-        return crawl_fail("storage_state missing")
-
     timeout_s = float(payload.get("timeout_s") or 120)
     timeout_ms = context_timeout_ms(timeout_s)
-    headless = payload.get("headless")
-    headless_b = None if headless is None else bool(headless)
 
     try:
         with browser_pool.page_session(
             storage_state=storage_state,
             timeout_ms=timeout_ms,
-            headless=headless_b,
+            account_id=account_id,
+            platform=platform,
         ) as (page, context):
-            from aperix_geo.services.geo_web_crawl.live_view import maybe_attach_live_view
-
-            with maybe_attach_live_view(page, context) as live_meta:
-                result = handler(payload, page, context)
-            if isinstance(result, dict) and live_meta.get("enabled"):
-                if live_meta.get("live_url"):
-                    result["live_url"] = live_meta["live_url"]
-                if live_meta.get("screenshot_dir"):
-                    result["live_screenshot_dir"] = live_meta["screenshot_dir"]
-            return result
+            return handler(payload, page, context)
     except Exception as exc:  # noqa: BLE001
         logger.exception("geo-web-crawl job failed platform=%s", platform)
         return crawl_fail(f"{type(exc).__name__}: {exc}", error_type=type(exc).__name__)

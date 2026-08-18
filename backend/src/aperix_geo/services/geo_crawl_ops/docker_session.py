@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from aperix_geo.config import Settings, get_settings
+from aperix_geo.services.crawl_accounts.profiles import account_profile_dir
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +139,7 @@ def spawn_ops_session(
     storage_state: dict[str, Any] | None = None,
     ops_reason: str = "login_expired",
     settings: Settings | None = None,
+    account_id: Any = None,
 ) -> OpsSessionSpawn:
     """Start a geo-crawl-ops container for human login / captcha.
 
@@ -177,6 +179,8 @@ def spawn_ops_session(
         f"aperix.geo_crawl_ops.ticket={ticket_token}",
         "--label",
         f"aperix.geo_crawl_ops.reason={reason}",
+        "--shm-size",
+        "2g",
         "-p",
         "127.0.0.1::6080",
         "-e",
@@ -208,27 +212,59 @@ def spawn_ops_session(
     if network:
         args.extend(["--network", network])
 
-    has_state = bool(
+    profile_host: Path | None = None
+    aid = str(account_id or "").strip()
+    root = (settings.geo_crawl_profile_root or "").strip()
+    if aid and aid != "00000000-0000-0000-0000-000000000000" and root:
+        profile_host = account_profile_dir(platform, aid, root=root)
+        try:
+            profile_host.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise GeoCrawlOpsDockerError(
+                f"chrome profile mkdir failed path={profile_host}: {exc}"
+            ) from exc
+        args.extend(
+            [
+                "-v",
+                f"{profile_host}:/data/chrome-profile",
+                "-e",
+                "GEO_CRAWL_OPS_PROFILE_DIR=/data/chrome-profile",
+            ]
+        )
+        logger.info("geo-crawl-ops chrome profile=%s", profile_host)
+
+    if profile_host is None:
+        raise GeoCrawlOpsDockerError(
+            "GEO_CRAWL_PROFILE_ROOT and account_id are required so login Chrome "
+            "is the same profile crawl uses"
+        )
+
+    # DB cookies are a fingerprint baseline for watch_login, not injected into Chrome.
+    has_baseline = bool(
         storage_state
         and isinstance(storage_state.get("cookies"), list)
         and storage_state["cookies"]
     )
-    if has_state:
-        args.extend(["-e", "GEO_CRAWL_OPS_STORAGE_STATE_PATH=/data/storage_state.json"])
+    if has_baseline:
+        args.extend(["-e", "GEO_CRAWL_OPS_STORAGE_STATE_PATH=/data/baseline_storage_state.json"])
 
     args.append(image)
 
     try:
         container_id = _run_docker(args, timeout_s=120.0)
-        if has_state:
+        if has_baseline:
             with tempfile.TemporaryDirectory(prefix="geo-crawl-ops-state-") as tmp:
-                state_path = Path(tmp) / "storage_state.json"
+                state_path = Path(tmp) / "baseline_storage_state.json"
                 state_path.write_text(
                     json.dumps(storage_state, ensure_ascii=False),
                     encoding="utf-8",
                 )
                 _run_docker(
-                    ["cp", str(state_path), f"{container_id}:/data/storage_state.json"],
+                    [
+                        "cp",
+                        str(state_path),
+                        f"{container_id}:/data/baseline_storage_state.json",
+                    ],
                     timeout_s=30.0,
                 )
         _run_docker(["start", container_id], timeout_s=60.0)

@@ -1,5 +1,5 @@
 # Headless GEO web-crawl resident service (platform handlers + HTTP API).
-# Prefer pairing with self-hosted Browserless (see docker-compose.yml).
+# Chromium is installed in this image; each account uses a persistent user-data-dir.
 #
 # Build from repo root:
 #   docker build -t aperix/geo-web-crawl:latest -f docker/geo-web-crawl/Dockerfile .
@@ -16,7 +16,7 @@ ENV PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive \
     GEO_WEB_CRAWL_HOST=0.0.0.0 \
     GEO_WEB_CRAWL_PORT=9410 \
-    GEO_WEB_CRAWL_CONCURRENCY=2 \
+    GEO_WEB_CRAWL_CONCURRENCY=1 \
     GEO_WEB_CRAWL_HEADLESS=true
 
 WORKDIR /app
@@ -38,6 +38,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libxrandr2 \
       libgbm1 \
       libasound2 \
+      fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
 COPY docker/geo-web-crawl/requirements.txt /app/requirements.txt
@@ -48,6 +49,7 @@ ARG PIP_TRUSTED_HOST=mirrors.aliyun.com
 RUN pip install -i "${PIP_INDEX_URL}" --trusted-host "${PIP_TRUSTED_HOST}" \
       -r /app/requirements.txt \
     && pip install --retries 15 playwright==1.49.1 \
+    && python -m playwright install chromium \
     && python - <<'PY'
 """Fail the image build if crawl startup imports heavy backend deps."""
 import sys

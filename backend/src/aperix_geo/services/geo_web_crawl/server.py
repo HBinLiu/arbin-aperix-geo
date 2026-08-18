@@ -20,10 +20,10 @@ logger = logging.getLogger(__name__)
 class JobRequest(BaseModel):
     platform: str = "doubao"
     mode: str = "crawl"
-    storage_state: dict[str, Any]
+    account_id: str = ""
+    storage_state: dict[str, Any] = Field(default_factory=dict)
     prompt: str = ""
     timeout_s: float = Field(default=120.0, ge=10.0, le=900.0)
-    headless: bool = True
     chat_base_url: str = ""
 
     model_config = {"extra": "allow"}
@@ -48,7 +48,7 @@ def create_app() -> FastAPI:
         return {
             "ok": True,
             "platforms": list_platforms(),
-            "concurrency": int(os.environ.get("GEO_WEB_CRAWL_CONCURRENCY") or "2"),
+            "concurrency": int(os.environ.get("GEO_WEB_CRAWL_CONCURRENCY") or "1"),
             "browser_backend": browser_backend(),
         }
 
@@ -72,9 +72,10 @@ def create_app() -> FastAPI:
 
         body = payload.model_dump()
         logger.info(
-            "geo-web-crawl job platform=%s mode=%s timeout_s=%s",
+            "geo-web-crawl job platform=%s mode=%s account=%s timeout_s=%s",
             body.get("platform"),
             body.get("mode"),
+            body.get("account_id") or "-",
             body.get("timeout_s"),
         )
         return submit_job(body)

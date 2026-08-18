@@ -122,6 +122,13 @@ class DoubaoCredentialSession:
         )
         return self.storage_state
 
+    def job_account_fields(self) -> dict[str, str]:
+        from aperix_geo.services.crawl_accounts.profiles import job_account_fields
+
+        if self.lease is None:
+            return {}
+        return job_account_fields(platform=self.lease.platform, account_id=self.lease.account_id)
+
     def request_human_ops(self, job_or_err_type: dict[str, Any] | str, err_msg: str = "") -> None:
         if self.lease is None:
             return

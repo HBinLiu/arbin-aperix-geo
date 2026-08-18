@@ -15,7 +15,6 @@ backend/cache/
 backend/data/favicons/
 backend/data/doubao_storage_state.json
 backend/data/doubao_*.json
-docker/geo-web-crawl/live-shots/
 # compose 本地/生产覆盖（仓库只留 .env.example）
 docker/geo-web-crawl/.env
 

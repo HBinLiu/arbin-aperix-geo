@@ -45,8 +45,3 @@ def test_oneshot_launches_each_session() -> None:
     assert playwright.chromium.launch.call_count == 2
     assert browser.close.call_count == 2
     assert context.close.call_count == 2
-
-
-def test_discard_and_reset_are_safe_noops() -> None:
-    bp.discard_browser_pool_inherited()
-    bp.reset_browser_pool()

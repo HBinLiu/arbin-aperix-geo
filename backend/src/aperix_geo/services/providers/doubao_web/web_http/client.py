@@ -32,6 +32,7 @@ def request_a_bogus(
     settings: Settings | None = None,
     query_string: str = "",
     params: dict[str, str] | None = None,
+    extra: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Spawn geo-web-crawl mode=sign; return job dict with a_bogus / fingerprint."""
     settings = settings or get_settings()
@@ -42,6 +43,8 @@ def request_a_bogus(
         params=params,
     )
     payload["platform"] = "doubao"
+    if extra:
+        payload.update(extra)
     job = spawn_doubao_job(payload, settings=settings, mode="sign")
     if job.get("ok"):
         return job
@@ -65,12 +68,15 @@ def complete_via_browser_job(
     prompt: str,
     storage_state: dict[str, Any],
     settings: Settings | None = None,
+    extra: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     settings = settings or get_settings()
     payload = build_web_http_payload(
         prompt=prompt, storage_state=storage_state, settings=settings
     )
     payload["platform"] = "doubao"
+    if extra:
+        payload.update(extra)
     job = spawn_doubao_job(
         payload,
         settings=settings,
@@ -88,6 +94,7 @@ def complete_via_httpx(
     storage_state: dict[str, Any],
     settings: Settings | None = None,
     conversation_id: str = "0",
+    extra: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     settings = settings or get_settings()
     bot_id = (settings.doubao_web_bot_id or DEFAULT_BOT_ID).strip() or DEFAULT_BOT_ID
@@ -101,7 +108,9 @@ def complete_via_httpx(
     if settings.doubao_web_tea_uuid:
         params["tea_uuid"] = settings.doubao_web_tea_uuid.strip()
 
-    sign = request_a_bogus(storage_state=storage_state, settings=settings, params=params)
+    sign = request_a_bogus(
+        storage_state=storage_state, settings=settings, params=params, extra=extra
+    )
     for key, value in dict(sign.get("fingerprint") or {}).items():
         if value:
             params[key] = str(value)
@@ -151,12 +160,13 @@ def complete_web_http(
     prompt: str,
     storage_state: dict[str, Any],
     settings: Settings | None = None,
+    extra: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     settings = settings or get_settings()
     if resolve_web_http_via(settings) == "httpx":
         return complete_via_httpx(
-            prompt=prompt, storage_state=storage_state, settings=settings
+            prompt=prompt, storage_state=storage_state, settings=settings, extra=extra
         )
     return complete_via_browser_job(
-        prompt=prompt, storage_state=storage_state, settings=settings
+        prompt=prompt, storage_state=storage_state, settings=settings, extra=extra
     )

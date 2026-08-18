@@ -20,12 +20,12 @@ x11vnc -display :1 -forever -shared -rfbport 5900 -nopw -listen 0.0.0.0 >/tmp/x1
 websockify --web=/usr/share/novnc 6080 localhost:5900 >/tmp/websockify.log 2>&1 &
 
 if [[ -n "${STATE_PATH}" && -f "${STATE_PATH}" ]]; then
-  echo "[geo-crawl-ops] will inject storage_state from ${STATE_PATH}"
+  echo "[geo-crawl-ops] login baseline from ${STATE_PATH}"
 fi
 
 export GEO_CRAWL_OPS_CDP_URL="http://127.0.0.1:${CDP_PORT}"
 python3 /usr/local/bin/geo-crawl-ops-launch-browser.py >/tmp/launch_browser.log 2>&1 &
-# Give Chromium + storage_state inject a moment before watcher attaches.
+# Give Chromium a moment before watcher attaches.
 sleep 4
 python3 /usr/local/bin/geo-crawl-ops-watch-login.py >/tmp/watch_login.log 2>&1 &
 

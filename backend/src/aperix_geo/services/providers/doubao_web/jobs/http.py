@@ -10,6 +10,8 @@ from urllib.parse import urlencode
 
 from aperix_geo.config import Settings
 from aperix_geo.services.crawl_accounts.cookies import (
+    job_payload_storage_state,
+    job_requires_injected_session_cookies,
     storage_state_from_context,
     storage_state_has_session_cookies,
 )
@@ -56,7 +58,6 @@ def build_web_http_payload(
         "storage_state": storage_state,
         "timeout_s": float(settings.doubao_crawl_timeout_s),
         "chat_base_url": (settings.doubao_chat_base_url or sel.CHAT_URL).strip() or sel.CHAT_URL,
-        "headless": bool(settings.doubao_crawl_headless),
         "conversation_id": (conversation_id or "0").strip() or "0",
         "bot_id": (settings.doubao_web_bot_id or DEFAULT_BOT_ID).strip() or DEFAULT_BOT_ID,
     }
@@ -67,13 +68,15 @@ def run_doubao_web_http_on_page(
     context: Any,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    storage_state = payload.get("storage_state")
+    storage_state = job_payload_storage_state(payload)
     prompt = str(payload.get("prompt") or "").strip()
     if not prompt:
         return job_error(DoubaoCrawlError("empty user prompt"), **_EMPTY)
-    if not isinstance(storage_state, dict):
+    if storage_state is None:
         return job_error(DoubaoCrawlError("storage_state missing"), **_EMPTY)
-    if not storage_state_has_session_cookies(storage_state):
+    if job_requires_injected_session_cookies(payload) and not storage_state_has_session_cookies(
+        storage_state
+    ):
         return job_error(
             DoubaoLoginExpired("storage_state missing Doubao session cookies"),
             **_EMPTY,

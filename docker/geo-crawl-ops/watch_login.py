@@ -8,12 +8,12 @@ Env:
   GEO_CRAWL_OPS_COMPLETE_URL   POST JSON {token, storage_state}
   GEO_CRAWL_OPS_CDP_URL        default http://127.0.0.1:9222
   GEO_CRAWL_OPS_TTL_MIN        stop watching after this many minutes
-  GEO_CRAWL_OPS_STORAGE_STATE_PATH  optional inject file — used as login_expired baseline
+  GEO_CRAWL_OPS_STORAGE_STATE_PATH  optional baseline JSON (DB cookies fingerprint)
 
 Complete rules:
   login_expired — session cookies present AND fingerprint != baseline
-                  baseline = fingerprint(injected storage_state) if any session cookies
-                  there, else () (any new session completes).
+                  baseline = fingerprint(GEO_CRAWL_OPS_STORAGE_STATE_PATH) if that
+                  file has session cookies, else () (any new session completes).
                   Do NOT snapshot live cookies after a long settle — that races human
                   login and freezes baseline on the post-login cookies.
   captcha       — session cookies present AND captcha UI gone for 2 polls;

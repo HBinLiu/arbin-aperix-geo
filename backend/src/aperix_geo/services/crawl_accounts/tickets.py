@@ -24,6 +24,8 @@ from aperix_geo.services.crawl_accounts.pool import (
     STATUS_ACTIVE,
     STATUS_LOGGING_IN,
     STATUS_NEED_RELOGIN,
+    apply_ops_handoff_lease,
+    ensure_account_for_ops,
     upsert_account_from_state,
 )
 from aperix_geo.services.crawl_accounts.cookies import (
@@ -157,6 +159,12 @@ def create_login_ticket(
 
     if not resolved_label:
         resolved_label = f"{plat}-{uuid4().hex[:8]}"
+    if account is None:
+        account = ensure_account_for_ops(db, platform=plat, label=resolved_label)
+        resolved_account_id = account.id
+        resolved_label = account.label or resolved_label
+        storage_state = dict(account.storage_state or {})
+    account.status = STATUS_LOGGING_IN
 
     if resolved_account_id != ZERO_UUID:
         open_ticket = db.scalars(
@@ -275,6 +283,7 @@ def _spawn_ops_onto_ticket(
             storage_state=storage_state,
             ops_reason=ops_reason,
             settings=settings,
+            account_id=ticket.account_id,
         )
         ticket.container_id = session.container_id
         ticket.login_url = session.login_url
@@ -376,6 +385,12 @@ def _complete_pending_ticket(
     plat = normalize_platform(ticket.platform)
     require_session_storage_state(storage_state, platform=plat)
 
+    # Kill the noVNC Chromium *before* the account is acquirable. Completing first
+    # then docker-rm leaves a window where crawl opens the same user-data-dir.
+    cid = (ticket.container_id or "").strip()
+    if cid:
+        stop_ops_session(cid)
+
     account = upsert_account_from_state(
         db,
         label=ticket.label,
@@ -383,8 +398,8 @@ def _complete_pending_ticket(
         platform=plat,
         status=STATUS_ACTIVE,
     )
-    if (ticket.container_id or "").strip():
-        stop_ops_session(ticket.container_id)
+    if cid:
+        apply_ops_handoff_lease(account)
     ticket.account_id = account.id
     ticket.status = TICKET_SUCCEEDED
     ticket.completed_at = utc_now()

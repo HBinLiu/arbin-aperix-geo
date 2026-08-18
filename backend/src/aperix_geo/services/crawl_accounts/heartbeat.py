@@ -19,6 +19,7 @@ from aperix_geo.services.crawl_accounts.pool import (
     STATUS_ACTIVE,
     STATUS_LOGGING_IN,
     STATUS_NEED_RELOGIN,
+    account_session_ready,
     clear_account_lease,
     cookies_in_use,
     heartbeat_lease_ttl_s,
@@ -71,7 +72,7 @@ def accounts_needing_heartbeat(
     pending_ticket_account_ids: set[UUID] | None = None,
     settings: Settings | None = None,
 ) -> list[CrawlAccount]:
-    """Probe if cookies look dead or last_ok_at is old. Skip VNC / ticket / lease."""
+    """Probe if the Chrome profile looks dead or last_ok_at is old. Skip VNC / ticket / lease."""
     settings = settings or Settings()
     now = now or utc_now()
     pending = pending_ticket_account_ids or set()
@@ -83,11 +84,10 @@ def accounts_needing_heartbeat(
     for row in rows:
         if cookies_in_use(row, now=now, pending_ids=pending):
             continue
-        plat = normalize_platform(row.platform)
         status = (row.status or "").strip()
         stale = status == STATUS_ACTIVE and row.last_ok_at < stale_before
-        broken = status == STATUS_NEED_RELOGIN or not storage_state_has_session_cookies(
-            row.storage_state, platform=plat
+        broken = status == STATUS_NEED_RELOGIN or not account_session_ready(
+            row, settings=settings
         )
         if broken or stale:
             out.append(row)
@@ -179,18 +179,22 @@ def run_crawl_account_heartbeat(
         )
         try:
             new_state = probe_account_login(
-                dict(row.storage_state or {}), platform=plat, settings=settings
+                dict(row.storage_state or {}),
+                platform=plat,
+                settings=settings,
+                account_id=row.id,
             )
             cleaned = cookies_only_storage_state(new_state)
-            if not storage_state_has_session_cookies(cleaned, platform=plat):
-                raise DoubaoLoginExpired(
-                    "heartbeat probe returned storage_state without session cookies"
-                )
+            writeback = (
+                cleaned
+                if storage_state_has_session_cookies(cleaned, platform=plat)
+                else None
+            )
             release_account(
                 db,
                 account_id=row.id,
                 lease_owner=owner,
-                storage_state=cleaned,
+                storage_state=writeback,
                 ok=True,
             )
             db.refresh(row)
@@ -288,19 +292,40 @@ def probe_account_login(
     *,
     platform: str = PLATFORM_DOUBAO,
     settings: Settings | None = None,
+    account_id: UUID | None = None,
 ) -> dict[str, Any]:
-    """Open chat page with storage_state; raise DoubaoNeedsHumanOps if session unusable."""
+    """Open chat page with the account Chrome profile; raise if session unusable."""
     settings = settings or get_settings()
     plat = normalize_platform(platform)
     if plat != PLATFORM_DOUBAO:
         raise DoubaoCrawlError(f"heartbeat probe not implemented for platform={plat}")
-    if not storage_state_has_session_cookies(storage_state, platform=plat):
+    if account_id is None and not storage_state_has_session_cookies(
+        storage_state, platform=plat
+    ):
         raise DoubaoLoginExpired(f"storage_state missing {plat} session cookies")
+    if account_id is not None:
+        root = (settings.geo_crawl_profile_root or "").strip()
+        if root:
+            from aperix_geo.services.crawl_accounts.profiles import (
+                account_profile_dir,
+                profile_is_ready,
+            )
 
+            profile_dir = account_profile_dir(plat, account_id, root=root)
+            if not profile_is_ready(profile_dir):
+                raise DoubaoLoginExpired(
+                    f"chrome profile missing; noVNC login required dir={profile_dir}"
+                )
+
+    from aperix_geo.services.crawl_accounts.profiles import job_account_fields
     from aperix_geo.services.providers.doubao_web.jobs.probe import build_probe_payload
 
-    payload = build_probe_payload(storage_state=storage_state, settings=settings)
+    payload = build_probe_payload(
+        storage_state={"cookies": []} if account_id is not None else storage_state,
+        settings=settings,
+    )
     payload["platform"] = plat
+    payload.update(job_account_fields(platform=plat, account_id=account_id))
     job = spawn_doubao_job(
         payload,
         settings=settings,
@@ -311,5 +336,7 @@ def probe_account_login(
         state = job.get("storage_state")
         if isinstance(state, dict):
             return state
+        if account_id is not None:
+            return {"cookies": []}
         raise DoubaoCrawlError("probe ok but storage_state missing")
     raise_from_job(job)

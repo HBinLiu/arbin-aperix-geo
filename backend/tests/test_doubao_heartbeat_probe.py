@@ -32,12 +32,10 @@ def test_build_probe_payload_always_sends() -> None:
     settings = Settings(
         doubao_crawl_timeout_s=120,
         doubao_crawl_headless=True,
-        doubao_heartbeat_send_probe=False,
     )
     payload = build_probe_payload(storage_state=_session_state(), settings=settings)
     assert payload["mode"] == "probe"
     assert payload["timeout_s"] == 90.0
-    assert payload["send_probe"] is True
     assert payload["probe_prompt"] == "你好"
     assert payload["storage_state"]["cookies"]
 
@@ -411,8 +409,73 @@ def test_probe_keeps_injected_cookies_when_export_empty() -> None:
     assert out["storage_state"]["cookies"][0]["name"] == "sessionid"
 
 
+def test_probe_on_page_profile_ok_without_cookie_dump() -> None:
+    class Page:
+        url = "https://www.doubao.com/chat/abc123456789"
+
+        def goto(self, *_a, **_k):
+            return None
+
+        def wait_for_timeout(self, *_a, **_k):
+            return None
+
+    class Ctx:
+        def storage_state(self):
+            return {"cookies": []}
+
+    with (
+        patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe.wait_until_logged_in",
+            return_value=None,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe.assert_logged_in",
+            return_value=None,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe.assert_no_captcha",
+            return_value=None,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe.ui_flow._ensure_blank_chat",
+            return_value=None,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe.ui_flow._fill_and_send",
+            return_value=None,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe.ui_flow._wait_send_accepted",
+            return_value=None,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe._require_generation_signal",
+            return_value=None,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe.ui_flow.delete_current_conversation",
+            return_value=None,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe.conversation_id_from_url",
+            side_effect=["", "abc123456789", "abc123456789", "abc123456789"],
+        ),
+    ):
+        out = run_doubao_login_probe_on_page(
+            Page(),
+            Ctx(),
+            {
+                "account_id": "11111111-1111-1111-1111-111111111111",
+                "timeout_s": 30,
+                "probe_prompt": "你好",
+                "send_wait_s": 5,
+            },
+        )
+    assert out["ok"] is True
+
+
 def test_probe_account_login_uses_spawn_ok() -> None:
-    settings = Settings(geo_web_crawl_docker_image="aperix/geo-web-crawl:test")
+    settings = Settings()
     with patch(
         "aperix_geo.services.geo_web_crawl.spawn.run_geo_web_crawl_spawn",
         return_value={"ok": True, "storage_state": {"cookies": [{"name": "sessionid"}]}},
@@ -473,6 +536,38 @@ def test_probe_account_login_generic_error_without_session_alive() -> None:
 def test_probe_account_login_empty_cookies() -> None:
     with pytest.raises(DoubaoLoginExpired):
         probe_account_login({"cookies": []}, settings=Settings())
+
+
+def test_probe_account_login_with_account_id_skips_cookie_gate(tmp_path) -> None:
+    from uuid import uuid4
+
+    aid = uuid4()
+    (tmp_path / "doubao" / str(aid) / "Default").mkdir(parents=True)
+    with patch(
+        "aperix_geo.services.geo_web_crawl.spawn.run_geo_web_crawl_spawn",
+        return_value={"ok": True, "storage_state": {"cookies": []}},
+    ) as spawn:
+        state = probe_account_login(
+            {"cookies": []},
+            settings=Settings(geo_crawl_profile_root=str(tmp_path)),
+            account_id=aid,
+        )
+    assert state == {"cookies": []}
+    payload = spawn.call_args.args[0]
+    assert payload["account_id"] == str(aid)
+    assert payload["storage_state"] == {"cookies": []}
+
+
+def test_probe_account_login_missing_profile_is_login_expired(tmp_path) -> None:
+    from uuid import uuid4
+
+    aid = uuid4()
+    with pytest.raises(DoubaoLoginExpired, match="chrome profile missing"):
+        probe_account_login(
+            {"cookies": []},
+            settings=Settings(geo_crawl_profile_root=str(tmp_path)),
+            account_id=aid,
+        )
 
 
 def test_delete_current_conversation_skips_blank_url() -> None:

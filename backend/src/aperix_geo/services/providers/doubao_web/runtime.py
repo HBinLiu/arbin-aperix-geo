@@ -87,7 +87,6 @@ def spawn_doubao_job(
     return run_geo_web_crawl_spawn(
         payload,
         timeout_s=timeout,
-        docker_image=(settings.geo_web_crawl_docker_image or "").strip(),
         mode=mode,
         base_url=(settings.geo_web_crawl_base_url or "").strip(),
         token=(settings.geo_web_crawl_token or "").strip(),

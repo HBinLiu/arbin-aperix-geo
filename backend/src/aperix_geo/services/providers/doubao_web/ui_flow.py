@@ -231,13 +231,7 @@ def _page_debug_summary(page: Any) -> str:
 
 def _debug_screenshot(page: Any, *, label: str) -> str:
     """Best-effort PNG on the Playwright worker thread. Returns path or ''."""
-    raw = (os.environ.get("GEO_WEB_CRAWL_LIVE_VIEW_SCREENSHOT_DIR") or "").strip()
-    if not raw:
-        raw = (os.environ.get("GEO_WEB_CRAWL_DEBUG_SHOT_DIR") or "").strip()
-    # Compose mounts ./live-shots → /tmp/geo-crawl-live; use when present so
-    # timeout diagnostics work without turning on LIVE_VIEW pause.
-    if not raw and Path("/tmp/geo-crawl-live").is_dir():
-        raw = "/tmp/geo-crawl-live"
+    raw = (os.environ.get("GEO_WEB_CRAWL_DEBUG_SHOT_DIR") or "").strip()
     if not raw:
         return ""
     try:

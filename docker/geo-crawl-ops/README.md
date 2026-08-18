@@ -32,12 +32,15 @@ docker build -t aperix/geo-crawl-ops:latest docker/geo-crawl-ops
 
 Cookie 来源：优先读 launch 进程写入的 `/tmp/ops-live-storage-state.json`（CDP `storage_state` 在本镜像里常为 0 cookies，不可靠）。
 
+登录浏览器使用 **Playwright persistent user-data-dir**（`GEO_CRAWL_OPS_PROFILE_DIR`，与 geo-web-crawl 共用宿主机目录）。不要再把另一台 Chrome 的 Cookie JSON 灌进来。
+
 ## 后端配置
 
 ```text
 GEO_CRAWL_OPS_NOVNC_BASE_URL=https://ops-novnc.example
 GEO_CRAWL_OPS_DOCKER_IMAGE=aperix/geo-crawl-ops:latest
 GEO_CRAWL_OPS_CALLBACK_BASE_URL=https://app.aperix.cn
+GEO_CRAWL_PROFILE_ROOT=/var/lib/aperix/crawl-profiles
 ```
 
 生产 API 若只绑 `127.0.0.1`，不要用 `172.17.0.1:8000`；走公网/反代根地址（不要加 `/api` 后缀）。

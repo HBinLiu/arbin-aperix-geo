@@ -7,7 +7,10 @@ import time
 from typing import Any
 
 from aperix_geo.config import Settings
-from aperix_geo.services.crawl_accounts.cookies import storage_state_from_context
+from aperix_geo.services.crawl_accounts.cookies import (
+    job_payload_storage_state,
+    storage_state_from_context,
+)
 from aperix_geo.services.providers.doubao_web import selectors as sel
 from aperix_geo.services.providers.doubao_web.errors import (
     DoubaoCrawlError,
@@ -43,7 +46,6 @@ def settings_from_crawl_payload(payload: dict[str, Any]) -> Settings:
     return Settings(
         doubao_crawl_timeout_s=float(payload.get("timeout_s") or 120),
         doubao_chat_base_url=str(payload.get("chat_base_url") or sel.CHAT_URL),
-        doubao_crawl_headless=bool(payload.get("headless", True)),
     )
 
 
@@ -59,7 +61,6 @@ def build_crawl_payload(
         "storage_state": storage_state,
         "timeout_s": float(settings.doubao_crawl_timeout_s),
         "chat_base_url": (settings.doubao_chat_base_url or sel.CHAT_URL).strip() or sel.CHAT_URL,
-        "headless": bool(settings.doubao_crawl_headless),
     }
 
 
@@ -71,10 +72,10 @@ def run_doubao_browser_crawl_on_page(
     from aperix_geo.services.providers.doubao_web import ui_flow
 
     prompt = str(payload.get("prompt") or "").strip()
-    storage_state = payload.get("storage_state")
+    storage_state = job_payload_storage_state(payload)
     if not prompt:
         return job_error(DoubaoCrawlError("empty user prompt"), **_EMPTY)
-    if not isinstance(storage_state, dict):
+    if storage_state is None:
         return job_error(DoubaoCrawlError("storage_state missing"), **_EMPTY)
 
     settings = settings_from_crawl_payload(payload)
