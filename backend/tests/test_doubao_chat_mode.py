@@ -75,6 +75,7 @@ class _Page:
         self.chat = _Tab(
             visible=show_toggle, clicks=self.clicks, name="对话", css_class=chat_cls
         )
+        self.new_chat = _Tab(visible=True, clicks=self.clicks, name="新对话")
         self.work_heading = work_heading
         self.waits = 0
         self.gotos: list[str] = []
@@ -85,6 +86,8 @@ class _Page:
             empty.count.return_value = 0
             return empty
         pattern = getattr(name, "pattern", str(name or ""))
+        if pattern == sel.NEW_CHAT_NAME.pattern:
+            return self.new_chat
         if pattern == sel.WORK_TAB_NAME.pattern:
             return self.work
         if pattern == sel.CHAT_TAB_NAME.pattern:
@@ -150,10 +153,17 @@ def test_ensure_chat_mode_clicks_when_work_heading_visible() -> None:
     assert page.clicks == ["对话"]
 
 
-def test_open_fresh_chat_clicks_对话_on_blank_landing() -> None:
+def test_open_fresh_chat_clicks_新对话_then_对话_on_blank_landing() -> None:
     page = _Page(show_toggle=True, chat_selected=False, url="https://www.doubao.com/chat/")
-    _open_fresh_chat(page, base_url="https://www.doubao.com/chat/", click_new_chat=False)
-    assert page.clicks == ["对话"]
+    _open_fresh_chat(page, base_url="https://www.doubao.com/chat/")
+    assert page.clicks == ["新对话", "对话"]
+    assert page.gotos == []
+
+
+def test_open_fresh_chat_skips_mode_switch_when_already_对话() -> None:
+    page = _Page(show_toggle=True, chat_selected=True, url="https://www.doubao.com/chat/")
+    _open_fresh_chat(page, base_url="https://www.doubao.com/chat/")
+    assert page.clicks == ["新对话"]
     assert page.gotos == []
 
 

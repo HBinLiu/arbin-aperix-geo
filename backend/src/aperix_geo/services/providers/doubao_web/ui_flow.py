@@ -39,25 +39,20 @@ _STABLE_IDLE_POLLS = 10  # ~3s of unchanged assistant text when stop/streaming i
 def _ensure_blank_chat(page: Any, *, base_url: str, attempts: int = 2) -> None:
     """Open a blank session and hard-validate before sending the sample prompt.
 
-    If the landing URL already has no conversation id, skip「新对话」on the first
-    attempt. Retries force goto + 新对话 when the page is still dirty.
+    Always click「新对话」(even on /chat/), then switch off「工作」if needed.
     """
     prior_id = conversation_id_from_url(page.url or "")
     last_reason = ""
     for attempt in range(1, max(1, attempts) + 1):
-        current_id = conversation_id_from_url(page.url or "")
-        # Initial open already on /chat/ with empty id → do not click 新对话.
-        click_new = bool(current_id) or attempt > 1
-        _open_fresh_chat(page, base_url=base_url, click_new_chat=click_new)
+        _open_fresh_chat(page, base_url=base_url)
         page.wait_for_timeout(500)
         last_reason = _probe_blank_chat_reason(page, prior_conversation_id=prior_id)
         if not last_reason:
             logger.info(
-                "blank chat ready attempt=%s url=%s prior_id=%s clicked_new=%s",
+                "blank chat ready attempt=%s url=%s prior_id=%s",
                 attempt,
                 page.url,
                 prior_id or "-",
-                click_new,
             )
             return
         logger.warning(
@@ -72,36 +67,41 @@ def _ensure_blank_chat(page: Any, *, base_url: str, attempts: int = 2) -> None:
     )
 
 
-def _open_fresh_chat(page: Any, *, base_url: str, click_new_chat: bool = True) -> None:
-    """Navigate to chat landing; click 新对话 only when requested or still on a thread."""
-    target = (base_url or sel.CHAT_URL).strip() or sel.CHAT_URL
-
-    # Already on blank /chat/ and caller does not force refresh → skip 新对话, still leave 工作.
-    if not click_new_chat and not conversation_id_from_url(page.url or ""):
-        logger.info("blank chat landing already (empty conversation_id); skip 新对话 url=%s", page.url)
-        _ensure_chat_mode(page)
-        return
-
+def _click_new_chat(page: Any) -> bool:
     try:
-        page.goto(target, wait_until="domcontentloaded")
-        page.wait_for_timeout(400)
+        page.get_by_role("button", name=sel.NEW_CHAT_NAME).first.wait_for(
+            state="visible", timeout=5_000
+        )
     except Exception:
-        logger.debug("goto chat landing failed", exc_info=True)
-
-    # After goto landing with empty id and not forcing click → still switch off 工作.
-    if not click_new_chat and not conversation_id_from_url(page.url or ""):
-        _ensure_chat_mode(page)
-        return
-
+        pass
     btn = page.get_by_role("button", name=sel.NEW_CHAT_NAME)
     if btn.count() == 0:
         btn = page.get_by_text(sel.NEW_CHAT_NAME)
-    if btn.count() > 0:
+    if btn.count() == 0:
+        logger.warning("doubao 新对话 button not found url=%s", page.url)
+        return False
+    try:
+        btn.first.click(timeout=5_000)
+        page.wait_for_timeout(600)
+        logger.info("doubao clicked 新对话 url=%s", page.url)
+        return True
+    except Exception:
+        logger.debug("new chat click skipped", exc_info=True)
+        return False
+
+
+def _open_fresh_chat(page: Any, *, base_url: str) -> None:
+    """Land on /chat, click「新对话」, then switch to「对话」if still on「工作」."""
+    target = (base_url or sel.CHAT_URL).strip() or sel.CHAT_URL
+
+    if conversation_id_from_url(page.url or ""):
         try:
-            btn.first.click(timeout=5_000)
-            page.wait_for_timeout(600)
+            page.goto(target, wait_until="domcontentloaded")
+            page.wait_for_timeout(400)
         except Exception:
-            logger.debug("new chat click skipped", exc_info=True)
+            logger.debug("goto chat landing failed", exc_info=True)
+
+    _click_new_chat(page)
 
     # If still on a concrete thread URL, force landing again (stronger than click alone).
     if conversation_id_from_url(page.url or ""):
@@ -110,6 +110,7 @@ def _open_fresh_chat(page: Any, *, base_url: str, click_new_chat: bool = True) -
             page.wait_for_timeout(400)
         except Exception:
             logger.debug("second goto blank chat failed", exc_info=True)
+
     _ensure_chat_mode(page)
 
 
