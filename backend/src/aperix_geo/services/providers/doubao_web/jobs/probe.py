@@ -153,7 +153,7 @@ def run_doubao_login_probe_on_page(
     seen_login = False
     try:
         page.goto(base_url, wait_until="domcontentloaded", timeout=timeout_ms)
-        wait_until_logged_in(page)
+        wait_until_logged_in(page, base_url=base_url)
         seen_login = True
         assert_no_captcha(page)
 
@@ -162,7 +162,7 @@ def run_doubao_login_probe_on_page(
         assert_no_captcha(page)
 
         prior_conv = conversation_id_from_url(page.url or "")
-        ui_flow._fill_and_send(page, prompt)
+        ui_flow._fill_and_send(page, prompt, base_url=base_url)
         assert_no_captcha(page)
 
         deadline = time.monotonic() + max(8.0, send_wait_s)

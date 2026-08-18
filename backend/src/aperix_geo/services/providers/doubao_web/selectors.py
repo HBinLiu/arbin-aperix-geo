@@ -12,6 +12,9 @@ NEW_CHAT_NAME = re.compile(r"新对话|新聊天|新建对话|开启新对话")
 # Landing /chat may default to「工作」; sample/probe must switch to「对话」first.
 CHAT_TAB_NAME = re.compile(r"^对话$")
 WORK_TAB_NAME = re.compile(r"^工作$")
+WORK_LANDING_HINT = re.compile(r"今天有什么工作要处理")
+# Transient Doubao toast; page often loses the composer until reload.
+SYSTEM_ERROR_HINT = re.compile(r"系统异常")
 SEND_NAME = re.compile(r"发送消息|^\s*发送\s*$")
 STOP_NAME = re.compile(r"停止生成|停止回答|停止输出|^停止$|Stop generating")
 SHARE_NAME = re.compile(r"^\s*分享\s*$")

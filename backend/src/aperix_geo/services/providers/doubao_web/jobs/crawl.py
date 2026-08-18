@@ -86,11 +86,11 @@ def run_doubao_browser_crawl_on_page(
     try:
         crawl_deadline = time.monotonic() + settings.doubao_crawl_timeout_s
         page.goto(base_url, wait_until="domcontentloaded", timeout=timeout_ms)
-        wait_until_logged_in(page)
+        wait_until_logged_in(page, base_url=base_url)
         assert_no_captcha(page)
         ui_flow._ensure_blank_chat(page, base_url=base_url)
         prior_conv = conversation_id_from_url(page.url or "")
-        ui_flow._fill_and_send(page, prompt)
+        ui_flow._fill_and_send(page, prompt, base_url=base_url)
         assert_no_captcha(page)
         # Fail fast if Doubao never created a thread / started generating.
         send_deadline = min(crawl_deadline, time.monotonic() + 25.0)

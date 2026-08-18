@@ -24,7 +24,12 @@ from aperix_geo.services.providers.doubao_web.extract import (
     panel_present,
     pick_share_url,
 )
-from aperix_geo.services.providers.doubao_web.runtime import assert_no_captcha
+from aperix_geo.services.providers.doubao_web.runtime import (
+    assert_no_captcha,
+    ensure_chat_mode as _ensure_chat_mode,
+    page_has_system_error,
+    wait_for_composer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,43 +70,6 @@ def _ensure_blank_chat(page: Any, *, base_url: str, attempts: int = 2) -> None:
     raise DoubaoCrawlError(
         f"failed to open blank chat after {attempts} attempts: {last_reason}"
     )
-
-
-def _chat_tab(page: Any) -> Any:
-    try:
-        tab = page.get_by_role("button", name=sel.CHAT_TAB_NAME)
-        if tab.count() > 0:
-            return tab.first
-    except Exception:
-        pass
-    try:
-        labeled = page.locator("button").filter(has_text=sel.CHAT_TAB_NAME)
-        if labeled.count() > 0:
-            return labeled.first
-    except Exception:
-        pass
-    return None
-
-
-def _ensure_chat_mode(page: Any) -> None:
-    """Landing /chat can sit on「工作」; click「对话」before composing."""
-    try:
-        page.get_by_role("button", name=sel.WORK_TAB_NAME).first.wait_for(
-            state="visible", timeout=4_000
-        )
-    except Exception:
-        logger.debug("doubao 工作/对话 toggle not present url=%s", page.url)
-        return
-    tab = _chat_tab(page)
-    if tab is None:
-        logger.warning("doubao work tab visible but 对话 button not found url=%s", page.url)
-        return
-    try:
-        tab.click(timeout=5_000)
-        page.wait_for_timeout(500)
-        logger.info("doubao switched to 对话 tab url=%s", page.url)
-    except Exception:
-        logger.debug("doubao 对话 tab click skipped", exc_info=True)
 
 
 def _open_fresh_chat(page: Any, *, base_url: str, click_new_chat: bool = True) -> None:
@@ -184,20 +152,13 @@ def _probe_blank_chat_reason(page: Any, *, prior_conversation_id: str) -> str:
 
 
 def _composer(page: Any) -> Any | None:
-    for css in sel.COMPOSER_SELECTORS:
-        loc = page.locator(css)
-        if loc.count() > 0:
-            return loc.first
-    role = page.get_by_role("textbox")
-    if role.count() > 0:
-        return role.last
-    return None
+    from aperix_geo.services.providers.doubao_web.runtime import _composer as _visible_composer
+
+    return _visible_composer(page)
 
 
-def _fill_and_send(page: Any, prompt: str) -> None:
-    box = _composer(page)
-    if box is None:
-        raise DoubaoCrawlError("chat composer not found")
+def _fill_and_send(page: Any, prompt: str, *, base_url: str = "") -> None:
+    box = wait_for_composer(page, base_url=base_url)
     box.click()
     try:
         box.fill("")
@@ -237,6 +198,8 @@ def _page_debug_summary(page: Any) -> str:
     md_n = 0
     action = False
     captcha = False
+    system_error = False
+    composer = False
     body_head = ""
     try:
         stop = _stop_button_visible(page)
@@ -261,13 +224,22 @@ def _page_debug_summary(page: Any) -> str:
     except Exception:
         pass
     try:
+        system_error = bool(page_has_system_error(page))
+    except Exception:
+        pass
+    try:
+        composer = _composer(page) is not None
+    except Exception:
+        pass
+    try:
         body_head = (page.locator("body").inner_text(timeout=1_500) or "").strip()
         body_head = re.sub(r"\s+", " ", body_head)[:240]
     except Exception:
         body_head = ""
     return (
         f"url={url!r} conv_id={conv or '-'} stop={stop} streaming={streaming} "
-        f"md_box={md_n} action_bar={action} captcha={captcha} body={body_head!r}"
+        f"md_box={md_n} action_bar={action} composer={composer} "
+        f"captcha={captcha} system_error={system_error} body={body_head!r}"
     )
 
 

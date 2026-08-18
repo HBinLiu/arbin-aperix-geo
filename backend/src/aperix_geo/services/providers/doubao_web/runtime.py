@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import time
 from typing import Any, Literal, NoReturn
@@ -16,6 +17,11 @@ from aperix_geo.services.providers.doubao_web.errors import (
     DoubaoShareError,
 )
 from aperix_geo.services.providers.doubao_web.extract import page_looks_like_captcha
+
+logger = logging.getLogger(__name__)
+
+_SYSTEM_ERROR_RELOADS = 2
+_STUCK_COMPOSER_RELOAD_S = 8.0
 
 # --- modes ---
 
@@ -154,15 +160,169 @@ def is_human_ops_job(job: dict[str, Any]) -> bool:
 # --- page guards ---
 
 
+def _locator_is_visible(loc: Any) -> bool:
+    try:
+        vis = loc.is_visible()
+    except Exception:
+        return True
+    return vis if isinstance(vis, bool) else True
+
+
 def _composer(page: Any) -> Any | None:
-    for css in sel.COMPOSER_SELECTORS:
-        loc = page.locator(css)
-        if loc.count() > 0:
-            return loc.first
-    role = page.get_by_role("textbox")
-    if role.count() > 0:
-        return role.last
+    """Visible chat input only — hidden work-mode leftovers do not count."""
+    try:
+        for css in sel.COMPOSER_SELECTORS:
+            loc = page.locator(css)
+            n = min(int(loc.count()), 8)
+            for i in range(n):
+                el = loc.nth(i)
+                if _locator_is_visible(el):
+                    return el
+        role = page.get_by_role("textbox")
+        n = min(int(role.count()), 8)
+        found = None
+        for i in range(max(n, 0)):
+            el = role.nth(i)
+            if _locator_is_visible(el):
+                found = el
+        if found is not None:
+            return found
+    except Exception:
+        return None
     return None
+
+
+def page_has_system_error(page: Any) -> bool:
+    try:
+        body = page.locator("body").inner_text(timeout=1_500) or ""
+    except Exception:
+        return False
+    return bool(sel.SYSTEM_ERROR_HINT.search(body))
+
+
+def recover_system_error(page: Any, *, base_url: str = "") -> bool:
+    """Reload /chat when Doubao toasts「系统异常」(composer usually gone)."""
+    if not page_has_system_error(page):
+        return False
+    target = (base_url or "").strip() or sel.CHAT_URL
+    logger.warning("doubao 系统异常; reloading %s", target)
+    try:
+        page.goto(target, wait_until="domcontentloaded")
+        page.wait_for_timeout(1_000)
+    except Exception:
+        logger.debug("goto after 系统异常 failed", exc_info=True)
+        try:
+            page.reload(wait_until="domcontentloaded")
+            page.wait_for_timeout(1_000)
+        except Exception:
+            logger.debug("reload after 系统异常 failed", exc_info=True)
+    return True
+
+
+def _chat_tab(page: Any) -> Any:
+    try:
+        tab = page.get_by_role("button", name=sel.CHAT_TAB_NAME)
+        if tab.count() > 0:
+            return tab.first
+    except Exception:
+        pass
+    try:
+        labeled = page.locator("button").filter(has_text=sel.CHAT_TAB_NAME)
+        if labeled.count() > 0:
+            return labeled.first
+    except Exception:
+        pass
+    return None
+
+
+def _work_landing_visible(page: Any) -> bool:
+    try:
+        loc = page.get_by_text(sel.WORK_LANDING_HINT)
+        n = min(int(loc.count()), 4)
+        for i in range(n):
+            if _locator_is_visible(loc.nth(i)):
+                return True
+    except Exception:
+        return False
+    return False
+
+
+def _chat_tab_needs_click(page: Any) -> bool:
+    if _work_landing_visible(page):
+        return True
+    tab = _chat_tab(page)
+    if tab is None:
+        return False
+    try:
+        pressed = (
+            (tab.get_attribute("aria-pressed") or "")
+            or (tab.get_attribute("aria-selected") or "")
+        ).strip().lower()
+        if pressed in ("true", "1"):
+            return False
+        if pressed in ("false", "0"):
+            return True
+    except Exception:
+        pass
+    try:
+        cls = tab.get_attribute("class") or ""
+    except Exception:
+        cls = ""
+    if "text-secondary" in cls:
+        return True
+    if "text-primary" in cls:
+        return False
+    return _composer(page) is None
+
+
+def ensure_chat_mode(page: Any, *, wait_ms: int = 4_000) -> bool:
+    """Click「对话」when landing is on「工作」. True if a click happened."""
+    if wait_ms > 0:
+        try:
+            page.get_by_role("button", name=sel.WORK_TAB_NAME).first.wait_for(
+                state="visible", timeout=wait_ms
+            )
+        except Exception:
+            pass
+    if not _chat_tab_needs_click(page):
+        return False
+    tab = _chat_tab(page)
+    if tab is None:
+        logger.warning("doubao work landing but 对话 button not found url=%s", page.url)
+        return False
+    try:
+        tab.click(timeout=5_000)
+        page.wait_for_timeout(600)
+        logger.info("doubao switched to 对话 tab url=%s", page.url)
+        return True
+    except Exception:
+        logger.debug("doubao 对话 tab click skipped", exc_info=True)
+        return False
+
+
+def wait_for_composer(
+    page: Any, *, timeout_s: float = 12.0, base_url: str = ""
+) -> Any:
+    """Wait until the visible chat input exists; reload once on「系统异常」."""
+    deadline = time.monotonic() + max(0.5, float(timeout_s))
+    reloads = 0
+    target = (base_url or "").strip() or sel.CHAT_URL
+    while time.monotonic() < deadline:
+        if recover_system_error(page, base_url=target):
+            reloads += 1
+            if reloads > _SYSTEM_ERROR_RELOADS:
+                raise DoubaoCrawlError(
+                    "chat composer not found (系统异常)", session_alive=True
+                )
+        try:
+            ensure_chat_mode(page, wait_ms=0)
+        except Exception:
+            logger.debug("ensure_chat_mode while waiting composer failed", exc_info=True)
+        box = _composer(page)
+        if box is not None:
+            return box
+        page.wait_for_timeout(400)
+    raise DoubaoCrawlError("chat composer not found", session_alive=True)
 
 
 def _visible_login_reason(page: Any) -> str:
@@ -222,7 +382,9 @@ def inspect_login(page: Any) -> tuple[str, str]:
     return "ok", ""
 
 
-def wait_until_logged_in(page: Any, *, timeout_s: float = 20.0) -> None:
+def wait_until_logged_in(
+    page: Any, *, timeout_s: float = 20.0, base_url: str = ""
+) -> None:
     """Wait for session hydrate after goto; fail immediately on passport / ``/login``.
 
     Guest chrome can flash「登录」on ``/chat/`` before cookies apply. A real
@@ -230,6 +392,8 @@ def wait_until_logged_in(page: Any, *, timeout_s: float = 20.0) -> None:
 
     A slow blank shell (no composer, no login CTA) is **not** login expiry:
     timeout raises ``DoubaoCrawlError`` so heartbeat keeps the cookie jar.
+    Work-mode landing has no chat input — switch to「对话」while waiting.
+    「系统异常」toasts are reloaded, not treated as login expiry.
     """
     if chat_url_is_logged_out(page.url or ""):
         raise DoubaoLoginExpired(f"redirected to login: {page.url}")
@@ -242,8 +406,28 @@ def wait_until_logged_in(page: Any, *, timeout_s: float = 20.0) -> None:
         if chat_url_is_logged_out(page.url or ""):
             raise DoubaoLoginExpired(f"redirected to login: {page.url}")
     deadline = time.monotonic() + max(0.5, float(timeout_s))
+    started = time.monotonic()
     last: BaseException | None = None
+    reloads = 0
+    target = (base_url or "").strip() or sel.CHAT_URL
     while time.monotonic() < deadline:
+        if chat_url_is_logged_out(page.url or ""):
+            raise DoubaoLoginExpired(f"redirected to login: {page.url}")
+        try:
+            if recover_system_error(page, base_url=target):
+                reloads += 1
+                last = DoubaoCrawlError("doubao 系统异常", session_alive=True)
+                if reloads > _SYSTEM_ERROR_RELOADS:
+                    raise last
+                continue
+        except DoubaoCrawlError:
+            raise
+        except Exception:
+            logger.debug("system-error recovery skipped", exc_info=True)
+        try:
+            ensure_chat_mode(page, wait_ms=0)
+        except Exception:
+            logger.debug("ensure_chat_mode during login wait failed", exc_info=True)
         try:
             assert_logged_in(page)
             return
@@ -253,6 +437,20 @@ def wait_until_logged_in(page: Any, *, timeout_s: float = 20.0) -> None:
                 raise
         except DoubaoCrawlError as exc:
             last = exc
+            stuck = time.monotonic() - started >= _STUCK_COMPOSER_RELOAD_S
+            if reloads < _SYSTEM_ERROR_RELOADS and stuck and "composer" in str(exc).lower():
+                logger.warning(
+                    "composer still missing after %.0fs; reloading %s",
+                    time.monotonic() - started,
+                    target,
+                )
+                try:
+                    page.goto(target, wait_until="domcontentloaded")
+                    page.wait_for_timeout(800)
+                    reloads += 1
+                    started = time.monotonic()
+                except Exception:
+                    logger.debug("stuck-composer reload failed", exc_info=True)
         try:
             page.wait_for_timeout(400)
         except Exception as wait_exc:
