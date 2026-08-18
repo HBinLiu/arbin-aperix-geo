@@ -4,17 +4,18 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from aperix_geo.services.geo_web_crawl import browser_pool
 from aperix_geo.services.geo_web_crawl.registry import ensure_handlers_loaded, get_handler
-from aperix_geo.services.geo_web_crawl.result import crawl_fail
+from aperix_geo.services.geo_web_crawl.result import context_timeout_ms, crawl_fail
 
 logger = logging.getLogger(__name__)
 
 _executor: ThreadPoolExecutor | None = None
-_executor_lock = __import__("threading").Lock()
+_executor_lock = threading.Lock()
 
 
 def _concurrency() -> int:
@@ -46,10 +47,6 @@ def shutdown_executor() -> None:
     browser_pool.shutdown_all_browsers()
 
 
-def _default_context_timeout_ms(timeout_s: float) -> int:
-    return max(10_000, min(900_000, int(float(timeout_s) * 1000)))
-
-
 def _run_job_sync(payload: dict[str, Any]) -> dict[str, Any]:
     ensure_handlers_loaded()
     platform = str(payload.get("platform") or "doubao").strip().lower() or "doubao"
@@ -65,7 +62,7 @@ def _run_job_sync(payload: dict[str, Any]) -> dict[str, Any]:
         return crawl_fail("storage_state missing")
 
     timeout_s = float(payload.get("timeout_s") or 120)
-    timeout_ms = _default_context_timeout_ms(timeout_s)
+    timeout_ms = context_timeout_ms(timeout_s)
     headless = payload.get("headless")
     headless_b = None if headless is None else bool(headless)
 

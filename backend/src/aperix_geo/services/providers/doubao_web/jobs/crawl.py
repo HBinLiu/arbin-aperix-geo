@@ -7,12 +7,11 @@ import time
 from typing import Any
 
 from aperix_geo.config import Settings
-from aperix_geo.services.crawl_accounts.session_cookies import cookies_only_storage_state
+from aperix_geo.services.crawl_accounts.session_cookies import storage_state_from_context
 from aperix_geo.services.providers.doubao_web import selectors as sel
 from aperix_geo.services.providers.doubao_web.errors import (
     DoubaoCrawlError,
     DoubaoNeedsHumanOps,
-    DoubaoShareError,
 )
 from aperix_geo.services.providers.doubao_web.extract import (
     clean_assistant_text,
@@ -114,16 +113,7 @@ def run_doubao_browser_crawl_on_page(
 
         source_urls = filter_http_urls(list(panel_hrefs) + list(extract_urls(panel_text)))
 
-        share_url = ""
-        share_error: Exception | None = None
-        try:
-            share_url = ui_flow.capture_share_url(page)
-        except Exception as exc:  # noqa: BLE001
-            share_error = exc
-        if not share_url:
-            raise DoubaoShareError(
-                f"share_url required but missing: {share_error or 'empty'}"
-            ) from share_error
+        share_url = ui_flow.try_capture_share_url(page)
 
         return job_ok(
             text=text.strip(),
@@ -131,10 +121,12 @@ def run_doubao_browser_crawl_on_page(
             source_urls=list(source_urls),
             search_queries=list(queries),
             share_url=share_url,
-            storage_state=cookies_only_storage_state(context.storage_state()),
+            storage_state=storage_state_from_context(
+                context, fallback=storage_state, log_event="crawl"
+            ),
         )
     except DoubaoNeedsHumanOps as exc:
-        return job_error(exc, human_ops=True, **_EMPTY)
+        return job_error(exc, **_EMPTY)
     except DoubaoCrawlError as exc:
         return job_error(exc, **_EMPTY)
     except Exception as exc:  # noqa: BLE001

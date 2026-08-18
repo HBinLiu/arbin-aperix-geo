@@ -34,7 +34,7 @@ def main(argv: list[str] | None = None) -> int:
         "--mode",
         choices=mode_choices,
         default="crawl",
-        help="Job mode (see doubao_web.modes)",
+        help="Job mode (see doubao_web.runtime)",
     )
     args = parser.parse_args(argv)
 

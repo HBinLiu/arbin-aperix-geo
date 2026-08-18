@@ -149,3 +149,29 @@ def test_run_doubao_account_crawl_busy_never_api(mock_slot, mock_session):
         raise AssertionError("expected CrawlCapacityBusy")
     except CrawlCapacityBusy:
         pass
+
+
+@patch("aperix_geo.services.sampling.llm._doubao_api_chat")
+@patch("aperix_geo.services.providers.doubao_web.crawler.crawl_doubao_chat")
+@patch("aperix_geo.db.session.SessionLocal")
+@patch("aperix_geo.services.sampling.crawl_capacity.crawl_capacity_slot")
+def test_run_doubao_account_crawl_releases_slot_before_api_fallback(
+    mock_slot, mock_session, mock_crawl, mock_api
+):
+    from aperix_geo.services.providers.doubao_web.errors import DoubaoCrawlError
+    from aperix_geo.services.sampling.llm import run_doubao_account_crawl
+
+    slot = MagicMock()
+    mock_slot.return_value = slot
+    mock_session.return_value = MagicMock()
+    mock_crawl.side_effect = DoubaoCrawlError("page closed")
+
+    def _api(*_a, **_k):
+        slot.__exit__.assert_called_once()
+        return SamplingChatResult(text="api", usage={}, latency_ms=1)
+
+    mock_api.side_effect = _api
+    s = _settings(doubao_api_key="sk-b", doubao_sampling_mode="crawl_first")
+    result = run_doubao_account_crawl([{"role": "user", "content": "hi"}], settings=s)
+    assert result.text == "api"
+    assert slot.__exit__.call_count == 1

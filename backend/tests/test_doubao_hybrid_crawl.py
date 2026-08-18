@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from aperix_geo.config import Settings
-from aperix_geo.services.providers.doubao_web.errors import DoubaoShareError
+from aperix_geo.services.providers.doubao_web.errors import DoubaoLoginExpired
 from aperix_geo.services.providers.doubao_web.hybrid_crawl import hybrid_crawl_doubao_chat
 from aperix_geo.services.providers.result import SamplingChatResult
 
@@ -62,7 +64,7 @@ def test_hybrid_success(mock_load, mock_http, mock_spawn, mock_db):
 @patch(
     "aperix_geo.services.providers.doubao_web.accounts.load_storage_state_from_file"
 )
-def test_hybrid_share_failure(mock_load, mock_http, mock_spawn, mock_db):
+def test_hybrid_share_failure_keeps_http_body(mock_load, mock_http, mock_spawn, mock_db):
     mock_load.return_value = {"cookies": [{"name": "sessionid", "value": "x"}]}
     mock_http.return_value = {
         "ok": True,
@@ -80,12 +82,46 @@ def test_hybrid_share_failure(mock_load, mock_http, mock_spawn, mock_db):
     }
     mock_db.return_value = MagicMock()
 
-    try:
+    result = hybrid_crawl_doubao_chat(
+        [{"role": "user", "content": "hi"}],
+        settings=_settings(),
+        use_account_pool=False,
+    )
+    assert isinstance(result, SamplingChatResult)
+    assert result.text == "正文"
+    assert result.share_url == ""
+    share_payload = mock_spawn.call_args[0][0]
+    names = {c.get("name") for c in share_payload["storage_state"]["cookies"]}
+    assert "sessionid" in names
+
+
+@patch("aperix_geo.db.session.SessionLocal")
+@patch("aperix_geo.services.geo_web_crawl.spawn.run_geo_web_crawl_spawn")
+@patch("aperix_geo.services.providers.doubao_web.hybrid_crawl.complete_web_http")
+@patch(
+    "aperix_geo.services.providers.doubao_web.accounts.load_storage_state_from_file"
+)
+def test_hybrid_share_human_ops_still_fails(mock_load, mock_http, mock_spawn, mock_db):
+    mock_load.return_value = {"cookies": [{"name": "sessionid", "value": "x"}]}
+    mock_http.return_value = {
+        "ok": True,
+        "text": "正文",
+        "search_queries": [],
+        "source_urls": [],
+        "conversation_id": "cid-1",
+        "storage_state": {"cookies": []},
+    }
+    mock_spawn.return_value = {
+        "ok": False,
+        "error_type": "DoubaoLoginExpired",
+        "error": "redirected to login",
+        "human_ops": True,
+    }
+    mock_db.return_value = MagicMock()
+
+    with pytest.raises(DoubaoLoginExpired):
         hybrid_crawl_doubao_chat(
             [{"role": "user", "content": "hi"}],
             settings=_settings(),
             use_account_pool=False,
         )
-        assert False, "expected DoubaoShareError"
-    except DoubaoShareError:
-        pass

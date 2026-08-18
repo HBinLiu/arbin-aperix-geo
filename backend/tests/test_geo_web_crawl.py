@@ -332,3 +332,31 @@ def test_page_session_browserless_connect(monkeypatch) -> None:
     assert not playwright.chromium.connect_over_cdp.called
     context.close.assert_called()
     browser.close.assert_called()
+
+
+def test_open_browser_context_add_cookies_when_storage_state_dropped() -> None:
+    from aperix_geo.services.geo_web_crawl.browser_pool import open_browser_context
+
+    browser = MagicMock()
+    context = MagicMock()
+    browser.new_context.return_value = context
+    context.cookies.side_effect = [[], [{"name": "sessionid", "value": "x"}]]
+
+    state = {
+        "cookies": [
+            {
+                "name": "sessionid",
+                "value": "x",
+                "domain": ".doubao.com",
+                "path": "/",
+                "expires": -1,
+                "sameSite": "Lax",
+            }
+        ]
+    }
+    got = open_browser_context(browser, storage_state=state, timeout_ms=5000)
+    assert got is context
+    context.add_cookies.assert_called_once()
+    injected = context.add_cookies.call_args[0][0]
+    assert injected[0]["name"] == "sessionid"
+    assert "expires" not in injected[0]

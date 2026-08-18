@@ -882,6 +882,15 @@ def capture_share_url(page: Any) -> str:
     return url
 
 
+def try_capture_share_url(page: Any) -> str:
+    """Best-effort share URL; empty string when the control/clipboard path fails."""
+    try:
+        return (capture_share_url(page) or "").strip()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("doubao share_url capture failed: %s", exc)
+        return ""
+
+
 def _stop_generation_if_running(page: Any) -> None:
     if not _stop_button_visible(page):
         return

@@ -146,9 +146,12 @@ def run_doubao_account_crawl(
     )
 
     db = SessionLocal()
+    slot_cm = None
+    slot_held = False
     try:
         slot_cm = crawl_capacity_slot(db, "doubao", settings=settings)
         slot_cm.__enter__()
+        slot_held = True
     except CrawlPoolEmpty as exc:
         db.close()
         logger.warning(
@@ -173,6 +176,13 @@ def run_doubao_account_crawl(
     else:
         db.close()
 
+    def _drop_slot() -> None:
+        nonlocal slot_held
+        if slot_cm is None or not slot_held:
+            return
+        slot_held = False
+        slot_cm.__exit__(None, None, None)
+
     try:
         try:
             return crawl_doubao_chat(messages, settings=settings)
@@ -189,6 +199,7 @@ def run_doubao_account_crawl(
                     "doubao_crawl_fallback reason=api_fallback mode=crawl_first "
                     "cause=human_ops event=sampling_crawl_lane"
                 )
+                _drop_slot()
                 return _doubao_api_chat(messages, settings)
             raise SamplingLLMError(str(exc), retryable=False) from exc
         except DoubaoCrawlError as exc:
@@ -203,10 +214,11 @@ def run_doubao_account_crawl(
                     "doubao_crawl_fallback reason=api_fallback mode=crawl_first "
                     "cause=crawl_error event=sampling_crawl_lane"
                 )
+                _drop_slot()
                 return _doubao_api_chat(messages, settings)
             raise SamplingLLMError(str(exc), retryable=False) from exc
     finally:
-        slot_cm.__exit__(None, None, None)
+        _drop_slot()
 
 
 def _deepseek_chat(settings: Settings) -> Callable[[list[dict[str, str]]], SamplingChatResult]:

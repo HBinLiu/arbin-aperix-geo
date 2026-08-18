@@ -8,7 +8,7 @@ from typing import Any
 
 from aperix_geo.config import Settings
 from aperix_geo.services.crawl_accounts.session_cookies import (
-    cookies_only_storage_state,
+    storage_state_from_context,
     storage_state_has_session_cookies,
 )
 from aperix_geo.services.providers.doubao_web import selectors as sel
@@ -37,21 +37,17 @@ def build_probe_payload(
     settings: Settings,
 ) -> dict[str, Any]:
     # Heartbeat must prove a real session: always light-send (setting only tunes prompt/wait).
-    send_probe = True
     timeout_s = min(90.0, float(settings.doubao_crawl_timeout_s))
     prompt = (settings.doubao_heartbeat_probe_prompt or "").strip() or _DEFAULT_PROBE_PROMPT
-    send_wait_s = float(settings.doubao_heartbeat_send_wait_s)
     return {
         "mode": "probe",
         "storage_state": storage_state,
         "timeout_s": timeout_s,
         "chat_base_url": (settings.doubao_chat_base_url or sel.CHAT_URL).strip() or sel.CHAT_URL,
         "headless": bool(settings.doubao_crawl_headless),
-        "send_probe": send_probe,
+        "send_probe": True,
         "probe_prompt": prompt,
-        "send_wait_s": send_wait_s,
-        # Soft flag kept for logs / future; probe ignores false.
-        "send_probe_configured": bool(settings.doubao_heartbeat_send_probe),
+        "send_wait_s": float(settings.doubao_heartbeat_send_wait_s),
     }
 
 
@@ -101,13 +97,22 @@ def _cleanup_probe_conversation(page: Any, *, had_conversation: bool) -> None:
         logger.warning("probe conversation cleanup ignored: %s", exc)
 
 
-def _final_storage_state(context: Any) -> dict[str, Any]:
-    state = cookies_only_storage_state(context.storage_state())
-    if not storage_state_has_session_cookies(state):
-        raise DoubaoLoginExpired(
-            "probe finished but storage_state lost Doubao session cookies"
-        )
-    return state
+def _try_cleanup_probe_after_failure(page: Any, *, probe_conv_id: str) -> None:
+    if not (probe_conv_id or conversation_id_from_url(getattr(page, "url", "") or "")):
+        return
+    try:
+        _cleanup_probe_conversation(page, had_conversation=True)
+    except Exception:
+        logger.warning("probe cleanup after failure failed", exc_info=True)
+
+
+def _final_storage_state(context: Any, *, fallback: dict[str, Any]) -> dict[str, Any]:
+    state = storage_state_from_context(context, fallback=fallback, log_event="probe")
+    if storage_state_has_session_cookies(state):
+        return state
+    raise DoubaoLoginExpired(
+        "probe finished but storage_state lost Doubao session cookies"
+    )
 
 
 def run_doubao_login_probe_on_page(
@@ -126,7 +131,6 @@ def run_doubao_login_probe_on_page(
     if not storage_state_has_session_cookies(storage_state):
         return job_error(
             DoubaoLoginExpired("storage_state missing Doubao session cookies"),
-            human_ops=True,
         )
 
     base_url = str(payload.get("chat_base_url") or sel.CHAT_URL).strip() or sel.CHAT_URL
@@ -136,9 +140,11 @@ def run_doubao_login_probe_on_page(
     send_wait_s = float(payload.get("send_wait_s") or 20.0)
 
     probe_conv_id = ""
+    seen_login = False
     try:
         page.goto(base_url, wait_until="domcontentloaded", timeout=timeout_ms)
         assert_logged_in(page)
+        seen_login = True
         assert_no_captcha(page)
 
         ui_flow._ensure_blank_chat(page, base_url=base_url)
@@ -170,32 +176,14 @@ def run_doubao_login_probe_on_page(
         _cleanup_probe_conversation(page, had_conversation=True)
         assert_logged_in(page)
 
-        return job_ok(storage_state=_final_storage_state(context))
+        return job_ok(storage_state=_final_storage_state(context, fallback=storage_state))
     except DoubaoNeedsHumanOps as exc:
-        if probe_conv_id or conversation_id_from_url(getattr(page, "url", "") or ""):
-            try:
-                _cleanup_probe_conversation(page, had_conversation=True)
-            except Exception:
-                logger.warning(
-                    "probe cleanup after human_ops failed conv=%s",
-                    probe_conv_id or "-",
-                    exc_info=True,
-                )
-        return job_error(exc, human_ops=True)
+        _try_cleanup_probe_after_failure(page, probe_conv_id=probe_conv_id)
+        return job_error(exc, session_alive=seen_login)
     except DoubaoCrawlError as exc:
-        if probe_conv_id or conversation_id_from_url(getattr(page, "url", "") or ""):
-            try:
-                _cleanup_probe_conversation(page, had_conversation=True)
-            except Exception:
-                logger.warning("probe cleanup after error failed", exc_info=True)
-        # Treat "could not really chat" as session unusable for ops routing.
-        human = isinstance(exc, DoubaoLoginExpired) or "login" in str(exc).lower()
-        return job_error(exc, human_ops=human or "from_logout" in str(exc).lower())
+        _try_cleanup_probe_after_failure(page, probe_conv_id=probe_conv_id)
+        return job_error(exc, session_alive=seen_login)
     except Exception as exc:  # noqa: BLE001
         logger.exception("doubao login probe unexpected error")
-        if probe_conv_id:
-            try:
-                _cleanup_probe_conversation(page, had_conversation=True)
-            except Exception:
-                logger.warning("probe cleanup after unexpected error failed", exc_info=True)
-        return job_error(exc)
+        _try_cleanup_probe_after_failure(page, probe_conv_id=probe_conv_id)
+        return job_error(exc, session_alive=seen_login)

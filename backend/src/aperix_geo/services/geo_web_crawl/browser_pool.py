@@ -111,17 +111,74 @@ def shutdown_all_browsers() -> None:
     _teardown_thread_browser()
 
 
-def _open_context(browser: Any, *, storage_state: dict[str, Any], timeout_ms: int) -> Any:
-    context = browser.new_context(
-        storage_state=storage_state,
-        locale="zh-CN",
-        viewport={"width": 1440, "height": 900},
+def _cookie_names(cookies: object) -> set[str]:
+    names: set[str] = set()
+    if not isinstance(cookies, list):
+        return names
+    for cookie in cookies:
+        if isinstance(cookie, dict):
+            name = str(cookie.get("name") or "")
+            if name:
+                names.add(name)
+    return names
+
+
+def open_browser_context(
+    browser: Any,
+    *,
+    storage_state: dict[str, Any],
+    timeout_ms: int,
+) -> Any:
+    """Create a context and force-apply cookies (CDP/Browserless often drops storage_state)."""
+    from aperix_geo.services.crawl_accounts.session_cookies import (
+        playwright_cookies_for_context,
+        playwright_storage_state_for_context,
     )
+
+    cookies = playwright_cookies_for_context(storage_state)
+    slim = playwright_storage_state_for_context(storage_state)
+    try:
+        context = browser.new_context(
+            storage_state=slim,
+            locale="zh-CN",
+            viewport={"width": 1440, "height": 900},
+        )
+    except Exception:
+        logger.warning(
+            "new_context(storage_state=) failed; retrying empty context + add_cookies",
+            exc_info=True,
+        )
+        context = browser.new_context(
+            locale="zh-CN",
+            viewport={"width": 1440, "height": 900},
+        )
     context.set_default_timeout(max(1_000, int(timeout_ms)))
     try:
         context.grant_permissions(["clipboard-read", "clipboard-write"])
     except Exception:
         logger.debug("clipboard permission grant skipped", exc_info=True)
+    if cookies:
+        applied: set[str] = set()
+        try:
+            applied = _cookie_names(context.cookies())
+        except Exception:
+            logger.debug("context.cookies() after new_context failed", exc_info=True)
+        missing = _cookie_names(cookies) - applied
+        if missing or not applied:
+            try:
+                context.add_cookies(cookies)
+                after = _cookie_names(context.cookies())
+                logger.info(
+                    "geo-web-crawl cookie inject add_cookies wanted=%s applied=%s",
+                    sorted(_cookie_names(cookies)),
+                    sorted(after),
+                )
+            except Exception:
+                logger.warning(
+                    "geo-web-crawl add_cookies failed names=%s",
+                    sorted(_cookie_names(cookies)),
+                    exc_info=True,
+                )
     return context
 
 
@@ -150,7 +207,7 @@ def _page_session_browserless(
             browser = playwright.chromium.connect(ws_url)
         else:
             browser = playwright.chromium.connect_over_cdp(ws_url)
-        context = _open_context(browser, storage_state=storage_state, timeout_ms=timeout_ms)
+        context = open_browser_context(browser, storage_state=storage_state, timeout_ms=timeout_ms)
         page = context.new_page()
         yield page, context
     finally:
@@ -178,7 +235,7 @@ def _page_session_local(
     headless: bool | None = None,
 ) -> Iterator[tuple[Any, Any]]:
     browser = _ensure_thread_browser(headless=headless)
-    context = _open_context(browser, storage_state=storage_state, timeout_ms=timeout_ms)
+    context = open_browser_context(browser, storage_state=storage_state, timeout_ms=timeout_ms)
     page = context.new_page()
     try:
         yield page, context

@@ -9,15 +9,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from aperix_geo.services.geo_web_crawl.result import crawl_fail
+from aperix_geo.services.geo_web_crawl.result import context_timeout_ms, crawl_fail
 from aperix_geo.services.providers.doubao_web.runtime import normalize_doubao_job_mode
 
 logger = logging.getLogger(__name__)
-
-
-def _default_context_timeout_ms(timeout_s: float) -> int:
-    """Playwright default timeout for the context; allow full job budget (cap 15m)."""
-    return max(10_000, min(900_000, int(float(timeout_s) * 1000)))
 
 
 def run_geo_web_cli_job(payload: dict[str, Any], *, mode: str = "crawl") -> dict[str, Any]:
@@ -41,7 +36,7 @@ def run_geo_web_cli_job(payload: dict[str, Any], *, mode: str = "crawl") -> dict
 
     headless = bool(payload.get("headless", True))
     timeout_s = float(payload.get("timeout_s") or (60 if job_mode == "probe" else 120))
-    timeout_ms = _default_context_timeout_ms(timeout_s)
+    timeout_ms = context_timeout_ms(timeout_s)
     job_payload = {**payload, "mode": job_mode, "platform": platform}
 
     try:
@@ -62,16 +57,13 @@ def run_geo_web_cli_job(payload: dict[str, Any], *, mode: str = "crawl") -> dict
                 )
             context = None
             try:
-                context = browser.new_context(
+                from aperix_geo.services.geo_web_crawl.browser_pool import open_browser_context
+
+                context = open_browser_context(
+                    browser,
                     storage_state=storage_state,
-                    locale="zh-CN",
-                    viewport={"width": 1440, "height": 900},
+                    timeout_ms=timeout_ms,
                 )
-                context.set_default_timeout(max(1_000, timeout_ms))
-                try:
-                    context.grant_permissions(["clipboard-read", "clipboard-write"])
-                except Exception:
-                    logger.debug("clipboard permission grant skipped", exc_info=True)
                 page = context.new_page()
                 logger.info(
                     "geo-web-crawl-cli: sync chromium launched platform=%s mode=%s headless=%s",

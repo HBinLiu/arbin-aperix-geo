@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -203,3 +204,28 @@ def test_load_storage_state_ok(tmp_path: Path) -> None:
     data = load_storage_state_from_file(s)
     assert data is not None
     assert len(data["cookies"]) == 1
+
+
+def test_load_storage_state_rejects_guest_cookies(tmp_path: Path) -> None:
+    path = tmp_path / "state.json"
+    path.write_text(
+        '{"cookies": [{"name": "odin_tt", "value": "guest", "domain": ".doubao.com", '
+        '"path": "/", "expires": -1, "httpOnly": false, "secure": true, "sameSite": "Lax"}]}',
+        encoding="utf-8",
+    )
+    s = Settings(doubao_crawl_storage_state_path=str(path))
+    with pytest.raises(DoubaoLoginExpired, match="session cookies"):
+        load_storage_state_from_file(s)
+
+
+@patch("aperix_geo.services.providers.doubao_web.accounts.load_storage_state_from_file")
+@patch("aperix_geo.services.providers.doubao_web.accounts.acquire_account", return_value=None)
+def test_pool_acquire_does_not_fall_back_to_file(mock_acquire, mock_file) -> None:
+    from aperix_geo.services.providers.doubao_web.accounts import DoubaoCredentialSession
+    from aperix_geo.services.providers.doubao_web.errors import DoubaoCrawlError
+
+    session = DoubaoCredentialSession(db=MagicMock(), settings=Settings())
+    with pytest.raises(DoubaoCrawlError, match="pool empty"):
+        session.acquire(use_account_pool=True)
+    mock_file.assert_not_called()
+    mock_acquire.assert_called_once()

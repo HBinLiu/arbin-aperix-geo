@@ -18,6 +18,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from aperix_geo.services.geo_web_crawl.result import crawl_fail
+
 logger = logging.getLogger(__name__)
 
 _MODULE = "aperix_geo.services.geo_web_crawl.cli"
@@ -43,26 +45,16 @@ def _ephemeral_docker_enabled() -> bool:
     }
 
 
-def _fail(message: str) -> dict[str, Any]:
-    return {
-        "ok": False,
-        "error_type": "CrawlError",
-        "error": message,
-        "human_ops": False,
-        "storage_state": None,
-    }
-
-
 def _read_result(out_path: Path, *, returncode: int, stderr: str, stdout: str) -> dict[str, Any]:
     if not out_path.is_file():
         err_tail = (stderr or stdout or "").strip()[-800:]
-        return _fail(f"crawl missing output file exit={returncode}: {err_tail}")
+        return crawl_fail(f"crawl missing output file exit={returncode}: {err_tail}")
     try:
         result = json.loads(out_path.read_text(encoding="utf-8"))
     except Exception as exc:  # noqa: BLE001
-        return _fail(f"crawl invalid output JSON: {exc}")
+        return crawl_fail(f"crawl invalid output JSON: {exc}")
     if not isinstance(result, dict):
-        return _fail(f"crawl returned non-dict: {type(result)!r}")
+        return crawl_fail(f"crawl returned non-dict: {type(result)!r}")
     if not result.get("ok"):
         logger.warning(
             "geo-web-crawl-child result ok=false type=%s err=%s exit=%s",
@@ -118,9 +110,9 @@ def _run_local_subprocess(
                 check=False,
             )
         except subprocess.TimeoutExpired:
-            return _fail(f"subprocess crawl timed out after {join_timeout:.0f}s")
+            return crawl_fail(f"subprocess crawl timed out after {join_timeout:.0f}s")
         except Exception as exc:  # noqa: BLE001
-            return _fail(f"subprocess crawl failed to start: {exc}")
+            return crawl_fail(f"subprocess crawl failed to start: {exc}")
 
         _log_child_output(
             stderr=completed.stderr or "",
@@ -147,7 +139,7 @@ def _run_docker_ephemeral(
 ) -> dict[str, Any]:
     """Emergency one-shot container (expensive; prefer resident service)."""
     if shutil.which("docker") is None:
-        return _fail("GEO_WEB_CRAWL_DOCKER_EPHEMERAL set but docker CLI not found")
+        return crawl_fail("GEO_WEB_CRAWL_DOCKER_EPHEMERAL set but docker CLI not found")
 
     shm = (os.environ.get("GEO_WEB_CRAWL_DOCKER_SHM_SIZE") or "").strip() or "1g"
     network = (os.environ.get("GEO_WEB_CRAWL_DOCKER_NETWORK") or "").strip()
@@ -213,9 +205,9 @@ def _run_docker_ephemeral(
                 )
             except Exception:
                 pass
-            return _fail(f"docker crawl timed out after {join_timeout:.0f}s image={image}")
+            return crawl_fail(f"docker crawl timed out after {join_timeout:.0f}s image={image}")
         except Exception as exc:  # noqa: BLE001
-            return _fail(f"docker crawl failed to start: {exc}")
+            return crawl_fail(f"docker crawl failed to start: {exc}")
 
         _log_child_output(
             stderr=completed.stderr or "",
@@ -224,7 +216,7 @@ def _run_docker_ephemeral(
         )
         if completed.returncode != 0 and not out_path.is_file():
             err = (completed.stderr or completed.stdout or "").strip()[-800:]
-            return _fail(f"docker crawl exit={completed.returncode}: {err}")
+            return crawl_fail(f"docker crawl exit={completed.returncode}: {err}")
 
         return _read_result(
             out_path,

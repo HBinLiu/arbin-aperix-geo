@@ -19,15 +19,23 @@ from aperix_geo.services.crawl_accounts.pool import (
     STATUS_ACTIVE,
     STATUS_LOGGING_IN,
     STATUS_NEED_RELOGIN,
-    storage_state_has_cookies,
+    clear_account_lease,
+    heartbeat_lease_ttl_s,
+    release_account,
+    try_lease_account,
 )
-from aperix_geo.services.crawl_accounts.session_cookies import cookies_only_storage_state
+from aperix_geo.services.crawl_accounts.session_cookies import (
+    cookies_only_storage_state,
+    session_cookie_names,
+    storage_state_has_session_cookies,
+)
 from aperix_geo.services.providers.doubao_web.errors import (
     DoubaoCaptchaRequired,
     DoubaoCrawlError,
     DoubaoLoginExpired,
     DoubaoNeedsHumanOps,
 )
+from aperix_geo.services.providers.doubao_web.runtime import raise_from_job, spawn_doubao_job
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +81,7 @@ def accounts_needing_heartbeat(
         status = (row.status or "").strip()
         if status in (STATUS_NEED_RELOGIN, STATUS_LOGGING_IN):
             priority.append(row)
-        elif not storage_state_has_cookies(row.storage_state, platform=plat):
+        elif not storage_state_has_session_cookies(row.storage_state, platform=plat):
             priority.append(row)
         elif status == STATUS_ACTIVE and row.last_ok_at < stale_before:
             stale.append(row)
@@ -137,30 +145,50 @@ def run_crawl_account_heartbeat(
         ).all()
     )
     rows = accounts_needing_heartbeat(pool_rows, stale_before=stale_before, now=now)
+    ttl_s = heartbeat_lease_ttl_s(settings)
 
     checked = 0
     revived = 0
     failed = 0
+    skipped_leased = 0
     for row in rows:
         db.refresh(row)
         if _lease_active(row, now=utc_now()):
+            skipped_leased += 1
             continue
+        owner = f"heartbeat:{row.id.hex}"
+        if not try_lease_account(db, account_id=row.id, lease_owner=owner, ttl_s=ttl_s):
+            skipped_leased += 1
+            db.commit()
+            continue
+        db.commit()
         checked += 1
+        logger.info(
+            "geo crawl heartbeat probe id=%s label=%s platform=%s status=%s "
+            "session_cookies=%s",
+            row.id,
+            row.label,
+            plat,
+            row.status,
+            session_cookie_names(row.storage_state, platform=plat),
+        )
         try:
             new_state = probe_account_login(
-                row.storage_state, platform=plat, settings=settings
+                dict(row.storage_state or {}), platform=plat, settings=settings
             )
             cleaned = cookies_only_storage_state(new_state)
-            if not storage_state_has_cookies(cleaned, platform=plat):
+            if not storage_state_has_session_cookies(cleaned, platform=plat):
                 raise DoubaoLoginExpired(
                     "heartbeat probe returned storage_state without session cookies"
                 )
-            row.storage_state = cleaned
-            row.last_ok_at = utc_now()
-            row.last_error = ""
-            # Probe success must return account to pool (sampling only acquires active).
-            if row.status in (STATUS_NEED_RELOGIN, STATUS_LOGGING_IN):
-                row.status = STATUS_ACTIVE
+            release_account(
+                db,
+                account_id=row.id,
+                lease_owner=owner,
+                storage_state=cleaned,
+                ok=True,
+            )
+            db.refresh(row)
             revived += 1
         except DoubaoNeedsHumanOps as exc:
             reason = "captcha" if isinstance(exc, DoubaoCaptchaRequired) else "login_expired"
@@ -179,14 +207,25 @@ def run_crawl_account_heartbeat(
                 plat,
                 reason,
             )
-        except Exception as exc:
-            request_human_intervention(
-                db,
-                account_id=row.id,
-                reason="login_expired",
-                error=str(exc),
-                settings=settings,
+        except DoubaoCrawlError as exc:
+            row.last_error = str(exc)[:2000]
+            if exc.session_alive:
+                # Logged-in DOM / send flake: keep the account rentable.
+                row.last_ok_at = utc_now()
+            clear_account_lease(db, account_id=row.id, lease_owner=owner)
+            failed += 1
+            logger.warning(
+                "geo crawl heartbeat probe error (keep cookies) id=%s label=%s "
+                "platform=%s session_alive=%s err=%s",
+                row.id,
+                row.label,
+                plat,
+                exc.session_alive,
+                exc,
             )
+        except Exception as exc:
+            row.last_error = str(exc)[:2000]
+            clear_account_lease(db, account_id=row.id, lease_owner=owner)
             failed += 1
             logger.warning(
                 "geo crawl heartbeat failed id=%s label=%s platform=%s: %s",
@@ -195,9 +234,8 @@ def run_crawl_account_heartbeat(
                 plat,
                 exc,
             )
-        db.flush()
+        db.commit()
 
-    db.commit()
     return {
         "ok": True,
         "skipped": False,
@@ -205,6 +243,7 @@ def run_crawl_account_heartbeat(
         "checked": checked,
         "ok_count": revived,
         "failed": failed,
+        "skipped_leased": skipped_leased,
     }
 
 
@@ -219,43 +258,22 @@ def probe_account_login(
     plat = normalize_platform(platform)
     if plat != PLATFORM_DOUBAO:
         raise DoubaoCrawlError(f"heartbeat probe not implemented for platform={plat}")
-    if not storage_state_has_cookies(storage_state, platform=plat):
+    if not storage_state_has_session_cookies(storage_state, platform=plat):
         raise DoubaoLoginExpired(f"storage_state missing {plat} session cookies")
 
     from aperix_geo.services.providers.doubao_web.jobs.probe import build_probe_payload
-    from aperix_geo.services.geo_web_crawl.spawn import run_geo_web_crawl_spawn
 
     payload = build_probe_payload(storage_state=storage_state, settings=settings)
     payload["platform"] = plat
-    timeout_s = float(payload.get("timeout_s") or 60)
-    job = run_geo_web_crawl_spawn(
+    job = spawn_doubao_job(
         payload,
-        timeout_s=timeout_s,
-        docker_image=(settings.geo_web_crawl_docker_image or "").strip(),
-        base_url=(settings.geo_web_crawl_base_url or "").strip(),
-        token=(settings.geo_web_crawl_token or "").strip(),
+        settings=settings,
         mode="probe",
+        timeout_s=float(payload.get("timeout_s") or 60),
     )
     if job.get("ok"):
         state = job.get("storage_state")
         if isinstance(state, dict):
             return state
         raise DoubaoCrawlError("probe ok but storage_state missing")
-
-    err_type = str(job.get("error_type") or "DoubaoCrawlError")
-    err_msg = str(job.get("error") or "probe failed")
-    if err_type == "DoubaoCaptchaRequired" or (
-        job.get("human_ops") and "captcha" in err_msg.lower()
-    ):
-        raise DoubaoCaptchaRequired(err_msg)
-    if err_type in {
-        "DoubaoLoginExpired",
-        "DoubaoNeedsHumanOps",
-        "DoubaoCaptchaRequired",
-    } or job.get("human_ops"):
-        if err_type == "DoubaoCaptchaRequired":
-            raise DoubaoCaptchaRequired(err_msg)
-        if err_type == "DoubaoLoginExpired":
-            raise DoubaoLoginExpired(err_msg)
-        raise DoubaoNeedsHumanOps(err_msg)
-    raise DoubaoCrawlError(f"{err_type}: {err_msg}")
+    raise_from_job(job)

@@ -9,7 +9,17 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from aperix_geo.config import Settings
-from aperix_geo.services.crawl_accounts.pool import AccountLease
+from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO
+from aperix_geo.services.crawl_accounts.pool import (
+    AccountLease,
+    acquire_account,
+    count_fresh_active_accounts,
+    release_account,
+)
+from aperix_geo.services.crawl_accounts.session_cookies import (
+    cookies_only_storage_state,
+    storage_state_has_session_cookies,
+)
 from aperix_geo.services.providers.doubao_web.errors import DoubaoCrawlError, DoubaoLoginExpired
 from aperix_geo.services.providers.doubao_web.runtime import is_human_ops_job
 
@@ -41,12 +51,12 @@ def load_storage_state_from_file(settings: Settings) -> dict | None:
     cookies = data.get("cookies")
     if not isinstance(cookies, list) or not cookies:
         raise DoubaoLoginExpired(f"storage_state has no cookies: {path}")
+    if not storage_state_has_session_cookies(data):
+        raise DoubaoLoginExpired(f"storage_state missing Doubao session cookies: {path}")
     return data
 
 
 def save_storage_state(path: Path, state: dict[str, Any]) -> None:
-    from aperix_geo.services.crawl_accounts.session_cookies import cookies_only_storage_state
-
     path.parent.mkdir(parents=True, exist_ok=True)
     slim = cookies_only_storage_state(state)
     path.write_text(json.dumps(slim, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -59,9 +69,6 @@ def crawl_credentials_available(settings: Settings, db: Session | None = None) -
     if db is None:
         return False
     try:
-        from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO
-        from aperix_geo.services.crawl_accounts.pool import count_fresh_active_accounts
-
         return count_fresh_active_accounts(db, platform=PLATFORM_DOUBAO, settings=settings) > 0
     except Exception:
         logger.debug("doubao account pool check failed", exc_info=True)
@@ -80,9 +87,6 @@ class DoubaoCredentialSession:
     def acquire(self, *, use_account_pool: bool) -> dict[str, Any]:
         if use_account_pool:
             try:
-                from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO
-                from aperix_geo.services.crawl_accounts.pool import acquire_account
-
                 self.lease = acquire_account(
                     self.db, platform=PLATFORM_DOUBAO, settings=self.settings
                 )
@@ -94,22 +98,28 @@ class DoubaoCredentialSession:
                         self.lease.account_id,
                     )
                 self.db.commit()
-            except Exception:
+            except DoubaoCrawlError:
+                raise
+            except Exception as exc:
                 self.db.rollback()
-                logger.warning("doubao account acquire failed; trying file", exc_info=True)
+                logger.warning("doubao account acquire failed", exc_info=True)
                 self.lease = None
-
-        if self.storage_state is None:
-            self.storage_state = load_storage_state_from_file(self.settings)
-            if self.storage_state is not None:
-                logger.info(
-                    "doubao crawl credentials source=file path=%s",
-                    self.settings.doubao_crawl_storage_state_path,
+                raise DoubaoCrawlError("doubao account acquire failed") from exc
+            if self.storage_state is None:
+                raise DoubaoCrawlError(
+                    "no Doubao credentials (pool empty / stale)"
                 )
+            return self.storage_state
+
+        self.storage_state = load_storage_state_from_file(self.settings)
         if self.storage_state is None:
             raise DoubaoCrawlError(
-                "no Doubao credentials (pool empty / stale, or set DOUBAO_CRAWL_STORAGE_STATE_PATH)"
+                "no Doubao credentials (set DOUBAO_CRAWL_STORAGE_STATE_PATH for local smoke)"
             )
+        logger.info(
+            "doubao crawl credentials source=file path=%s",
+            self.settings.doubao_crawl_storage_state_path,
+        )
         return self.storage_state
 
     def request_human_ops(self, job_or_err_type: dict[str, Any] | str, err_msg: str = "") -> None:
@@ -134,8 +144,6 @@ class DoubaoCredentialSession:
         self.lease = None
 
     def release_ok(self, storage_state: dict[str, Any] | None) -> None:
-        from aperix_geo.services.crawl_accounts.pool import release_account
-
         if self.lease is not None:
             release_account(
                 self.db,
@@ -157,8 +165,6 @@ class DoubaoCredentialSession:
     def release_fail(self, error: str) -> None:
         if self.lease is None:
             return
-        from aperix_geo.services.crawl_accounts.pool import release_account
-
         release_account(
             self.db,
             account_id=self.lease.account_id,

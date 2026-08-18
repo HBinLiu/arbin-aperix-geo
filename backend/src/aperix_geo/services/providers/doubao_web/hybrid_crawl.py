@@ -7,14 +7,20 @@ import time
 from typing import Any
 
 from aperix_geo.config import Settings, get_settings
+from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO
+from aperix_geo.services.crawl_accounts.session_cookies import keep_session_storage_state
 from aperix_geo.services.providers.doubao_web.accounts import open_credential_session
 from aperix_geo.services.providers.doubao_web.crawler import (
     concurrency_slot,
     user_prompt_from_messages,
 )
-from aperix_geo.services.providers.doubao_web.errors import DoubaoCrawlError, DoubaoShareError
-from aperix_geo.services.providers.doubao_web.runtime import raise_from_job
+from aperix_geo.services.providers.doubao_web.errors import DoubaoCrawlError, DoubaoNeedsHumanOps
 from aperix_geo.services.providers.doubao_web.jobs.share import build_share_payload
+from aperix_geo.services.providers.doubao_web.runtime import (
+    is_human_ops_job,
+    raise_from_job,
+    spawn_doubao_job,
+)
 from aperix_geo.services.providers.doubao_web.web_http.client import complete_web_http
 from aperix_geo.services.providers.doubao_web.web_http.map_result import (
     map_web_http_to_sampling_result,
@@ -35,9 +41,6 @@ def hybrid_crawl_doubao_chat(
     if not prompt:
         raise DoubaoCrawlError("empty user prompt")
 
-    from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO
-    from aperix_geo.services.geo_web_crawl.spawn import run_geo_web_crawl_spawn
-
     session = open_credential_session(settings)
     started = time.monotonic()
     try:
@@ -49,17 +52,18 @@ def hybrid_crawl_doubao_chat(
                 http_job = complete_web_http(
                     prompt=prompt, storage_state=storage_state, settings=settings
                 )
+        except DoubaoNeedsHumanOps as exc:
+            session.request_human_ops(type(exc).__name__, str(exc))
+            raise
         except DoubaoCrawlError as exc:
-            from aperix_geo.services.providers.doubao_web.errors import DoubaoNeedsHumanOps
-
-            if isinstance(exc, DoubaoNeedsHumanOps):
-                session.request_human_ops(type(exc).__name__, str(exc))
-            else:
-                session.release_fail(str(exc))
+            session.release_fail(str(exc))
             raise
 
-        if isinstance(http_job.get("storage_state"), dict):
-            storage_state = http_job["storage_state"]
+        exported = http_job.get("storage_state")
+        if isinstance(exported, dict):
+            storage_state = keep_session_storage_state(
+                exported, fallback=storage_state, log_event="hybrid http"
+            )
 
         share_payload = build_share_payload(
             storage_state=storage_state,
@@ -73,27 +77,24 @@ def hybrid_crawl_doubao_chat(
                 "doubao crawl transport=hybrid step=share conversation_id=%s",
                 share_payload.get("conversation_id") or "-",
             )
-            share_job = run_geo_web_crawl_spawn(
-                share_payload,
-                timeout_s=float(share_payload.get("timeout_s") or 60),
-                docker_image=(settings.geo_web_crawl_docker_image or "").strip(),
-                mode="share",
-                base_url=(settings.geo_web_crawl_base_url or "").strip(),
-                token=(settings.geo_web_crawl_token or "").strip(),
-            )
+            share_job = spawn_doubao_job(share_payload, settings=settings, mode="share")
 
-        if not share_job.get("ok"):
+        if is_human_ops_job(share_job):
             session.handle_failed_job(share_job)
             raise_from_job(share_job)
 
-        share_url = str(share_job.get("share_url") or "").strip()
+        share_url = ""
+        final_state: Any = None
+        if share_job.get("ok"):
+            share_url = str(share_job.get("share_url") or "").strip()
+            final_state = share_job.get("storage_state")
         if not share_url:
-            session.release_fail("empty share_url")
-            raise DoubaoShareError("share job returned empty share_url")
+            logger.warning(
+                "hybrid share skipped err=%s",
+                share_job.get("error") or "empty share_url",
+            )
 
-        final_state = share_job.get("storage_state")
         session.release_ok(final_state if isinstance(final_state, dict) else storage_state)
-
         result = map_web_http_to_sampling_result(
             {
                 "text": http_job.get("text"),

@@ -13,6 +13,7 @@ from aperix_geo.services.providers.doubao_web.runtime import (
     job_ok,
     raise_from_job,
     resolve_web_http_via,
+    spawn_doubao_job,
 )
 from aperix_geo.services.providers.doubao_web.jobs.sign import build_sign_payload
 from aperix_geo.services.providers.doubao_web.web_http.map_result import map_sse_events_to_fields
@@ -41,21 +42,10 @@ def request_a_bogus(
         params=params,
     )
     payload["platform"] = "doubao"
-
-    from aperix_geo.services.geo_web_crawl.spawn import run_geo_web_crawl_spawn
-
-    job = run_geo_web_crawl_spawn(
-        payload,
-        timeout_s=float(payload.get("timeout_s") or 60),
-        docker_image=(settings.geo_web_crawl_docker_image or "").strip(),
-        mode="sign",
-        base_url=(settings.geo_web_crawl_base_url or "").strip(),
-        token=(settings.geo_web_crawl_token or "").strip(),
-    )
+    job = spawn_doubao_job(payload, settings=settings, mode="sign")
     if job.get("ok"):
         return job
     raise_from_job(job)
-    raise AssertionError("unreachable")  # pragma: no cover
 
 
 def _cookie_header(storage_state: dict[str, Any]) -> str:
@@ -81,21 +71,15 @@ def complete_via_browser_job(
         prompt=prompt, storage_state=storage_state, settings=settings
     )
     payload["platform"] = "doubao"
-
-    from aperix_geo.services.geo_web_crawl.spawn import run_geo_web_crawl_spawn
-
-    job = run_geo_web_crawl_spawn(
+    job = spawn_doubao_job(
         payload,
-        timeout_s=float(settings.doubao_crawl_timeout_s),
-        docker_image=(settings.geo_web_crawl_docker_image or "").strip(),
+        settings=settings,
         mode="http",
-        base_url=(settings.geo_web_crawl_base_url or "").strip(),
-        token=(settings.geo_web_crawl_token or "").strip(),
+        timeout_s=float(settings.doubao_crawl_timeout_s),
     )
     if job.get("ok"):
         return job
     raise_from_job(job)
-    raise AssertionError("unreachable")  # pragma: no cover
 
 
 def complete_via_httpx(

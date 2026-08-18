@@ -10,7 +10,7 @@ from urllib.parse import urlencode
 
 from aperix_geo.config import Settings
 from aperix_geo.services.crawl_accounts.session_cookies import (
-    cookies_only_storage_state,
+    storage_state_from_context,
     storage_state_has_session_cookies,
 )
 from aperix_geo.services.providers.doubao_web import selectors as sel
@@ -76,7 +76,6 @@ def run_doubao_web_http_on_page(
     if not storage_state_has_session_cookies(storage_state):
         return job_error(
             DoubaoLoginExpired("storage_state missing Doubao session cookies"),
-            human_ops=True,
             **_EMPTY,
         )
 
@@ -156,10 +155,12 @@ def run_doubao_web_http_on_page(
             source_urls=list(fields.get("source_urls") or []),
             conversation_id=str(fields.get("conversation_id") or conversation_id or ""),
             latency_ms=int((time.monotonic() - started) * 1000),
-            storage_state=cookies_only_storage_state(context.storage_state()),
+            storage_state=storage_state_from_context(
+                context, fallback=storage_state, log_event="http"
+            ),
         )
     except DoubaoNeedsHumanOps as exc:
-        return job_error(exc, human_ops=True, **_EMPTY)
+        return job_error(exc, **_EMPTY)
     except DoubaoCrawlError as exc:
         return job_error(exc, **_EMPTY)
     except Exception as exc:  # noqa: BLE001

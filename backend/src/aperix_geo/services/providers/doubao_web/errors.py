@@ -6,6 +6,12 @@ from __future__ import annotations
 class DoubaoCrawlError(Exception):
     """Generic Doubao web crawl failure (DOM / timeout / empty reply)."""
 
+    session_alive: bool = False
+
+    def __init__(self, message: str = "", *, session_alive: bool = False) -> None:
+        super().__init__(message)
+        self.session_alive = session_alive
+
 
 class DoubaoNeedsHumanOps(DoubaoCrawlError):
     """Account blocked until ops clears via ticket + alert (not auto-solved).

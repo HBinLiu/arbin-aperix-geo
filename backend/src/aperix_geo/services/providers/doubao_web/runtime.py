@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Literal
+from typing import Any, Literal, NoReturn
 
 from aperix_geo.config import Settings
 from aperix_geo.services.providers.doubao_web import selectors as sel
@@ -57,6 +57,38 @@ def resolve_web_http_via(settings: Settings) -> WebHttpVia:
     return "httpx" if raw == "httpx" else "browser"
 
 
+def chat_url_is_logged_out(url: str) -> bool:
+    """True for passport / ``/login`` / ``from_logout`` — not a generic ``login`` substring."""
+    lowered = (url or "").lower()
+    return "passport" in lowered or "/login" in lowered or "from_logout" in lowered
+
+
+def spawn_doubao_job(
+    payload: dict[str, Any],
+    *,
+    settings: Settings,
+    mode: str,
+    timeout_s: float | None = None,
+) -> dict[str, Any]:
+    """Run a Doubao geo-web-crawl job with settings-derived spawn kwargs."""
+    from aperix_geo.services.geo_web_crawl.spawn import run_geo_web_crawl_spawn
+
+    timeout = float(
+        timeout_s
+        if timeout_s is not None
+        else payload.get("timeout_s")
+        or settings.doubao_crawl_timeout_s
+    )
+    return run_geo_web_crawl_spawn(
+        payload,
+        timeout_s=timeout,
+        docker_image=(settings.geo_web_crawl_docker_image or "").strip(),
+        mode=mode,
+        base_url=(settings.geo_web_crawl_base_url or "").strip(),
+        token=(settings.geo_web_crawl_token or "").strip(),
+    )
+
+
 # --- job envelopes ---
 
 
@@ -77,24 +109,29 @@ def job_error(
     exc: BaseException,
     *,
     human_ops: bool | None = None,
+    session_alive: bool | None = None,
     **empty_fields: Any,
 ) -> dict[str, Any]:
     if human_ops is None:
         human_ops = isinstance(exc, DoubaoNeedsHumanOps)
+    if session_alive is None:
+        session_alive = bool(getattr(exc, "session_alive", False))
     out: dict[str, Any] = {
         "ok": False,
         "error_type": type(exc).__name__,
         "error": str(exc),
         "human_ops": bool(human_ops),
+        "session_alive": bool(session_alive),
         "storage_state": None,
     }
     out.update(empty_fields)
     return out
 
 
-def raise_from_job(job: dict[str, Any]) -> None:
+def raise_from_job(job: dict[str, Any]) -> NoReturn:
     err_type = str(job.get("error_type") or "DoubaoCrawlError")
     err_msg = str(job.get("error") or "job failed")
+    session_alive = bool(job.get("session_alive"))
     if err_type == "DoubaoCaptchaRequired":
         raise DoubaoCaptchaRequired(err_msg)
     if err_type == "DoubaoLoginExpired":
@@ -103,13 +140,11 @@ def raise_from_job(job: dict[str, Any]) -> None:
         raise DoubaoShareError(err_msg)
     if job.get("human_ops") or err_type in _HUMAN_OPS_TYPES:
         raise DoubaoNeedsHumanOps(err_msg)
-    raise DoubaoCrawlError(err_msg)
+    raise DoubaoCrawlError(err_msg, session_alive=session_alive)
 
 
 def is_human_ops_job(job: dict[str, Any]) -> bool:
-    if job.get("human_ops"):
-        return True
-    return str(job.get("error_type") or "") in _HUMAN_OPS_TYPES
+    return bool(job.get("human_ops")) or str(job.get("error_type") or "") in _HUMAN_OPS_TYPES
 
 
 # --- page guards ---
@@ -132,11 +167,8 @@ def assert_logged_in(page: Any) -> None:
     Guest landing often still shows a composer; a visible「登录」CTA or
     ``from_logout=1`` is enough to treat storage_state as unusable.
     """
-    url = (page.url or "").lower()
-    if "login" in url or "passport" in url:
+    if chat_url_is_logged_out(page.url or ""):
         raise DoubaoLoginExpired(f"redirected to login: {page.url}")
-    if "from_logout" in url:
-        raise DoubaoLoginExpired(f"logged out landing: {page.url}")
 
     for role in ("button", "link"):
         loc = page.get_by_role(role, name=sel.LOGIN_HINT)

@@ -8,7 +8,7 @@ from typing import Any
 
 from aperix_geo.config import Settings
 from aperix_geo.services.crawl_accounts.session_cookies import (
-    cookies_only_storage_state,
+    storage_state_from_context,
     storage_state_has_session_cookies,
 )
 from aperix_geo.services.providers.doubao_web import selectors as sel
@@ -63,7 +63,7 @@ def run_doubao_share_on_page(
     context: Any,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    from aperix_geo.services.providers.doubao_web.ui_flow import capture_share_url
+    from aperix_geo.services.providers.doubao_web.ui_flow import try_capture_share_url
 
     storage_state = payload.get("storage_state")
     if not isinstance(storage_state, dict):
@@ -71,7 +71,6 @@ def run_doubao_share_on_page(
     if not storage_state_has_session_cookies(storage_state):
         return job_error(
             DoubaoLoginExpired("storage_state missing Doubao session cookies"),
-            human_ops=True,
             **_EMPTY,
         )
 
@@ -97,27 +96,21 @@ def run_doubao_share_on_page(
                 "share job needs conversation_id (open an existing chat URL)"
             )
 
-        share_url = ""
-        share_error: Exception | None = None
-        try:
-            share_url = capture_share_url(page)
-        except Exception as exc:  # noqa: BLE001
-            share_error = exc
+        share_url = try_capture_share_url(page)
         assert_no_captcha(page)
-
         if not share_url:
-            raise DoubaoShareError(
-                f"share_url required but missing: {share_error or 'empty'}"
-            ) from share_error
+            raise DoubaoShareError("share_url required but missing")
 
         return job_ok(
             share_url=share_url,
             conversation_id=live_id,
             latency_ms=int((time.monotonic() - started) * 1000),
-            storage_state=cookies_only_storage_state(context.storage_state()),
+            storage_state=storage_state_from_context(
+                context, fallback=storage_state, log_event="share"
+            ),
         )
     except DoubaoNeedsHumanOps as exc:
-        return job_error(exc, human_ops=True, **_EMPTY)
+        return job_error(exc, **_EMPTY)
     except DoubaoCrawlError as exc:
         return job_error(exc, **_EMPTY)
     except Exception as exc:  # noqa: BLE001

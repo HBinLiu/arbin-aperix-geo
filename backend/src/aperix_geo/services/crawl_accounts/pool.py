@@ -30,6 +30,7 @@ STATUS_BLOCKED = "blocked"
 
 _ACQUIRE_ATTEMPTS = 8
 _LEASE_TIMEOUT_BUFFER_S = 60
+_HEARTBEAT_LEASE_BUFFER_S = 30
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,13 @@ def effective_account_lease_ttl_s(settings: Settings) -> int:
     configured = int(settings.doubao_account_lease_ttl_s)
     crawl_need = int(math.ceil(float(settings.doubao_crawl_timeout_s))) + _LEASE_TIMEOUT_BUFFER_S
     return max(configured, crawl_need, 60)
+
+
+def heartbeat_lease_ttl_s(settings: Settings) -> int:
+    """Cover probe timeout + send wait; sampling must not acquire mid-probe."""
+    probe_s = min(90.0, float(settings.doubao_crawl_timeout_s))
+    send_wait = float(settings.doubao_heartbeat_send_wait_s)
+    return max(60, int(math.ceil(probe_s + send_wait + _HEARTBEAT_LEASE_BUFFER_S)))
 
 
 def count_fresh_active_accounts(
@@ -160,6 +168,62 @@ def acquire_account(
     return None
 
 
+def try_lease_account(
+    db: Session,
+    *,
+    account_id: uuid.UUID,
+    lease_owner: str,
+    ttl_s: int,
+) -> bool:
+    """Take a short lease on a specific row if it is currently free.
+
+    Used by heartbeat so sampling cannot acquire the same account mid-probe.
+    ``skip_locked``: another worker already inspecting this row → treat as busy.
+    """
+    now = utc_now()
+    owner = (lease_owner or "").strip()
+    if not owner:
+        return False
+    stmt = (
+        select(CrawlAccount)
+        .where(CrawlAccount.id == account_id)
+        .limit(1)
+        .with_for_update(skip_locked=True)
+    )
+    row = db.scalars(stmt).first()
+    if row is None:
+        return False
+    if row.lease_until and row.lease_until > now:
+        return False
+    row.lease_owner = owner
+    row.lease_until = now + timedelta(seconds=max(60, int(ttl_s)))
+    db.flush()
+    return True
+
+
+def clear_account_lease(
+    db: Session,
+    *,
+    account_id: uuid.UUID,
+    lease_owner: str,
+) -> None:
+    """Drop a lease without touching cookies / last_ok_at / status."""
+    row = db.get(CrawlAccount, account_id)
+    if row is None:
+        return
+    if row.lease_owner and row.lease_owner != lease_owner:
+        logger.warning(
+            "geo crawl account lease owner mismatch on clear id=%s expected=%s got=%s",
+            account_id,
+            row.lease_owner,
+            lease_owner,
+        )
+        return
+    row.lease_owner = ""
+    row.lease_until = EPOCH
+    db.flush()
+
+
 def release_account(
     db: Session,
     *,
@@ -190,39 +254,22 @@ def release_account(
         ):
             row.storage_state = cookies_only_storage_state(storage_state)
         elif storage_state is not None:
-            row.status = STATUS_NEED_RELOGIN
-            row.last_error = "crawl ok but storage_state missing session cookies"
+            # Successful crawl + empty CDP export must not evict a working account.
             logger.warning(
-                "geo crawl account lost session cookies after crawl id=%s label=%s platform=%s",
+                "geo crawl account export lost session cookies after ok crawl; "
+                "keeping previous jar id=%s label=%s platform=%s",
                 row.id,
                 row.label,
                 plat,
             )
-            db.flush()
-            return
         row.last_ok_at = utc_now()
         row.last_error = ""
         if row.status == STATUS_NEED_RELOGIN:
             row.status = STATUS_ACTIVE
     else:
-        message = (error or "crawl failed").strip()
-        row.last_error = message[:2000]
-        if (
-            "login" in message.lower()
-            or "登录" in message
-            or "captcha" in message.lower()
-            or "验证码" in message
-            or "人机验证" in message
-            or "行为验证" in message
-        ):
-            row.status = STATUS_NEED_RELOGIN
-            logger.warning(
-                "geo crawl account need_relogin id=%s label=%s platform=%s err=%s",
-                row.id,
-                row.label,
-                plat,
-                message,
-            )
+        # Generic fail keeps status. Login/captcha must go through human_ops
+        # (typed job envelope), not substring matching on error text.
+        row.last_error = (error or "crawl failed").strip()[:2000]
     db.flush()
 
 

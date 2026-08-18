@@ -8,6 +8,8 @@ from typing import Any
 
 import httpx
 
+from aperix_geo.services.geo_web_crawl.result import crawl_fail
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,16 +25,6 @@ def resolve_geo_web_crawl_token(explicit: str | None = None) -> str:
     return (os.environ.get("GEO_WEB_CRAWL_TOKEN") or "").strip()
 
 
-def _fail(message: str) -> dict[str, Any]:
-    return {
-        "ok": False,
-        "error_type": "DoubaoCrawlError",
-        "error": message,
-        "human_ops": False,
-        "storage_state": None,
-    }
-
-
 def run_geo_web_crawl_job(
     payload: dict[str, Any],
     *,
@@ -43,7 +35,7 @@ def run_geo_web_crawl_job(
     """POST ``/v1/jobs`` to the resident crawl service; return result dict."""
     url_base = resolve_geo_web_crawl_base_url(base_url)
     if not url_base:
-        return _fail("GEO_WEB_CRAWL_BASE_URL is not set")
+        return crawl_fail("GEO_WEB_CRAWL_BASE_URL is not set")
 
     job_timeout = float(
         timeout_s
@@ -76,20 +68,20 @@ def run_geo_web_crawl_job(
         with httpx.Client(timeout=http_timeout) as client:
             resp = client.post(endpoint, json=body, headers=headers)
     except httpx.TimeoutException:
-        return _fail(f"geo-web-crawl request timed out after {http_timeout:.0f}s")
+        return crawl_fail(f"geo-web-crawl request timed out after {http_timeout:.0f}s")
     except Exception as exc:  # noqa: BLE001
-        return _fail(f"geo-web-crawl request failed: {type(exc).__name__}: {exc}")
+        return crawl_fail(f"geo-web-crawl request failed: {type(exc).__name__}: {exc}")
 
     if resp.status_code == 401:
-        return _fail("geo-web-crawl auth failed (check GEO_WEB_CRAWL_TOKEN)")
+        return crawl_fail("geo-web-crawl auth failed (check GEO_WEB_CRAWL_TOKEN)")
     if resp.status_code >= 400:
-        return _fail(
+        return crawl_fail(
             f"geo-web-crawl HTTP {resp.status_code}: {(resp.text or '')[:400]}"
         )
     try:
         data = resp.json()
     except Exception as exc:  # noqa: BLE001
-        return _fail(f"geo-web-crawl invalid JSON: {exc}")
+        return crawl_fail(f"geo-web-crawl invalid JSON: {exc}")
     if not isinstance(data, dict):
-        return _fail(f"geo-web-crawl returned non-dict: {type(data)!r}")
+        return crawl_fail(f"geo-web-crawl returned non-dict: {type(data)!r}")
     return data

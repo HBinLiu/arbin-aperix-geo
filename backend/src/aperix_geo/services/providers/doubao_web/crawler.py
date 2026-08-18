@@ -9,10 +9,14 @@ from contextlib import contextmanager
 from typing import Iterator
 
 from aperix_geo.config import Settings, get_settings
+from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO
+from aperix_geo.services.providers.doubao_web.accounts import open_credential_session
 from aperix_geo.services.providers.doubao_web.errors import DoubaoCrawlError
+from aperix_geo.services.providers.doubao_web.jobs.crawl import build_crawl_payload
 from aperix_geo.services.providers.doubao_web.runtime import (
     raise_from_job,
     resolve_crawl_transport,
+    spawn_doubao_job,
 )
 from aperix_geo.services.providers.result import SamplingChatResult
 
@@ -88,13 +92,6 @@ def _crawl_doubao_chat_ui(
     if not prompt:
         raise DoubaoCrawlError("empty user prompt")
 
-    from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO
-    from aperix_geo.services.geo_web_crawl.spawn import run_geo_web_crawl_spawn
-    from aperix_geo.services.providers.doubao_web.accounts import open_credential_session
-    from aperix_geo.services.providers.doubao_web.jobs.crawl import (
-        build_crawl_payload,
-    )
-
     session = open_credential_session(settings)
     started = time.monotonic()
     try:
@@ -106,13 +103,11 @@ def _crawl_doubao_chat_ui(
 
         with concurrency_slot(settings):
             logger.info("doubao crawl transport=ui")
-            job = run_geo_web_crawl_spawn(
+            job = spawn_doubao_job(
                 payload,
-                timeout_s=float(settings.doubao_crawl_timeout_s),
-                docker_image=(settings.geo_web_crawl_docker_image or "").strip(),
+                settings=settings,
                 mode="crawl",
-                base_url=(settings.geo_web_crawl_base_url or "").strip(),
-                token=(settings.geo_web_crawl_token or "").strip(),
+                timeout_s=float(settings.doubao_crawl_timeout_s),
             )
 
         if not job.get("ok"):

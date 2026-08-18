@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import logging
-import re
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse
 
 from aperix_geo.config import Settings
 from aperix_geo.services.crawl_accounts.session_cookies import (
-    cookies_only_storage_state,
+    storage_state_from_context,
     storage_state_has_session_cookies,
 )
 from aperix_geo.services.providers.doubao_web import selectors as sel
@@ -111,7 +110,6 @@ def run_doubao_sign_on_page(
     if not storage_state_has_session_cookies(storage_state):
         return job_error(
             DoubaoLoginExpired("storage_state missing Doubao session cookies"),
-            human_ops=True,
             **_EMPTY,
         )
 
@@ -182,17 +180,16 @@ def run_doubao_sign_on_page(
             ms_token=fingerprint.get("msToken", ""),
             fingerprint=fingerprint,
             query_string=query_string,
-            storage_state=cookies_only_storage_state(context.storage_state()),
+            storage_state=storage_state_from_context(
+                context, fallback=storage_state, log_event="sign"
+            ),
         )
     except DoubaoNeedsHumanOps as exc:
-        return job_error(exc, human_ops=True, **_EMPTY)
+        return job_error(exc, **_EMPTY)
     except DoubaoCrawlError as exc:
         return job_error(exc, **_EMPTY)
     except Exception as exc:  # noqa: BLE001
         logger.exception("doubao sign job unexpected error")
-        msg = str(exc)
-        if re.search(r"login|passport|session", msg, re.I):
-            return job_error(DoubaoLoginExpired(msg), human_ops=True, **_EMPTY)
         return job_error(exc, **_EMPTY)
     finally:
         try:
