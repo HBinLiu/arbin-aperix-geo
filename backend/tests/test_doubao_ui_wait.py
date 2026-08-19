@@ -96,6 +96,17 @@ def test_human_pause_uses_inclusive_random_range() -> None:
     page.wait_for_timeout.assert_called_once_with(317)
 
 
+def test_human_pause_ceiling_caps_upper_bound() -> None:
+    page = MagicMock()
+    with patch(
+        "aperix_geo.services.providers.doubao_web.ui_flow.random.randint",
+        return_value=120,
+    ) as randint:
+        ms = _human_pause(page, ceiling_ms=180)
+    randint.assert_called_once_with(180, 180)
+    assert ms == 120
+
+
 def test_wait_until_fails_fast_on_system_error() -> None:
     class Body:
         def inner_text(self, timeout: int = 0) -> str:

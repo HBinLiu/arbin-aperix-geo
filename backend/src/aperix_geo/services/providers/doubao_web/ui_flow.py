@@ -39,11 +39,16 @@ _STABLE_IDLE_POLLS = 10  # ~3s of unchanged assistant text when stop/streaming i
 
 # Random pause (ms) between UI steps — jitter reduces burst traffic vs Doubao rate limits.
 _HUMAN_PAUSE_MS = (250, 500)
+# Header ⋯ is hover-triggered; long pauses let the menu close before 分享 is clicked.
+_SHARE_HOVER_PAUSE_MS = (80, 180)
 
 
-def _human_pause(page: Any) -> int:
+def _human_pause(page: Any, *, ceiling_ms: int | None = None) -> int:
     """Sleep a random duration (ms); returns chosen delay."""
     lo, hi = _HUMAN_PAUSE_MS
+    if ceiling_ms is not None:
+        hi = min(hi, ceiling_ms)
+        lo = min(lo, hi)
     ms = random.randint(lo, hi)
     page.wait_for_timeout(ms)
     return ms
@@ -808,7 +813,8 @@ def _activate_header_more_button(page: Any, btn: Any) -> None:
     """Header ⋯ uses Radix hover trigger — hover then click the outer menu trigger."""
     try:
         btn.hover(timeout=3_000)
-        _human_pause(page)
+        lo, hi = _SHARE_HOVER_PAUSE_MS
+        page.wait_for_timeout(random.randint(lo, hi))
     except Exception:
         logger.debug("doubao share: 更多 hover failed", exc_info=True)
     btn.click(timeout=5_000)
@@ -840,7 +846,6 @@ def _open_chat_more_menu(page: Any) -> bool:
     except Exception:
         logger.warning("doubao share: 更多 button click failed", exc_info=True)
         return False
-    _human_pause(page)
     if not _share_menu_open(page):
         logger.warning(
             "doubao share: 更多 menu opened but no 分享 row url=%s",
@@ -849,16 +854,26 @@ def _open_chat_more_menu(page: Any) -> bool:
     return _share_menu_open(page)
 
 
+def _resolve_share_control(page: Any) -> Any:
+    """Locate 分享 in the header overflow menu, opening ⋯ if needed."""
+    share = _locate_share_control(page)
+    if share is not None:
+        return share
+    for attempt in range(1, 3):
+        if not _open_chat_more_menu(page):
+            break
+        share = _locate_share_control(page)
+        if share is not None:
+            logger.info("doubao share: located 分享 control attempt=%s", attempt)
+            return share
+    raise DoubaoShareError("share button not found (could not open ⋯ menu with 分享)")
+
+
 def capture_share_url(page: Any) -> str:
     # 分享 sits under header button[aria-label="更多"].
-    share = _locate_share_control(page)
-    if share is None:
-        if not _open_chat_more_menu(page):
-            raise DoubaoShareError("share button not found (could not open ⋯ menu with 分享)")
-        share = _locate_share_control(page)
-    if share is None:
-        raise DoubaoShareError("share button not found (⋯ menu open but no 分享)")
+    share = _resolve_share_control(page)
 
+    logger.info("doubao share: clicking 分享 url=%s", getattr(page, "url", ""))
     share.click(timeout=5_000)
     _human_pause(page)
 
@@ -868,6 +883,7 @@ def capture_share_url(page: Any) -> str:
         copy_btn = _first_visible(page.get_by_text(sel.COPY_LINK_NAME))
     if copy_btn is not None:
         try:
+            logger.info("doubao share: clicking 复制链接")
             copy_btn.click(timeout=3_000)
             _human_pause(page)
         except Exception:
