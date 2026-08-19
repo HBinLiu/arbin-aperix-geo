@@ -174,6 +174,7 @@ def run_doubao_account_crawl(
     from aperix_geo.services.providers.doubao_web.errors import (
         DoubaoCrawlError,
         DoubaoNeedsHumanOps,
+        DoubaoShareError,
     )
 
     db = SessionLocal()
@@ -221,6 +222,13 @@ def run_doubao_account_crawl(
             return _doubao_crawl_first_api_fallback(
                 messages, settings, cause="human_ops", exc=exc
             )
+        except DoubaoShareError as exc:
+            _drop_slot()
+            logger.warning(
+                "doubao crawl share failed (no API fallback) err=%s event=sampling_crawl_lane",
+                exc,
+            )
+            raise SamplingLLMError(str(exc), retryable=False) from exc
         except DoubaoCrawlError as exc:
             logger.warning(
                 "doubao_crawl_fallback reason=crawl_error err=%s event=sampling_crawl_lane",
@@ -248,6 +256,12 @@ def run_doubao_account_crawl(
                 _drop_slot()
                 return _doubao_crawl_first_api_fallback(
                     messages, settings, cause="empty_text"
+                )
+            if not (result.share_url or "").strip():
+                logger.warning(
+                    "doubao crawl ok text_len=%s share_url empty (no API fallback) "
+                    "event=sampling_crawl_lane",
+                    len(result.text or ""),
                 )
             return result
     finally:

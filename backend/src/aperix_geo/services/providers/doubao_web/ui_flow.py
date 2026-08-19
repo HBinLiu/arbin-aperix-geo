@@ -825,8 +825,8 @@ def _activate_header_more_button(page: Any, btn: Any) -> None:
 
 
 def _open_chat_more_menu(page: Any) -> bool:
-    """Open conversation ⋯ until 分享 is visible."""
-    if _share_menu_open(page):
+    """Open conversation ⋯ until a clickable 分享 control is visible."""
+    if _locate_share_control(page) is not None:
         return True
 
     btn = _more_menu_button(page)
@@ -844,12 +844,13 @@ def _open_chat_more_menu(page: Any) -> bool:
         logger.warning("doubao share: 更多 button click failed", exc_info=True)
         return False
     page.wait_for_timeout(400)
-    if not _share_menu_open(page):
+    share = _locate_share_control(page)
+    if share is None:
         logger.warning(
-            "doubao share: 更多 menu opened but no 分享 row url=%s",
+            "doubao share: 更多 clicked but no clickable 分享 url=%s",
             getattr(page, "url", ""),
         )
-    return _share_menu_open(page)
+    return share is not None
 
 
 def capture_share_url(page: Any) -> str:

@@ -297,6 +297,41 @@ def test_locate_share_control_finds_menuitem() -> None:
     assert found is share_row
 
 
+def test_open_chat_more_menu_clicks_when_share_control_missing() -> None:
+    from aperix_geo.services.providers.doubao_web.ui_flow import _open_chat_more_menu
+
+    btn = MagicMock()
+    page = MagicMock()
+    share_row = MagicMock()
+
+    with (
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._locate_share_control",
+            side_effect=[None, share_row],
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._more_menu_button",
+            return_value=btn,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._dismiss_overlay",
+        ) as dismiss,
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._activate_header_more_button",
+        ) as activate,
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._conversation_share_menu_open",
+            return_value=True,
+        ),
+    ):
+        ok = _open_chat_more_menu(page)
+
+    assert ok is True
+    dismiss.assert_called_once()
+    activate.assert_called_once_with(page, btn)
+    btn.click.assert_not_called()
+
+
 def test_conversation_share_menu_open_requires_share_hint() -> None:
     from aperix_geo.services.providers.doubao_web.ui_flow import _conversation_share_menu_open
 
