@@ -134,6 +134,7 @@ def test_extract_search_panel_expands_and_clicks_tabs() -> None:
 
     tab = MagicMock()
     tab.is_visible.return_value = True
+    tab.inner_text.return_value = "参考资料"
 
     panel_root = MagicMock()
     panel_root.inner_text.return_value = "搜索 2 个关键词\nhttps://example.com/a"
@@ -166,6 +167,6 @@ def test_extract_search_panel_expands_and_clicks_tabs() -> None:
         text, hrefs = _extract_search_panel(page)
 
     hint.click.assert_called_once()
-    assert tab.click.call_count >= 1
+    assert tab.click.call_count == 2
     assert "搜索 2 个关键词" in text
     assert hrefs == ()

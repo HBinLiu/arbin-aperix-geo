@@ -585,8 +585,17 @@ def _panel_root(hint: Any) -> Any:
     return best
 
 
+def _is_search_panel_header(el: Any) -> bool:
+    """True for the collapsible「搜索 N 个关键词」row — clicking again toggles closed."""
+    try:
+        text = (el.inner_text(timeout=400) or "").strip()
+    except Exception:
+        return False
+    return bool(sel.SEARCH_PANEL_HINT.search(text))
+
+
 def _extract_search_panel(page: Any) -> tuple[str, tuple[str, ...]]:
-    """Match panel header by regex text, expand, then read keywords + references inside panel."""
+    """Match panel header by regex text, expand once, then switch inner tabs."""
     hint = _first_visible(page.get_by_text(sel.SEARCH_PANEL_HINT), limit=20)
     if hint is None:
         return "", ()
@@ -599,14 +608,15 @@ def _extract_search_panel(page: Any) -> tuple[str, tuple[str, ...]]:
 
     root = _panel_root(hint)
 
-    # Tab switches stay inside the panel root (never page-global — avoids sidebar history).
-    for tab_name in (r"搜索关键词", r"关键词", r"参考资料", r"资料", r"来源"):
+    # Exact tab labels only — bare「关键词」matches the header and collapses the panel.
+    for tab_pattern in (re.compile(r"^搜索关键词$"), re.compile(r"^参考资料$")):
         try:
-            tab = root.get_by_text(re.compile(tab_name))
+            tab = root.get_by_text(tab_pattern)
             found = _first_visible(tab, limit=6)
-            if found is not None:
-                found.click(timeout=2_000)
-                page.wait_for_timeout(400)
+            if found is None or _is_search_panel_header(found):
+                continue
+            found.click(timeout=2_000)
+            page.wait_for_timeout(400)
         except Exception:
             continue
 
@@ -683,6 +693,8 @@ def _dismiss_overlay(page: Any) -> None:
 
 def _share_menu_open(page: Any) -> bool:
     """True when the conversation overflow menu (with 分享) looks open."""
+    if _conversation_share_menu_open(page):
+        return True
     return _locate_share_control(page) is not None
 
 
@@ -724,28 +736,68 @@ def _locate_share_control(page: Any) -> Any | None:
 
 
 def _more_menu_button(page: Any) -> Any | None:
-    """Conversation overflow: ``button[aria-label=\"更多\"]``."""
-    return _first_visible(
+    """Conversation header overflow (⋯). Prefer aria-label=更多, with fallbacks."""
+    for loc in (
         page.locator(f'button[aria-label="{sel.MORE_ARIA_LABEL}"]'),
-        limit=8,
-    )
+        page.locator('button[aria-label*="更多"]'),
+        page.get_by_role("button", name=sel.MORE_MENU_NAME),
+    ):
+        found = _first_visible(loc, limit=8)
+        if found is not None:
+            return found
+    return None
+
+
+def _conversation_share_menu_open(page: Any) -> bool:
+    """True when the header overflow menu (分享 + 删除/置顶…) is open."""
+    for css in ("[role='menu']", "[role='listbox']", "[class*='dropdown']", "[class*='popover']"):
+        scope = page.locator(css)
+        try:
+            n = min(scope.count(), 8)
+        except Exception:
+            continue
+        for i in range(n):
+            root = scope.nth(i)
+            try:
+                if not root.is_visible():
+                    continue
+            except Exception:
+                continue
+            share = _first_visible(root.get_by_text("分享", exact=True), limit=4)
+            if share is None:
+                continue
+            # Conversation ⋯ menu rows: 分享 sits with 删除 / 置顶 / 重命名.
+            body = (root.inner_text(timeout=800) or "").strip()
+            if sel.SHARE_MENU_HINT.search(body):
+                return True
+    return False
 
 
 def _open_chat_more_menu(page: Any) -> bool:
-    """Open conversation ⋯ (aria-label=更多) until 分享 is visible."""
+    """Open conversation ⋯ until 分享 is visible."""
     if _share_menu_open(page):
         return True
 
     btn = _more_menu_button(page)
     if btn is None:
+        logger.warning(
+            "doubao share: header 更多 button not found url=%s",
+            getattr(page, "url", ""),
+        )
         return False
 
     _dismiss_overlay(page)
     try:
         btn.click(timeout=5_000)
     except Exception:
+        logger.warning("doubao share: 更多 button click failed", exc_info=True)
         return False
     page.wait_for_timeout(500)
+    if not _share_menu_open(page):
+        logger.warning(
+            "doubao share: 更多 menu opened but no 分享 row url=%s",
+            getattr(page, "url", ""),
+        )
     return _share_menu_open(page)
 
 
@@ -823,8 +875,19 @@ def try_capture_share_url(page: Any) -> str:
     """Best-effort share URL; empty string when the control/clipboard path fails."""
     try:
         return (capture_share_url(page) or "").strip()
+    except DoubaoShareError as exc:
+        logger.warning(
+            "doubao share_url capture failed: %s url=%s",
+            exc,
+            getattr(page, "url", ""),
+        )
+        return ""
     except Exception as exc:  # noqa: BLE001
-        logger.warning("doubao share_url capture failed: %s", exc)
+        logger.warning(
+            "doubao share_url capture failed: %s url=%s",
+            exc,
+            getattr(page, "url", ""),
+        )
         return ""
 
 
