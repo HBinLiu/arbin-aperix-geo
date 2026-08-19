@@ -266,6 +266,37 @@ def test_more_menu_button_scopes_to_chat_header() -> None:
     assert found is trigger
 
 
+def test_locate_share_control_finds_menuitem() -> None:
+    from aperix_geo.services.providers.doubao_web.ui_flow import _locate_share_control
+
+    share_row = MagicMock()
+    share_row.is_visible.return_value = True
+
+    menu = MagicMock()
+    menu.is_visible.return_value = True
+    menu.inner_text.return_value = "置顶\n分享\n重命名\n删除"
+    menu.get_by_role.return_value = MagicMock(
+        count=lambda: 1,
+        nth=lambda _i: share_row,
+    )
+    menu.get_by_text.return_value = MagicMock(count=lambda: 0)
+    menu.locator.return_value = MagicMock(count=lambda: 0)
+
+    page = MagicMock()
+    page.locator.return_value = MagicMock(
+        count=lambda: 1,
+        nth=lambda _i: menu,
+    )
+
+    with patch(
+        "aperix_geo.services.providers.doubao_web.ui_flow._iter_visible_locators",
+        return_value=[menu],
+    ):
+        found = _locate_share_control(page)
+
+    assert found is share_row
+
+
 def test_conversation_share_menu_open_requires_share_hint() -> None:
     from aperix_geo.services.providers.doubao_web.ui_flow import _conversation_share_menu_open
 
