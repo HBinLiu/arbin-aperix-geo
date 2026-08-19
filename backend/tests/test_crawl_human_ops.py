@@ -7,7 +7,11 @@ from uuid import uuid4
 
 from aperix_geo.config import Settings
 from aperix_geo.db.models import CrawlAccount, CrawlLoginTicket
-from aperix_geo.services.crawl_accounts.human_ops import request_human_intervention
+from aperix_geo.services.crawl_accounts.human_ops import (
+    alert_heartbeat_infra_failure,
+    is_heartbeat_infra_error,
+    request_human_intervention,
+)
 from aperix_geo.services.crawl_accounts.pool import STATUS_NEED_RELOGIN
 from aperix_geo.services.crawl_accounts.tickets import TICKET_PENDING
 
@@ -229,3 +233,74 @@ def test_request_human_intervention_skips_ticket_when_disabled() -> None:
     assert out["ticket_id"] == ""
     assert out["alerted"] is False
     assert account.status == STATUS_NEED_RELOGIN
+
+
+def test_is_heartbeat_infra_error_matches_proxy_auth() -> None:
+    assert is_heartbeat_infra_error(
+        "Page.goto: net::ERR_INVALID_AUTH_CREDENTIALS at https://www.doubao.com/chat/"
+    )
+    assert is_heartbeat_infra_error("Tunnel connection failed: 407 Proxy Authentication Required")
+    assert not is_heartbeat_infra_error("page closed while waiting for generation")
+    assert not is_heartbeat_infra_error("login expired")
+
+
+def test_alert_heartbeat_infra_failure_emails_once() -> None:
+    account_id = uuid4()
+    with (
+        patch(
+            "aperix_geo.utils.cache.redis_kv.redis_set_nx",
+            return_value=True,
+        ),
+        patch(
+            "aperix_geo.services.crawl_accounts.human_ops.send_ops_alert_email",
+            return_value=True,
+        ) as send_mail,
+    ):
+        ok = alert_heartbeat_infra_failure(
+            account_id=account_id,
+            label="acc-proxy",
+            platform="doubao",
+            error="Page.goto: net::ERR_INVALID_AUTH_CREDENTIALS at https://www.doubao.com/chat/",
+            settings=_settings(),
+        )
+    assert ok is True
+    send_mail.assert_called_once()
+    subject = send_mail.call_args.kwargs["subject"]
+    assert "代理/网络失败" in subject
+    assert "acc-proxy" in subject
+
+
+def test_alert_heartbeat_infra_failure_skips_non_infra() -> None:
+    with patch(
+        "aperix_geo.services.crawl_accounts.human_ops.send_ops_alert_email",
+    ) as send_mail:
+        ok = alert_heartbeat_infra_failure(
+            account_id=uuid4(),
+            label="acc-1",
+            platform="doubao",
+            error="page closed while waiting for generation",
+            settings=_settings(),
+        )
+    assert ok is False
+    send_mail.assert_not_called()
+
+
+def test_alert_heartbeat_infra_failure_debounced() -> None:
+    with (
+        patch(
+            "aperix_geo.utils.cache.redis_kv.redis_set_nx",
+            return_value=False,
+        ),
+        patch(
+            "aperix_geo.services.crawl_accounts.human_ops.send_ops_alert_email",
+        ) as send_mail,
+    ):
+        ok = alert_heartbeat_infra_failure(
+            account_id=uuid4(),
+            label="acc-1",
+            platform="doubao",
+            error="net::ERR_INVALID_AUTH_CREDENTIALS",
+            settings=_settings(),
+        )
+    assert ok is False
+    send_mail.assert_not_called()

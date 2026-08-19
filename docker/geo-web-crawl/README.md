@@ -23,6 +23,20 @@ docker compose -f docker/geo-web-crawl/docker-compose.yml up -d --force-recreate
 
 headed 登录用镜像里的 Debian `/usr/bin/chromium`（不要 Playwright 自带 Chrome + SwiftShader）。
 
+对照实验（不进生产采样）：在**生产宿主机**装 Google Chrome + Selenium，用**同一条**白名单代理先打 `myip.ipip.net`，再开豆包。无桌面 SSH 用 `--headless` + 截图：
+
+```bash
+sudo apt-get install -y google-chrome-stable
+cd backend && .venv/bin/pip install 'selenium>=4.8'
+set -a && source ../docker/geo-web-crawl/.env && set +a
+PYTHONPATH=src .venv/bin/python scripts/doubao_selenium_chrome_smoke.py --ip-only --headless
+PYTHONPATH=src .venv/bin/python scripts/doubao_selenium_chrome_smoke.py \
+  --headless --screenshot /tmp/doubao-chrome.png --wait-s 12
+# scp 下来看图；终端会扫「换个网络 / 图片加载失败」等文案
+```
+
+这里同样「换个网络 / 图片加载失败」→ 换青果出口 / 节点信誉，不是改 Playwright↔Selenium。只有 Chrome 正常、容器 Chromium 仍挂时，再考虑镜像换成 Google Chrome（仍用 Playwright，不必切 Selenium）。
+
 出网代理写在 `docker/geo-web-crawl/.env`（`HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY`）。代理在宿主机上时用 `http://host.docker.internal:<port>`，不要写 `127.0.0.1`（那是容器自己）。`NO_PROXY` 须含 `host.docker.internal`，否则关单回调也会走代理。SOCKS5 必须写成 `socks5://host:port`（写成 `http://` 时 Chromium 仍走 HTTP CONNECT，豆包会闪验证码再提示换网络）。改代理协议后需 **rebuild** crawl 镜像（WebRTC/IPv6 泄漏修复在镜像源码里）；只改 `.env` 地址则 `up -d --force-recreate` 即可。
 
 ## Compose

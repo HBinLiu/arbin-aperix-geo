@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 import uuid
 from typing import Any, Literal
@@ -86,6 +87,78 @@ def send_ops_alert_email(
                 time.sleep(_EMAIL_RETRY_SLEEP_S)
     logger.error("ops alert email exhausted retries context=%s err=%s", context, last_exc)
     return False
+
+
+_INFRA_PROBE_ERROR = re.compile(
+    r"ERR_INVALID_AUTH_CREDENTIALS|ERR_PROXY_|ERR_TUNNEL_CONNECTION_FAILED|"
+    r"Proxy Authentication Required|Tunnel connection failed|"
+    r"407 Proxy Authentication|net::ERR_PROXY",
+    re.IGNORECASE,
+)
+
+
+def is_heartbeat_infra_error(error: str) -> bool:
+    """True for proxy/network failures that block goto before Doubao login UI."""
+    return bool(_INFRA_PROBE_ERROR.search(error or ""))
+
+
+def alert_heartbeat_infra_failure(
+    *,
+    account_id: uuid.UUID,
+    label: str,
+    platform: str,
+    error: str,
+    settings: Settings | None = None,
+) -> bool:
+    """Email ops about crawl proxy/infra probe failures (no login ticket / noVNC).
+
+    Debounced per account so Beat retries do not spam every interval.
+    """
+    settings = settings or get_settings()
+    message = (error or "").strip()
+    if not is_heartbeat_infra_error(message):
+        return False
+
+    from aperix_geo.utils.cache.redis_kv import redis_set_nx
+
+    debounce_s = max(3600, int(settings.doubao_heartbeat_interval_min) * 60)
+    key = f"aperix:crawl:hb_infra_alert:{account_id}"
+    # fail_open=True: Redis 不可用时仍发邮件，避免代理故障被静默吞掉。
+    if not redis_set_nx(key, ttl_s=debounce_s, fail_open=True):
+        logger.info(
+            "ops infra alert debounced account=%s platform=%s",
+            account_id,
+            platform,
+        )
+        return False
+
+    env = (getattr(settings, "env", None) or "unknown").strip() or "unknown"
+    plat = normalize_platform(platform)
+    subject = f"[Aperix GEO] 爬虫探活代理/网络失败：{plat}/{label or account_id} ({env})"
+    body = "\n".join(
+        [
+            f"环境：{env}",
+            f"账号平台：{plat}",
+            f"账号 ID：{account_id}",
+            f"账号 label：{label or '—'}",
+            "原因：心跳探活在打开豆包前因代理/网络失败（非账号登录失效）",
+            "",
+            "错误摘要：",
+            message[:1500] or "—",
+            "",
+            "处理建议：",
+            "1. 检查 geo-web-crawl 的 HTTP_PROXY/HTTPS_PROXY（白名单 IP 是否含本机公网出口）",
+            "2. 青果节点是否过期；宿主机 curl -x 测 myip.ipip.net",
+            "3. 修复代理后 force 跑一轮心跳；勿用本机灌 cookie 当生产 SOP",
+            "4. 此类失败不会自动开 noVNC 工单（VNC 解决不了代理 407）",
+        ]
+    )
+    return send_ops_alert_email(
+        settings,
+        subject=subject,
+        body=body,
+        context=f"geo_crawl_infra:{plat}:{account_id}",
+    )
 
 
 def request_human_intervention(

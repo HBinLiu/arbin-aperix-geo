@@ -529,6 +529,9 @@ def test_heartbeat_crawl_error_does_not_mark_expired() -> None:
         patch(
             "aperix_geo.services.crawl_accounts.heartbeat.request_human_intervention",
         ) as mock_ops,
+        patch(
+            "aperix_geo.services.crawl_accounts.heartbeat.alert_heartbeat_infra_failure",
+        ) as mock_infra,
     ):
         result = run_crawl_account_heartbeat(
             db,
@@ -541,8 +544,58 @@ def test_heartbeat_crawl_error_does_not_mark_expired() -> None:
     assert row.status == STATUS_ACTIVE
     assert "page closed" in row.last_error
     mock_ops.assert_not_called()
+    mock_infra.assert_called_once()
     assert row.lease_owner == ""
     assert row.last_ok_at == old_ok
+
+
+def test_heartbeat_proxy_auth_error_alerts_infra() -> None:
+    from aperix_geo.services.providers.doubao_web.errors import DoubaoCrawlError
+
+    row = CrawlAccount(
+        id=uuid4(),
+        label="proxy-fail",
+        status=STATUS_ACTIVE,
+        storage_state=_state(),
+        last_ok_at=utc_now() - timedelta(days=1),
+        lease_until=EPOCH,
+        last_error="",
+    )
+    db = MagicMock()
+    db.scalars.return_value.all.return_value = [row]
+    db.refresh = MagicMock()
+    db.get.return_value = row
+    err = (
+        "Page.goto: net::ERR_INVALID_AUTH_CREDENTIALS at "
+        "https://www.doubao.com/chat/"
+    )
+    with (
+        patch(
+            "aperix_geo.services.crawl_accounts.heartbeat.try_lease_account",
+            return_value=True,
+        ),
+        patch(
+            "aperix_geo.services.crawl_accounts.heartbeat.probe_account_login",
+            side_effect=DoubaoCrawlError(err),
+        ),
+        patch(
+            "aperix_geo.services.crawl_accounts.heartbeat.request_human_intervention",
+        ) as mock_ops,
+        patch(
+            "aperix_geo.services.crawl_accounts.heartbeat.alert_heartbeat_infra_failure",
+        ) as mock_infra,
+    ):
+        result = run_crawl_account_heartbeat(
+            db,
+            settings=Settings(doubao_heartbeat_enabled=True),
+            platform="doubao",
+            respect_sampling_quiet=False,
+        )
+    assert result["failed"] == 1
+    assert row.status == STATUS_ACTIVE
+    mock_ops.assert_not_called()
+    mock_infra.assert_called_once()
+    assert "ERR_INVALID_AUTH_CREDENTIALS" in mock_infra.call_args.kwargs["error"]
 
 
 def test_heartbeat_session_alive_crawl_error_touches_last_ok_at() -> None:

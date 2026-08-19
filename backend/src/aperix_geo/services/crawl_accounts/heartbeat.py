@@ -13,7 +13,10 @@ from sqlalchemy.orm import Session
 from aperix_geo.config import Settings, get_settings
 from aperix_geo.db.base import utc_now
 from aperix_geo.db.models import CrawlAccount
-from aperix_geo.services.crawl_accounts.human_ops import request_human_intervention
+from aperix_geo.services.crawl_accounts.human_ops import (
+    alert_heartbeat_infra_failure,
+    request_human_intervention,
+)
 from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO, normalize_platform
 from aperix_geo.services.crawl_accounts.pool import (
     STATUS_ACTIVE,
@@ -261,6 +264,14 @@ def run_crawl_account_heartbeat(
                 exc.session_alive,
                 exc,
             )
+            if not exc.session_alive:
+                alert_heartbeat_infra_failure(
+                    account_id=row.id,
+                    label=row.label,
+                    platform=plat,
+                    error=str(exc),
+                    settings=settings,
+                )
         except Exception as exc:
             row.last_error = str(exc)[:2000]
             clear_account_lease(db, account_id=row.id, lease_owner=owner)
@@ -280,6 +291,13 @@ def run_crawl_account_heartbeat(
                 row.label,
                 plat,
                 exc,
+            )
+            alert_heartbeat_infra_failure(
+                account_id=row.id,
+                label=row.label,
+                platform=plat,
+                error=str(exc),
+                settings=settings,
             )
         db.commit()
 
