@@ -121,6 +121,7 @@ def fill_domain_site_names_from_homepage(
         ensure_domain_profiles,
         remember_domain_site_names,
     )
+    from aperix_geo.services.domain.seeds import seed_site_name
 
     pending = domains_needing_homepage_site_name(db, domains)
     if not pending:
@@ -138,6 +139,10 @@ def fill_domain_site_names_from_homepage(
         for host, name in pool.map(run_one, pending):
             if name:
                 found[host] = name
+            else:
+                seed_name = (seed_site_name(host) or "").strip()
+                if seed_name:
+                    found[host] = seed_name
 
     if found:
         remember_domain_site_names(db, found)

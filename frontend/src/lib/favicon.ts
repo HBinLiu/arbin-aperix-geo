@@ -71,8 +71,18 @@ export function faviconApiUrl(url: string): string | null {
 
 export function faviconCandidateUrls(url: string): string[] {
   if (getFaviconClientStatus(url) === "miss") return [];
+  const resolved = resolveFaviconInput(url);
+  if (!resolved) return [];
   const api = faviconApiUrl(url);
-  return api ? [api] : [];
+  if (!api) return [];
+  const out = [api];
+  // 引用页多为子域/深链：主域列表已有图标时，回退到 eTLD+1 首页 favicon。
+  const apex = registrableDomain(resolved.pageUrl);
+  if (apex && apex !== resolved.host) {
+    const apexApi = faviconApiUrl(faviconUrlFromHost(apex));
+    if (apexApi && !out.includes(apexApi)) out.push(apexApi);
+  }
+  return out;
 }
 
 /** 竞品/主体等：优先 website URL，否则由主域名构造首页 URL。 */

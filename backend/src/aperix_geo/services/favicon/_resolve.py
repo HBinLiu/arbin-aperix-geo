@@ -42,6 +42,12 @@ def _lookup(req: FaviconRequest) -> tuple[bytes, str] | _FaviconMiss | None:
     if req.mode is FaviconMode.HOME and req.cache_key == req.apex:
         if promoted := ensure_apex_alias(req.apex):
             return promoted
+    # Subdomain PAGE (e.g. www.* article links): reuse apex icon when domain row already cached it.
+    if req.cache_key != req.apex:
+        if hit := read_cached_favicon(req.apex):
+            return hit
+        if promoted := ensure_apex_alias(req.apex):
+            return promoted
     return None
 
 

@@ -13,7 +13,7 @@ from aperix_geo.db.models import DomainProfile
 from aperix_geo.services.crawl import page_crawl_settings
 from aperix_geo.services.crawl.seo import SeoMetadata, SeoProfile, seo_prose_text
 from aperix_geo.services.domain.type_rules import domain_type_from_homepage_seo
-from aperix_geo.services.domain.seeds import seed_domain_type
+from aperix_geo.services.domain.seeds import seed_domain_type, seed_site_name
 from aperix_geo.services.domain.site_name import HomepageProfile, fetch_homepage_profile
 from aperix_geo.services.domain.taxonomy import DEFAULT_DOMAIN_TYPE, DOMAIN_TYPES, normalize_domain_type
 from aperix_geo.services.providers import LLMProviderError, chat_completion
@@ -55,12 +55,14 @@ def ensure_domain_profiles(db: Session, domains: Iterable[str]) -> list[str]:
     for domain in keys:
         row = existing.get(domain)
         raw_seed = (seed_domain_type(domain) or "").strip()
+        seed_name = (seed_site_name(domain) or "").strip()[:255]
         if row is None:
             if raw_seed:
                 db.add(
                     DomainProfile(
                         domain=domain,
                         domain_type=normalize_domain_type(raw_seed),
+                        site_name=seed_name,
                         source="seed",
                     )
                 )
@@ -69,11 +71,14 @@ def ensure_domain_profiles(db: Session, domains: Iterable[str]) -> list[str]:
                     DomainProfile(
                         domain=domain,
                         domain_type=DEFAULT_DOMAIN_TYPE,
+                        site_name=seed_name,
                         source="",
                     )
                 )
                 pending.append(domain)
             continue
+        if seed_name and not str(row.site_name or "").strip():
+            row.site_name = seed_name
         if _is_resolved(row):
             continue
         if raw_seed:
@@ -183,6 +188,10 @@ def classify_domains(db: Session, domains: Iterable[str]) -> dict[str, str]:
         for host, profile in profiles.items()
         if profile.site_name
     }
+    for domain in pending:
+        seed_name = (seed_site_name(domain) or "").strip()
+        if seed_name and domain not in site_names:
+            site_names[domain] = seed_name
     if site_names:
         remember_domain_site_names(db, site_names)
 

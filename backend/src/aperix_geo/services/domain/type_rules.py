@@ -349,6 +349,9 @@ _KEYWORD_RULES: tuple[tuple[str, str], ...] = (
     ("药品", "drugs"),
     ("处方药", "drugs"),
     ("pharmacy", "drugs"),
+    ("小荷", "hospitals"),
+    ("小荷AI", "hospitals"),
+    ("AI医生", "hospitals"),
     # —— government / politics ——
     ("政府官网", "government"),
     ("政务服务", "government"),

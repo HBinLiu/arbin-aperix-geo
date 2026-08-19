@@ -47,6 +47,18 @@ async def get_favicon(
             body, media_type = promoted
             return _ok(body, media_type)
 
+    # Subdomain PAGE: domain list often cached apex only — reuse without network.
+    if req.cache_key != req.apex:
+        if cached := cache_get(req.apex):
+            body, media_type = cached
+            return _ok(body, media_type)
+        if disk := static_favicon_path(req.apex):
+            path, media_type = disk
+            return FileResponse(path, media_type=media_type, headers=_CACHE_HIT_HEADERS)
+        if promoted := ensure_apex_alias(req.apex):
+            body, media_type = promoted
+            return _ok(body, media_type)
+
     result = await resolve_favicon_request(req)
     if not result:
         return Response(status_code=status.HTTP_204_NO_CONTENT, headers=_MISS_HEADERS)

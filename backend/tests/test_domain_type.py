@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from aperix_geo.services.domain.seeds import seed_domain_type
+from aperix_geo.services.domain.seeds import seed_domain_type, seed_site_name, seed_site_name
 from aperix_geo.services.domain.taxonomy import DOMAIN_TYPES, normalize_domain_type
 
 
@@ -26,6 +26,7 @@ def test_seed_domain_type_cn_hosts() -> None:
     assert seed_domain_type("csdn.net") == "forum"
     assert seed_domain_type("36kr.com") == "news"
     assert seed_domain_type("haodf.com") == "hospitals"
+    assert seed_domain_type("xiaohe.cn") == "hospitals"
     assert seed_domain_type("autohome.com.cn") == "automobile"
     assert seed_domain_type("zhipin.com") == "jobsearch"
     assert seed_domain_type("eastmoney.com") == "finance"
@@ -58,3 +59,9 @@ def test_seed_domain_type_suffix_and_heuristics() -> None:
     assert seed_domain_type("ox.ac.uk") == "education"
     assert seed_domain_type("mygovhelp.com") == ""  # 非整标签 gov，不误伤
     assert seed_domain_type("random-brand.example") == ""
+
+
+def test_seed_site_name_known_hosts() -> None:
+    assert seed_site_name("xiaohe.cn") == "小荷AI医生"
+    assert seed_site_name("www.xiaohe.cn") == "小荷AI医生"
+    assert seed_site_name("example.com") == ""

@@ -589,6 +589,7 @@ DOMAIN_TYPE_SEEDS: dict[str, str] = {
     "jianke.com": "hospitals",
     "ykyao.com": "hospitals",
     "111.com.cn": "hospitals",
+    "xiaohe.cn": "hospitals",
     # ── jobsearch / 招聘 ──────────────────────────────────────────
     "zhaopin.com": "jobsearch",
     "51job.com": "jobsearch",
@@ -642,6 +643,11 @@ DOMAIN_TYPE_SEEDS: dict[str, str] = {
     "qpic.cn": "imagehosting",
     "qlogo.cn": "imagehosting",
     "gtimg.cn": "imagehosting",
+}
+
+# eTLD+1 → 展示用站点名（首页抓取失败或 SPA 无 SEO 时的兜底）
+DOMAIN_SITE_NAME_SEEDS: dict[str, str] = {
+    "xiaohe.cn": "小荷AI医生",
 }
 
 
@@ -700,16 +706,28 @@ def _heuristic_domain_type(domain: str) -> str:
     return ""
 
 
-def seed_domain_type(domain: str) -> str:
-    """Return Shallalist code from seed map or light heuristics; else empty."""
+def _seed_lookup(domain: str, table: dict[str, str]) -> str:
     key = (domain or "").strip().lower()
     if not key:
         return ""
-    if key in DOMAIN_TYPE_SEEDS:
-        return DOMAIN_TYPE_SEEDS[key]
+    if key in table:
+        return table[key]
     parts = key.split(".")
     for i in range(1, len(parts) - 1):
         candidate = ".".join(parts[i:])
-        if candidate in DOMAIN_TYPE_SEEDS:
-            return DOMAIN_TYPE_SEEDS[candidate]
-    return _heuristic_domain_type(key)
+        if candidate in table:
+            return table[candidate]
+    return ""
+
+
+def seed_domain_type(domain: str) -> str:
+    """Return Shallalist code from seed map or light heuristics; else empty."""
+    ruled = _seed_lookup(domain, DOMAIN_TYPE_SEEDS)
+    if ruled:
+        return ruled
+    return _heuristic_domain_type((domain or "").strip().lower())
+
+
+def seed_site_name(domain: str) -> str:
+    """Return curated site display name; empty when unknown."""
+    return (_seed_lookup(domain, DOMAIN_SITE_NAME_SEEDS) or "").strip()

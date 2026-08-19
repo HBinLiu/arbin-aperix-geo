@@ -550,6 +550,57 @@ def test_static_favicon_path(tmp_path, monkeypatch) -> None:
     assert storage_mod.read_disk_favicon("disk.example.com") == (body, "image/png")
 
 
+def test_subdomain_page_reuses_apex_cached_favicon(tmp_path, monkeypatch) -> None:
+    from aperix_geo.services.favicon import _storage as storage_mod
+    from aperix_geo.services.favicon._domain import FaviconMode, normalize_favicon_request
+    from aperix_geo.services.favicon._resolve import _lookup
+
+    monkeypatch.setattr("aperix_geo.services.favicon._storage._storage_root", lambda: tmp_path)
+
+    body = b"\x89PNG\r\n\x1a\n" + b"x" * 20
+    storage_mod.persist_favicon(
+        "xiaohe.cn",
+        url="https://xiaohe.cn/favicon.ico",
+        body=body,
+        media_type="image/png",
+    )
+
+    req = normalize_favicon_request("https://m.xiaohe.cn/article/123")
+    assert req is not None
+    assert req.cache_key == "m.xiaohe.cn"
+    assert req.apex == "xiaohe.cn"
+    assert req.mode is FaviconMode.PAGE
+
+    hit = _lookup(req)
+    assert hit == (body, "image/png")
+
+
+def test_favicon_api_subdomain_page_reuses_apex_disk(tmp_path, monkeypatch) -> None:
+    from fastapi.testclient import TestClient
+
+    from aperix_geo.main import app
+    from aperix_geo.services.favicon import _storage as storage_mod
+
+    monkeypatch.setattr("aperix_geo.services.favicon._storage._storage_root", lambda: tmp_path)
+
+    body = b"\x89PNG\r\n\x1a\n" + b"x" * 20
+    storage_mod.persist_favicon(
+        "xiaohe.cn",
+        url="https://xiaohe.cn/favicon.ico",
+        body=body,
+        media_type="image/png",
+    )
+
+    client = TestClient(app)
+    resp = client.get(
+        "/api/v1/favicon",
+        params={"url": "https://m.xiaohe.cn/article/123"},
+    )
+    assert resp.status_code == 200
+    assert resp.content == body
+    assert resp.headers["content-type"].startswith("image/png")
+
+
 def test_favicon_api_serves_disk_file(tmp_path, monkeypatch) -> None:
     from fastapi.testclient import TestClient
 
