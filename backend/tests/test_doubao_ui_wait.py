@@ -267,35 +267,73 @@ def test_more_menu_button_scopes_to_chat_header() -> None:
     assert found is trigger
 
 
-def test_locate_share_control_finds_menuitem() -> None:
+def test_share_menuitem_in_menu_picks_share_among_rows() -> None:
+    from aperix_geo.services.providers.doubao_web.ui_flow import _share_menuitem_in_menu
+
+    def _item(label: str) -> MagicMock:
+        item = MagicMock()
+        item.is_visible.return_value = True
+        label_loc = MagicMock()
+        label_loc.count.return_value = 1
+        label_loc.inner_text.return_value = label
+        truncate = MagicMock()
+        truncate.first = label_loc
+        item.locator.return_value = truncate
+        return item
+
+    rename = _item("重命名")
+    share = _item("分享")
+
+    menu = MagicMock()
+    menu.locator.return_value = MagicMock(
+        count=lambda: 2,
+        nth=lambda i: rename if i == 0 else share,
+    )
+
+    assert _share_menuitem_in_menu(menu) is share
+
+
+def test_locate_share_control_finds_menuitem_in_open_dropdown() -> None:
     from aperix_geo.services.providers.doubao_web.ui_flow import _locate_share_control
 
     share_row = MagicMock()
-    share_row.is_visible.return_value = True
-
     menu = MagicMock()
-    menu.is_visible.return_value = True
-    menu.inner_text.return_value = "置顶\n分享\n重命名\n删除"
-    menu.get_by_role.return_value = MagicMock(
-        count=lambda: 1,
-        nth=lambda _i: share_row,
-    )
-    menu.get_by_text.return_value = MagicMock(count=lambda: 0)
-    menu.locator.return_value = MagicMock(count=lambda: 0)
-
     page = MagicMock()
-    page.locator.return_value = MagicMock(
-        count=lambda: 1,
-        nth=lambda _i: menu,
-    )
 
-    with patch(
-        "aperix_geo.services.providers.doubao_web.ui_flow._iter_visible_locators",
-        return_value=[menu],
+    with (
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._iter_visible_locators",
+            return_value=[menu],
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._share_menuitem_in_menu",
+            return_value=share_row,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._header_overflow_menu_score",
+            return_value=2,
+        ),
     ):
         found = _locate_share_control(page)
 
     assert found is share_row
+
+
+def test_conversation_share_menu_open_when_menuitem_visible() -> None:
+    from aperix_geo.services.providers.doubao_web.ui_flow import _conversation_share_menu_open
+
+    page = MagicMock()
+    with patch(
+        "aperix_geo.services.providers.doubao_web.ui_flow._locate_share_control",
+        return_value=MagicMock(),
+    ):
+        assert _conversation_share_menu_open(page) is True
+
+    with patch(
+        "aperix_geo.services.providers.doubao_web.ui_flow._locate_share_control",
+        return_value=None,
+    ):
+        assert _conversation_share_menu_open(page) is False
 
 
 def test_open_chat_more_menu_clicks_when_share_control_missing() -> None:
@@ -354,26 +392,3 @@ def test_open_chat_more_menu_skips_click_when_menu_already_open() -> None:
     assert ok is True
     more_btn.assert_not_called()
     activate.assert_not_called()
-
-
-def test_conversation_share_menu_open_requires_share_hint() -> None:
-    from aperix_geo.services.providers.doubao_web.ui_flow import _conversation_share_menu_open
-
-    menu = MagicMock()
-    menu.is_visible.return_value = True
-    menu.inner_text.return_value = "分享\n置顶\n删除"
-
-    page = MagicMock()
-    page.locator.return_value = MagicMock(
-        count=lambda: 1,
-        nth=lambda _i: menu,
-    )
-
-    with patch(
-        "aperix_geo.services.providers.doubao_web.ui_flow._iter_visible_locators",
-        return_value=[menu],
-    ):
-        assert _conversation_share_menu_open(page) is True
-
-        menu.inner_text.return_value = "图像生成\nPPT 生成"
-        assert _conversation_share_menu_open(page) is False

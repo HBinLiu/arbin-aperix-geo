@@ -728,41 +728,104 @@ def _dismiss_overlay(page: Any) -> None:
         pass
 
 
-def _open_conversation_overflow_menus(page: Any) -> Any:
-    """Radix dropdown portals that are actually open (ignore closed/hidden menus)."""
+def _open_overflow_menus(page: Any) -> Any:
     return page.locator(sel.OPEN_DROPDOWN_MENU_CONTENT)
 
 
-def _menu_has_share_row(root: Any) -> bool:
+def _menuitem_label_text(item: Any) -> str:
     try:
-        if not root.is_visible():
-            return False
+        label = item.locator("div.truncate").first
+        if label.count() > 0:
+            return (label.inner_text(timeout=500) or "").strip()
     except Exception:
-        return False
+        pass
     try:
-        body = (root.inner_text(timeout=800) or "").strip()
+        return (item.inner_text(timeout=500) or "").strip()
     except Exception:
-        return False
-    return "分享" in body and bool(sel.SHARE_MENU_HINT.search(body))
+        return ""
 
 
-def _share_row_in_menu(root: Any) -> Any | None:
-    """Return the 分享 row inside a conversation overflow menu."""
-    if not _menu_has_share_row(root):
+def _share_menuitem_in_menu(menu_root: Any) -> Any | None:
+    """Pick the 分享 row among multiple menuitems in one open dropdown-menu-content."""
+    items = menu_root.locator(sel.SHARE_MENU_ITEM)
+    try:
+        n = min(int(items.count()), 16)
+    except Exception:
         return None
-    hit = _first_visible(root.get_by_text("分享", exact=True), limit=6)
-    if hit is not None:
-        return hit
-    return _first_visible(root.get_by_role("menuitem", name=sel.SHARE_NAME), limit=6)
+    for i in range(n):
+        item = items.nth(i)
+        try:
+            if not item.is_visible():
+                continue
+        except Exception:
+            continue
+        text = _menuitem_label_text(item)
+        if not text:
+            continue
+        if sel.SHARE_NAME.fullmatch(text) or text == "分享":
+            return item
+    return None
+
+
+def _header_overflow_menu_score(menu_root: Any) -> int:
+    try:
+        body = (menu_root.inner_text(timeout=800) or "").strip()
+    except Exception:
+        return 0
+    if "分享" not in body:
+        return 0
+    if sel.HEADER_OVERFLOW_HINT.search(body):
+        return 2
+    return 1
 
 
 def _locate_share_control(page: Any) -> Any | None:
-    """Find clickable 分享 only inside an open conversation overflow menu."""
-    for root in _iter_visible_locators(_open_conversation_overflow_menus(page), limit=8):
-        hit = _share_row_in_menu(root)
-        if hit is not None:
-            return hit
-    return None
+    """Find 分享 menuitem inside an open dropdown-menu-content (not bare page scan)."""
+    best: Any | None = None
+    best_score = 0
+    for menu in _iter_visible_locators(_open_overflow_menus(page), limit=8):
+        hit = _share_menuitem_in_menu(menu)
+        if hit is None:
+            continue
+        score = _header_overflow_menu_score(menu)
+        if score > best_score:
+            best = hit
+            best_score = score
+    return best
+
+
+def _conversation_share_menu_open(page: Any) -> bool:
+    """True when 分享 menuitem is visible inside an open dropdown-menu-content."""
+    return _locate_share_control(page) is not None
+
+
+def _click_menu_row_keeping_open(page: Any, trigger: Any, row: Any) -> None:
+    """Click a hover-trigger dropdown row without collapsing the menu first."""
+    try:
+        trigger.hover(timeout=3_000)
+        page.wait_for_timeout(120)
+    except Exception:
+        logger.debug("doubao share: keep menu open hover failed", exc_info=True)
+    for attempt in (
+        lambda: row.click(timeout=3_000),
+        lambda: row.click(timeout=3_000, force=True),
+    ):
+        try:
+            attempt()
+            return
+        except Exception:
+            continue
+    try:
+        box = row.bounding_box()
+    except Exception:
+        box = None
+    if box:
+        page.mouse.click(
+            box["x"] + box["width"] / 2,
+            box["y"] + box["height"] / 2,
+        )
+        return
+    raise DoubaoShareError("could not click 分享 in overflow menu")
 
 
 def _more_menu_button(page: Any) -> Any | None:
@@ -783,14 +846,6 @@ def _more_menu_button(page: Any) -> Any | None:
         if found is not None:
             return found
     return None
-
-
-def _conversation_share_menu_open(page: Any) -> bool:
-    """True when the header overflow menu (分享 + 删除/置顶…) is open."""
-    for root in _iter_visible_locators(_open_conversation_overflow_menus(page), limit=8):
-        if _menu_has_share_row(root):
-            return True
-    return False
 
 
 def _activate_header_more_button(page: Any, btn: Any) -> None:
@@ -850,7 +905,7 @@ def _open_chat_more_menu(page: Any) -> bool:
     except Exception:
         logger.warning("doubao share: 更多 button click failed", exc_info=True)
         return False
-    page.wait_for_timeout(400)
+    page.wait_for_timeout(500)
     share = _locate_share_control(page)
     if share is None:
         logger.warning(
@@ -861,7 +916,7 @@ def _open_chat_more_menu(page: Any) -> bool:
 
 
 def capture_share_url(page: Any) -> str:
-    """Header ⋯ → 分享 → copy link. Any failure is ``DoubaoShareError``."""
+    """Header ⋯ → 分享 menuitem → read share URL from clipboard / dialog."""
     try:
         return _capture_share_url(page)
     except DoubaoShareError:
@@ -872,25 +927,19 @@ def capture_share_url(page: Any) -> str:
 
 def _capture_share_url(page: Any) -> str:
     # Always open header ⋯ first — never skip because a stale/hidden menu matched 分享.
+    more_btn = _more_menu_button(page)
     if not _open_chat_more_menu(page):
         raise DoubaoShareError("share button not found (could not open ⋯ menu with 分享)")
     share = _locate_share_control(page)
     if share is None:
         raise DoubaoShareError("share button not found (⋯ menu open but no 分享)")
 
-    share.click(timeout=5_000)
+    logger.info("doubao share: clicking 分享 url=%s", getattr(page, "url", ""))
+    if more_btn is not None:
+        _click_menu_row_keeping_open(page, more_btn, share)
+    else:
+        share.click(timeout=5_000)
     page.wait_for_timeout(800)
-
-    # Prefer explicit copy-link control.
-    copy_btn = _first_visible(page.get_by_role("button", name=sel.COPY_LINK_NAME))
-    if copy_btn is None:
-        copy_btn = _first_visible(page.get_by_text(sel.COPY_LINK_NAME))
-    if copy_btn is not None:
-        try:
-            copy_btn.click(timeout=3_000)
-            page.wait_for_timeout(400)
-        except Exception:
-            logger.debug("copy link click failed", exc_info=True)
 
     candidates: list[str] = []
 

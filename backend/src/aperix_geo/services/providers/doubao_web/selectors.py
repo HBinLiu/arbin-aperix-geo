@@ -18,11 +18,8 @@ SYSTEM_ERROR_HINT = re.compile(r"系统异常")
 SEND_NAME = re.compile(r"发送消息|^\s*发送\s*$")
 STOP_NAME = re.compile(r"停止生成|停止回答|停止输出|^停止$|Stop generating")
 SHARE_NAME = re.compile(r"^\s*分享\s*$")
-# Overflow menu rows often include 置顶/重命名 next to 分享 (sanity check).
-SHARE_MENU_HINT = re.compile(r"置顶|重命名|举报|删除")
 # Header "⋯" / more actions (share lives inside this menu on current Doubao Web).
 MORE_MENU_NAME = re.compile(r"更多|更多操作|更多选项|菜单|More")
-COPY_LINK_NAME = re.compile(r"复制链接|复制分享链接|^复制$")
 # Delete current thread (heartbeat probe must remove its own chat).
 DELETE_CHAT_NAME = re.compile(r"^删除$|删除对话|删除聊天|删除会话")
 CONFIRM_DELETE_NAME = re.compile(r"^确定$|^确认$|确认删除|删除对话")
@@ -40,6 +37,11 @@ CHAT_HEADER_MORE_TRIGGER = (
 )
 DROPDOWN_MENU_CONTENT = '[data-slot="dropdown-menu-content"][role="menu"]'
 OPEN_DROPDOWN_MENU_CONTENT = f'{DROPDOWN_MENU_CONTENT}[data-state="open"]'
+DROPDOWN_MENU_ITEM = '[data-slot="dropdown-menu-item"]'
+# One row inside open ⋯ menu (several items: 置顶/重命名/分享/删除…).
+SHARE_MENU_ITEM = f'[role="menuitem"]{DROPDOWN_MENU_ITEM}'
+# Overflow menu sanity: header ⋯ menu includes 分享 plus at least one of these.
+HEADER_OVERFLOW_HINT = re.compile(r"置顶|重命名|举报|删除")
 
 # Search / references panel header on assistant replies (outside md-box-root).
 SEARCH_PANEL_HINT = re.compile(r"搜索\s*\d+\s*个关键词")
