@@ -116,6 +116,38 @@ def _doubao_api_chat(messages: list[dict[str, str]], settings: Settings) -> Samp
     )
 
 
+def _doubao_crawl_first_api_fallback(
+    messages: list[dict[str, str]],
+    settings: Settings,
+    *,
+    cause: str,
+    exc: BaseException | None = None,
+) -> SamplingChatResult:
+    """When ``crawl_first`` browser crawl fails, fall back to Doubao HTTP API."""
+    from aperix_geo.services.sampling.backends import crawl_first_mode, crawl_only_mode
+
+    if crawl_only_mode("doubao", settings=settings):
+        if exc is not None:
+            raise SamplingLLMError(str(exc), retryable=False) from exc
+        raise SamplingLLMError(cause, retryable=False)
+    if not crawl_first_mode("doubao", settings=settings):
+        if exc is not None:
+            raise sampling_llm_error_from(exc) from exc
+        raise SamplingLLMError(cause, retryable=False)
+    if not (settings.doubao_api_key or "").strip():
+        detail = cause if exc is None else f"{cause}: {exc}"
+        raise SamplingLLMError(
+            f"doubao crawl failed ({detail}) and API fallback unavailable (no doubao_api_key)",
+            retryable=False,
+        ) from exc
+    logger.warning(
+        "doubao_crawl_fallback reason=api_fallback mode=crawl_first cause=%s err=%s",
+        cause,
+        exc or "-",
+    )
+    return _doubao_api_chat(messages, settings)
+
+
 def _doubao_chat(settings: Settings) -> Callable[[list[dict[str, str]]], SamplingChatResult]:
     """API-lane Doubao chat. Account-pool crawl runs on ``sampling_crawl`` workers."""
 
@@ -133,7 +165,6 @@ def run_doubao_account_crawl(
     """Account-pool crawl for the dedicated crawl Celery lane (busy→requeue, not API)."""
     settings = settings or get_settings()
     from aperix_geo.db.session import SessionLocal
-    from aperix_geo.services.sampling.backends import crawl_first_mode, crawl_only_mode
     from aperix_geo.services.sampling.crawl_capacity import (
         CrawlCapacityBusy,
         CrawlPoolEmpty,
@@ -158,15 +189,9 @@ def run_doubao_account_crawl(
             "doubao_crawl_fallback reason=no_credentials mode=%s event=sampling_crawl_lane",
             settings.doubao_sampling_mode,
         )
-        if crawl_only_mode("doubao", settings=settings):
-            raise SamplingLLMError(str(exc), retryable=False) from exc
-        if crawl_first_mode("doubao", settings=settings):
-            logger.warning(
-                "doubao_crawl_fallback reason=api_fallback mode=crawl_first "
-                "cause=pool_empty event=sampling_crawl_lane"
-            )
-            return _doubao_api_chat(messages, settings)
-        raise SamplingLLMError(str(exc), retryable=False) from exc
+        return _doubao_crawl_first_api_fallback(
+            messages, settings, cause="pool_empty", exc=exc
+        )
     except CrawlCapacityBusy:
         db.close()
         raise
@@ -185,38 +210,46 @@ def run_doubao_account_crawl(
 
     try:
         try:
-            return crawl_doubao_chat(messages, settings=settings)
+            result = crawl_doubao_chat(messages, settings=settings)
         except DoubaoNeedsHumanOps as exc:
             logger.error(
                 "doubao_crawl_fallback reason=human_ops type=%s err=%s event=sampling_crawl_lane",
                 type(exc).__name__,
                 exc,
             )
-            if crawl_only_mode("doubao", settings=settings):
-                raise SamplingLLMError(str(exc), retryable=False) from exc
-            if crawl_first_mode("doubao", settings=settings):
-                logger.warning(
-                    "doubao_crawl_fallback reason=api_fallback mode=crawl_first "
-                    "cause=human_ops event=sampling_crawl_lane"
-                )
-                _drop_slot()
-                return _doubao_api_chat(messages, settings)
-            raise SamplingLLMError(str(exc), retryable=False) from exc
+            _drop_slot()
+            return _doubao_crawl_first_api_fallback(
+                messages, settings, cause="human_ops", exc=exc
+            )
         except DoubaoCrawlError as exc:
             logger.warning(
                 "doubao_crawl_fallback reason=crawl_error err=%s event=sampling_crawl_lane",
                 exc,
             )
-            if crawl_only_mode("doubao", settings=settings):
-                raise SamplingLLMError(str(exc), retryable=False) from exc
-            if crawl_first_mode("doubao", settings=settings):
+            _drop_slot()
+            return _doubao_crawl_first_api_fallback(
+                messages, settings, cause="crawl_error", exc=exc
+            )
+        except Exception as exc:
+            logger.warning(
+                "doubao_crawl_fallback reason=unexpected err=%s event=sampling_crawl_lane",
+                exc,
+                exc_info=True,
+            )
+            _drop_slot()
+            return _doubao_crawl_first_api_fallback(
+                messages, settings, cause="unexpected", exc=exc
+            )
+        else:
+            if not (result.text or "").strip():
                 logger.warning(
-                    "doubao_crawl_fallback reason=api_fallback mode=crawl_first "
-                    "cause=crawl_error event=sampling_crawl_lane"
+                    "doubao_crawl_fallback reason=empty_text event=sampling_crawl_lane"
                 )
                 _drop_slot()
-                return _doubao_api_chat(messages, settings)
-            raise SamplingLLMError(str(exc), retryable=False) from exc
+                return _doubao_crawl_first_api_fallback(
+                    messages, settings, cause="empty_text"
+                )
+            return result
     finally:
         _drop_slot()
 
