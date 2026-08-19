@@ -30,6 +30,8 @@ LOGIN_HINT = re.compile(r"登录|登陆|验证码|扫码")
 # Assistant message toolbar (copy / 朗读 / …). First direct ``button`` copies Markdown body.
 MESSAGE_ACTION_BAR = ".message-action-button-main"
 READ_ALOUD_NAME = re.compile(r"朗读")
+# Conversation header overflow (share / delete live under this menu).
+MORE_ARIA_LABEL = "更多"
 
 # Search / references panel header on assistant replies (outside md-box-root).
 SEARCH_PANEL_HINT = re.compile(r"搜索\s*\d+\s*个关键词")

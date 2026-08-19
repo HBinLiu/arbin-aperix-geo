@@ -106,6 +106,10 @@ def run_doubao_browser_crawl_on_page(
         if not sample_conv:
             sample_conv = conversation_id_from_url(page.url or "")
 
+        ui_flow._pin_sample_thread(
+            page, conversation_id=sample_conv, base_url=base_url
+        )
+
         raw_text = ui_flow._extract_assistant_text(
             page,
             deadline=crawl_deadline,

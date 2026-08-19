@@ -34,26 +34,6 @@ from aperix_geo.services.providers.doubao_web.runtime import (
 
 logger = logging.getLogger(__name__)
 
-# Left sidebar history sits left of the main thread column on desktop Doubao Web.
-_SIDEBAR_MAX_X = 280.0
-
-
-def _element_column_x(el: Any) -> float | None:
-    try:
-        box = el.bounding_box()
-        if not box:
-            return None
-        return float(box["x"])
-    except Exception:
-        return None
-
-
-def _in_main_column(el: Any, *, min_x: float = _SIDEBAR_MAX_X) -> bool:
-    x = _element_column_x(el)
-    if x is None:
-        return True
-    return x >= min_x
-
 
 def _require_sample_conversation(
     page: Any,
@@ -83,6 +63,26 @@ def _require_sample_conversation(
         raise DoubaoCrawlError(
             f"failed to reopen sample conversation id={cid} url={page.url!r}"
         )
+
+
+def _pin_sample_thread(
+    page: Any,
+    *,
+    conversation_id: str,
+    base_url: str,
+) -> None:
+    """Ensure we are on the sample conversation URL before extract clicks."""
+    _require_sample_conversation(
+        page, conversation_id=conversation_id, base_url=base_url
+    )
+    page.wait_for_timeout(400)
+
+
+def _conversation_matches(page: Any, conversation_id: str) -> bool:
+    cid = (conversation_id or "").strip()
+    if not cid:
+        return True
+    return conversation_id_from_url(page.url or "") == cid
 
 _STABLE_IDLE_POLLS = 10  # ~3s of unchanged assistant text when stop/streaming is missing
 
@@ -406,13 +406,7 @@ def _any_streaming_true(page: Any) -> bool:
 
 
 def _action_bar_visible(page: Any) -> bool:
-    bar = page.locator(sel.MESSAGE_ACTION_BAR)
-    try:
-        if bar.count() <= 0:
-            return False
-        return bool(bar.last.is_visible())
-    except Exception:
-        return False
+    return _message_action_bar(page) is not None
 
 
 def _wait_until(page: Any, *, deadline: float, predicate: Any, label: str) -> None:
@@ -456,8 +450,11 @@ def _last_assistant_md_text(page: Any, *, user_prompt: str = "") -> str:
     except Exception:
         return ""
     for i in range(n - 1, -1, -1):
+        target = loc.nth(i)
         try:
-            text = (loc.nth(i).inner_text(timeout=800) or "").strip()
+            if not target.is_visible():
+                continue
+            text = (target.inner_text(timeout=800) or "").strip()
         except Exception:
             continue
         if not text:
@@ -548,28 +545,22 @@ def _read_clipboard(page: Any) -> str:
 
 
 def _message_action_bar(page: Any) -> Any | None:
-    """Latest visible ``.message-action-button-main`` under the assistant reply."""
-    bar = page.locator(sel.MESSAGE_ACTION_BAR)
+    """First visible ``.message-action-button-main``."""
+    bar = _first_visible(
+        page.locator(sel.MESSAGE_ACTION_BAR),
+        limit=30,
+    )
+    if bar is None:
+        return None
     try:
-        if bar.count() <= 0:
-            return None
-        target = bar.last
-        target.wait_for(state="visible", timeout=5_000)
-        return target
+        bar.wait_for(state="visible", timeout=3_000)
     except Exception:
         return None
+    return bar
 
 
 def _locate_copy_body_button(bar: Any) -> Any | None:
-    """First toolbar button = 复制正文 (sibling before「朗读」when present)."""
-    try:
-        read_aloud = bar.get_by_role("button", name=sel.READ_ALOUD_NAME)
-        if read_aloud.count() > 0:
-            prev = read_aloud.first.locator("xpath=preceding-sibling::button[1]")
-            if prev.count() > 0:
-                return prev.first
-    except Exception:
-        pass
+    """First direct child button = 复制正文."""
     try:
         direct = bar.locator(":scope > button")
         if direct.count() > 0:
@@ -579,8 +570,13 @@ def _locate_copy_body_button(bar: Any) -> Any | None:
     return None
 
 
-def _copy_assistant_markdown_via_toolbar(page: Any) -> str:
-    """Click 复制正文 once and return clipboard Markdown (call after generation done)."""
+def _copy_assistant_markdown_via_toolbar(
+    page: Any,
+    *,
+    conversation_id: str = "",
+    base_url: str = "",
+) -> str:
+    """Click the first toolbar's first button (复制正文) and read clipboard Markdown."""
     bar = _message_action_bar(page)
     if bar is None:
         return ""
@@ -593,6 +589,16 @@ def _copy_assistant_markdown_via_toolbar(page: Any) -> str:
         page.wait_for_timeout(400)
     except Exception:
         logger.debug("assistant copy-button click failed", exc_info=True)
+        return ""
+    if not _conversation_matches(page, conversation_id):
+        logger.warning(
+            "doubao copy toolbar drifted conversation expected=%s url=%s",
+            conversation_id or "-",
+            page.url,
+        )
+        _require_sample_conversation(
+            page, conversation_id=conversation_id, base_url=base_url
+        )
         return ""
     after = _read_clipboard(page)
     if not after:
@@ -612,59 +618,19 @@ def _extract_assistant_text(
     conversation_id: str = "",
     base_url: str = "",
 ) -> str:
-    """Prefer toolbar「复制」→ clipboard Markdown; fallback ``md-box-root``."""
-    from aperix_geo.services.providers.doubao_web.extract import md_box_html_to_markdown
-
+    """Copy assistant body via first ``.message-action-button-main`` → first ``button`` only."""
     _ = deadline  # reserved; completion is decided in _wait_generation_done
-    _require_sample_conversation(
+    _pin_sample_thread(
         page, conversation_id=conversation_id, base_url=base_url
     )
     prompt = (user_prompt or "").strip()
-    copied = _copy_assistant_markdown_via_toolbar(page)
+    copied = _copy_assistant_markdown_via_toolbar(
+        page,
+        conversation_id=conversation_id,
+        base_url=base_url,
+    )
     if copied.strip() and copied.strip() != prompt:
         return copied.strip()
-
-    boxed = _last_assistant_md_text(page, user_prompt=prompt)
-    if boxed:
-        for css in sel.MD_BOX_SELECTORS:
-            loc = page.locator(css)
-            try:
-                n = loc.count()
-            except Exception:
-                continue
-            if n <= 0:
-                continue
-            target = loc.last
-            try:
-                html = target.evaluate("el => el.outerHTML")
-            except Exception:
-                html = ""
-            if isinstance(html, str) and html.strip():
-                md = md_box_html_to_markdown(html)
-                if md.strip() and md.strip() != prompt:
-                    return md
-            try:
-                plain = (target.inner_text(timeout=5_000) or "").strip()
-            except Exception:
-                plain = ""
-            if plain and plain != prompt:
-                return plain
-        return boxed
-
-    for css in sel.ASSISTANT_MESSAGE_SELECTORS:
-        loc = page.locator(css)
-        try:
-            n = loc.count()
-        except Exception:
-            continue
-        if n <= 0:
-            continue
-        try:
-            text = (loc.last.inner_text(timeout=5_000) or "").strip()
-        except Exception:
-            continue
-        if text and text != prompt:
-            return text
     return ""
 
 
@@ -700,11 +666,11 @@ def _extract_search_panel(
     conversation_id: str = "",
     base_url: str = "",
 ) -> tuple[str, tuple[str, ...]]:
-    """Return (panel_text, hrefs from panel anchors)."""
-    _require_sample_conversation(
+    """Match panel header by regex text, expand, then read keywords + references inside panel."""
+    _pin_sample_thread(
         page, conversation_id=conversation_id, base_url=base_url
     )
-    hint = _first_visible_in_main_column(page.get_by_text(sel.SEARCH_PANEL_HINT), limit=20)
+    hint = _first_visible(page.get_by_text(sel.SEARCH_PANEL_HINT), limit=20)
     if hint is None:
         return "", ()
 
@@ -712,12 +678,17 @@ def _extract_search_panel(
         hint.click(timeout=2_000)
         page.wait_for_timeout(500)
     except Exception:
-        pass
+        logger.debug("search panel expand click failed", exc_info=True)
+
+    if not _conversation_matches(page, conversation_id):
+        _require_sample_conversation(
+            page, conversation_id=conversation_id, base_url=base_url
+        )
 
     root = _panel_root(hint)
 
-    # Tab labels also appear in the left history list — scope clicks to the panel only.
-    for tab_name in (r"参考资料", r"资料", r"来源", r"搜索关键词", r"关键词"):
+    # Tab switches stay inside the panel root (never page-global — avoids sidebar history).
+    for tab_name in (r"搜索关键词", r"关键词", r"参考资料", r"资料", r"来源"):
         try:
             tab = root.get_by_text(re.compile(tab_name))
             found = _first_visible(tab, limit=6)
@@ -731,7 +702,6 @@ def _extract_search_panel(
         text = (root.inner_text(timeout=3_000) or "").strip()
     except Exception:
         text = ""
-        root = page.locator("body")
 
     hrefs: list[str] = []
     try:
@@ -791,26 +761,6 @@ def _first_visible(locator: Any, *, limit: int = 12) -> Any | None:
     return None
 
 
-def _first_visible_in_main_column(
-    locator: Any,
-    *,
-    limit: int = 12,
-    min_x: float = _SIDEBAR_MAX_X,
-) -> Any | None:
-    try:
-        n = min(int(locator.count()), limit)
-    except Exception:
-        return None
-    for i in range(n):
-        el = locator.nth(i)
-        try:
-            if el.is_visible() and _in_main_column(el, min_x=min_x):
-                return el
-        except Exception:
-            continue
-    return None
-
-
 def _dismiss_overlay(page: Any) -> None:
     try:
         page.keyboard.press("Escape")
@@ -827,12 +777,12 @@ def _share_menu_open(page: Any) -> bool:
 def _locate_share_control(page: Any) -> Any | None:
     """Find visible 分享 control (often a plain div row, not role=menuitem)."""
     # Exact text first (Doubao menu rows are frequently non-button nodes).
-    found = _first_visible_in_main_column(page.get_by_text("分享", exact=True), limit=20)
+    found = _first_visible(page.get_by_text("分享", exact=True), limit=20)
     if found is not None:
         return found
 
     for role in ("menuitem", "button", "menuitemradio", "option", "link"):
-        found = _first_visible_in_main_column(
+        found = _first_visible(
             page.get_by_role(role, name=sel.SHARE_NAME), limit=20
         )
         if found is not None:
@@ -861,85 +811,30 @@ def _locate_share_control(page: Any) -> Any | None:
     return None
 
 
-def _iter_more_menu_triggers(page: Any) -> list[Any]:
-    """Candidate ⋯ / more buttons; order matters (try header overflow first)."""
-    triggers: list[Any] = []
-    seen: set[str] = set()
-
-    def _add(el: Any) -> None:
-        try:
-            if not el.is_visible():
-                return
-            if not _in_main_column(el):
-                return
-            key = el.evaluate(
-                """e => {
-                  const r = e.getBoundingClientRect();
-                  return [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)].join(':');
-                }"""
-            )
-        except Exception:
-            return
-        if not isinstance(key, str) or key in seen:
-            return
-        seen.add(key)
-        triggers.append(el)
-
-    for loc in (
-        page.get_by_role("button", name=sel.MORE_MENU_NAME),
-        page.locator('button[aria-label*="更多"]'),
-        page.locator('button[title*="更多"]'),
-        page.locator('[aria-label*="更多"][role="button"]'),
-        page.locator('button[aria-haspopup="menu"]'),
-    ):
-        try:
-            n = min(loc.count(), 12)
-        except Exception:
-            continue
-        for i in range(n):
-            _add(loc.nth(i))
-
-    # Toolbar near「下载电脑版」: ⋯ is usually left of the download CTA / mute.
-    try:
-        download = page.get_by_text(re.compile(r"下载电脑版|下载客户端"))
-        if download.count() > 0:
-            toolbar = download.first.locator("xpath=ancestor::*[self::div or self::header][1]")
-            icon_btns = toolbar.locator("button")
-            count = icon_btns.count()
-            for i in range(count - 1, -1, -1):
-                btn = icon_btns.nth(i)
-                try:
-                    label = (btn.inner_text(timeout=400) or "").strip()
-                except Exception:
-                    label = ""
-                if "下载" in label or len(label) > 6:
-                    continue
-                _add(btn)
-    except Exception:
-        logger.debug("more-menu toolbar scan failed", exc_info=True)
-
-    return triggers
+def _more_menu_button(page: Any) -> Any | None:
+    """Conversation overflow: ``button[aria-label=\"更多\"]``."""
+    return _first_visible(
+        page.locator(f'button[aria-label="{sel.MORE_ARIA_LABEL}"]'),
+        limit=8,
+    )
 
 
 def _open_chat_more_menu(page: Any) -> bool:
-    """Open conversation ⋯ until 分享 is visible. Do not accept a wrong menu."""
+    """Open conversation ⋯ (aria-label=更多) until 分享 is visible."""
     if _share_menu_open(page):
         return True
 
-    triggers = _iter_more_menu_triggers(page)
-    for btn in triggers:
-        _dismiss_overlay(page)
-        try:
-            btn.click(timeout=5_000)
-        except Exception:
-            continue
-        page.wait_for_timeout(500)
-        if _share_menu_open(page):
-            return True
-        # Wrong popup (mute / account) — close and try next trigger.
-        _dismiss_overlay(page)
+    btn = _more_menu_button(page)
+    if btn is None:
+        return False
 
-    return False
+    _dismiss_overlay(page)
+    try:
+        btn.click(timeout=5_000)
+    except Exception:
+        return False
+    page.wait_for_timeout(500)
+    return _share_menu_open(page)
 
 
 def capture_share_url(
@@ -948,10 +843,10 @@ def capture_share_url(
     conversation_id: str = "",
     base_url: str = "",
 ) -> str:
-    _require_sample_conversation(
+    _pin_sample_thread(
         page, conversation_id=conversation_id, base_url=base_url
     )
-    # Current Doubao Web: 分享 sits under header "⋯", not a top-level button.
+    # 分享 sits under header button[aria-label="更多"].
     share = _locate_share_control(page)
     if share is None:
         if not _open_chat_more_menu(page):
@@ -962,6 +857,10 @@ def capture_share_url(
 
     share.click(timeout=5_000)
     page.wait_for_timeout(800)
+    if not _conversation_matches(page, conversation_id):
+        _require_sample_conversation(
+            page, conversation_id=conversation_id, base_url=base_url
+        )
 
     # Prefer explicit copy-link control.
     copy_btn = _first_visible(page.get_by_role("button", name=sel.COPY_LINK_NAME))
@@ -1101,18 +1000,6 @@ def _open_chat_delete_menu(page: Any) -> bool:
     # Share menu is the same overflow; opening it also exposes 删除.
     if _open_chat_more_menu(page) and _delete_menu_open(page):
         return True
-
-    triggers = _iter_more_menu_triggers(page)
-    for btn in triggers:
-        _dismiss_overlay(page)
-        try:
-            btn.click(timeout=5_000)
-        except Exception:
-            continue
-        page.wait_for_timeout(500)
-        if _delete_menu_open(page):
-            return True
-        _dismiss_overlay(page)
     return False
 
 

@@ -18,6 +18,12 @@ class _Box:
     def __init__(self, text: str) -> None:
         self._text = text
 
+    def is_visible(self) -> bool:
+        return True
+
+    def bounding_box(self) -> dict[str, float]:
+        return {"x": 400.0, "y": 200.0, "width": 600.0, "height": 80.0}
+
     def inner_text(self, timeout: int = 0) -> str:
         return self._text
 
@@ -139,7 +145,7 @@ def test_require_sample_conversation_reopens_drifted_thread() -> None:
     )
 
 
-def test_extract_search_panel_clicks_tabs_within_panel_root() -> None:
+def test_extract_search_panel_expands_and_clicks_tabs() -> None:
     page = MagicMock()
     page.url = "https://www.doubao.com/chat/sample12345678"
 
@@ -147,20 +153,34 @@ def test_extract_search_panel_clicks_tabs_within_panel_root() -> None:
     hint.is_visible.return_value = True
     hint.bounding_box.return_value = {"x": 400, "y": 100, "width": 200, "height": 24}
 
-    panel_root = MagicMock()
     tab = MagicMock()
     tab.is_visible.return_value = True
-    panel_root.get_by_text.return_value = tab
+
+    panel_root = MagicMock()
     panel_root.inner_text.return_value = "搜索 2 个关键词\nhttps://example.com/a"
     panel_root.locator.return_value.count.return_value = 0
     panel_root.get_by_role.return_value.count.return_value = 0
+    panel_root.get_by_text.return_value = MagicMock(
+        count=lambda: 1,
+        nth=lambda _i: tab,
+    )
 
     page.get_by_text.return_value = MagicMock(count=lambda: 1, nth=lambda _i: hint)
 
+    first_visible_calls = 0
+
+    def _fake_first_visible(_locator: object, *, limit: int = 12) -> MagicMock:
+        nonlocal first_visible_calls
+        first_visible_calls += 1
+        return hint if first_visible_calls == 1 else tab
+
     with (
         patch(
-            "aperix_geo.services.providers.doubao_web.ui_flow._first_visible_in_main_column",
-            return_value=hint,
+            "aperix_geo.services.providers.doubao_web.ui_flow._pin_sample_thread",
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._first_visible",
+            side_effect=_fake_first_visible,
         ),
         patch(
             "aperix_geo.services.providers.doubao_web.ui_flow._panel_root",
@@ -173,7 +193,7 @@ def test_extract_search_panel_clicks_tabs_within_panel_root() -> None:
             base_url="https://www.doubao.com/chat/",
         )
 
-    panel_root.get_by_text.assert_called()
-    assert page.get_by_text.call_count == 1  # hint lookup only; tabs stay inside panel
+    hint.click.assert_called_once()
+    assert tab.click.call_count >= 1
     assert "搜索 2 个关键词" in text
     assert hrefs == ()
