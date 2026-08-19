@@ -11,11 +11,7 @@ from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO
 from aperix_geo.services.crawl_accounts.cookies import keep_session_storage_state
 from aperix_geo.services.providers.doubao_web.accounts import open_credential_session
 from aperix_geo.services.providers.doubao_web.crawler import user_prompt_from_messages
-from aperix_geo.services.providers.doubao_web.errors import (
-    DoubaoCrawlError,
-    DoubaoNeedsHumanOps,
-    DoubaoShareError,
-)
+from aperix_geo.services.providers.doubao_web.errors import DoubaoCrawlError, DoubaoNeedsHumanOps
 from aperix_geo.services.providers.doubao_web.jobs.share import build_share_payload
 from aperix_geo.services.providers.doubao_web.runtime import (
     is_human_ops_job,
@@ -93,15 +89,16 @@ def hybrid_crawl_doubao_chat(
             session.handle_failed_job(share_job)
             raise_from_job(share_job)
 
-        if not share_job.get("ok"):
-            session.release_fail(str(share_job.get("error") or "share job failed"))
-            raise_from_job(share_job)
-
-        share_url = str(share_job.get("share_url") or "").strip()
-        final_state = share_job.get("storage_state")
-        if not share_url:
-            session.release_fail("empty share_url")
-            raise DoubaoShareError("share_url required but missing")
+        share_url = ""
+        final_state: Any = None
+        if share_job.get("ok"):
+            share_url = str(share_job.get("share_url") or "").strip()
+            final_state = share_job.get("storage_state")
+        elif not share_job.get("ok"):
+            logger.warning(
+                "hybrid share skipped err=%s",
+                share_job.get("error") or "share job failed",
+            )
 
         session.release_ok(final_state if isinstance(final_state, dict) else storage_state)
         result = map_web_http_to_sampling_result(

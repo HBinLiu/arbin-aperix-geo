@@ -970,7 +970,7 @@ def _capture_share_url(page: Any) -> str:
 
 
 def try_capture_share_url(page: Any) -> str:
-    """Deprecated for crawl/share jobs — use ``capture_share_url`` (raises on failure)."""
+    """Best-effort share URL for crawl jobs; empty string keeps body/refs without failing."""
     try:
         return (capture_share_url(page) or "").strip()
     except DoubaoShareError as exc:

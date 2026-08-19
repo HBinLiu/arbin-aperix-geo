@@ -221,29 +221,10 @@ def test_run_doubao_account_crawl_empty_text_api_fallback(
 @patch("aperix_geo.services.providers.doubao_web.crawler.crawl_doubao_chat")
 @patch("aperix_geo.db.session.SessionLocal")
 @patch("aperix_geo.services.sampling.crawl_capacity.crawl_capacity_slot")
-def test_run_doubao_account_crawl_share_error_no_api_fallback(
-    mock_slot, mock_session, mock_crawl, mock_api
-):
-    from aperix_geo.services.providers.doubao_web.errors import DoubaoShareError
-    from aperix_geo.services.sampling.llm import SamplingLLMError, run_doubao_account_crawl
-
-    mock_slot.return_value = MagicMock()
-    mock_session.return_value = MagicMock()
-    mock_crawl.side_effect = DoubaoShareError("could not open ⋯ menu with 分享")
-    s = _settings(doubao_api_key="sk-b", doubao_sampling_mode="crawl_first")
-    with pytest.raises(SamplingLLMError, match="could not open"):
-        run_doubao_account_crawl([{"role": "user", "content": "hi"}], settings=s)
-    mock_api.assert_not_called()
-
-
-@patch("aperix_geo.services.sampling.llm._doubao_api_chat")
-@patch("aperix_geo.services.providers.doubao_web.crawler.crawl_doubao_chat")
-@patch("aperix_geo.db.session.SessionLocal")
-@patch("aperix_geo.services.sampling.crawl_capacity.crawl_capacity_slot")
 def test_run_doubao_account_crawl_empty_share_no_api_fallback(
     mock_slot, mock_session, mock_crawl, mock_api
 ):
-    from aperix_geo.services.sampling.llm import SamplingLLMError, run_doubao_account_crawl
+    from aperix_geo.services.sampling.llm import run_doubao_account_crawl
 
     mock_slot.return_value = MagicMock()
     mock_session.return_value = MagicMock()
@@ -254,6 +235,7 @@ def test_run_doubao_account_crawl_empty_share_no_api_fallback(
         share_url="",
     )
     s = _settings(doubao_api_key="sk-b", doubao_sampling_mode="crawl_first")
-    with pytest.raises(SamplingLLMError, match="share_url missing"):
-        run_doubao_account_crawl([{"role": "user", "content": "hi"}], settings=s)
+    result = run_doubao_account_crawl([{"role": "user", "content": "hi"}], settings=s)
+    assert result.text == "crawl body"
+    assert result.share_url == ""
     mock_api.assert_not_called()
