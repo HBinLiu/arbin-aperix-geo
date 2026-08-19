@@ -18,6 +18,10 @@ from aperix_geo.services.sampling.cache.absa import (
     response_absa_cache_digest,
     set_response_absa_cached,
 )
+from aperix_geo.services.sampling.enumeration import (
+    is_plausible_commercial_span,
+    normalize_mention_span,
+)
 from aperix_geo.services.sampling.enumeration import merge_mention_candidates
 from aperix_geo.services.sampling.mentions import discover_response_mentions
 from aperix_geo.services.sampling.signal_draft import EntitySignalDraft
@@ -84,8 +88,10 @@ def normalize_response_absa(
     others_raw = data.get("other_brands_sentiment_absa")
     if isinstance(others_raw, dict):
         for name, entry in others_raw.items():
-            label = str(name or "").strip()
+            label = normalize_mention_span(str(name or ""))
             if not label or normalize_brand_key(label) in excluded_keys:
+                continue
+            if not is_plausible_commercial_span(label):
                 continue
             other_brands[label] = _brand_entry(entry)
 

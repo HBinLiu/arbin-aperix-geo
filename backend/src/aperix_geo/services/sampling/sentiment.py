@@ -10,6 +10,11 @@ from aperix_geo.db.models import Subject
 from aperix_geo.services.brand.domain import extract_domain_from_text_for_brand, other_entity_id
 from aperix_geo.services.brand.keys import configured_brand_keys
 from aperix_geo.services.brand.resolve import normalize_brand_key
+from aperix_geo.services.sampling.enumeration import (
+    extract_enumerated_spans,
+    is_plausible_commercial_span,
+    normalize_mention_span,
+)
 from aperix_geo.services.sampling.mentions import (
     CompetitorEntry,
     absa_brand_mentioned,
@@ -94,12 +99,7 @@ def _evidence_snippet(text: str, label: str, *, max_len: int = 120) -> str:
 
 
 def _is_open_candidate_label(label: str) -> bool:
-    text = label.strip()
-    if len(text) < 2:
-        return False
-    if text.endswith("类") and len(text) <= 8:
-        return False
-    return True
+    return is_plausible_commercial_span(label)
 
 
 def _absa_explicitly_denied(label: str, response_absa: dict[str, Any]) -> bool:
@@ -289,8 +289,10 @@ def append_other_brand_drafts(
 
     existing_ids = {draft.entity_id for draft in drafts}
     for name, entry in others.items():
-        label = str(name or "").strip()
-        if not label or normalize_brand_key(label) in excluded_keys:
+        label = normalize_mention_span(str(name or ""))
+        if not label or not is_plausible_commercial_span(label):
+            continue
+        if normalize_brand_key(label) in excluded_keys:
             continue
         if not isinstance(entry, dict) or not entry.get("mentioned"):
             continue
@@ -329,7 +331,7 @@ def append_candidate_mention_drafts(
     text: str = "",
     url_hosts: list[str] | None = None,
 ) -> None:
-    """Fallback open-set mentions from enumeration/discovery when ABSA did not explicitly deny."""
+    """Fallback open-set mentions for rule-enumerated product names ABSA missed."""
     if not mention_candidates or not text.strip():
         return
 
@@ -337,12 +339,19 @@ def append_candidate_mention_drafts(
     if not isinstance(others, dict):
         others = {}
 
+    enum_keys = {
+        normalize_brand_key(item)
+        for item in extract_enumerated_spans(text)
+    }
+
     existing_ids = {draft.entity_id for draft in drafts}
     for raw in mention_candidates:
-        label = str(raw or "").strip()
-        if not label or not _is_open_candidate_label(label):
+        label = normalize_mention_span(str(raw or ""))
+        if not label or not is_plausible_commercial_span(label):
             continue
         if normalize_brand_key(label) in excluded_keys:
+            continue
+        if normalize_brand_key(label) not in enum_keys:
             continue
         if count_term(text, label) <= 0:
             continue
@@ -352,12 +361,12 @@ def append_candidate_mention_drafts(
         if entity_id in existing_ids:
             continue
 
-        entry = others.get(label)
+        entry = others.get(label) or others.get(str(raw or ""))
         if isinstance(entry, dict) and entry.get("mentioned"):
-            score, sentiment_reason = absa_brand_sentiment(entry)
-        else:
-            score = 50.0
-            sentiment_reason = _evidence_snippet(text, label) or None
+            continue
+
+        score = 50.0
+        sentiment_reason = _evidence_snippet(text, label) or None
 
         mention_count = count_term(text, label) or 1
         rank_hint = _rank_hint_from_absa(text, label, entry if isinstance(entry, dict) else None)

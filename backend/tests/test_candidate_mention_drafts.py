@@ -44,9 +44,7 @@ def test_append_candidate_mention_drafts_fills_missing_enum_items() -> None:
             "杏灵分散片": {"mentioned": False, "score": None, "evidence": ""},
             "竞品A": {"mentioned": False, "score": None, "evidence": ""},
         },
-        "other_brands_sentiment_absa": {
-            "阿司匹林": {"mentioned": True, "score": 50, "evidence": "抗血小板药"},
-        },
+        "other_brands_sentiment_absa": {},
         "mention_candidates": candidates,
     }
     excluded = configured_brand_keys(
@@ -70,14 +68,14 @@ def test_append_candidate_mention_drafts_fills_missing_enum_items() -> None:
 
 
 def test_append_candidate_mention_drafts_respects_absa_denial() -> None:
-    text = "可选方案包括 Stripe 与 PayPal。"
+    text = "支付工具（Stripe、PayPal）较常见。"
     drafts = init_entity_signal_drafts(_subject())
-    candidates = ["Stripe", "PayPal"]
+    candidates = merge_mention_candidates(text, [])
     response_absa = {
         "analysis_source": "llm",
         "brands_sentiment_absa": {},
         "other_brands_sentiment_absa": {
-            "Stripe": {"mentioned": True, "score": 80, "evidence": "可选 Stripe"},
+            "Stripe": {"mentioned": True, "score": 80, "evidence": "较常见 Stripe"},
             "PayPal": {"mentioned": False, "score": None, "evidence": "非竞品"},
         },
     }
@@ -92,8 +90,8 @@ def test_append_candidate_mention_drafts_respects_absa_denial() -> None:
     )
 
     labels = {draft.entity_label for draft in drafts if draft.entity_kind == "other"}
-    assert "Stripe" in labels
     assert "PayPal" not in labels
+    assert "Stripe" not in labels
 
 
 def test_apply_response_absa_to_drafts_uses_mention_candidates_from_payload() -> None:
