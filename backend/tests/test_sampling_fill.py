@@ -52,9 +52,10 @@ def test_on_task_finished_releases_and_refills(
 
     mock_release_dispatch.assert_called_once_with("llm", response_id)
     mock_release.assert_called_once_with(job_id, "llm", lane="")
-    assert mock_schedule_fill.call_count == 2
+    assert mock_schedule_fill.call_count == 3
     mock_schedule_fill.assert_any_call(str(job_id), "llm")
     mock_schedule_fill.assert_any_call(str(job_id), "page")
+    mock_schedule_fill.assert_any_call(str(job_id), "parse")
     mock_reconcile.assert_called_once_with(job_id)
     mock_session_local.assert_not_called()
 

@@ -20,6 +20,7 @@ from aperix_geo.services.providers.doubao_web.errors import (
 from aperix_geo.services.providers.doubao_web.extract import (
     blank_chat_failure_reason,
     conversation_id_from_url,
+    conversation_url,
     extract_urls,
     panel_present,
     pick_share_url,
@@ -32,6 +33,56 @@ from aperix_geo.services.providers.doubao_web.runtime import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Left sidebar history sits left of the main thread column on desktop Doubao Web.
+_SIDEBAR_MAX_X = 280.0
+
+
+def _element_column_x(el: Any) -> float | None:
+    try:
+        box = el.bounding_box()
+        if not box:
+            return None
+        return float(box["x"])
+    except Exception:
+        return None
+
+
+def _in_main_column(el: Any, *, min_x: float = _SIDEBAR_MAX_X) -> bool:
+    x = _element_column_x(el)
+    if x is None:
+        return True
+    return x >= min_x
+
+
+def _require_sample_conversation(
+    page: Any,
+    *,
+    conversation_id: str,
+    base_url: str,
+    timeout_ms: int = 15_000,
+) -> None:
+    """Re-open the sample thread when UI clicks drifted to another conversation."""
+    cid = (conversation_id or "").strip()
+    if not cid:
+        return
+    current = conversation_id_from_url(page.url or "")
+    if current == cid:
+        return
+    target = conversation_url(base_url, cid)
+    logger.warning(
+        "doubao conversation drift expected=%s current=%s url=%s; reopening sample thread",
+        cid,
+        current or "-",
+        page.url,
+    )
+    page.goto(target, wait_until="domcontentloaded", timeout=timeout_ms)
+    page.wait_for_timeout(400)
+    after = conversation_id_from_url(page.url or "")
+    if after != cid:
+        raise DoubaoCrawlError(
+            f"failed to reopen sample conversation id={cid} url={page.url!r}"
+        )
 
 _STABLE_IDLE_POLLS = 10  # ~3s of unchanged assistant text when stop/streaming is missing
 
@@ -558,11 +609,16 @@ def _extract_assistant_text(
     *,
     deadline: float | None = None,
     user_prompt: str = "",
+    conversation_id: str = "",
+    base_url: str = "",
 ) -> str:
     """Prefer toolbar「复制」→ clipboard Markdown; fallback ``md-box-root``."""
     from aperix_geo.services.providers.doubao_web.extract import md_box_html_to_markdown
 
     _ = deadline  # reserved; completion is decided in _wait_generation_done
+    _require_sample_conversation(
+        page, conversation_id=conversation_id, base_url=base_url
+    )
     prompt = (user_prompt or "").strip()
     copied = _copy_assistant_markdown_via_toolbar(page)
     if copied.strip() and copied.strip() != prompt:
@@ -638,31 +694,33 @@ def _panel_root(hint: Any) -> Any:
     return best
 
 
-def _extract_search_panel(page: Any) -> tuple[str, tuple[str, ...]]:
+def _extract_search_panel(
+    page: Any,
+    *,
+    conversation_id: str = "",
+    base_url: str = "",
+) -> tuple[str, tuple[str, ...]]:
     """Return (panel_text, hrefs from panel anchors)."""
-    hint = page.get_by_text(sel.SEARCH_PANEL_HINT)
-    if hint.count() == 0:
+    _require_sample_conversation(
+        page, conversation_id=conversation_id, base_url=base_url
+    )
+    hint = _first_visible_in_main_column(page.get_by_text(sel.SEARCH_PANEL_HINT), limit=20)
+    if hint is None:
         return "", ()
-    target = hint.last
+
     try:
-        target.click(timeout=2_000)
+        hint.click(timeout=2_000)
         page.wait_for_timeout(500)
     except Exception:
         pass
 
-    # Some builds put keywords / references behind tabs inside the panel.
+    root = _panel_root(hint)
+
+    # Tab labels also appear in the left history list — scope clicks to the panel only.
     for tab_name in (r"参考资料", r"资料", r"来源", r"搜索关键词", r"关键词"):
         try:
-            tab = page.get_by_text(re.compile(tab_name))
-            found = None
-            for i in range(min(tab.count(), 6)):
-                el = tab.nth(i)
-                try:
-                    if el.is_visible():
-                        found = el
-                        break
-                except Exception:
-                    continue
+            tab = root.get_by_text(re.compile(tab_name))
+            found = _first_visible(tab, limit=6)
             if found is not None:
                 found.click(timeout=2_000)
                 page.wait_for_timeout(400)
@@ -670,10 +728,9 @@ def _extract_search_panel(page: Any) -> tuple[str, tuple[str, ...]]:
             continue
 
     try:
-        root = _panel_root(target)
         text = (root.inner_text(timeout=3_000) or "").strip()
     except Exception:
-        text = page.inner_text("body") or ""
+        text = ""
         root = page.locator("body")
 
     hrefs: list[str] = []
@@ -734,6 +791,26 @@ def _first_visible(locator: Any, *, limit: int = 12) -> Any | None:
     return None
 
 
+def _first_visible_in_main_column(
+    locator: Any,
+    *,
+    limit: int = 12,
+    min_x: float = _SIDEBAR_MAX_X,
+) -> Any | None:
+    try:
+        n = min(int(locator.count()), limit)
+    except Exception:
+        return None
+    for i in range(n):
+        el = locator.nth(i)
+        try:
+            if el.is_visible() and _in_main_column(el, min_x=min_x):
+                return el
+        except Exception:
+            continue
+    return None
+
+
 def _dismiss_overlay(page: Any) -> None:
     try:
         page.keyboard.press("Escape")
@@ -750,12 +827,14 @@ def _share_menu_open(page: Any) -> bool:
 def _locate_share_control(page: Any) -> Any | None:
     """Find visible 分享 control (often a plain div row, not role=menuitem)."""
     # Exact text first (Doubao menu rows are frequently non-button nodes).
-    found = _first_visible(page.get_by_text("分享", exact=True), limit=20)
+    found = _first_visible_in_main_column(page.get_by_text("分享", exact=True), limit=20)
     if found is not None:
         return found
 
     for role in ("menuitem", "button", "menuitemradio", "option", "link"):
-        found = _first_visible(page.get_by_role(role, name=sel.SHARE_NAME), limit=20)
+        found = _first_visible_in_main_column(
+            page.get_by_role(role, name=sel.SHARE_NAME), limit=20
+        )
         if found is not None:
             return found
 
@@ -790,6 +869,8 @@ def _iter_more_menu_triggers(page: Any) -> list[Any]:
     def _add(el: Any) -> None:
         try:
             if not el.is_visible():
+                return
+            if not _in_main_column(el):
                 return
             key = el.evaluate(
                 """e => {
@@ -861,7 +942,15 @@ def _open_chat_more_menu(page: Any) -> bool:
     return False
 
 
-def capture_share_url(page: Any) -> str:
+def capture_share_url(
+    page: Any,
+    *,
+    conversation_id: str = "",
+    base_url: str = "",
+) -> str:
+    _require_sample_conversation(
+        page, conversation_id=conversation_id, base_url=base_url
+    )
     # Current Doubao Web: 分享 sits under header "⋯", not a top-level button.
     share = _locate_share_control(page)
     if share is None:
@@ -931,10 +1020,20 @@ def capture_share_url(page: Any) -> str:
     return url
 
 
-def try_capture_share_url(page: Any) -> str:
+def try_capture_share_url(
+    page: Any,
+    *,
+    conversation_id: str = "",
+    base_url: str = "",
+) -> str:
     """Best-effort share URL; empty string when the control/clipboard path fails."""
     try:
-        return (capture_share_url(page) or "").strip()
+        return (
+            capture_share_url(
+                page, conversation_id=conversation_id, base_url=base_url
+            )
+            or ""
+        ).strip()
     except Exception as exc:  # noqa: BLE001
         logger.warning("doubao share_url capture failed: %s", exc)
         return ""

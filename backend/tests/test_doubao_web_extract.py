@@ -18,6 +18,7 @@ from aperix_geo.services.providers.doubao_web.extract import (
     blank_chat_failure_reason,
     clean_assistant_text,
     conversation_id_from_url,
+    conversation_url,
     extract_quoted_queries,
     extract_urls,
     filter_http_urls,
@@ -68,6 +69,14 @@ def test_conversation_id_from_url() -> None:
         conversation_id_from_url("https://www.doubao.com/chat/abc-123_xyz/extra")
         == "abc-123_xyz"
     )
+
+
+def test_conversation_url() -> None:
+    assert (
+        conversation_url("https://www.doubao.com/chat/", "xmOWWDyV4wJ6gt49W")
+        == "https://www.doubao.com/chat/xmOWWDyV4wJ6gt49W"
+    )
+    assert conversation_url("https://www.doubao.com/chat", "") == "https://www.doubao.com/chat/"
 
 
 def test_blank_chat_failure_reason() -> None:

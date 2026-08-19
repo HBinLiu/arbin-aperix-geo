@@ -7,7 +7,9 @@ from unittest.mock import MagicMock, patch
 from aperix_geo.config import Settings
 from aperix_geo.services.providers.doubao_web.ui_flow import (
     _extract_assistant_text,
+    _extract_search_panel,
     _last_assistant_md_text,
+    _require_sample_conversation,
     _wait_generation_done,
 )
 
@@ -115,3 +117,63 @@ def test_extract_skips_prompt_only_clipboard() -> None:
         return_value="问一句",
     ):
         assert _extract_assistant_text(page, user_prompt="问一句") == ""
+
+
+def test_require_sample_conversation_reopens_drifted_thread() -> None:
+    page = MagicMock()
+    page.url = "https://www.doubao.com/chat/other-thread"
+
+    def _goto(_url: str, **_kwargs: object) -> None:
+        page.url = "https://www.doubao.com/chat/sample12345678"
+
+    page.goto.side_effect = _goto
+    _require_sample_conversation(
+        page,
+        conversation_id="sample12345678",
+        base_url="https://www.doubao.com/chat/",
+    )
+    page.goto.assert_called_once_with(
+        "https://www.doubao.com/chat/sample12345678",
+        wait_until="domcontentloaded",
+        timeout=15_000,
+    )
+
+
+def test_extract_search_panel_clicks_tabs_within_panel_root() -> None:
+    page = MagicMock()
+    page.url = "https://www.doubao.com/chat/sample12345678"
+
+    hint = MagicMock()
+    hint.is_visible.return_value = True
+    hint.bounding_box.return_value = {"x": 400, "y": 100, "width": 200, "height": 24}
+
+    panel_root = MagicMock()
+    tab = MagicMock()
+    tab.is_visible.return_value = True
+    panel_root.get_by_text.return_value = tab
+    panel_root.inner_text.return_value = "搜索 2 个关键词\nhttps://example.com/a"
+    panel_root.locator.return_value.count.return_value = 0
+    panel_root.get_by_role.return_value.count.return_value = 0
+
+    page.get_by_text.return_value = MagicMock(count=lambda: 1, nth=lambda _i: hint)
+
+    with (
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._first_visible_in_main_column",
+            return_value=hint,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._panel_root",
+            return_value=panel_root,
+        ),
+    ):
+        text, hrefs = _extract_search_panel(
+            page,
+            conversation_id="sample12345678",
+            base_url="https://www.doubao.com/chat/",
+        )
+
+    panel_root.get_by_text.assert_called()
+    assert page.get_by_text.call_count == 1  # hint lookup only; tabs stay inside panel
+    assert "搜索 2 个关键词" in text
+    assert hrefs == ()

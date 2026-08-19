@@ -472,4 +472,8 @@ def on_task_finished(response_id: UUID, phase: str, *, job_id: UUID | None = Non
     next_phase = NEXT_FILL_PHASE.get(phase)
     if next_phase is not None:
         schedule_phase_fill(str(resolved), next_phase)
+    # No citation URLs → persist_llm_result jumps pending → crawl_ready (skips page).
+    # Chain only went llm → page → parse, so parse was never scheduled in that path.
+    if phase == "llm":
+        schedule_phase_fill(str(resolved), "parse")
     schedule_job_finalize(resolved)

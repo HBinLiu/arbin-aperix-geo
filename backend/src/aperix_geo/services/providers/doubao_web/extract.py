@@ -39,6 +39,17 @@ def conversation_id_from_url(url: str) -> str:
     return match.group(1) if match else ""
 
 
+def conversation_url(base_url: str, conversation_id: str) -> str:
+    """Build ``/chat/<id>`` URL for reopening a sample thread."""
+    root = (base_url or "").strip().rstrip("/") or "https://www.doubao.com/chat"
+    cid = (conversation_id or "").strip()
+    if not cid or cid == "0":
+        return root + "/"
+    if root.endswith("/chat"):
+        return f"{root}/{cid}"
+    return f"{root.rstrip('/')}/{cid}"
+
+
 def blank_chat_failure_reason(
     *,
     url: str,

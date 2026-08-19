@@ -20,7 +20,10 @@ from aperix_geo.services.providers.doubao_web.errors import (
     DoubaoNeedsHumanOps,
     DoubaoShareError,
 )
-from aperix_geo.services.providers.doubao_web.extract import conversation_id_from_url
+from aperix_geo.services.providers.doubao_web.extract import (
+    conversation_id_from_url,
+    conversation_url,
+)
 from aperix_geo.services.providers.doubao_web.runtime import (
     assert_no_captcha,
     job_error,
@@ -49,16 +52,6 @@ def build_share_payload(
     }
 
 
-def _conversation_url(base_url: str, conversation_id: str) -> str:
-    root = base_url.rstrip("/")
-    cid = conversation_id.strip()
-    if not cid or cid == "0":
-        return root + "/"
-    if root.endswith("/chat"):
-        return f"{root}/{cid}"
-    return f"{root.rstrip('/')}/{cid}"
-
-
 def run_doubao_share_on_page(
     page: Any,
     context: Any,
@@ -85,7 +78,7 @@ def run_doubao_share_on_page(
 
     try:
         page.goto(
-            _conversation_url(base_url, conversation_id),
+            conversation_url(base_url, conversation_id),
             wait_until="domcontentloaded",
             timeout=timeout_ms,
         )
@@ -99,7 +92,9 @@ def run_doubao_share_on_page(
                 "share job needs conversation_id (open an existing chat URL)"
             )
 
-        share_url = try_capture_share_url(page)
+        share_url = try_capture_share_url(
+            page, conversation_id=live_id, base_url=base_url
+        )
         assert_no_captcha(page)
         if not share_url:
             raise DoubaoShareError("share_url required but missing")

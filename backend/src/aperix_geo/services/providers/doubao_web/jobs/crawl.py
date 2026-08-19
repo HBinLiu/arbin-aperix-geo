@@ -97,16 +97,25 @@ def run_doubao_browser_crawl_on_page(
         ui_flow._wait_send_accepted(
             page, prior_conv_id=prior_conv, deadline=send_deadline
         )
+        sample_conv = conversation_id_from_url(page.url or "")
         assert_no_captcha(page)
         ui_flow._wait_generation_done(
             page, settings=settings, deadline=crawl_deadline, user_prompt=prompt
         )
         assert_no_captcha(page)
+        if not sample_conv:
+            sample_conv = conversation_id_from_url(page.url or "")
 
         raw_text = ui_flow._extract_assistant_text(
-            page, deadline=crawl_deadline, user_prompt=prompt
+            page,
+            deadline=crawl_deadline,
+            user_prompt=prompt,
+            conversation_id=sample_conv,
+            base_url=base_url,
         )
-        panel_text, panel_hrefs = ui_flow._extract_search_panel(page)
+        panel_text, panel_hrefs = ui_flow._extract_search_panel(
+            page, conversation_id=sample_conv, base_url=base_url
+        )
         queries = extract_quoted_queries(panel_text) if panel_present(panel_text) else ()
         text = clean_assistant_text(
             raw_text, user_prompt=prompt, search_queries=queries
@@ -119,7 +128,9 @@ def run_doubao_browser_crawl_on_page(
 
         source_urls = filter_http_urls(list(panel_hrefs) + list(extract_urls(panel_text)))
 
-        share_url = ui_flow.try_capture_share_url(page)
+        share_url = ui_flow.try_capture_share_url(
+            page, conversation_id=sample_conv, base_url=base_url
+        )
 
         return job_ok(
             text=text.strip(),
