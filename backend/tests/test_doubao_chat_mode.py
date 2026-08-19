@@ -8,6 +8,7 @@ from aperix_geo.services.providers.doubao_web import selectors as sel
 from aperix_geo.services.providers.doubao_web.errors import DoubaoCrawlError
 from aperix_geo.services.providers.doubao_web.runtime import (
     _composer,
+    assert_no_system_error,
     ensure_chat_mode,
     page_has_system_error,
     wait_until_logged_in,
@@ -200,6 +201,25 @@ def test_page_has_system_error() -> None:
             return Body()
 
     assert page_has_system_error(Page()) is True
+
+
+def test_assert_no_system_error_raises() -> None:
+    class Body:
+        def inner_text(self, timeout: int = 0) -> str:
+            return "系统异常"
+
+    class Page:
+        def locator(self, css: str) -> Body:
+            assert css == "body"
+            return Body()
+
+    try:
+        assert_no_system_error(Page())
+    except DoubaoCrawlError as exc:
+        assert exc.session_alive is True
+        assert "系统异常" in str(exc)
+    else:
+        raise AssertionError("expected DoubaoCrawlError")
 
 
 def test_wait_until_logged_in_reloads_on_系统异常() -> None:

@@ -4,12 +4,17 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from aperix_geo.config import Settings
+from aperix_geo.services.providers.doubao_web.errors import DoubaoCrawlError
 from aperix_geo.services.providers.doubao_web.ui_flow import (
     _extract_assistant_text,
     _extract_search_panel,
+    _human_pause,
     _last_assistant_md_text,
     _wait_generation_done,
+    _wait_until,
 )
 
 
@@ -54,6 +59,10 @@ class _Page:
     def locator(self, css: str) -> _Boxes | MagicMock:
         if css == ".md-box-root":
             return _Boxes(self.md_texts)
+        if css == "body":
+            body = MagicMock()
+            body.inner_text.return_value = self.body
+            return body
         return MagicMock(count=lambda: 0)
 
     def wait_for_timeout(self, _ms: int) -> None:
@@ -73,6 +82,58 @@ class _Page:
         empty = MagicMock()
         empty.count.return_value = 0
         return empty
+
+
+def test_human_pause_uses_inclusive_random_range() -> None:
+    page = MagicMock()
+    with patch(
+        "aperix_geo.services.providers.doubao_web.ui_flow.random.randint",
+        return_value=317,
+    ) as randint:
+        ms = _human_pause(page)
+    randint.assert_called_once_with(250, 500)
+    assert ms == 317
+    page.wait_for_timeout.assert_called_once_with(317)
+
+
+def test_wait_until_fails_fast_on_system_error() -> None:
+    class Body:
+        def inner_text(self, timeout: int = 0) -> str:
+            return "操作失败，系统异常，请稍后重试"
+
+    class Page:
+        url = "https://www.doubao.com/chat/abc"
+
+        def locator(self, css: str) -> Body | MagicMock:
+            if css == "body":
+                return Body()
+            empty = MagicMock()
+            empty.count.return_value = 0
+            return empty
+
+        def wait_for_timeout(self, _ms: int) -> None:
+            return None
+
+        def get_by_role(self, *_a, **_k) -> MagicMock:
+            empty = MagicMock()
+            empty.count.return_value = 0
+            return empty
+
+    with patch(
+        "aperix_geo.services.providers.doubao_web.runtime.assert_logged_in",
+        return_value=None,
+    ), patch(
+        "aperix_geo.services.providers.doubao_web.runtime.assert_no_captcha",
+        return_value=None,
+    ):
+        with pytest.raises(DoubaoCrawlError, match="系统异常") as exc_info:
+            _wait_until(
+                Page(),
+                deadline=999999.0,
+                predicate=lambda: False,
+                label="test",
+            )
+    assert exc_info.value.session_alive is True
 
 
 def test_last_assistant_md_skips_prompt_echo() -> None:

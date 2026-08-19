@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import random
 import re
 import time
 from pathlib import Path
@@ -26,6 +27,7 @@ from aperix_geo.services.providers.doubao_web.extract import (
 )
 from aperix_geo.services.providers.doubao_web.runtime import (
     assert_no_captcha,
+    assert_no_system_error,
     ensure_chat_mode as _ensure_chat_mode,
     page_has_system_error,
     wait_for_composer,
@@ -34,6 +36,17 @@ from aperix_geo.services.providers.doubao_web.runtime import (
 logger = logging.getLogger(__name__)
 
 _STABLE_IDLE_POLLS = 10  # ~3s of unchanged assistant text when stop/streaming is missing
+
+# Random pause (ms) between UI steps — jitter reduces burst traffic vs Doubao rate limits.
+_HUMAN_PAUSE_MS = (250, 500)
+
+
+def _human_pause(page: Any) -> int:
+    """Sleep a random duration (ms); returns chosen delay."""
+    lo, hi = _HUMAN_PAUSE_MS
+    ms = random.randint(lo, hi)
+    page.wait_for_timeout(ms)
+    return ms
 
 
 def ensure_blank_chat(page: Any, *, base_url: str, attempts: int = 2) -> None:
@@ -45,7 +58,7 @@ def ensure_blank_chat(page: Any, *, base_url: str, attempts: int = 2) -> None:
     last_reason = ""
     for attempt in range(1, max(1, attempts) + 1):
         _open_fresh_chat(page, base_url=base_url)
-        page.wait_for_timeout(500)
+        _human_pause(page)
         last_reason = _probe_blank_chat_reason(page, prior_conversation_id=prior_id)
         if not last_reason:
             logger.info(
@@ -54,6 +67,7 @@ def ensure_blank_chat(page: Any, *, base_url: str, attempts: int = 2) -> None:
                 page.url,
                 prior_id or "-",
             )
+            _human_pause(page)
             return
         logger.warning(
             "blank chat check failed attempt=%s/%s: %s url=%s",
@@ -82,7 +96,7 @@ def _click_new_chat(page: Any) -> bool:
         return False
     try:
         btn.first.click(timeout=5_000)
-        page.wait_for_timeout(600)
+        _human_pause(page)
         logger.info("doubao clicked 新对话 url=%s", page.url)
         return True
     except Exception:
@@ -97,7 +111,7 @@ def _open_fresh_chat(page: Any, *, base_url: str) -> None:
     if conversation_id_from_url(page.url or ""):
         try:
             page.goto(target, wait_until="domcontentloaded")
-            page.wait_for_timeout(400)
+            _human_pause(page)
         except Exception:
             logger.debug("goto chat landing failed", exc_info=True)
 
@@ -107,7 +121,7 @@ def _open_fresh_chat(page: Any, *, base_url: str) -> None:
     if conversation_id_from_url(page.url or ""):
         try:
             page.goto(target, wait_until="domcontentloaded")
-            page.wait_for_timeout(400)
+            _human_pause(page)
         except Exception:
             logger.debug("second goto blank chat failed", exc_info=True)
 
@@ -173,6 +187,8 @@ def _fill_and_send(page: Any, prompt: str, *, base_url: str = "") -> None:
         except Exception:
             pass
         page.keyboard.type(prompt, delay=15)
+
+    _human_pause(page)
 
     send = page.get_by_role("button", name=sel.SEND_NAME)
     if send.count() == 0:
@@ -293,6 +309,7 @@ def _wait_send_accepted(
 
         assert_logged_in(page)
         assert_no_captcha(page)
+        assert_no_system_error(page)
         if _accepted():
             return
         page.wait_for_timeout(300)
@@ -366,6 +383,7 @@ def _wait_until(page: Any, *, deadline: float, predicate: Any, label: str) -> No
 
         assert_logged_in(page)
         assert_no_captcha(page)
+        assert_no_system_error(page)
         try:
             if predicate():
                 return
@@ -790,7 +808,7 @@ def _activate_header_more_button(page: Any, btn: Any) -> None:
     """Header ⋯ uses Radix hover trigger — hover then click the outer menu trigger."""
     try:
         btn.hover(timeout=3_000)
-        page.wait_for_timeout(150)
+        _human_pause(page)
     except Exception:
         logger.debug("doubao share: 更多 hover failed", exc_info=True)
     btn.click(timeout=5_000)
@@ -822,7 +840,7 @@ def _open_chat_more_menu(page: Any) -> bool:
     except Exception:
         logger.warning("doubao share: 更多 button click failed", exc_info=True)
         return False
-    page.wait_for_timeout(400)
+    _human_pause(page)
     if not _share_menu_open(page):
         logger.warning(
             "doubao share: 更多 menu opened but no 分享 row url=%s",
@@ -842,7 +860,7 @@ def capture_share_url(page: Any) -> str:
         raise DoubaoShareError("share button not found (⋯ menu open but no 分享)")
 
     share.click(timeout=5_000)
-    page.wait_for_timeout(800)
+    _human_pause(page)
 
     # Prefer explicit copy-link control.
     copy_btn = _first_visible(page.get_by_role("button", name=sel.COPY_LINK_NAME))
@@ -851,7 +869,7 @@ def capture_share_url(page: Any) -> str:
     if copy_btn is not None:
         try:
             copy_btn.click(timeout=3_000)
-            page.wait_for_timeout(400)
+            _human_pause(page)
         except Exception:
             logger.debug("copy link click failed", exc_info=True)
 
@@ -903,6 +921,7 @@ def capture_share_url(page: Any) -> str:
 
 def try_capture_share_url(page: Any) -> str:
     """Best-effort share URL; empty string when the control/clipboard path fails."""
+    _human_pause(page)
     try:
         return (capture_share_url(page) or "").strip()
     except DoubaoShareError as exc:

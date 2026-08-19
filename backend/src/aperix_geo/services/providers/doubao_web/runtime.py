@@ -200,6 +200,12 @@ def page_has_system_error(page: Any) -> bool:
     return bool(sel.SYSTEM_ERROR_HINT.search(body))
 
 
+def assert_no_system_error(page: Any) -> None:
+    """Fail fast when Doubao shows「系统异常」toast (session usually still valid)."""
+    if page_has_system_error(page):
+        raise DoubaoCrawlError("doubao 系统异常", session_alive=True)
+
+
 def recover_system_error(page: Any, *, base_url: str = "") -> bool:
     """Reload /chat when Doubao toasts「系统异常」(composer usually gone)."""
     if not page_has_system_error(page):
