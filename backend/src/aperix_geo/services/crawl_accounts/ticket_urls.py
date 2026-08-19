@@ -32,6 +32,11 @@ def build_login_url(base_url: str, *, ticket_token: str, host_port: int = 0) -> 
     return f"{base}/?ticket={ticket_token}"
 
 
+def build_novnc_desktop_url(base_url: str, *, host_port: int) -> str:
+    """noVNC URL for the shared crawl desktop (same template as ticket ``login_url``)."""
+    return build_login_url(base_url, ticket_token="", host_port=host_port)
+
+
 def build_complete_callback_url(callback_base_url: str) -> str:
     """Map API base (or full path) to complete-by-token endpoint."""
     base = (callback_base_url or "").strip().rstrip("/")

@@ -23,19 +23,37 @@ docker compose -f docker/geo-web-crawl/docker-compose.yml up -d --force-recreate
 
 headed 登录用镜像里的 Debian `/usr/bin/chromium`（不要 Playwright 自带 Chrome + SwiftShader）。
 
-对照实验（不进生产采样）：在**生产宿主机**装 Google Chrome + Selenium，用**同一条**白名单代理先打 `myip.ipip.net`，再开豆包。无桌面 SSH 用 `--headless` + 截图：
+### 容器内对照实验（推荐，noVNC 可视化）
+
+镜像内已装 **Google Chrome + Chromium + Selenium**。在**采样/心跳空闲时**进容器跑（与 crawl 共用 Xvfb、代理）：
 
 ```bash
-sudo apt-get install -y google-chrome-stable
+# 1) rebuild 后 recreate（见上方构建）
+# 2) 在 docker/geo-web-crawl/.env 配置 GEO_CRAWL_OPS_NOVNC_BASE_URL（与 backend 相同）
+# 3) smoke 脚本会打印与工单邮件相同的 noVNC 链接，先打开再跑：
+
+cd docker/geo-web-crawl
+docker compose exec -it geo-web-crawl /app/scripts/smoke-doubao.sh --browser chrome --ip-only
+docker compose exec -it geo-web-crawl /app/scripts/smoke-doubao.sh --browser chrome
+```
+
+- 两种浏览器都「换个网络」→ 换青果出口，不是改驱动  
+- Chrome 正常、仅 Chromium/Playwright 挂 → 再考虑生产镜像换 Chrome  
+- 不写 cookie、不开工单；**勿与正在跑的采样/心跳并行**
+
+宿主机 CentOS 7 等老系统装不了新 Chrome 时，直接用上面容器内命令即可。
+
+<details><summary>宿主机对照（可选，无 noVNC）</summary>
+
+```bash
 cd backend && .venv/bin/pip install 'selenium>=4.8'
 set -a && source ../docker/geo-web-crawl/.env && set +a
 PYTHONPATH=src .venv/bin/python scripts/doubao_selenium_chrome_smoke.py --ip-only --headless
 PYTHONPATH=src .venv/bin/python scripts/doubao_selenium_chrome_smoke.py \
   --headless --screenshot /tmp/doubao-chrome.png --wait-s 12
-# scp 下来看图；终端会扫「换个网络 / 图片加载失败」等文案
 ```
 
-这里同样「换个网络 / 图片加载失败」→ 换青果出口 / 节点信誉，不是改 Playwright↔Selenium。只有 Chrome 正常、容器 Chromium 仍挂时，再考虑镜像换成 Google Chrome（仍用 Playwright，不必切 Selenium）。
+</details>
 
 出网代理写在 `docker/geo-web-crawl/.env`（`HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY`）。代理在宿主机上时用 `http://host.docker.internal:<port>`，不要写 `127.0.0.1`（那是容器自己）。`NO_PROXY` 须含 `host.docker.internal`，否则关单回调也会走代理。SOCKS5 必须写成 `socks5://host:port`（写成 `http://` 时 Chromium 仍走 HTTP CONNECT，豆包会闪验证码再提示换网络）。改代理协议后需 **rebuild** crawl 镜像（WebRTC/IPv6 泄漏修复在镜像源码里）；只改 `.env` 地址则 `up -d --force-recreate` 即可。
 

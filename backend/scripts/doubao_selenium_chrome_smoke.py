@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
-"""A/B smoke: Selenium + Google Chrome + 白名单 HTTP 代理，打开豆包看验证码/风控文案.
+"""A/B smoke: Selenium + Chrome/Chromium + 白名单 HTTP 代理，打开豆包看验证码/风控文案.
 
 仅诊断。不写 cookie、不灌号、不进生产采样队列。
 生产仍走 geo-web-crawl（Playwright）。若这里同样「换个网络 / 图片加载失败」，问题在出口 IP，不是驱动。
 
-宿主机与 crawl 容器应共用同一公网 IP（青果白名单）。不要在笔记本上测生产代理。
+推荐：在 crawl 容器里跑（Xvfb + noVNC 可视化）::
 
-有桌面:
-  sudo apt-get install -y google-chrome-stable
+  docker compose exec geo-web-crawl /app/scripts/smoke-doubao.sh --browser chrome
+  docker compose exec geo-web-crawl /app/scripts/smoke-doubao.sh --browser chromium
+
+宿主机（有桌面）::
+
   cd backend && .venv/bin/pip install 'selenium>=4.8'
   set -a && source ../docker/geo-web-crawl/.env && set +a
   PYTHONPATH=src .venv/bin/python scripts/doubao_selenium_chrome_smoke.py
 
-生产 SSH（无桌面）:
+宿主机无桌面::
+
   PYTHONPATH=src .venv/bin/python scripts/doubao_selenium_chrome_smoke.py \\
     --headless --screenshot /tmp/doubao-chrome.png --wait-s 12
-  PYTHONPATH=src .venv/bin/python scripts/doubao_selenium_chrome_smoke.py --ip-only --headless
 """
 
 from __future__ import annotations
@@ -29,16 +32,16 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+_SRC = ROOT / "src"
+if _SRC.is_dir():
+    sys.path.insert(0, str(_SRC))
 
 from aperix_geo.services.providers.doubao_web.selectors import CHAT_URL  # noqa: E402
+from aperix_geo.services.crawl_accounts.ticket_urls import build_novnc_desktop_url  # noqa: E402
 
-_CHROME_CANDIDATES = (
-    "google-chrome-stable",
-    "google-chrome",
-    "chromium",
-    "chromium-browser",
-)
+_CHROME_ONLY = ("google-chrome-stable", "google-chrome")
+_CHROMIUM_ONLY = ("chromium", "chromium-browser", "/usr/bin/chromium")
+_ALL_BROWSERS = _CHROME_ONLY + _CHROMIUM_ONLY
 
 _RISK_HINTS = (
     "换个网络",
@@ -59,20 +62,32 @@ def _proxy_url() -> str:
     ).strip()
 
 
-def _chrome_bin(explicit: str) -> str:
-    raw = (explicit or os.environ.get("GEO_WEB_CRAWL_CHROME_BIN") or "").strip()
-    if raw:
-        path = Path(raw)
-        if path.is_file():
-            return str(path)
-        raise SystemExit(f"chrome binary not found: {raw}")
-    for name in _CHROME_CANDIDATES:
+def _resolve_binary(candidates: tuple[str, ...]) -> str:
+    explicit = (os.environ.get("GEO_WEB_CRAWL_CHROME_BIN") or "").strip()
+    if explicit and Path(explicit).is_file():
+        return explicit
+    for name in candidates:
+        if name.startswith("/"):
+            if Path(name).is_file():
+                return name
+            continue
         found = shutil.which(name)
         if found:
             return found
-    raise SystemExit(
-        "install Google Chrome (google-chrome-stable) or set GEO_WEB_CRAWL_CHROME_BIN"
-    )
+    raise SystemExit(f"browser binary not found; tried {candidates}")
+
+
+def _chrome_bin(explicit: str, browser: str) -> str:
+    if explicit.strip():
+        path = Path(explicit.strip())
+        if path.is_file():
+            return str(path)
+        raise SystemExit(f"chrome binary not found: {explicit}")
+    if browser == "chrome":
+        return _resolve_binary(_CHROME_ONLY)
+    if browser == "chromium":
+        return _resolve_binary(_CHROMIUM_ONLY)
+    return _resolve_binary(_ALL_BROWSERS)
 
 
 def _proxy_server_arg(raw: str) -> str:
@@ -95,14 +110,54 @@ def _proxy_server_arg(raw: str) -> str:
 
 
 def _scan_risk_text(text: str) -> list[str]:
-    lower = text or ""
-    return [hint for hint in _RISK_HINTS if hint in lower]
+    return [hint for hint in _RISK_HINTS if hint in (text or "")]
+
+
+def _novnc_desktop_url() -> str:
+    base = (os.environ.get("GEO_CRAWL_OPS_NOVNC_BASE_URL") or "").strip()
+    if not base:
+        raise SystemExit(
+            "GEO_CRAWL_OPS_NOVNC_BASE_URL 未设置（须与 backend .env 相同）"
+        )
+    try:
+        port = int(
+            os.environ.get("GEO_WEB_CRAWL_NOVNC_PUBLIC_PORT")
+            or os.environ.get("GEO_WEB_CRAWL_NOVNC_PORT")
+            or "6080"
+        )
+    except ValueError:
+        port = 6080
+    url = build_novnc_desktop_url(base, host_port=port)
+    if not url:
+        raise SystemExit("GEO_CRAWL_OPS_NOVNC_BASE_URL 无效")
+    return url
+
+
+def _print_novnc_hint() -> None:
+    print(f"noVNC: {_novnc_desktop_url()}")
+
+
+def _apply_common_options(options: object, *, headless: bool) -> None:
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-quic")
+    options.add_argument("--window-size=1440,900")
+    options.add_argument("--disable-dbus")
+    if headless:
+        options.add_argument("--disable-gpu")
+        options.add_argument("--headless=new")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", default=CHAT_URL)
     parser.add_argument("--chrome-bin", default="")
+    parser.add_argument(
+        "--browser",
+        choices=("auto", "chrome", "chromium"),
+        default="auto",
+        help="chrome=Google Chrome; chromium=系统 Chromium（与 crawl Playwright 同系）",
+    )
     parser.add_argument(
         "--proxy",
         default="",
@@ -121,7 +176,7 @@ def main() -> int:
     parser.add_argument(
         "--headless",
         action="store_true",
-        help="Chrome headless (for production SSH without desktop)",
+        help="headless (default: headed when DISPLAY is set)",
     )
     parser.add_argument(
         "--screenshot",
@@ -150,17 +205,12 @@ def main() -> int:
         print("pip install 'selenium>=4.8'", file=sys.stderr)
         return 1
 
-    chrome = _chrome_bin(args.chrome_bin)
+    headless = args.headless or not (os.environ.get("DISPLAY") or "").strip()
+    chrome = _chrome_bin(args.chrome_bin, args.browser)
     proxy_raw = (args.proxy or _proxy_url()).strip()
     options = Options()
     options.binary_location = chrome
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-quic")
-    options.add_argument("--window-size=1440,900")
-    options.add_argument("--disable-gpu")
-    if args.headless:
-        options.add_argument("--headless=new")
+    _apply_common_options(options, headless=headless)
     if proxy_raw:
         server = _proxy_server_arg(proxy_raw)
         options.add_argument(f"--proxy-server={server}")
@@ -170,7 +220,10 @@ def main() -> int:
     else:
         print("WARNING: no HTTP_PROXY; Doubao will see this machine's IP", file=sys.stderr)
 
-    print(f"chrome={chrome} headless={args.headless}")
+    print(f"browser={chrome} headless={headless} kind={args.browser}")
+    if not headless:
+        _print_novnc_hint()
+
     service = Service(args.chromedriver) if args.chromedriver.strip() else Service()
     driver = webdriver.Chrome(service=service, options=options)
     try:
@@ -183,6 +236,9 @@ def main() -> int:
         print(body)
         print("--- end ---")
         if args.ip_only:
+            if not headless and not args.no_pause:
+                print("出口 IP 已显示；回车关闭浏览器")
+                input()
             return 0
 
         print(f"open {args.url}")
@@ -211,8 +267,8 @@ def main() -> int:
             driver.save_screenshot(str(path))
             print(f"screenshot={path.resolve()}")
 
-        if not args.headless and not args.no_pause:
-            print("看验证码图能否出来，然后回车结束（不保存登录态）")
+        if not headless and not args.no_pause:
+            print("在 noVNC 里看验证码/风控页；看完后回车结束（不保存登录态）")
             input()
     finally:
         driver.quit()

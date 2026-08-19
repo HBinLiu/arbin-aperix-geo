@@ -29,6 +29,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       chromium \
       fluxbox \
       fonts-noto-cjk \
+      gnupg \
       libasound2 \
       libatk-bridge2.0-0 \
       libatk1.0-0 \
@@ -46,13 +47,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libxrandr2 \
       novnc \
       procps \
+      wget \
       websockify \
       x11-utils \
       x11-xserver-utils \
       x11vnc \
       xauth \
       xvfb \
+    && wget -q -O - https://dl.google.com/linux/linux_signing_key.pub \
+      | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" \
+      > /etc/apt/sources.list.d/google-chrome.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
+
+COPY backend/scripts/doubao_selenium_chrome_smoke.py /app/scripts/doubao_selenium_chrome_smoke.py
+COPY docker/geo-web-crawl/scripts/smoke-doubao.sh /app/scripts/smoke-doubao.sh
+RUN chmod +x /app/scripts/smoke-doubao.sh
 
 COPY docker/geo-web-crawl/requirements.txt /app/requirements.txt
 COPY backend/src /app/src
