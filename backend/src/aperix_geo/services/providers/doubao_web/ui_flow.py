@@ -767,31 +767,13 @@ def _share_menuitem_in_menu(menu_root: Any) -> Any | None:
     return None
 
 
-def _header_overflow_menu_score(menu_root: Any) -> int:
-    try:
-        body = (menu_root.inner_text(timeout=800) or "").strip()
-    except Exception:
-        return 0
-    if "分享" not in body:
-        return 0
-    if sel.HEADER_OVERFLOW_HINT.search(body):
-        return 2
-    return 1
-
-
 def _locate_share_control(page: Any) -> Any | None:
-    """Find 分享 menuitem inside an open dropdown-menu-content (not bare page scan)."""
-    best: Any | None = None
-    best_score = 0
+    """Find 分享 menuitem inside an open dropdown-menu-content."""
     for menu in _iter_visible_locators(_open_overflow_menus(page), limit=8):
         hit = _share_menuitem_in_menu(menu)
-        if hit is None:
-            continue
-        score = _header_overflow_menu_score(menu)
-        if score > best_score:
-            best = hit
-            best_score = score
-    return best
+        if hit is not None:
+            return hit
+    return None
 
 
 def _conversation_share_menu_open(page: Any) -> bool:

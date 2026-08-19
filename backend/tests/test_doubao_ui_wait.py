@@ -309,10 +309,6 @@ def test_locate_share_control_finds_menuitem_in_open_dropdown() -> None:
             "aperix_geo.services.providers.doubao_web.ui_flow._share_menuitem_in_menu",
             return_value=share_row,
         ),
-        patch(
-            "aperix_geo.services.providers.doubao_web.ui_flow._header_overflow_menu_score",
-            return_value=2,
-        ),
     ):
         found = _locate_share_control(page)
 

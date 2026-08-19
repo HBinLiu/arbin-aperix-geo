@@ -40,8 +40,6 @@ OPEN_DROPDOWN_MENU_CONTENT = f'{DROPDOWN_MENU_CONTENT}[data-state="open"]'
 DROPDOWN_MENU_ITEM = '[data-slot="dropdown-menu-item"]'
 # One row inside open ⋯ menu (several items: 置顶/重命名/分享/删除…).
 SHARE_MENU_ITEM = f'[role="menuitem"]{DROPDOWN_MENU_ITEM}'
-# Overflow menu sanity: header ⋯ menu includes 分享 plus at least one of these.
-HEADER_OVERFLOW_HINT = re.compile(r"置顶|重命名|举报|删除")
 
 # Search / references panel header on assistant replies (outside md-box-root).
 SEARCH_PANEL_HINT = re.compile(r"搜索\s*\d+\s*个关键词")
