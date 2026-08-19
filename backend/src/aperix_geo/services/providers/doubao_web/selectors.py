@@ -32,6 +32,13 @@ MESSAGE_ACTION_BAR = ".message-action-button-main"
 READ_ALOUD_NAME = re.compile(r"朗读")
 # Conversation header overflow (share / delete live under this menu).
 MORE_ARIA_LABEL = "更多"
+# Header ⋯ lives in main column top bar (not sidebar / input skill bar).
+CHAT_MAIN = 'main[data-container-name="main"]'
+CHAT_HEADER_MORE_TRIGGER = (
+    f'{CHAT_MAIN} button[data-slot="dropdown-menu-trigger"]:has('
+    f'[aria-label="{MORE_ARIA_LABEL}"])'
+)
+DROPDOWN_MENU_CONTENT = '[data-slot="dropdown-menu-content"][role="menu"]'
 
 # Search / references panel header on assistant replies (outside md-box-root).
 SEARCH_PANEL_HINT = re.compile(r"搜索\s*\d+\s*个关键词")

@@ -170,3 +170,44 @@ def test_extract_search_panel_expands_and_clicks_tabs() -> None:
     assert tab.click.call_count == 2
     assert "搜索 2 个关键词" in text
     assert hrefs == ()
+
+
+def test_more_menu_button_scopes_to_chat_header() -> None:
+    from aperix_geo.services.providers.doubao_web import selectors as sel
+    from aperix_geo.services.providers.doubao_web.ui_flow import _more_menu_button
+
+    page = MagicMock()
+    main = MagicMock()
+    page.locator.return_value = main
+
+    trigger = MagicMock()
+    trigger.is_visible.return_value = True
+    main.locator.side_effect = lambda css: MagicMock(
+        count=lambda: 1,
+        nth=lambda _i: trigger,
+    )
+
+    found = _more_menu_button(page)
+
+    page.locator.assert_called_once_with(sel.CHAT_MAIN)
+    main.locator.assert_any_call(sel.CHAT_HEADER_MORE_TRIGGER)
+    assert found is trigger
+
+
+def test_conversation_share_menu_open_requires_share_hint() -> None:
+    from aperix_geo.services.providers.doubao_web.ui_flow import _conversation_share_menu_open
+
+    menu = MagicMock()
+    menu.is_visible.return_value = True
+    menu.inner_text.return_value = "分享\n置顶\n删除"
+
+    page = MagicMock()
+    page.locator.return_value = MagicMock(
+        count=lambda: 1,
+        nth=lambda _i: menu,
+    )
+
+    assert _conversation_share_menu_open(page) is True
+
+    menu.inner_text.return_value = "图像生成\nPPT 生成"
+    assert _conversation_share_menu_open(page) is False

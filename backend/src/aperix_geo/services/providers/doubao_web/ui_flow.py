@@ -698,51 +698,77 @@ def _share_menu_open(page: Any) -> bool:
     return _locate_share_control(page) is not None
 
 
+def _conversation_overflow_menus(page: Any) -> Any:
+    """Radix dropdown portals for conversation-level overflow (header ⋯)."""
+    return page.locator(sel.DROPDOWN_MENU_CONTENT)
+
+
+def _menu_has_share_row(root: Any) -> bool:
+    try:
+        if not root.is_visible():
+            return False
+    except Exception:
+        return False
+    try:
+        body = (root.inner_text(timeout=800) or "").strip()
+    except Exception:
+        return False
+    return "分享" in body and bool(sel.SHARE_MENU_HINT.search(body))
+
+
+def _share_row_in_menu(root: Any) -> Any | None:
+    """Return the 分享 row inside a conversation overflow menu."""
+    if not _menu_has_share_row(root):
+        return None
+    hit = _first_visible(root.get_by_text("分享", exact=True), limit=6)
+    if hit is not None:
+        return hit
+    return _first_visible(root.get_by_role("menuitem", name=sel.SHARE_NAME), limit=6)
+
+
 def _locate_share_control(page: Any) -> Any | None:
-    """Find visible 分享 control (often a plain div row, not role=menuitem)."""
-    # Exact text first (Doubao menu rows are frequently non-button nodes).
-    found = _first_visible(page.get_by_text("分享", exact=True), limit=20)
-    if found is not None:
-        return found
+    """Find visible 分享 in the conversation header overflow menu."""
+    for root in _iter_visible_locators(_conversation_overflow_menus(page), limit=8):
+        hit = _share_row_in_menu(root)
+        if hit is not None:
+            return hit
 
-    for role in ("menuitem", "button", "menuitemradio", "option", "link"):
-        found = _first_visible(
-            page.get_by_role(role, name=sel.SHARE_NAME), limit=20
-        )
-        if found is not None:
-            return found
-
-    # Menu portal: scope to open menus / popovers.
-    for css in ("[role='menu']", "[role='listbox']", "[class*='menu']", "[class*='popover']", "[class*='dropdown']"):
-        scope = page.locator(css)
-        try:
-            n = min(scope.count(), 8)
-        except Exception:
-            continue
-        for i in range(n):
-            root = scope.nth(i)
-            try:
-                if not root.is_visible():
-                    continue
-            except Exception:
-                continue
-            hit = _first_visible(root.get_by_text("分享", exact=True), limit=10)
-            if hit is not None:
-                return hit
-            hit = _first_visible(root.get_by_role("menuitem", name=sel.SHARE_NAME), limit=10)
+    for css in ("[role='menu']", "[role='listbox']"):
+        for root in _iter_visible_locators(page.locator(css), limit=8):
+            hit = _share_row_in_menu(root)
             if hit is not None:
                 return hit
     return None
 
 
+def _iter_visible_locators(locator: Any, *, limit: int) -> list[Any]:
+    out: list[Any] = []
+    try:
+        n = min(int(locator.count()), limit)
+    except Exception:
+        return out
+    for i in range(n):
+        el = locator.nth(i)
+        try:
+            if el.is_visible():
+                out.append(el)
+        except Exception:
+            continue
+    return out
+
+
 def _more_menu_button(page: Any) -> Any | None:
-    """Conversation header overflow (⋯). Prefer aria-label=更多, with fallbacks."""
+    """Conversation header overflow (⋯) in the main column top bar."""
+    main = page.locator(sel.CHAT_MAIN)
     for loc in (
-        page.locator(f'button[aria-label="{sel.MORE_ARIA_LABEL}"]'),
-        page.locator('button[aria-label*="更多"]'),
-        page.get_by_role("button", name=sel.MORE_MENU_NAME),
+        main.locator(sel.CHAT_HEADER_MORE_TRIGGER),
+        main.locator(
+            f'button[data-slot="dropdown-menu-trigger"]:has('
+            f'[aria-label="{sel.MORE_ARIA_LABEL}"])'
+        ),
+        main.locator(f'button[aria-label="{sel.MORE_ARIA_LABEL}"]'),
     ):
-        found = _first_visible(loc, limit=8)
+        found = _first_visible(loc, limit=4)
         if found is not None:
             return found
     return None
@@ -750,27 +776,31 @@ def _more_menu_button(page: Any) -> Any | None:
 
 def _conversation_share_menu_open(page: Any) -> bool:
     """True when the header overflow menu (分享 + 删除/置顶…) is open."""
-    for css in ("[role='menu']", "[role='listbox']", "[class*='dropdown']", "[class*='popover']"):
-        scope = page.locator(css)
-        try:
-            n = min(scope.count(), 8)
-        except Exception:
-            continue
-        for i in range(n):
-            root = scope.nth(i)
-            try:
-                if not root.is_visible():
-                    continue
-            except Exception:
-                continue
-            share = _first_visible(root.get_by_text("分享", exact=True), limit=4)
-            if share is None:
-                continue
-            # Conversation ⋯ menu rows: 分享 sits with 删除 / 置顶 / 重命名.
-            body = (root.inner_text(timeout=800) or "").strip()
-            if sel.SHARE_MENU_HINT.search(body):
+    for root in _iter_visible_locators(_conversation_overflow_menus(page), limit=8):
+        if _menu_has_share_row(root):
+            return True
+    for css in ("[role='menu']",):
+        for root in _iter_visible_locators(page.locator(css), limit=8):
+            if _menu_has_share_row(root):
                 return True
     return False
+
+
+def _activate_header_more_button(page: Any, btn: Any) -> None:
+    """Header ⋯ uses Radix hover trigger — hover then click the outer menu trigger."""
+    try:
+        btn.hover(timeout=3_000)
+        page.wait_for_timeout(150)
+    except Exception:
+        logger.debug("doubao share: 更多 hover failed", exc_info=True)
+    btn.click(timeout=5_000)
+    try:
+        page.locator(f"{sel.DROPDOWN_MENU_CONTENT}[data-state='open']").first.wait_for(
+            state="visible",
+            timeout=2_500,
+        )
+    except Exception:
+        pass
 
 
 def _open_chat_more_menu(page: Any) -> bool:
@@ -788,11 +818,11 @@ def _open_chat_more_menu(page: Any) -> bool:
 
     _dismiss_overlay(page)
     try:
-        btn.click(timeout=5_000)
+        _activate_header_more_button(page, btn)
     except Exception:
         logger.warning("doubao share: 更多 button click failed", exc_info=True)
         return False
-    page.wait_for_timeout(500)
+    page.wait_for_timeout(400)
     if not _share_menu_open(page):
         logger.warning(
             "doubao share: 更多 menu opened but no 分享 row url=%s",
