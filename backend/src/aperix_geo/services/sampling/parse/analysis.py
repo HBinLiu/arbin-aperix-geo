@@ -17,6 +17,7 @@ from aperix_geo.services.sampling.citation.scope import open_brand_labels_from_a
 from aperix_geo.services.sampling.parse.context import ParseContext
 from aperix_geo.services.sampling.parse.types import CitationParseParams, ParseEnrichment
 from aperix_geo.services.sampling.response_absa import analyze_response_absa
+from aperix_geo.services.sampling.subject_context import subject_track_context
 from aperix_geo.utils.net import (
     filter_citation_urls,
     host_from,
@@ -35,6 +36,7 @@ def _run_response_absa(ctx: ParseContext) -> tuple[dict[str, Any], bool]:
         cache_ttl_s=ctx.absa_cache_ttl_s,
         mention_discovery_enabled=ctx.mention_discovery_enabled,
         mention_discovery_cache_ttl_s=ctx.mention_discovery_cache_ttl_s,
+        track_context=subject_track_context(ctx.subject),
     )
 
 

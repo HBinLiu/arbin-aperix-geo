@@ -30,18 +30,27 @@ def _candidates_digest(mention_candidates: list[str] | None) -> str:
     return hashlib.sha256(joined.encode("utf-8")).hexdigest()[:16]
 
 
+def _track_digest(track_context: str) -> str:
+    track = track_context.strip()[:240]
+    if not track:
+        return ""
+    return hashlib.sha256(track.encode("utf-8")).hexdigest()[:12]
+
+
 def _scope_digest(
     *,
     own_brand: str,
     competitors: list[str],
     excluded_keys: set[str] | None,
     mention_candidates: list[str] | None = None,
+    track_context: str = "",
 ) -> str:
     comp = ",".join(sorted(c.strip() for c in competitors if c.strip()))
     excluded = ",".join(sorted(excluded_keys or []))
     prompt = response_absa_prompt_digest()
     candidates = _candidates_digest(mention_candidates)
-    raw = f"{prompt}|{own_brand.strip()}|{comp}|{excluded}|{candidates}"
+    track = _track_digest(track_context)
+    raw = f"{prompt}|{own_brand.strip()}|{comp}|{excluded}|{candidates}|{track}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
 
 
@@ -52,6 +61,7 @@ def _cache_key(
     competitors: list[str],
     excluded_keys: set[str] | None = None,
     mention_candidates: list[str] | None = None,
+    track_context: str = "",
 ) -> str:
     digest = hashlib.sha256(raw_text[:8000].encode("utf-8")).hexdigest()[:32]
     scope = _scope_digest(
@@ -59,6 +69,7 @@ def _cache_key(
         competitors=competitors,
         excluded_keys=excluded_keys,
         mention_candidates=mention_candidates,
+        track_context=track_context,
     )
     return hashlib.sha256(f"{digest}|{scope}".encode("utf-8")).hexdigest()
 
@@ -70,6 +81,7 @@ def response_absa_cache_digest(
     competitors: list[str],
     excluded_keys: set[str] | None = None,
     mention_candidates: list[str] | None = None,
+    track_context: str = "",
 ) -> str:
     return _cache_key(
         raw_text=raw_text,
@@ -77,6 +89,7 @@ def response_absa_cache_digest(
         competitors=competitors,
         excluded_keys=excluded_keys,
         mention_candidates=mention_candidates,
+        track_context=track_context,
     )
 
 
@@ -91,6 +104,7 @@ def get_response_absa_cached(
     competitors: list[str],
     excluded_keys: set[str] | None = None,
     mention_candidates: list[str] | None = None,
+    track_context: str = "",
     ttl_s: int,
 ) -> dict[str, Any] | None:
     if ttl_s <= 0:
@@ -101,6 +115,7 @@ def get_response_absa_cached(
         competitors=competitors,
         excluded_keys=excluded_keys,
         mention_candidates=mention_candidates,
+        track_context=track_context,
     )
     return _STORE.get(key, default_ttl_s=ttl_s, is_valid=_is_valid)
 
@@ -112,6 +127,7 @@ def set_response_absa_cached(
     competitors: list[str],
     excluded_keys: set[str] | None = None,
     mention_candidates: list[str] | None = None,
+    track_context: str = "",
     result: dict[str, Any],
     ttl_s: int,
 ) -> None:
@@ -121,6 +137,7 @@ def set_response_absa_cached(
         competitors=competitors,
         excluded_keys=excluded_keys,
         mention_candidates=mention_candidates,
+        track_context=track_context,
     )
     payload = dict(result)
     payload.pop("expires_at", None)

@@ -23,24 +23,37 @@ def mention_discovery_prompt_digest() -> str:
     return hashlib.sha256(system.encode("utf-8")).hexdigest()[:12]
 
 
-def _cache_key(*, raw_text: str) -> str:
+def _track_digest(track_context: str) -> str:
+    track = track_context.strip()[:240]
+    if not track:
+        return ""
+    return hashlib.sha256(track.encode("utf-8")).hexdigest()[:12]
+
+
+def _cache_key(*, raw_text: str, track_context: str = "") -> str:
     prompt = mention_discovery_prompt_digest()
     digest = hashlib.sha256(raw_text[:8000].encode("utf-8")).hexdigest()[:32]
-    return hashlib.sha256(f"{prompt}|{digest}".encode("utf-8")).hexdigest()
+    track = _track_digest(track_context)
+    return hashlib.sha256(f"{prompt}|{digest}|{track}".encode("utf-8")).hexdigest()
 
 
-def mention_discovery_cache_digest(*, raw_text: str) -> str:
-    return _cache_key(raw_text=raw_text)
+def mention_discovery_cache_digest(*, raw_text: str, track_context: str = "") -> str:
+    return _cache_key(raw_text=raw_text, track_context=track_context)
 
 
 def _is_valid(payload: dict[str, Any]) -> bool:
     return payload.get("analysis_source") == "llm"
 
 
-def get_mention_discovery_cached(*, raw_text: str, ttl_s: int) -> list[str] | None:
+def get_mention_discovery_cached(
+    *,
+    raw_text: str,
+    ttl_s: int,
+    track_context: str = "",
+) -> list[str] | None:
     if ttl_s <= 0:
         return None
-    key = _cache_key(raw_text=raw_text)
+    key = _cache_key(raw_text=raw_text, track_context=track_context)
     payload = _STORE.get(key, default_ttl_s=ttl_s, is_valid=_is_valid)
     if payload is None:
         return None
@@ -55,8 +68,9 @@ def set_mention_discovery_cached(
     raw_text: str,
     mentioned_spans: list[str],
     ttl_s: int,
+    track_context: str = "",
 ) -> None:
-    key = _cache_key(raw_text=raw_text)
+    key = _cache_key(raw_text=raw_text, track_context=track_context)
     _STORE.set(
         key,
         {

@@ -24,8 +24,16 @@ MORE_MENU_NAME = re.compile(r"更多|更多操作|更多选项|菜单|More")
 DELETE_CHAT_NAME = re.compile(r"^删除$|删除对话|删除聊天|删除会话")
 CONFIRM_DELETE_NAME = re.compile(r"^确定$|^确认$|确认删除|删除对话")
 LOGIN_HINT = re.compile(r"登录|登陆|验证码|扫码")
-# Assistant message toolbar (copy / 朗读 / …). First direct ``button`` copies Markdown body.
-MESSAGE_ACTION_BAR = ".message-action-button-main"
+# Assistant message toolbar (copy / 朗读 / …). Doubao migrated to Semi UI + foundation attrs.
+MESSAGE_ACTION_BAR_SELECTORS = (
+    '[data-foundation-type="receive-message-action-bar"]',
+    '[class*="receive-message-action"]',
+    '[class*="ai-chat-dialogue-action"]',
+    ".message-action-button-main",
+)
+MESSAGE_ACTION_BAR = MESSAGE_ACTION_BAR_SELECTORS[-1]  # legacy alias
+SEND_MESSAGE_ACTION_BAR = '[data-foundation-type="send-message-action-bar"]'
+COPY_BODY_NAME = re.compile(r"^复制$|复制正文|^Copy$", re.IGNORECASE)
 READ_ALOUD_NAME = re.compile(r"朗读")
 # Conversation header overflow (share / delete live under this menu).
 MORE_ARIA_LABEL = "更多"

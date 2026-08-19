@@ -477,3 +477,64 @@ def test_open_chat_more_menu_skips_click_when_menu_already_open() -> None:
 
     assert ok is True
     activate.assert_not_called()
+
+
+def test_message_action_bar_skips_user_bubble_toolbar() -> None:
+    from aperix_geo.services.providers.doubao_web.ui_flow import _message_action_bar
+
+    user_bar = MagicMock()
+    assistant_bar = MagicMock()
+    page = MagicMock()
+
+    with (
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._collect_assistant_action_bars",
+            return_value=[assistant_bar],
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._is_send_action_bar",
+            side_effect=lambda bar: bar is user_bar,
+        ),
+    ):
+        assert _message_action_bar(page) is assistant_bar
+
+
+def test_locate_copy_body_button_prefers_copy_label() -> None:
+    from aperix_geo.services.providers.doubao_web.ui_flow import _locate_copy_body_button
+
+    bar = MagicMock()
+    copy_btn = MagicMock()
+    bar.get_by_role.return_value = MagicMock(count=lambda: 1, nth=lambda _i: copy_btn)
+    bar.locator.return_value = MagicMock(count=lambda: 0)
+
+    with patch(
+        "aperix_geo.services.providers.doubao_web.ui_flow._first_visible",
+        return_value=copy_btn,
+    ):
+        assert _locate_copy_body_button(bar) is copy_btn
+
+
+def test_copy_assistant_falls_back_to_dom_scan() -> None:
+    from aperix_geo.services.providers.doubao_web.ui_flow import _copy_assistant_markdown_via_toolbar
+
+    page = MagicMock()
+    page.evaluate.side_effect = ["", "assistant markdown body"]
+
+    with (
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._message_action_bar",
+            return_value=None,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._read_clipboard",
+            side_effect=["", "assistant markdown body"],
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._click_copy_near_last_md_box",
+            return_value=True,
+        ) as dom_scan,
+    ):
+        text = _copy_assistant_markdown_via_toolbar(page)
+
+    dom_scan.assert_called_once_with(page)
+    assert text == "assistant markdown body"

@@ -77,6 +77,39 @@ def _fallback_rank_hint(text: str) -> int:
     return len(text) if text else 0
 
 
+def _evidence_snippet(text: str, label: str, *, max_len: int = 120) -> str:
+    if not text or not label:
+        return ""
+    lowered = text.casefold()
+    needle = label.casefold()
+    idx = lowered.find(needle)
+    if idx < 0:
+        return label
+    start = max(0, idx - 40)
+    end = min(len(text), idx + len(label) + 40)
+    snippet = text[start:end].strip()
+    if len(snippet) > max_len:
+        snippet = snippet[: max_len - 1] + "…"
+    return snippet
+
+
+def _is_open_candidate_label(label: str) -> bool:
+    text = label.strip()
+    if len(text) < 2:
+        return False
+    if text.endswith("类") and len(text) <= 8:
+        return False
+    return True
+
+
+def _absa_explicitly_denied(label: str, response_absa: dict[str, Any]) -> bool:
+    others = response_absa.get("other_brands_sentiment_absa")
+    if not isinstance(others, dict):
+        return False
+    entry = others.get(label)
+    return isinstance(entry, dict) and entry.get("mentioned") is False
+
+
 def _other_brand_has_domain_link(label: str, text: str, url_hosts: list[str]) -> bool:
     if not url_hosts:
         return False
@@ -287,6 +320,68 @@ def append_other_brand_drafts(
         existing_ids.add(entity_id)
 
 
+def append_candidate_mention_drafts(
+    drafts: list[EntitySignalDraft],
+    response_absa: dict[str, Any],
+    *,
+    mention_candidates: list[str] | None,
+    excluded_keys: set[str],
+    text: str = "",
+    url_hosts: list[str] | None = None,
+) -> None:
+    """Fallback open-set mentions from enumeration/discovery when ABSA did not explicitly deny."""
+    if not mention_candidates or not text.strip():
+        return
+
+    others = response_absa.get("other_brands_sentiment_absa")
+    if not isinstance(others, dict):
+        others = {}
+
+    existing_ids = {draft.entity_id for draft in drafts}
+    for raw in mention_candidates:
+        label = str(raw or "").strip()
+        if not label or not _is_open_candidate_label(label):
+            continue
+        if normalize_brand_key(label) in excluded_keys:
+            continue
+        if count_term(text, label) <= 0:
+            continue
+        if _absa_explicitly_denied(label, response_absa):
+            continue
+        entity_id = other_entity_id(label)
+        if entity_id in existing_ids:
+            continue
+
+        entry = others.get(label)
+        if isinstance(entry, dict) and entry.get("mentioned"):
+            score, sentiment_reason = absa_brand_sentiment(entry)
+        else:
+            score = 50.0
+            sentiment_reason = _evidence_snippet(text, label) or None
+
+        mention_count = count_term(text, label) or 1
+        rank_hint = _rank_hint_from_absa(text, label, entry if isinstance(entry, dict) else None)
+        if rank_hint is None:
+            rank_hint = first_idx_any(text, (label,))
+        if rank_hint is None:
+            rank_hint = _fallback_rank_hint(text)
+
+        drafts.append(
+            EntitySignalDraft(
+                entity_id=entity_id,
+                entity_kind="other",
+                entity_label=label,
+                mentioned=True,
+                mention_count=mention_count,
+                rank_hint_first_index=rank_hint,
+                sentiment_score=score,
+                sentiment_reason=sentiment_reason,
+                has_domain_link=_other_brand_has_domain_link(label, text, url_hosts or []),
+            )
+        )
+        existing_ids.add(entity_id)
+
+
 def apply_response_absa_to_drafts(
     drafts: list[EntitySignalDraft],
     response_absa: dict[str, Any],
@@ -301,6 +396,7 @@ def apply_response_absa_to_drafts(
     competitors: list[CompetitorEntry] | None = None,
     text: str = "",
     excluded_keys: set[str] | None = None,
+    mention_candidates: list[str] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """Apply closed-set ABSA, append validated open-set brands, and recompute mention ranks."""
     source = apply_absa_to_drafts(
@@ -327,6 +423,18 @@ def apply_response_absa_to_drafts(
     append_other_brand_drafts(
         drafts,
         response_absa,
+        excluded_keys=excluded_keys,
+        text=text,
+        url_hosts=url_hosts,
+    )
+    candidates = mention_candidates
+    if candidates is None:
+        raw = response_absa.get("mention_candidates")
+        candidates = raw if isinstance(raw, list) else None
+    append_candidate_mention_drafts(
+        drafts,
+        response_absa,
+        mention_candidates=candidates,
         excluded_keys=excluded_keys,
         text=text,
         url_hosts=url_hosts,

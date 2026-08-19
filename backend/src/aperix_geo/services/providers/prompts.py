@@ -154,8 +154,15 @@ CITATION_RESPONSE_MENTION_DISCOVERY_SYSTEM = """# 任务
 - 禁止 Markdown 或其它说明。"""
 
 
-def citation_response_mention_discovery_user_content(*, raw_text: str) -> str:
-    return f'# 输入数据\n- [AI原始回答文本]: """{raw_text}"""'
+def citation_response_mention_discovery_user_content(
+    *,
+    raw_text: str,
+    track_context: str = "",
+) -> str:
+    track_block = ""
+    if track_context.strip():
+        track_block = f"# 监测赛道（同赛道判定参考）\n- {track_context.strip()}\n\n"
+    return f"{track_block}# 输入数据\n- [AI原始回答文本]: \"\"\"{raw_text}\"\"\""
 
 
 # =============================================================================
@@ -206,9 +213,10 @@ CITATION_RESPONSE_ABSA_SYSTEM = """# 任务
 
 ## 正文提及候选（user 消息可能提供）
 - user 消息中的「正文提及候选」来自规则列举抽取与 Discovery，**须逐条独立评估**是否写入开集。
-- 每一项均须满足上文开集三条标准；不满足仍不写入；**禁止**编造候选中未在 AI 原文出现的名称。
-- 当正文采用「大类（A、B、C 等）」或「A/B/C」列举时，**不得**只收录其中一项而忽略同组其它候选；须对候选逐条判断。
-- 提及候选仅为召回提示，不能替代「正文讨论 + 同赛道可替代」的判定。
+- 候选名称已出现在 AI 原文中；若正文将其作为与闭集同赛道可讨论/对比/列举的可选产品或品牌，**应写入**开集（可给中立 score=50），不要仅因未明确推荐而漏收。
+- 每一项均须满足开集主体边界（非媒体/标准/纯品类词）；**禁止**编造候选中未在 AI 原文出现的名称。
+- 当正文采用「大类（A、B、 C 等）」或「A/B/C」列举时，**不得**只收录其中一项而忽略同组其它候选；须对候选逐条判断。
+- 提及候选仅为召回提示；最终仍须排除非商业主体与明显噪声词。
 
 # 归类示例
 - 闭集：本品牌=Aperix，竞品=Beta → `brands_sentiment_absa` 的键只能是 `Aperix`、`Beta`。
@@ -257,6 +265,7 @@ def citation_response_absa_user_content(
     competitors: list[str] | None = None,
     enumerated_candidates: list[str] | None = None,
     mention_candidates: list[str] | None = None,
+    track_context: str = "",
 ) -> str:
     """competitors: 闭集完整键（兼容旧参）；优先 own_brand_names + competitor_brand_names。"""
     from aperix_geo.services.sampling.enumeration import extract_enumerated_spans
@@ -297,8 +306,12 @@ def citation_response_absa_user_content(
         enum_block = f"# 正文提及候选（规则列举 + Discovery，须逐条核对开集规则）\n{cand_lines}\n\n"
     else:
         enum_block = ""
+    track_block = ""
+    if track_context.strip():
+        track_block = f"# 监测赛道（同赛道判定参考）\n- {track_context.strip()}\n\n"
     return (
         f"{header}"
+        f"{track_block}"
         f"{open_set_block}"
         f"{enum_block}"
         f"# 输入数据\n"

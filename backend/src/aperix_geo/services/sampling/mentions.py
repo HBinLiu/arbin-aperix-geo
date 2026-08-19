@@ -208,6 +208,7 @@ def discover_response_mentions(
     raw_text: str,
     *,
     cache_ttl_s: int = 0,
+    track_context: str = "",
 ) -> tuple[list[str], bool]:
     """Discover named commercial entities mentioned in AI response text.
 
@@ -217,7 +218,11 @@ def discover_response_mentions(
         return [], False
 
     def _read_cache() -> list[str] | None:
-        return get_mention_discovery_cached(raw_text=raw_text, ttl_s=cache_ttl_s)
+        return get_mention_discovery_cached(
+            raw_text=raw_text,
+            ttl_s=cache_ttl_s,
+            track_context=track_context,
+        )
 
     cached = _read_cache()
     if cached is not None:
@@ -230,7 +235,10 @@ def discover_response_mentions(
             {"role": "system", "content": CITATION_RESPONSE_MENTION_DISCOVERY_SYSTEM},
             {
                 "role": "user",
-                "content": citation_response_mention_discovery_user_content(raw_text=raw_text),
+                "content": citation_response_mention_discovery_user_content(
+                    raw_text=raw_text,
+                    track_context=track_context,
+                ),
             },
         ]
         try:
@@ -244,6 +252,7 @@ def discover_response_mentions(
                 raw_text=raw_text,
                 mentioned_spans=spans,
                 ttl_s=cache_ttl_s,
+                track_context=track_context,
             )
             return spans
         except (LLMProviderError, TypeError, ValueError, KeyError) as exc:
@@ -253,7 +262,7 @@ def discover_response_mentions(
     if cache_ttl_s <= 0:
         return _fetch(), True
 
-    digest = mention_discovery_cache_digest(raw_text=raw_text)
+    digest = mention_discovery_cache_digest(raw_text=raw_text, track_context=track_context)
     try:
         result = run_single_flight(
             digest,

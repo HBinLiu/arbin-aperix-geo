@@ -414,25 +414,18 @@ def _wait_until(page: Any, *, deadline: float, predicate: Any, label: str) -> No
 def _last_assistant_md_text(page: Any, *, user_prompt: str = "") -> str:
     """Last ``.md-box-root`` body that is not just the user prompt echo."""
     prompt = (user_prompt or "").strip()
+    target = _last_assistant_md_locator(page)
+    if target is None:
+        return ""
     try:
-        loc = page.locator(".md-box-root")
-        n = int(loc.count())
+        text = (target.inner_text(timeout=800) or "").strip()
     except Exception:
         return ""
-    for i in range(n - 1, -1, -1):
-        target = loc.nth(i)
-        try:
-            if not target.is_visible():
-                continue
-            text = (target.inner_text(timeout=800) or "").strip()
-        except Exception:
-            continue
-        if not text:
-            continue
-        if prompt and text == prompt:
-            continue
-        return text
-    return ""
+    if not text:
+        return ""
+    if prompt and text == prompt:
+        return ""
+    return text
 
 
 def _wait_generation_done(
@@ -514,47 +507,176 @@ def _read_clipboard(page: Any) -> str:
     return clip.strip() if isinstance(clip, str) else ""
 
 
-def _message_action_bar(page: Any) -> Any | None:
-    """First visible ``.message-action-button-main``."""
-    bar = _first_visible(
-        page.locator(sel.MESSAGE_ACTION_BAR),
-        limit=30,
-    )
-    if bar is None:
-        return None
-    try:
-        bar.wait_for(state="visible", timeout=3_000)
-    except Exception:
-        return None
-    return bar
-
-
-def _locate_copy_body_button(bar: Any) -> Any | None:
-    """First direct child button = 复制正文."""
-    try:
-        direct = bar.locator(":scope > button")
-        if direct.count() > 0:
-            return direct.first
-    except Exception:
-        pass
+def _last_assistant_md_locator(page: Any) -> Any | None:
+    """Last visible ``md-box-root`` node (assistant reply body)."""
+    for css in sel.MD_BOX_SELECTORS:
+        try:
+            loc = page.locator(css)
+            n = int(loc.count())
+        except Exception:
+            continue
+        for i in range(n - 1, -1, -1):
+            target = loc.nth(i)
+            try:
+                if target.is_visible():
+                    return target
+            except Exception:
+                continue
     return None
 
 
-def _copy_assistant_markdown_via_toolbar(page: Any) -> str:
-    """Click the first toolbar's first button (复制正文) and read clipboard Markdown."""
-    bar = _message_action_bar(page)
-    if bar is None:
-        return ""
-    copy_btn = _locate_copy_body_button(bar)
-    if copy_btn is None:
-        return ""
-    before = _read_clipboard(page)
+def _hover_assistant_reply(page: Any) -> None:
+    """Reveal hover-only message toolbars on the latest assistant bubble."""
+    target = _last_assistant_md_locator(page)
+    if target is None:
+        return
     try:
-        copy_btn.click(timeout=5_000)
-        page.wait_for_timeout(400)
+        target.hover(timeout=3_000)
+        page.wait_for_timeout(250)
     except Exception:
-        logger.debug("assistant copy-button click failed", exc_info=True)
+        logger.debug("assistant hover for action bar failed", exc_info=True)
+
+
+def _is_send_action_bar(bar: Any) -> bool:
+    """True when the toolbar belongs to a user (send) bubble — not assistant copy."""
+    try:
+        return bool(
+            bar.evaluate(
+                """el => {
+                  if (!el) return false;
+                  if (el.matches('[data-foundation-type="send-message-action-bar"]')) return true;
+                  if (el.closest('[data-foundation-type="send-message-action-bar"]')) return true;
+                  if (el.querySelector('[data-foundation-type="send-message-action-bar"]')) return true;
+                  if (el.closest('[class*="bg-g-send-msg-bubble"]')) return true;
+                  if (el.closest('[data-testid="send_message"]')) return true;
+                  return false;
+                }"""
+            )
+        )
+    except Exception:
+        return False
+
+
+def _collect_assistant_action_bars(page: Any) -> list[Any]:
+    _hover_assistant_reply(page)
+    bars: list[Any] = []
+    seen: set[int] = set()
+    for css in sel.MESSAGE_ACTION_BAR_SELECTORS:
+        for bar in _iter_visible_locators(page.locator(css), limit=30):
+            if _is_send_action_bar(bar):
+                continue
+            key = id(bar)
+            if key in seen:
+                continue
+            seen.add(key)
+            bars.append(bar)
+    return bars
+
+
+def _message_action_bar(page: Any) -> Any | None:
+    """Last visible assistant message toolbar (not the user bubble)."""
+    bars = _collect_assistant_action_bars(page)
+    if bars:
+        return bars[-1]
+    return None
+
+
+def _locate_copy_body_button(bar: Any) -> Any | None:
+    """Copy Markdown button inside an assistant action bar."""
+    for locator in (
+        bar.get_by_role("button", name=sel.COPY_BODY_NAME),
+        bar.locator("button[aria-label]").filter(has_text=sel.COPY_BODY_NAME),
+        bar.locator("button[title]").filter(has_text=sel.COPY_BODY_NAME),
+        bar.locator("button").filter(has_text=sel.COPY_BODY_NAME),
+    ):
+        btn = _first_visible(locator, limit=5)
+        if btn is not None:
+            return btn
+    for css in (
+        ":scope > button",
+        'button[class*="ai-chat-dialogue-action-btn"]',
+        'button[class*="action-btn"]',
+        "button",
+    ):
+        try:
+            loc = bar.locator(css)
+            if loc.count() > 0:
+                return loc.first
+        except Exception:
+            continue
+    return None
+
+
+def _click_copy_near_last_md_box(page: Any) -> bool:
+    """DOM scan fallback when Playwright locators miss the Semi UI copy button."""
+    try:
+        return bool(
+            page.evaluate(
+                """() => {
+                  const re = /^复制$|复制正文|^Copy$/i;
+                  const boxes = document.querySelectorAll(
+                    '.md-box-root, [class*="md-box-root"], .flow-markdown-body'
+                  );
+                  const anchor = boxes.length ? boxes[boxes.length - 1] : null;
+                  if (!anchor) return false;
+                  anchor.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+                  let root = anchor;
+                  for (let depth = 0; depth < 14 && root; depth++) {
+                    for (const btn of root.querySelectorAll('button')) {
+                      const style = window.getComputedStyle(btn);
+                      if (style.display === 'none' || style.visibility === 'hidden') continue;
+                      if (btn.getClientRects().length === 0) continue;
+                      const label = (
+                        btn.getAttribute('aria-label') ||
+                        btn.getAttribute('title') ||
+                        (btn.innerText || '').trim()
+                      );
+                      if (re.test(label)) {
+                        btn.click();
+                        return true;
+                      }
+                    }
+                    root = root.parentElement;
+                  }
+                  const actionBtns = document.querySelectorAll(
+                    '[data-foundation-type="receive-message-action-bar"] button, '
+                    + '[class*="ai-chat-dialogue-action"] button, '
+                    + '.message-action-button-main > button'
+                  );
+                  for (let i = actionBtns.length - 1; i >= 0; i--) {
+                    const btn = actionBtns[i];
+                    const style = window.getComputedStyle(btn);
+                    if (style.display === 'none' || style.visibility === 'hidden') continue;
+                    if (btn.getClientRects().length === 0) continue;
+                    btn.click();
+                    return true;
+                  }
+                  return false;
+                }"""
+            )
+        )
+    except Exception:
+        logger.debug("assistant copy dom-scan failed", exc_info=True)
+        return False
+
+
+def _copy_assistant_markdown_via_toolbar(page: Any) -> str:
+    """Click assistant toolbar「复制」and read clipboard Markdown."""
+    bar = _message_action_bar(page)
+    copy_btn = _locate_copy_body_button(bar) if bar is not None else None
+    before = _read_clipboard(page)
+    clicked = False
+    if copy_btn is not None:
+        try:
+            copy_btn.click(timeout=5_000)
+            clicked = True
+        except Exception:
+            logger.debug("assistant copy-button click failed", exc_info=True)
+    if not clicked:
+        clicked = _click_copy_near_last_md_box(page)
+    if not clicked:
         return ""
+    page.wait_for_timeout(400)
     after = _read_clipboard(page)
     if not after:
         return ""

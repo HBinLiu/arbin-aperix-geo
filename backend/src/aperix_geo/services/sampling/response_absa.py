@@ -105,6 +105,12 @@ def _empty_response_absa(*, reason: str) -> dict[str, Any]:
     }
 
 
+def _attach_mention_candidates(result: dict[str, Any], mention_candidates: list[str]) -> dict[str, Any]:
+    payload = dict(result)
+    payload["mention_candidates"] = list(mention_candidates)
+    return payload
+
+
 def analyze_response_absa(
     raw_text: str,
     *,
@@ -116,6 +122,7 @@ def analyze_response_absa(
     cache_ttl_s: int = 0,
     mention_discovery_enabled: bool = False,
     mention_discovery_cache_ttl_s: int = 0,
+    track_context: str = "",
 ) -> tuple[dict[str, Any], bool]:
     """ABSA on the sampling LLM response text (once per LLM response).
 
@@ -147,18 +154,23 @@ def analyze_response_absa(
         discovery_spans, discovery_live = discover_response_mentions(
             raw_text,
             cache_ttl_s=mention_discovery_cache_ttl_s,
+            track_context=track_context,
         )
     mention_candidates = merge_mention_candidates(raw_text, discovery_spans)
 
     def _read_cache() -> dict[str, Any] | None:
-        return get_response_absa_cached(
+        cached = get_response_absa_cached(
             raw_text=raw_text,
             own_brand=own_brand,
             competitors=closed_brand_names,
             excluded_keys=excluded_keys,
             mention_candidates=mention_candidates,
+            track_context=track_context,
             ttl_s=cache_ttl_s,
         )
+        if cached is None:
+            return None
+        return _attach_mention_candidates(cached, mention_candidates)
 
     cached = _read_cache()
     if cached is not None:
@@ -178,6 +190,7 @@ def analyze_response_absa(
                     competitor_brand_names=competitor_brand_names,
                     competitors=closed_brand_names,
                     mention_candidates=mention_candidates,
+                    track_context=track_context,
                 ),
             },
         ]
@@ -193,12 +206,14 @@ def analyze_response_absa(
                 competitors=closed_brand_names,
                 excluded_keys=excluded_keys,
             )
+            result = _attach_mention_candidates(result, mention_candidates)
             set_response_absa_cached(
                 raw_text=raw_text,
                 own_brand=own_brand,
                 competitors=closed_brand_names,
                 excluded_keys=excluded_keys,
                 mention_candidates=mention_candidates,
+                track_context=track_context,
                 result=result,
                 ttl_s=cache_ttl_s,
             )
@@ -216,6 +231,7 @@ def analyze_response_absa(
         competitors=closed_brand_names,
         excluded_keys=excluded_keys,
         mention_candidates=mention_candidates,
+        track_context=track_context,
     )
     try:
         result = run_single_flight(
