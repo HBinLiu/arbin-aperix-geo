@@ -239,6 +239,8 @@ class Settings(BaseSettings):
     # --- 引用来源 · 抓取与 ABSA ---
     citation_text_snippet_chars: int = Field(default=2_000, ge=500, le=50_000)
     citation_response_absa_cache_ttl_s: int = Field(default=86_400, ge=0, le=86_400)
+    citation_response_mention_discovery_enabled: bool = True
+    citation_response_mention_discovery_cache_ttl_s: int = Field(default=86_400, ge=0, le=86_400)
     citation_favicon_inline: bool = False
 
     # --- 目录接口 Redis 缓存（entities、subject topics）---

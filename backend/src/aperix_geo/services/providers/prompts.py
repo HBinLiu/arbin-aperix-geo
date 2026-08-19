@@ -123,6 +123,42 @@ KIMI_WEB_SEARCH_SYSTEM = YUANBAO_WEB_SEARCH_SYSTEM
 
 
 # =============================================================================
+# 采样回复 · 提及 Discovery（高召回专名，供 ABSA 开集候选）
+# =============================================================================
+
+CITATION_RESPONSE_MENTION_DISCOVERY_SYSTEM = """# 任务
+你是「AI 回答正文中的商业主体专名发现」助手。请**仅**根据 user 消息中的【AI原始回答文本】，列出正文中被当作**独立商业主体**提及或讨论的名称，并严格以 JSON 输出。
+
+# 目标（高召回）
+- 找出用户可能在多个监测品牌/产品/服务之间做选择的**商业品牌、产品、公司或服务名**。
+- 正文以列举形式出现（括号、顿号、斜杠、such as）时，**逐项分别输出**，不要只留大类名。
+- 名称必须与原文**完全一致**（允许大小写差异的英文）；禁止改写、翻译或补全未出现的词。
+
+# 应收录（满足其一即可，倾向收录）
+- 具体品牌名、产品名、服务名、公司名（含别名/简称，若正文将其作为可选方案讨论）
+- 对比、推荐、搭配、取舍语境中的具名主体
+- 列举中的每一项（如 A、B、C）
+
+# 禁止收录
+- 纯品类词、系列统称、泛化概念、抽象属性或无法对应独立商业主体的描述（如「SaaS 类」「性价比」「传统方案」）
+- 媒体、平台、政府、标准/协议/认证、上下游非竞品
+- 仅在 URL、参考资料列表出现而正文未讨论的名称
+- 目录编号、章节标题、纯形容词
+
+# 输出
+必须且仅输出 JSON：
+{
+  "mentioned_spans": ["原文中的名称1", "名称2"]
+}
+- 无符合条件的名称时输出 {"mentioned_spans": []}
+- 禁止 Markdown 或其它说明。"""
+
+
+def citation_response_mention_discovery_user_content(*, raw_text: str) -> str:
+    return f'# 输入数据\n- [AI原始回答文本]: """{raw_text}"""'
+
+
+# =============================================================================
 # 采样回复 · 回复级 ABSA（AI 原文情感，每条回复一次）
 # =============================================================================
 
@@ -168,12 +204,20 @@ CITATION_RESPONSE_ABSA_SYSTEM = """# 任务
   - 仅在参考资料列表或 URL 中出现、正文未讨论的品牌名
 - 若 AI 原文未出现符合条件的额外商业品牌，必须输出空对象 `{}`。
 
+## 正文提及候选（user 消息可能提供）
+- user 消息中的「正文提及候选」来自规则列举抽取与 Discovery，**须逐条独立评估**是否写入开集。
+- 每一项均须满足上文开集三条标准；不满足仍不写入；**禁止**编造候选中未在 AI 原文出现的名称。
+- 当正文采用「大类（A、B、C 等）」或「A/B/C」列举时，**不得**只收录其中一项而忽略同组其它候选；须对候选逐条判断。
+- 提及候选仅为召回提示，不能替代「正文讨论 + 同赛道可替代」的判定。
+
 # 归类示例
 - 闭集：本品牌=Aperix，竞品=Beta → `brands_sentiment_absa` 的键只能是 `Aperix`、`Beta`。
 - AI 正文提到「Aperix 与 Stripe 都不错，Beta 略贵」→ `Stripe` 仅出现在 `other_brands_sentiment_absa`；`Aperix`、`Beta` 仅在 `brands_sentiment_absa`。
 - AI 正文只提到「推荐 Aperix」→ `other_brands_sentiment_absa` 为 `{}`。
 - 参考资料列表含 `stripe.com` 但正文未讨论 Stripe → **不**写入 `other_brands_sentiment_absa`。
 - 正文提到「TechCrunch 报道」「符合 PCI DSS」→ 媒体/标准名，**不**写入开集。
+- 正文「SaaS 类（Stripe、PayPal、Square 等）」→ 须分别评估 Stripe / PayPal / Square，满足开集条件的均收录，不得只写 Stripe。
+- 正文「工具 A/B/C 均可用」→ 须分别评估 A、B、C（以原文实际名称为准）。
 
 # 输入数据（user 消息按以下结构提供）
 - 本品牌、竞品列表（闭集完整名单）
@@ -211,8 +255,18 @@ def citation_response_absa_user_content(
     own_brand_names: list[str] | None = None,
     competitor_brand_names: list[str] | None = None,
     competitors: list[str] | None = None,
+    enumerated_candidates: list[str] | None = None,
+    mention_candidates: list[str] | None = None,
 ) -> str:
     """competitors: 闭集完整键（兼容旧参）；优先 own_brand_names + competitor_brand_names。"""
+    from aperix_geo.services.sampling.enumeration import extract_enumerated_spans
+
+    if mention_candidates is not None:
+        candidates = mention_candidates
+    elif enumerated_candidates is not None:
+        candidates = enumerated_candidates
+    else:
+        candidates = extract_enumerated_spans(raw_text)
     own_keys = list(own_brand_names or [])
     if not own_keys and own_brand.strip():
         own_keys = [own_brand.strip()]
@@ -235,11 +289,18 @@ def citation_response_absa_user_content(
         f"# 开集规则（other_brands_sentiment_absa）\n"
         f"- 精准收录：仅填 AI 正文中被讨论/对比/推荐、与闭集同赛道可替代的商业品牌\n"
         f"- 不在闭集 [{closed_text}] 内；闭集品牌任何写法都不得写入此处\n"
-        f"- 仅参考资料/URL 出现而正文未讨论的不收录；存疑则不写\n\n"
+        f"- 仅参考资料/URL 出现而正文未讨论的不收录；存疑则不写\n"
+        f"- 若有正文提及候选，须逐条独立评估，不得整组忽略\n\n"
     )
+    if candidates:
+        cand_lines = "\n".join(f"  - {name}" for name in candidates)
+        enum_block = f"# 正文提及候选（规则列举 + Discovery，须逐条核对开集规则）\n{cand_lines}\n\n"
+    else:
+        enum_block = ""
     return (
         f"{header}"
         f"{open_set_block}"
+        f"{enum_block}"
         f"# 输入数据\n"
         f'- [AI原始回答文本]: """{raw_text}"""'
     )

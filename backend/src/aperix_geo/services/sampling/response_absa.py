@@ -6,6 +6,7 @@ import logging
 import threading
 from typing import Any
 
+from aperix_geo.services.brand.keys import configured_brand_keys
 from aperix_geo.services.brand.resolve import normalize_brand_key
 from aperix_geo.services.providers import LLMProviderError, chat_completion
 from aperix_geo.services.providers.prompts import (
@@ -17,7 +18,8 @@ from aperix_geo.services.sampling.cache.absa import (
     response_absa_cache_digest,
     set_response_absa_cached,
 )
-from aperix_geo.services.brand.keys import configured_brand_keys
+from aperix_geo.services.sampling.enumeration import merge_mention_candidates
+from aperix_geo.services.sampling.mentions import discover_response_mentions
 from aperix_geo.services.sampling.signal_draft import EntitySignalDraft
 from aperix_geo.utils.cache import SingleFlightWaitTimeout, run_single_flight
 from aperix_geo.utils.json import extract_json_object
@@ -112,8 +114,13 @@ def analyze_response_absa(
     competitor_brand_names: list[str] | None = None,
     excluded_keys: set[str] | None = None,
     cache_ttl_s: int = 0,
+    mention_discovery_enabled: bool = False,
+    mention_discovery_cache_ttl_s: int = 0,
 ) -> tuple[dict[str, Any], bool]:
     """ABSA on the sampling LLM response text (once per LLM response).
+
+    When mention discovery is enabled, runs a high-recall discovery pass first and
+    merges spans with rule-based enumeration before ABSA.
 
     Returns ``(result, live_call)``; cache hits are not billed.
     """
@@ -134,18 +141,28 @@ def analyze_response_absa(
             competitor_brand_names=closed_brand_names,
         )
 
+    discovery_spans: list[str] = []
+    discovery_live = False
+    if mention_discovery_enabled:
+        discovery_spans, discovery_live = discover_response_mentions(
+            raw_text,
+            cache_ttl_s=mention_discovery_cache_ttl_s,
+        )
+    mention_candidates = merge_mention_candidates(raw_text, discovery_spans)
+
     def _read_cache() -> dict[str, Any] | None:
         return get_response_absa_cached(
             raw_text=raw_text,
             own_brand=own_brand,
             competitors=closed_brand_names,
             excluded_keys=excluded_keys,
+            mention_candidates=mention_candidates,
             ttl_s=cache_ttl_s,
         )
 
     cached = _read_cache()
     if cached is not None:
-        return cached, False
+        return cached, discovery_live
 
     live_flag = threading.local()
 
@@ -160,6 +177,7 @@ def analyze_response_absa(
                     own_brand_names=own_brand_names,
                     competitor_brand_names=competitor_brand_names,
                     competitors=closed_brand_names,
+                    mention_candidates=mention_candidates,
                 ),
             },
         ]
@@ -180,6 +198,7 @@ def analyze_response_absa(
                 own_brand=own_brand,
                 competitors=closed_brand_names,
                 excluded_keys=excluded_keys,
+                mention_candidates=mention_candidates,
                 result=result,
                 ttl_s=cache_ttl_s,
             )
@@ -189,13 +208,14 @@ def analyze_response_absa(
             return _empty_response_absa(reason=str(exc)[:500])
 
     if cache_ttl_s <= 0:
-        return _fetch(), True
+        return _fetch(), discovery_live or True
 
     digest = response_absa_cache_digest(
         raw_text=raw_text,
         own_brand=own_brand,
         competitors=closed_brand_names,
         excluded_keys=excluded_keys,
+        mention_candidates=mention_candidates,
     )
     try:
         result = run_single_flight(
@@ -205,10 +225,10 @@ def analyze_response_absa(
             fetch=_fetch,
             lock_prefix="aperix:response_absa:lock:",
         )
-        return result, bool(getattr(live_flag, "did", False))
+        return result, discovery_live or bool(getattr(live_flag, "did", False))
     except SingleFlightWaitTimeout:
         cached = _read_cache()
         if cached is not None:
-            return cached, False
+            return cached, discovery_live
         logger.warning("Response ABSA single-flight wait timeout")
-        return _empty_response_absa(reason="absa single-flight wait timeout"), False
+        return _empty_response_absa(reason="absa single-flight wait timeout"), discovery_live

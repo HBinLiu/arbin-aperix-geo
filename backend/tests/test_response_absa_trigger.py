@@ -85,6 +85,8 @@ def test_extract_parse_context_skips_absa_without_triggers() -> None:
     mock_settings = MagicMock()
     mock_settings.deepseek_api_key = "sk-test"
     mock_settings.citation_response_absa_cache_ttl_s = 3600
+    mock_settings.citation_response_mention_discovery_enabled = True
+    mock_settings.citation_response_mention_discovery_cache_ttl_s = 3600
     mock_settings.citation_text_snippet_chars = 4000
     with patch("aperix_geo.services.sampling.parse.context.get_settings", return_value=mock_settings):
         ctx = extract_parse_context(
@@ -101,6 +103,8 @@ def test_enrich_parse_context_skips_absa_call_when_not_needed() -> None:
     mock_settings = MagicMock()
     mock_settings.deepseek_api_key = "sk-test"
     mock_settings.citation_response_absa_cache_ttl_s = 3600
+    mock_settings.citation_response_mention_discovery_enabled = True
+    mock_settings.citation_response_mention_discovery_cache_ttl_s = 3600
     mock_settings.citation_text_snippet_chars = 4000
     with (
         patch("aperix_geo.services.sampling.parse.context.get_settings", return_value=mock_settings),

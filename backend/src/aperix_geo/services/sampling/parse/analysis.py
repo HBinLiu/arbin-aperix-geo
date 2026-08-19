@@ -33,6 +33,8 @@ def _run_response_absa(ctx: ParseContext) -> tuple[dict[str, Any], bool]:
         competitor_brand_names=ctx.competitor_brand_names,
         excluded_keys=set(ctx.configured_brand_keys),
         cache_ttl_s=ctx.absa_cache_ttl_s,
+        mention_discovery_enabled=ctx.mention_discovery_enabled,
+        mention_discovery_cache_ttl_s=ctx.mention_discovery_cache_ttl_s,
     )
 
 

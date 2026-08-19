@@ -12,7 +12,7 @@ from aperix_geo.utils.cache import TieredJsonCache
 logger = logging.getLogger(__name__)
 
 _STORE = TieredJsonCache(
-    redis_prefix="aperix:response_absa:v4:",
+    redis_prefix="aperix:response_absa:v5:",
     l1_max_entries=128,
     strip_expires_on_read=True,
 )
@@ -23,16 +23,25 @@ def response_absa_prompt_digest() -> str:
     return hashlib.sha256(system.encode("utf-8")).hexdigest()[:12]
 
 
+def _candidates_digest(mention_candidates: list[str] | None) -> str:
+    if not mention_candidates:
+        return ""
+    joined = "\n".join(mention_candidates)
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()[:16]
+
+
 def _scope_digest(
     *,
     own_brand: str,
     competitors: list[str],
     excluded_keys: set[str] | None,
+    mention_candidates: list[str] | None = None,
 ) -> str:
     comp = ",".join(sorted(c.strip() for c in competitors if c.strip()))
     excluded = ",".join(sorted(excluded_keys or []))
     prompt = response_absa_prompt_digest()
-    raw = f"{prompt}|{own_brand.strip()}|{comp}|{excluded}"
+    candidates = _candidates_digest(mention_candidates)
+    raw = f"{prompt}|{own_brand.strip()}|{comp}|{excluded}|{candidates}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
 
 
@@ -42,12 +51,14 @@ def _cache_key(
     own_brand: str,
     competitors: list[str],
     excluded_keys: set[str] | None = None,
+    mention_candidates: list[str] | None = None,
 ) -> str:
     digest = hashlib.sha256(raw_text[:8000].encode("utf-8")).hexdigest()[:32]
     scope = _scope_digest(
         own_brand=own_brand,
         competitors=competitors,
         excluded_keys=excluded_keys,
+        mention_candidates=mention_candidates,
     )
     return hashlib.sha256(f"{digest}|{scope}".encode("utf-8")).hexdigest()
 
@@ -58,12 +69,14 @@ def response_absa_cache_digest(
     own_brand: str,
     competitors: list[str],
     excluded_keys: set[str] | None = None,
+    mention_candidates: list[str] | None = None,
 ) -> str:
     return _cache_key(
         raw_text=raw_text,
         own_brand=own_brand,
         competitors=competitors,
         excluded_keys=excluded_keys,
+        mention_candidates=mention_candidates,
     )
 
 
@@ -77,6 +90,7 @@ def get_response_absa_cached(
     own_brand: str,
     competitors: list[str],
     excluded_keys: set[str] | None = None,
+    mention_candidates: list[str] | None = None,
     ttl_s: int,
 ) -> dict[str, Any] | None:
     if ttl_s <= 0:
@@ -86,6 +100,7 @@ def get_response_absa_cached(
         own_brand=own_brand,
         competitors=competitors,
         excluded_keys=excluded_keys,
+        mention_candidates=mention_candidates,
     )
     return _STORE.get(key, default_ttl_s=ttl_s, is_valid=_is_valid)
 
@@ -96,6 +111,7 @@ def set_response_absa_cached(
     own_brand: str,
     competitors: list[str],
     excluded_keys: set[str] | None = None,
+    mention_candidates: list[str] | None = None,
     result: dict[str, Any],
     ttl_s: int,
 ) -> None:
@@ -104,6 +120,7 @@ def set_response_absa_cached(
         own_brand=own_brand,
         competitors=competitors,
         excluded_keys=excluded_keys,
+        mention_candidates=mention_candidates,
     )
     payload = dict(result)
     payload.pop("expires_at", None)

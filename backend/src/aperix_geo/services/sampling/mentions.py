@@ -2,15 +2,32 @@
 
 from __future__ import annotations
 
+import logging
+import threading
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from aperix_geo.db.models import Competitor, Subject
+from aperix_geo.services.providers import LLMProviderError, chat_completion
+from aperix_geo.services.providers.prompts import (
+    CITATION_RESPONSE_MENTION_DISCOVERY_SYSTEM,
+    citation_response_mention_discovery_user_content,
+)
+from aperix_geo.services.sampling.cache.mention_discovery import (
+    get_mention_discovery_cached,
+    mention_discovery_cache_digest,
+    set_mention_discovery_cached,
+)
+from aperix_geo.services.sampling.enumeration import filter_mention_spans
+from aperix_geo.utils.cache import SingleFlightWaitTimeout, run_single_flight
+from aperix_geo.utils.json import extract_json_object
 from aperix_geo.utils.net import host_from, host_under_root, registrable_from
 
 if TYPE_CHECKING:
     from aperix_geo.services.analysis.entity import AnalysisEntity
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -178,3 +195,79 @@ def absa_brand_mentioned(brands: dict[str, Any], key: str) -> bool | None:
     if not isinstance(entry, dict) or "mentioned" not in entry:
         return None
     return bool(entry.get("mentioned"))
+
+
+def _parse_discovery_payload(data: dict[str, Any]) -> list[str]:
+    raw = data.get("mentioned_spans")
+    if not isinstance(raw, list):
+        return []
+    return [str(item).strip() for item in raw if str(item).strip()]
+
+
+def discover_response_mentions(
+    raw_text: str,
+    *,
+    cache_ttl_s: int = 0,
+) -> tuple[list[str], bool]:
+    """Discover named commercial entities mentioned in AI response text.
+
+    Returns ``(spans, live_call)``; cache hits are not billed.
+    """
+    if not raw_text.strip():
+        return [], False
+
+    def _read_cache() -> list[str] | None:
+        return get_mention_discovery_cached(raw_text=raw_text, ttl_s=cache_ttl_s)
+
+    cached = _read_cache()
+    if cached is not None:
+        return filter_mention_spans(cached, raw_text), False
+
+    live_flag = threading.local()
+
+    def _fetch() -> list[str]:
+        messages = [
+            {"role": "system", "content": CITATION_RESPONSE_MENTION_DISCOVERY_SYSTEM},
+            {
+                "role": "user",
+                "content": citation_response_mention_discovery_user_content(raw_text=raw_text),
+            },
+        ]
+        try:
+            text, _, _ = chat_completion(messages, temperature=0.0, json_mode=True)
+            live_flag.did = True
+            data = extract_json_object(text)
+            if not isinstance(data, dict):
+                raise ValueError("mention discovery is not an object")
+            spans = filter_mention_spans(_parse_discovery_payload(data), raw_text)
+            set_mention_discovery_cached(
+                raw_text=raw_text,
+                mentioned_spans=spans,
+                ttl_s=cache_ttl_s,
+            )
+            return spans
+        except (LLMProviderError, TypeError, ValueError, KeyError) as exc:
+            logger.warning("Mention discovery failed: %s", exc)
+            return []
+
+    if cache_ttl_s <= 0:
+        return _fetch(), True
+
+    digest = mention_discovery_cache_digest(raw_text=raw_text)
+    try:
+        result = run_single_flight(
+            digest,
+            wait_s=120.0,
+            read_cache=_read_cache,
+            fetch=_fetch,
+            lock_prefix="aperix:mention_discovery:lock:",
+        )
+        if result is None:
+            return [], False
+        return filter_mention_spans(result, raw_text), bool(getattr(live_flag, "did", False))
+    except SingleFlightWaitTimeout:
+        cached = _read_cache()
+        if cached is not None:
+            return filter_mention_spans(cached, raw_text), False
+        logger.warning("Mention discovery single-flight wait timeout")
+        return [], False
