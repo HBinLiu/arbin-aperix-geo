@@ -26,6 +26,9 @@ _VERB_FRAGMENT = re.compile(
 _SYMPTOM_PHRASE = re.compile(
     r"(?:出血|异常|不适|疼痛|头晕|恶心|腹胀|皮疹|淤斑|黑便|呕血|黄疸|乏力|酸痛|糜烂|胃痛|牙龈|皮肤)$"
 )
+# 病史 / 风险描述（非可监测商业主体）
+_HISTORY_PHRASE = re.compile(r"^.+史$")
+_RISK_PHRASE = re.compile(r"^.+(?:风险|倾向|症状|综合征|并发症)$")
 _BODY_PART = re.compile(r"^(?:牙龈|皮肤|胃部|肝脏|眼睛|眼白|肌肉|血管|大便|小便|血脂|肝功|肌酶)$")
 _CATEGORY_PHRASE = re.compile(
     r"^(?:他汀|他汀类|抗血小板|降压降糖|银杏制剂|活血(?:类|药)|中成药|西药|降糖|降压)$"
@@ -98,6 +101,12 @@ def is_plausible_commercial_span(label: str) -> bool:
     if re.match(r"^[\u4e00-\u9fff]{1,4}药$", text):
         return False
     if _SYMPTOM_PHRASE.search(text) and len(text) <= 10:
+        return False
+    if _HISTORY_PHRASE.match(text) and len(text) <= 8:
+        return False
+    if _RISK_PHRASE.match(text) and len(text) <= 12:
+        return False
+    if re.search(r"(?:出血|过敏|手术|既往)", text) and len(text) <= 8:
         return False
     return True
 
