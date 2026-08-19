@@ -39,8 +39,15 @@ if _SRC.is_dir():
 from aperix_geo.services.providers.doubao_web.selectors import CHAT_URL  # noqa: E402
 from aperix_geo.services.crawl_accounts.ticket_urls import build_novnc_desktop_url  # noqa: E402
 
-_CHROME_ONLY = ("google-chrome-stable", "google-chrome")
+_CHROME_ONLY = (
+    "google-chrome-stable",
+    "google-chrome",
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/google-chrome",
+)
 _CHROMIUM_ONLY = ("chromium", "chromium-browser", "/usr/bin/chromium")
+_CHROMEDRIVER_CHROMIUM = ("/usr/bin/chromedriver", "/usr/lib/chromium/chromedriver")
+_CHROMEDRIVER_CHROME = ("/usr/local/bin/chromedriver",)
 _ALL_BROWSERS = _CHROME_ONLY + _CHROMIUM_ONLY
 
 _RISK_HINTS = (
@@ -62,10 +69,11 @@ def _proxy_url() -> str:
     ).strip()
 
 
-def _resolve_binary(candidates: tuple[str, ...]) -> str:
-    explicit = (os.environ.get("GEO_WEB_CRAWL_CHROME_BIN") or "").strip()
-    if explicit and Path(explicit).is_file():
-        return explicit
+def _resolve_binary(candidates: tuple[str, ...], *, use_crawl_default: bool = True) -> str:
+    if use_crawl_default:
+        explicit = (os.environ.get("GEO_WEB_CRAWL_CHROME_BIN") or "").strip()
+        if explicit and Path(explicit).is_file():
+            return explicit
     for name in candidates:
         if name.startswith("/"):
             if Path(name).is_file():
@@ -84,10 +92,42 @@ def _chrome_bin(explicit: str, browser: str) -> str:
             return str(path)
         raise SystemExit(f"chrome binary not found: {explicit}")
     if browser == "chrome":
-        return _resolve_binary(_CHROME_ONLY)
+        return _resolve_binary(_CHROME_ONLY, use_crawl_default=False)
     if browser == "chromium":
-        return _resolve_binary(_CHROMIUM_ONLY)
-    return _resolve_binary(_ALL_BROWSERS)
+        return _resolve_binary(_CHROMIUM_ONLY, use_crawl_default=False)
+    return _resolve_binary(_ALL_BROWSERS, use_crawl_default=True)
+
+
+def _is_chromium_binary(browser_bin: str) -> bool:
+    name = Path(browser_bin).name
+    return name in {"chromium", "chromium-browser"} or browser_bin.endswith("/chromium")
+
+
+def _chromedriver_service(explicit: str, browser_bin: str) -> object:
+    from selenium.webdriver.chrome.service import Service
+
+    if explicit.strip():
+        path = explicit.strip()
+        if not Path(path).is_file():
+            raise SystemExit(f"chromedriver not found: {path}")
+        print(f"chromedriver={path}", flush=True)
+        return Service(path)
+
+    candidates = _CHROMEDRIVER_CHROMIUM if _is_chromium_binary(browser_bin) else _CHROMEDRIVER_CHROME
+    for path in candidates:
+        if Path(path).is_file():
+            print(f"chromedriver={path}", flush=True)
+            return Service(path)
+
+    hint = (
+        "/usr/bin/chromedriver（apt chromium-driver）"
+        if _is_chromium_binary(browser_bin)
+        else "/usr/local/bin/chromedriver（与 google-chrome 同版本，build 时安装）"
+    )
+    raise SystemExit(
+        f"chromedriver 未找到，需要 {hint}。"
+        " 临时修复: docker compose exec geo-web-crawl /app/scripts/install-chromedriver.sh"
+    )
 
 
 def _proxy_server_arg(raw: str) -> str:
@@ -200,7 +240,6 @@ def main() -> int:
     try:
         from selenium import webdriver
         from selenium.webdriver.chrome.options import Options
-        from selenium.webdriver.chrome.service import Service
     except ImportError:
         print("pip install 'selenium>=4.8'", file=sys.stderr)
         return 1
@@ -220,12 +259,14 @@ def main() -> int:
     else:
         print("WARNING: no HTTP_PROXY; Doubao will see this machine's IP", file=sys.stderr)
 
-    print(f"browser={chrome} headless={headless} kind={args.browser}")
+    print(f"browser={chrome} headless={headless} kind={args.browser}", flush=True)
     if not headless:
         _print_novnc_hint()
 
-    service = Service(args.chromedriver) if args.chromedriver.strip() else Service()
+    print("starting WebDriver…", flush=True)
+    service = _chromedriver_service(args.chromedriver, chrome)
     driver = webdriver.Chrome(service=service, options=options)
+    print("WebDriver started", flush=True)
     try:
         caps = driver.capabilities or {}
         print(f"browserName={caps.get('browserName')} version={caps.get('browserVersion')}")
