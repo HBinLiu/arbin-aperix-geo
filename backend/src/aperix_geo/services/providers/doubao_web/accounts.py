@@ -56,22 +56,6 @@ def save_storage_state(path: Path, state: dict[str, Any]) -> None:
     path.write_text(json.dumps(slim, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def crawl_credentials_available(settings: Settings, db: Session | None = None) -> bool:
-    """True when file cold-start or a fresh DB account exists."""
-    if resolve_storage_state_path(settings) is not None:
-        return True
-    if db is None:
-        return False
-    try:
-        from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO
-        from aperix_geo.services.crawl_accounts.pool import count_fresh_active_accounts
-
-        return count_fresh_active_accounts(db, platform=PLATFORM_DOUBAO, settings=settings) > 0
-    except Exception:
-        logger.debug("doubao account pool check failed", exc_info=True)
-        return False
-
-
 @dataclass
 class DoubaoCredentialSession:
     """Owns DB session + optional pool lease for one crawl attempt."""

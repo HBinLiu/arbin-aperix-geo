@@ -49,6 +49,195 @@ _HEARTBEAT_SCAN_LIMIT = 100
 _HEARTBEAT_CHECK_LIMIT = 20
 
 
+def _probe_leased_account(
+    db: Session,
+    row: CrawlAccount,
+    *,
+    owner: str,
+    plat: str,
+    settings: Settings,
+) -> tuple[str, dict[str, Any] | None]:
+    """Run one probe; return ('ok'|'human_ops'|'probe_error'|'error', failure_dict|None)."""
+    try:
+        new_state = probe_account_login(
+            dict(row.storage_state or {}),
+            platform=plat,
+            settings=settings,
+            account_id=row.id,
+        )
+        cleaned = cookies_only_storage_state(new_state)
+        writeback = (
+            cleaned
+            if storage_state_has_session_cookies(cleaned, platform=plat)
+            else None
+        )
+        release_account(
+            db,
+            account_id=row.id,
+            lease_owner=owner,
+            storage_state=writeback,
+            ok=True,
+        )
+        db.refresh(row)
+        logger.info(
+            "geo crawl heartbeat probe ok id=%s label=%s platform=%s",
+            row.id,
+            row.label,
+            plat,
+        )
+        return "ok", None
+    except DoubaoNeedsHumanOps as exc:
+        reason = "captcha" if isinstance(exc, DoubaoCaptchaRequired) else "login_expired"
+        request_human_intervention(
+            db,
+            account_id=row.id,
+            reason=reason,
+            error=str(exc),
+            settings=settings,
+        )
+        failure = {
+            "id": str(row.id),
+            "label": row.label,
+            "reason": reason,
+            "error_type": type(exc).__name__,
+            "error": str(exc)[:500],
+        }
+        logger.warning(
+            "geo crawl heartbeat needs human ops id=%s label=%s platform=%s "
+            "reason=%s err=%s",
+            row.id,
+            row.label,
+            plat,
+            reason,
+            str(exc)[:400],
+        )
+        return "human_ops", failure
+    except DoubaoCrawlError as exc:
+        row.last_error = str(exc)[:2000]
+        if exc.session_alive:
+            row.last_ok_at = utc_now()
+        clear_account_lease(db, account_id=row.id, lease_owner=owner)
+        failure = {
+            "id": str(row.id),
+            "label": row.label,
+            "reason": "probe_error",
+            "error_type": type(exc).__name__,
+            "error": str(exc)[:500],
+            "session_alive": bool(exc.session_alive),
+        }
+        logger.warning(
+            "geo crawl heartbeat probe error (keep cookies) id=%s label=%s "
+            "platform=%s session_alive=%s err=%s",
+            row.id,
+            row.label,
+            plat,
+            exc.session_alive,
+            exc,
+        )
+        if not exc.session_alive:
+            alert_heartbeat_infra_failure(
+                account_id=row.id,
+                label=row.label,
+                platform=plat,
+                error=str(exc),
+                settings=settings,
+            )
+        return "probe_error", failure
+    except Exception as exc:
+        row.last_error = str(exc)[:2000]
+        clear_account_lease(db, account_id=row.id, lease_owner=owner)
+        failure = {
+            "id": str(row.id),
+            "label": row.label,
+            "reason": "error",
+            "error_type": type(exc).__name__,
+            "error": str(exc)[:500],
+        }
+        logger.warning(
+            "geo crawl heartbeat failed id=%s label=%s platform=%s: %s",
+            row.id,
+            row.label,
+            plat,
+            exc,
+        )
+        alert_heartbeat_infra_failure(
+            account_id=row.id,
+            label=row.label,
+            platform=plat,
+            error=str(exc),
+            settings=settings,
+        )
+        return "error", failure
+
+
+def run_crawl_account_heartbeat_for_account(
+    db: Session,
+    *,
+    account_id: UUID,
+    platform: str = PLATFORM_DOUBAO,
+    settings: Settings | None = None,
+) -> dict[str, Any]:
+    """Probe one account after noVNC login (ignores sampling quiet window)."""
+    settings = settings or get_settings()
+    plat = normalize_platform(platform)
+    if not settings.doubao_heartbeat_enabled:
+        return {"ok": True, "skipped": True, "reason": "disabled", "account_id": str(account_id)}
+
+    row = db.get(CrawlAccount, account_id)
+    if row is None:
+        return {"ok": False, "reason": "account_not_found", "account_id": str(account_id)}
+    if normalize_platform(row.platform) != plat:
+        return {
+            "ok": False,
+            "reason": "platform_mismatch",
+            "account_id": str(account_id),
+            "platform": plat,
+        }
+
+    pending_ids = pending_login_account_ids(db, plat)
+    db.refresh(row)
+    if cookies_in_use(row, now=utc_now(), pending_ids=pending_ids):
+        return {
+            "ok": True,
+            "skipped": True,
+            "reason": "busy",
+            "account_id": str(account_id),
+        }
+    if not account_session_ready(row, settings=settings):
+        return {
+            "ok": False,
+            "reason": "profile_not_ready",
+            "account_id": str(account_id),
+        }
+
+    owner = f"heartbeat:post-login:{row.id.hex}"
+    ttl_s = heartbeat_lease_ttl_s(settings)
+    if not try_lease_account(db, account_id=row.id, lease_owner=owner, ttl_s=ttl_s):
+        return {
+            "ok": True,
+            "skipped": True,
+            "reason": "lease_busy",
+            "account_id": str(account_id),
+        }
+    db.commit()
+
+    outcome, failure = _probe_leased_account(
+        db, row, owner=owner, plat=plat, settings=settings
+    )
+    db.commit()
+    return {
+        "ok": outcome == "ok",
+        "skipped": False,
+        "platform": plat,
+        "account_id": str(account_id),
+        "checked": 1,
+        "ok_count": 1 if outcome == "ok" else 0,
+        "failed": 0 if outcome == "ok" else 1,
+        "failures": [failure] if failure else [],
+        "outcome": outcome,
+    }
+
+
 def in_sampling_heartbeat_quiet_window(
     settings: Settings,
     *,
@@ -188,117 +377,15 @@ def run_crawl_account_heartbeat(
             row.status,
             session_cookie_names(row.storage_state, platform=plat),
         )
-        try:
-            new_state = probe_account_login(
-                dict(row.storage_state or {}),
-                platform=plat,
-                settings=settings,
-                account_id=row.id,
-            )
-            cleaned = cookies_only_storage_state(new_state)
-            writeback = (
-                cleaned
-                if storage_state_has_session_cookies(cleaned, platform=plat)
-                else None
-            )
-            release_account(
-                db,
-                account_id=row.id,
-                lease_owner=owner,
-                storage_state=writeback,
-                ok=True,
-            )
-            db.refresh(row)
+        outcome, failure = _probe_leased_account(
+            db, row, owner=owner, plat=plat, settings=settings
+        )
+        if outcome == "ok":
             revived += 1
-        except DoubaoNeedsHumanOps as exc:
-            reason = "captcha" if isinstance(exc, DoubaoCaptchaRequired) else "login_expired"
-            request_human_intervention(
-                db,
-                account_id=row.id,
-                reason=reason,
-                error=str(exc),
-                settings=settings,
-            )
+        else:
             failed += 1
-            failures.append(
-                {
-                    "id": str(row.id),
-                    "label": row.label,
-                    "reason": reason,
-                    "error_type": type(exc).__name__,
-                    "error": str(exc)[:500],
-                }
-            )
-            logger.warning(
-                "geo crawl heartbeat needs human ops id=%s label=%s platform=%s "
-                "reason=%s err=%s",
-                row.id,
-                row.label,
-                plat,
-                reason,
-                str(exc)[:400],
-            )
-        except DoubaoCrawlError as exc:
-            row.last_error = str(exc)[:2000]
-            if exc.session_alive:
-                # Logged-in DOM / send flake: keep the account rentable.
-                row.last_ok_at = utc_now()
-            clear_account_lease(db, account_id=row.id, lease_owner=owner)
-            failed += 1
-            failures.append(
-                {
-                    "id": str(row.id),
-                    "label": row.label,
-                    "reason": "probe_error",
-                    "error_type": type(exc).__name__,
-                    "error": str(exc)[:500],
-                    "session_alive": bool(exc.session_alive),
-                }
-            )
-            logger.warning(
-                "geo crawl heartbeat probe error (keep cookies) id=%s label=%s "
-                "platform=%s session_alive=%s err=%s",
-                row.id,
-                row.label,
-                plat,
-                exc.session_alive,
-                exc,
-            )
-            if not exc.session_alive:
-                alert_heartbeat_infra_failure(
-                    account_id=row.id,
-                    label=row.label,
-                    platform=plat,
-                    error=str(exc),
-                    settings=settings,
-                )
-        except Exception as exc:
-            row.last_error = str(exc)[:2000]
-            clear_account_lease(db, account_id=row.id, lease_owner=owner)
-            failed += 1
-            failures.append(
-                {
-                    "id": str(row.id),
-                    "label": row.label,
-                    "reason": "error",
-                    "error_type": type(exc).__name__,
-                    "error": str(exc)[:500],
-                }
-            )
-            logger.warning(
-                "geo crawl heartbeat failed id=%s label=%s platform=%s: %s",
-                row.id,
-                row.label,
-                plat,
-                exc,
-            )
-            alert_heartbeat_infra_failure(
-                account_id=row.id,
-                label=row.label,
-                platform=plat,
-                error=str(exc),
-                settings=settings,
-            )
+            if failure:
+                failures.append(failure)
         db.commit()
 
     return {

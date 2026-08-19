@@ -13,6 +13,43 @@ logger = logging.getLogger(__name__)
 
 
 @celery_app.task(
+    name="aperix_geo.tasks.crawl_accounts.crawl_account_heartbeat_account",
+    ignore_result=True,
+)
+def crawl_account_heartbeat_account(
+    account_id: str,
+    platform: str = PLATFORM_DOUBAO,
+) -> dict[str, Any]:
+    """Post noVNC login: one real probe for a single account."""
+    db = SessionLocal()
+    try:
+        from uuid import UUID
+
+        from aperix_geo.services.crawl_accounts.heartbeat import (
+            run_crawl_account_heartbeat_for_account,
+        )
+
+        result = run_crawl_account_heartbeat_for_account(
+            db,
+            account_id=UUID(str(account_id)),
+            platform=platform,
+        )
+        logger.info(
+            "crawl post-login heartbeat account=%s outcome=%s ok=%s",
+            account_id,
+            result.get("outcome") or result.get("reason"),
+            result.get("ok_count"),
+        )
+        return result
+    except Exception:
+        db.rollback()
+        logger.exception("crawl post-login heartbeat failed account=%s", account_id)
+        raise
+    finally:
+        db.close()
+
+
+@celery_app.task(
     name="aperix_geo.tasks.crawl_accounts.crawl_account_heartbeat",
     ignore_result=True,
 )

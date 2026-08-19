@@ -434,6 +434,28 @@ def mark_need_relogin(
     )
 
 
+def activate_account_after_login(
+    db: Session,
+    account: CrawlAccount,
+    *,
+    storage_state: dict[str, Any] | None = None,
+    platform: str | None = None,
+) -> CrawlAccount:
+    """Mark account active after noVNC / upload login; profile on disk is the live session."""
+    plat = normalize_platform(platform or account.platform)
+    account.status = STATUS_ACTIVE
+    account.last_ok_at = utc_now()
+    account.last_error = ""
+    if isinstance(storage_state, dict) and storage_state_has_session_cookies(
+        storage_state, platform=plat
+    ):
+        account.storage_state = cookies_only_storage_state(storage_state)
+    account.lease_owner = ""
+    account.lease_until = EPOCH
+    db.flush()
+    return account
+
+
 def upsert_account_from_state(
     db: Session,
     *,

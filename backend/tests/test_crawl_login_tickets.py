@@ -291,12 +291,15 @@ def test_complete_ticket_does_not_stop_login_chrome() -> None:
             "aperix_geo.services.crawl_accounts.tickets.stop_crawl_login_session",
         ) as stop,
         patch(
-            "aperix_geo.services.crawl_accounts.tickets.upsert_account_from_state",
+            "aperix_geo.services.crawl_accounts.tickets._account_from_completed_ticket",
             return_value=account,
         ),
         patch(
             "aperix_geo.services.crawl_accounts.tickets.apply_ops_handoff_lease"
         ) as handoff,
+        patch(
+            "aperix_geo.services.crawl_accounts.tickets._schedule_post_login_heartbeat",
+        ),
     ):
         out_ticket, out_account = complete_ticket_with_storage_state(
             db,
@@ -452,4 +455,77 @@ def test_heartbeat_sweeps_ops_even_when_probe_disabled() -> None:
     assert result["ops_sweep"]["reopened"] == 1
     sweep.assert_called_once()
     db.commit.assert_called()
+
+
+def test_complete_accepts_ready_profile_without_cookies(tmp_path) -> None:
+    from aperix_geo.db.models import CrawlAccount
+
+    aid = uuid4()
+    profile = tmp_path / "doubao" / str(aid) / "Default"
+    profile.mkdir(parents=True)
+    ticket = CrawlLoginTicket(
+        id=uuid4(),
+        account_id=aid,
+        label="prod-1",
+        token="tok",
+        status=TICKET_PENDING,
+        expires_at=utc_now() + timedelta(minutes=10),
+        completed_at=EPOCH,
+    )
+    account = CrawlAccount(
+        id=aid,
+        label="prod-1",
+        platform="doubao",
+        status="logging_in",
+        storage_state={"cookies": []},
+        last_error="",
+    )
+    db = MagicMock()
+
+    def _get(model, pk):  # noqa: ANN001
+        if pk == ticket.id:
+            return ticket
+        if pk == aid:
+            return account
+        return None
+
+    db.get.side_effect = _get
+
+    with (
+        patch(
+            "aperix_geo.services.crawl_accounts.tickets.get_settings",
+            return_value=_settings(geo_crawl_profile_root=str(tmp_path)),
+        ),
+        patch(
+            "aperix_geo.services.crawl_accounts.tickets._schedule_post_login_heartbeat",
+        ) as schedule,
+        patch(
+            "aperix_geo.services.crawl_accounts.tickets.apply_ops_handoff_lease",
+        ),
+    ):
+        out_ticket, out_account = complete_ticket_with_storage_state(
+            db,
+            ticket.id,
+            storage_state={"cookies": []},
+        )
+
+    assert out_ticket.status == TICKET_SUCCEEDED
+    assert out_account.status == "active"
+    schedule.assert_called_once_with(aid)
+
+
+def test_schedule_post_login_heartbeat_enqueues_task() -> None:
+    from aperix_geo.services.crawl_accounts.tickets import _schedule_post_login_heartbeat
+
+    aid = uuid4()
+    with patch(
+        "aperix_geo.tasks.crawl_accounts.crawl_account_heartbeat_account.apply_async",
+    ) as apply_async:
+        _schedule_post_login_heartbeat(
+            aid,
+            settings=_settings(doubao_heartbeat_enabled=True, doubao_ops_handoff_s=90),
+        )
+    apply_async.assert_called_once()
+    assert apply_async.call_args.kwargs["countdown"] == 105
+    assert apply_async.call_args.kwargs["args"] == [str(aid)]
 

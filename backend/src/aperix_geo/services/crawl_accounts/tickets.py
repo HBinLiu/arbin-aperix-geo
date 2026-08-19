@@ -28,6 +28,7 @@ from aperix_geo.services.crawl_accounts.pool import (
     STATUS_ACTIVE,
     STATUS_LOGGING_IN,
     STATUS_NEED_RELOGIN,
+    activate_account_after_login,
     apply_ops_handoff_lease,
     ensure_account_for_ops,
     upsert_account_from_state,
@@ -392,6 +393,88 @@ def require_session_storage_state(
         )
 
 
+def _login_complete_allowed(
+    storage_state: dict[str, Any],
+    *,
+    ticket: CrawlLoginTicket,
+    platform: str,
+    settings: Settings | None = None,
+) -> None:
+    """Accept session cookies or a ready Chrome profile (production noVNC path)."""
+    settings = settings or get_settings()
+    plat = normalize_platform(platform)
+    root = (settings.geo_crawl_profile_root or "").strip()
+    if root and ticket.account_id != ZERO_UUID:
+        from aperix_geo.services.crawl_accounts.profiles import (
+            account_profile_dir,
+            profile_is_ready,
+        )
+
+        profile_dir = account_profile_dir(plat, ticket.account_id, root=root)
+        if profile_is_ready(profile_dir):
+            return
+    require_session_storage_state(storage_state, platform=plat)
+
+
+def _account_from_completed_ticket(
+    db: Session,
+    ticket: CrawlLoginTicket,
+    *,
+    storage_state: dict[str, Any],
+    platform: str,
+) -> CrawlAccount:
+    plat = normalize_platform(platform)
+    if ticket.account_id != ZERO_UUID:
+        account = db.get(CrawlAccount, ticket.account_id)
+        if account is None:
+            raise HTTPException(status_code=404, detail="Account not found")
+        return activate_account_after_login(
+            db,
+            account,
+            storage_state=storage_state,
+            platform=plat,
+        )
+    return upsert_account_from_state(
+        db,
+        label=ticket.label,
+        storage_state=storage_state,
+        platform=plat,
+        status=STATUS_ACTIVE,
+    )
+
+
+def _schedule_post_login_heartbeat(
+    account_id: UUID,
+    *,
+    settings: Settings | None = None,
+) -> None:
+    """After noVNC handoff, prove the profile with a real probe (short send)."""
+    settings = settings or get_settings()
+    if not settings.doubao_heartbeat_enabled:
+        return
+    handoff_s = max(0, int(settings.doubao_ops_handoff_s or 0))
+    countdown = max(30, handoff_s + 15)
+    try:
+        from aperix_geo.tasks.crawl_accounts import crawl_account_heartbeat_account
+
+        crawl_account_heartbeat_account.apply_async(
+            args=[str(account_id)],
+            kwargs={"platform": PLATFORM_DOUBAO},
+            countdown=countdown,
+        )
+        logger.info(
+            "post-login heartbeat scheduled account=%s countdown_s=%s",
+            account_id,
+            countdown,
+        )
+    except Exception:
+        logger.warning(
+            "post-login heartbeat enqueue failed account=%s",
+            account_id,
+            exc_info=True,
+        )
+
+
 def cancel_ticket(db: Session, ticket_id: UUID) -> CrawlLoginTicket:
     ticket = get_ticket(db, ticket_id)
     if ticket.status != TICKET_PENDING:
@@ -437,17 +520,16 @@ def _complete_pending_ticket(
     if ticket.status != TICKET_PENDING:
         raise HTTPException(status_code=409, detail=f"Ticket not pending ({ticket.status})")
     plat = normalize_platform(ticket.platform)
-    require_session_storage_state(storage_state, platform=plat)
+    _login_complete_allowed(storage_state, ticket=ticket, platform=plat, settings=get_settings())
 
     # Login Chrome is in geo-web-crawl. The watcher POSTs this endpoint then
     # closes Chromium itself — do not join/stop that thread here (deadlock).
     had_session = bool(_ticket_session_id(ticket))
-    account = upsert_account_from_state(
+    account = _account_from_completed_ticket(
         db,
-        label=ticket.label,
+        ticket,
         storage_state=storage_state,
         platform=plat,
-        status=STATUS_ACTIVE,
     )
     if had_session:
         apply_ops_handoff_lease(account)
@@ -457,4 +539,5 @@ def _complete_pending_ticket(
     ticket.error_text = ""
     _clear_ticket_session(ticket)
     db.flush()
+    _schedule_post_login_heartbeat(account.id)
     return ticket, account
