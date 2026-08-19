@@ -31,7 +31,13 @@ READ_ALOUD_NAME = re.compile(r"朗读")
 MORE_ARIA_LABEL = "更多"
 # Header ⋯ lives in main column top bar (not sidebar / input skill bar).
 CHAT_MAIN = 'main[data-container-name="main"]'
+CHAT_HEADER = f'{CHAT_MAIN} div[class*="h-header-height"]'
 CHAT_HEADER_MORE_TRIGGER = (
+    f'{CHAT_HEADER} button[data-slot="dropdown-menu-trigger"]:has('
+    f'[aria-label="{MORE_ARIA_LABEL}"])'
+)
+# Fallback when header class token changes.
+CHAT_MAIN_MORE_TRIGGER = (
     f'{CHAT_MAIN} button[data-slot="dropdown-menu-trigger"]:has('
     f'[aria-label="{MORE_ARIA_LABEL}"])'
 )

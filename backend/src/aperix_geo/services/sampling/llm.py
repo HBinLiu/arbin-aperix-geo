@@ -116,6 +116,11 @@ def _doubao_api_chat(messages: list[dict[str, str]], settings: Settings) -> Samp
     )
 
 
+def _doubao_crawl_sampling_complete(result: SamplingChatResult) -> bool:
+    """Crawl payload is enough to finish sampling without share_url."""
+    return bool((result.text or "").strip())
+
+
 def _doubao_crawl_first_api_fallback(
     messages: list[dict[str, str]],
     settings: Settings,
@@ -174,6 +179,7 @@ def run_doubao_account_crawl(
     from aperix_geo.services.providers.doubao_web.errors import (
         DoubaoCrawlError,
         DoubaoNeedsHumanOps,
+        DoubaoShareError,
     )
 
     db = SessionLocal()
@@ -221,6 +227,14 @@ def run_doubao_account_crawl(
             return _doubao_crawl_first_api_fallback(
                 messages, settings, cause="human_ops", exc=exc
             )
+        except DoubaoShareError as exc:
+            _drop_slot()
+            logger.warning(
+                "doubao crawl share failed without crawl payload (no API fallback) "
+                "err=%s event=sampling_crawl_lane",
+                exc,
+            )
+            raise SamplingLLMError(str(exc), retryable=False) from exc
         except DoubaoCrawlError as exc:
             logger.warning(
                 "doubao_crawl_fallback reason=crawl_error err=%s event=sampling_crawl_lane",
@@ -241,7 +255,7 @@ def run_doubao_account_crawl(
                 messages, settings, cause="unexpected", exc=exc
             )
         else:
-            if not (result.text or "").strip():
+            if not _doubao_crawl_sampling_complete(result):
                 logger.warning(
                     "doubao_crawl_fallback reason=empty_text event=sampling_crawl_lane"
                 )
@@ -251,9 +265,12 @@ def run_doubao_account_crawl(
                 )
             if not (result.share_url or "").strip():
                 logger.warning(
-                    "doubao crawl ok text_len=%s share_url empty (no API fallback) "
+                    "doubao crawl sampling complete without share_url "
+                    "(no API fallback) text_len=%s queries=%s sources=%s "
                     "event=sampling_crawl_lane",
                     len(result.text or ""),
+                    len(result.search_queries),
+                    len(result.source_urls),
                 )
             return result
     finally:

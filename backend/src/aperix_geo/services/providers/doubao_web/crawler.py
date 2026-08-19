@@ -17,6 +17,24 @@ from aperix_geo.services.providers.result import SamplingChatResult
 logger = logging.getLogger(__name__)
 
 
+def _sampling_result_from_crawl_job(job: dict[str, object], *, started: float) -> SamplingChatResult:
+    return SamplingChatResult(
+        text=str(job.get("text") or "").strip(),
+        usage={},
+        latency_ms=int(job.get("latency_ms") or (time.monotonic() - started) * 1000),
+        source_urls=tuple(str(u) for u in (job.get("source_urls") or ()) if str(u).strip()),
+        web_search_mode="doubao_web_crawl",
+        search_queries=tuple(str(q) for q in (job.get("search_queries") or ()) if str(q).strip()),
+        share_url=str(job.get("share_url") or ""),
+    )
+
+
+def _share_error_job_with_crawl_payload(job: dict[str, object]) -> bool:
+    if str(job.get("error_type") or "") != "DoubaoShareError":
+        return False
+    return bool(str(job.get("text") or "").strip())
+
+
 def user_prompt_from_messages(messages: list[dict[str, str]]) -> str:
     for message in reversed(messages):
         if str(message.get("role") or "") == "user":
@@ -88,19 +106,19 @@ def _crawl_doubao_chat_ui(
         )
 
         if not job.get("ok"):
+            if _share_error_job_with_crawl_payload(job):
+                logger.warning(
+                    "doubao crawl keeping payload despite share error: %s",
+                    job.get("error") or "share failed",
+                )
+                new_state = job.get("storage_state")
+                session.release_ok(new_state if isinstance(new_state, dict) else None)
+                return _sampling_result_from_crawl_job(job, started=started)
             session.handle_failed_job(job)
             raise_from_job(job)
 
         new_state = job.get("storage_state")
         session.release_ok(new_state if isinstance(new_state, dict) else None)
-        return SamplingChatResult(
-            text=str(job.get("text") or "").strip(),
-            usage={},
-            latency_ms=int(job.get("latency_ms") or (time.monotonic() - started) * 1000),
-            source_urls=tuple(job.get("source_urls") or ()),
-            web_search_mode="doubao_web_crawl",
-            search_queries=tuple(job.get("search_queries") or ()),
-            share_url=str(job.get("share_url") or ""),
-        )
+        return _sampling_result_from_crawl_job(job, started=started)
     finally:
         session.close()
