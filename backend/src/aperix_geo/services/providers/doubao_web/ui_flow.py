@@ -728,16 +728,9 @@ def _dismiss_overlay(page: Any) -> None:
         pass
 
 
-def _share_menu_open(page: Any) -> bool:
-    """True when the conversation overflow menu (with 分享) looks open."""
-    if _conversation_share_menu_open(page):
-        return True
-    return _locate_share_control(page) is not None
-
-
-def _conversation_overflow_menus(page: Any) -> Any:
-    """Radix dropdown portals for conversation-level overflow (header ⋯)."""
-    return page.locator(sel.DROPDOWN_MENU_CONTENT)
+def _open_conversation_overflow_menus(page: Any) -> Any:
+    """Radix dropdown portals that are actually open (ignore closed/hidden menus)."""
+    return page.locator(sel.OPEN_DROPDOWN_MENU_CONTENT)
 
 
 def _menu_has_share_row(root: Any) -> bool:
@@ -764,25 +757,22 @@ def _share_row_in_menu(root: Any) -> Any | None:
 
 
 def _locate_share_control(page: Any) -> Any | None:
-    """Find visible 分享 in the conversation header overflow menu."""
-    for root in _iter_visible_locators(_conversation_overflow_menus(page), limit=8):
+    """Find clickable 分享 only inside an open conversation overflow menu."""
+    for root in _iter_visible_locators(_open_conversation_overflow_menus(page), limit=8):
         hit = _share_row_in_menu(root)
         if hit is not None:
             return hit
-
-    for css in ("[role='menu']", "[role='listbox']"):
-        for root in _iter_visible_locators(page.locator(css), limit=8):
-            hit = _share_row_in_menu(root)
-            if hit is not None:
-                return hit
     return None
 
 
 def _more_menu_button(page: Any) -> Any | None:
     """Conversation header overflow (⋯) in the main column top bar."""
     main = page.locator(sel.CHAT_MAIN)
+    if main.count() == 0:
+        main = page.locator("#chat-route-layout main").first
     for loc in (
         main.locator(sel.CHAT_HEADER_MORE_TRIGGER),
+        page.locator(sel.CHAT_HEADER_MORE_TRIGGER),
         main.locator(
             f'button[data-slot="dropdown-menu-trigger"]:has('
             f'[aria-label="{sel.MORE_ARIA_LABEL}"])'
@@ -797,36 +787,49 @@ def _more_menu_button(page: Any) -> Any | None:
 
 def _conversation_share_menu_open(page: Any) -> bool:
     """True when the header overflow menu (分享 + 删除/置顶…) is open."""
-    for root in _iter_visible_locators(_conversation_overflow_menus(page), limit=8):
+    for root in _iter_visible_locators(_open_conversation_overflow_menus(page), limit=8):
         if _menu_has_share_row(root):
             return True
-    for css in ("[role='menu']",):
-        for root in _iter_visible_locators(page.locator(css), limit=8):
-            if _menu_has_share_row(root):
-                return True
     return False
 
 
 def _activate_header_more_button(page: Any, btn: Any) -> None:
-    """Header ⋯ uses Radix hover trigger — hover then click the outer menu trigger."""
+    """Header ⋯ uses Radix hover trigger — hover inner, click outer trigger."""
     try:
-        btn.hover(timeout=3_000)
+        btn.scroll_into_view_if_needed(timeout=3_000)
+    except Exception:
+        logger.debug("doubao share: 更多 scroll into view failed", exc_info=True)
+
+    inner = btn.locator(f'button[aria-label="{sel.MORE_ARIA_LABEL}"]')
+    hover_target = inner.first if inner.count() > 0 else btn
+    try:
+        hover_target.hover(timeout=3_000)
         page.wait_for_timeout(150)
     except Exception:
         logger.debug("doubao share: 更多 hover failed", exc_info=True)
+
+    open_menu = page.locator(sel.OPEN_DROPDOWN_MENU_CONTENT)
     btn.click(timeout=5_000)
     try:
-        page.locator(f"{sel.DROPDOWN_MENU_CONTENT}[data-state='open']").first.wait_for(
-            state="visible",
-            timeout=2_500,
-        )
+        open_menu.first.wait_for(state="visible", timeout=2_500)
+        return
     except Exception:
         pass
 
+    # Hover-only Radix triggers sometimes ignore the outer click — retry inner/force.
+    try:
+        if inner.count() > 0:
+            inner.first.click(timeout=3_000, force=True)
+        else:
+            btn.click(timeout=3_000, force=True)
+        open_menu.first.wait_for(state="visible", timeout=2_500)
+    except Exception:
+        logger.debug("doubao share: 更多 retry click did not open menu", exc_info=True)
+
 
 def _open_chat_more_menu(page: Any) -> bool:
-    """Open conversation ⋯ until a clickable 分享 control is visible."""
-    if _locate_share_control(page) is not None:
+    """Open conversation header ⋯ until a clickable 分享 control is visible."""
+    if _conversation_share_menu_open(page):
         return True
 
     btn = _more_menu_button(page)
@@ -838,6 +841,10 @@ def _open_chat_more_menu(page: Any) -> bool:
         return False
 
     _dismiss_overlay(page)
+    logger.info(
+        "doubao share: clicking header 更多 url=%s",
+        getattr(page, "url", ""),
+    )
     try:
         _activate_header_more_button(page, btn)
     except Exception:
@@ -854,12 +861,20 @@ def _open_chat_more_menu(page: Any) -> bool:
 
 
 def capture_share_url(page: Any) -> str:
-    # 分享 sits under header button[aria-label="更多"].
+    """Header ⋯ → 分享 → copy link. Any failure is ``DoubaoShareError``."""
+    try:
+        return _capture_share_url(page)
+    except DoubaoShareError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise DoubaoShareError(str(exc) or "share flow failed") from exc
+
+
+def _capture_share_url(page: Any) -> str:
+    # Always open header ⋯ first — never skip because a stale/hidden menu matched 分享.
+    if not _open_chat_more_menu(page):
+        raise DoubaoShareError("share button not found (could not open ⋯ menu with 分享)")
     share = _locate_share_control(page)
-    if share is None:
-        if not _open_chat_more_menu(page):
-            raise DoubaoShareError("share button not found (could not open ⋯ menu with 分享)")
-        share = _locate_share_control(page)
     if share is None:
         raise DoubaoShareError("share button not found (⋯ menu open but no 分享)")
 
@@ -924,17 +939,10 @@ def capture_share_url(page: Any) -> str:
 
 
 def try_capture_share_url(page: Any) -> str:
-    """Best-effort share URL; empty string when the control/clipboard path fails."""
+    """Deprecated for crawl/share jobs — use ``capture_share_url`` (raises on failure)."""
     try:
         return (capture_share_url(page) or "").strip()
     except DoubaoShareError as exc:
-        logger.warning(
-            "doubao share_url capture failed: %s url=%s",
-            exc,
-            getattr(page, "url", ""),
-        )
-        return ""
-    except Exception as exc:  # noqa: BLE001
         logger.warning(
             "doubao share_url capture failed: %s url=%s",
             exc,

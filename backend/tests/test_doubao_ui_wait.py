@@ -250,6 +250,7 @@ def test_more_menu_button_scopes_to_chat_header() -> None:
 
     page = MagicMock()
     main = MagicMock()
+    main.count.return_value = 1
     page.locator.return_value = main
 
     trigger = MagicMock()
@@ -261,7 +262,7 @@ def test_more_menu_button_scopes_to_chat_header() -> None:
 
     found = _more_menu_button(page)
 
-    page.locator.assert_called_once_with(sel.CHAT_MAIN)
+    page.locator.assert_any_call(sel.CHAT_MAIN)
     main.locator.assert_any_call(sel.CHAT_HEADER_MORE_TRIGGER)
     assert found is trigger
 
@@ -306,8 +307,12 @@ def test_open_chat_more_menu_clicks_when_share_control_missing() -> None:
 
     with (
         patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._conversation_share_menu_open",
+            side_effect=[False, False],
+        ),
+        patch(
             "aperix_geo.services.providers.doubao_web.ui_flow._locate_share_control",
-            side_effect=[None, share_row],
+            return_value=share_row,
         ),
         patch(
             "aperix_geo.services.providers.doubao_web.ui_flow._more_menu_button",
@@ -319,17 +324,36 @@ def test_open_chat_more_menu_clicks_when_share_control_missing() -> None:
         patch(
             "aperix_geo.services.providers.doubao_web.ui_flow._activate_header_more_button",
         ) as activate,
-        patch(
-            "aperix_geo.services.providers.doubao_web.ui_flow._conversation_share_menu_open",
-            return_value=True,
-        ),
     ):
         ok = _open_chat_more_menu(page)
 
     assert ok is True
     dismiss.assert_called_once()
     activate.assert_called_once_with(page, btn)
-    btn.click.assert_not_called()
+
+
+def test_open_chat_more_menu_skips_click_when_menu_already_open() -> None:
+    from aperix_geo.services.providers.doubao_web.ui_flow import _open_chat_more_menu
+
+    page = MagicMock()
+
+    with (
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._conversation_share_menu_open",
+            return_value=True,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._more_menu_button",
+        ) as more_btn,
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._activate_header_more_button",
+        ) as activate,
+    ):
+        ok = _open_chat_more_menu(page)
+
+    assert ok is True
+    more_btn.assert_not_called()
+    activate.assert_not_called()
 
 
 def test_conversation_share_menu_open_requires_share_hint() -> None:
@@ -345,7 +369,11 @@ def test_conversation_share_menu_open_requires_share_hint() -> None:
         nth=lambda _i: menu,
     )
 
-    assert _conversation_share_menu_open(page) is True
+    with patch(
+        "aperix_geo.services.providers.doubao_web.ui_flow._iter_visible_locators",
+        return_value=[menu],
+    ):
+        assert _conversation_share_menu_open(page) is True
 
-    menu.inner_text.return_value = "图像生成\nPPT 生成"
-    assert _conversation_share_menu_open(page) is False
+        menu.inner_text.return_value = "图像生成\nPPT 生成"
+        assert _conversation_share_menu_open(page) is False

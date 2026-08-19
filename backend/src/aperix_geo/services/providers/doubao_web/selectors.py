@@ -39,6 +39,7 @@ CHAT_HEADER_MORE_TRIGGER = (
     f'[aria-label="{MORE_ARIA_LABEL}"])'
 )
 DROPDOWN_MENU_CONTENT = '[data-slot="dropdown-menu-content"][role="menu"]'
+OPEN_DROPDOWN_MENU_CONTENT = f'{DROPDOWN_MENU_CONTENT}[data-state="open"]'
 
 # Search / references panel header on assistant replies (outside md-box-root).
 SEARCH_PANEL_HINT = re.compile(r"搜索\s*\d+\s*个关键词")

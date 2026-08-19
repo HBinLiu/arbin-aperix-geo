@@ -58,7 +58,7 @@ def run_doubao_share_on_page(
     context: Any,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    from aperix_geo.services.providers.doubao_web.ui_flow import try_capture_share_url
+    from aperix_geo.services.providers.doubao_web.ui_flow import capture_share_url
 
     storage_state = job_payload_storage_state(payload)
     if storage_state is None:
@@ -97,10 +97,8 @@ def run_doubao_share_on_page(
                 "share job needs conversation_id (open an existing chat URL)"
             )
 
-        share_url = try_capture_share_url(page)
+        share_url = capture_share_url(page)
         assert_no_captcha(page)
-        if not share_url:
-            raise DoubaoShareError("share_url required but missing")
 
         return job_ok(
             share_url=share_url,
@@ -116,4 +114,4 @@ def run_doubao_share_on_page(
         return job_error(exc, **_EMPTY)
     except Exception as exc:  # noqa: BLE001
         logger.exception("doubao share job unexpected error")
-        return job_error(exc, **_EMPTY)
+        return job_error(DoubaoShareError(str(exc) or "share flow failed"), **_EMPTY)

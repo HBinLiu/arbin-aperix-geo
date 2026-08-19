@@ -258,11 +258,15 @@ def run_doubao_account_crawl(
                     messages, settings, cause="empty_text"
                 )
             if not (result.share_url or "").strip():
+                exc = DoubaoShareError("share_url missing after crawl")
                 logger.warning(
-                    "doubao crawl ok text_len=%s share_url empty (no API fallback) "
+                    "doubao crawl share failed (no API fallback) err=%s text_len=%s "
                     "event=sampling_crawl_lane",
+                    exc,
                     len(result.text or ""),
                 )
+                _drop_slot()
+                raise SamplingLLMError(str(exc), retryable=False) from exc
             return result
     finally:
         _drop_slot()

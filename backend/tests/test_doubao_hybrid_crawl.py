@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from aperix_geo.config import Settings
-from aperix_geo.services.providers.doubao_web.errors import DoubaoLoginExpired
+from aperix_geo.services.providers.doubao_web.errors import DoubaoLoginExpired, DoubaoShareError
 from aperix_geo.services.providers.doubao_web.hybrid_crawl import hybrid_crawl_doubao_chat
 from aperix_geo.services.providers.result import SamplingChatResult
 
@@ -63,7 +63,7 @@ def test_hybrid_success(mock_load, mock_http, mock_spawn, mock_db):
 @patch(
     "aperix_geo.services.providers.doubao_web.accounts.load_storage_state_from_file"
 )
-def test_hybrid_share_failure_keeps_http_body(mock_load, mock_http, mock_spawn, mock_db):
+def test_hybrid_share_failure_raises_share_error(mock_load, mock_http, mock_spawn, mock_db):
     mock_load.return_value = {"cookies": [{"name": "sessionid", "value": "x"}]}
     mock_http.return_value = {
         "ok": True,
@@ -81,17 +81,12 @@ def test_hybrid_share_failure_keeps_http_body(mock_load, mock_http, mock_spawn, 
     }
     mock_db.return_value = MagicMock()
 
-    result = hybrid_crawl_doubao_chat(
-        [{"role": "user", "content": "hi"}],
-        settings=_settings(),
-        use_account_pool=False,
-    )
-    assert isinstance(result, SamplingChatResult)
-    assert result.text == "正文"
-    assert result.share_url == ""
-    share_payload = mock_spawn.call_args[0][0]
-    names = {c.get("name") for c in share_payload["storage_state"]["cookies"]}
-    assert "sessionid" in names
+    with pytest.raises(DoubaoShareError, match="no share"):
+        hybrid_crawl_doubao_chat(
+            [{"role": "user", "content": "hi"}],
+            settings=_settings(),
+            use_account_pool=False,
+        )
 
 
 @patch("aperix_geo.db.session.SessionLocal")

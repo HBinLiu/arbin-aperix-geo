@@ -77,17 +77,20 @@ COPY docker/geo-web-crawl/scripts/install-chromedriver.sh /app/scripts/install-c
 RUN chmod +x /app/scripts/smoke-doubao.sh /app/scripts/install-chromedriver.sh
 
 COPY docker/geo-web-crawl/requirements.txt /app/requirements.txt
+
+ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+ARG PIP_TRUSTED_HOST=mirrors.aliyun.com
+# Install Python deps before copying backend/src so code edits reuse this layer.
+RUN pip install -i "${PIP_INDEX_URL}" --trusted-host "${PIP_TRUSTED_HOST}" \
+      -r /app/requirements.txt \
+    && pip install --retries 15 playwright==1.49.1 \
+    && python -m playwright install chromium
+
 COPY backend/src /app/src
 COPY docker/geo-web-crawl/entrypoint.sh /usr/local/bin/geo-web-crawl-entrypoint.sh
 RUN chmod +x /usr/local/bin/geo-web-crawl-entrypoint.sh
 
-ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
-ARG PIP_TRUSTED_HOST=mirrors.aliyun.com
-RUN pip install -i "${PIP_INDEX_URL}" --trusted-host "${PIP_TRUSTED_HOST}" \
-      -r /app/requirements.txt \
-    && pip install --retries 15 playwright==1.49.1 \
-    && python -m playwright install chromium \
-    && python - <<'PY'
+RUN python - <<'PY'
 """Fail the image build if crawl startup imports heavy backend deps."""
 import sys
 

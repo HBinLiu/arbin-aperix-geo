@@ -156,7 +156,7 @@ def run_doubao_browser_crawl_on_page(
                 )
 
                 logger.info("doubao crawl step=share url=%s", page.url)
-                share_url = ui_flow.try_capture_share_url(page)
+                share_url = ui_flow.capture_share_url(page)
                 logger.info("doubao crawl step=share done share=%s", bool(share_url))
 
                 return job_ok(

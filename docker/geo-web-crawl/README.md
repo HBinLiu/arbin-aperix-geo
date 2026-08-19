@@ -17,9 +17,11 @@ profile: /data/crawl-profiles/<platform>/<account_id>
 
 ```bash
 mkdir -p /var/lib/aperix/crawl-profiles
-docker compose -f docker/geo-web-crawl/docker-compose.yml build --no-cache geo-web-crawl
+docker compose -f docker/geo-web-crawl/docker-compose.yml build geo-web-crawl
 docker compose -f docker/geo-web-crawl/docker-compose.yml up -d --force-recreate
 ```
+
+仅改 `requirements.txt` 或基础系统包时需要全量重建时再加 `--no-cache`。
 
 headed 登录用镜像里的 Debian `/usr/bin/chromium`（不要 Playwright 自带 Chrome + SwiftShader）。
 
