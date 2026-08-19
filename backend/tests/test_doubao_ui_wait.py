@@ -196,6 +196,49 @@ def test_extract_skips_prompt_only_clipboard() -> None:
         assert _extract_assistant_text(page, user_prompt="问一句") == ""
 
 
+def test_extract_falls_back_to_md_box_when_copy_empty() -> None:
+    page = _Page()
+    page.md_texts = ["问一句", "助手完整回复。"]
+
+    class _HtmlBox(_Box):
+        def evaluate(self, _script: str) -> str:
+            return "<div class='md-box-root'><p>助手完整回复。</p></div>"
+
+    boxes = _Boxes(page.md_texts)
+    boxes.nth = lambda i: _HtmlBox(page.md_texts[i])  # type: ignore[method-assign]
+
+    page.locator = lambda css: boxes if css == ".md-box-root" else MagicMock(count=lambda: 0)  # type: ignore[method-assign, assignment]
+
+    with patch(
+        "aperix_geo.services.providers.doubao_web.ui_flow._copy_assistant_markdown_via_toolbar",
+        return_value="",
+    ):
+        text = _extract_assistant_text(page, user_prompt="问一句")
+
+    assert text == "助手完整回复。"
+
+
+def test_extract_falls_back_to_last_md_plain_when_copy_empty() -> None:
+    page = _Page()
+    page.md_texts = ["问一句", "助手纯文本回复"]
+
+    page.locator = lambda css: _Boxes(page.md_texts) if css == ".md-box-root" else MagicMock(count=lambda: 0)  # type: ignore[method-assign, assignment]
+
+    with (
+        patch(
+            "aperix_geo.services.providers.doubao_web.ui_flow._copy_assistant_markdown_via_toolbar",
+            return_value="",
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.extract.md_box_html_to_markdown",
+            return_value="",
+        ),
+    ):
+        text = _extract_assistant_text(page, user_prompt="问一句")
+
+    assert text == "助手纯文本回复"
+
+
 def test_extract_search_panel_expands_and_clicks_tabs() -> None:
     page = MagicMock()
     page.url = "https://www.doubao.com/chat/sample12345678"

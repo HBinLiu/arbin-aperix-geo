@@ -571,12 +571,66 @@ def _extract_assistant_text(
     deadline: float | None = None,
     user_prompt: str = "",
 ) -> str:
-    """Copy assistant body via first ``.message-action-button-main`` → first ``button`` only."""
+    """Prefer toolbar「复制」→ clipboard Markdown; fallback ``md-box-root`` DOM."""
+    from aperix_geo.services.providers.doubao_web.extract import md_box_html_to_markdown
+
     _ = deadline  # reserved; completion is decided in _wait_generation_done
     prompt = (user_prompt or "").strip()
     copied = _copy_assistant_markdown_via_toolbar(page)
     if copied.strip() and copied.strip() != prompt:
         return copied.strip()
+
+    for css in sel.MD_BOX_SELECTORS:
+        loc = page.locator(css)
+        try:
+            n = int(loc.count())
+        except Exception:
+            continue
+        if n <= 0:
+            continue
+        target = loc.nth(n - 1)
+        try:
+            html = target.evaluate("el => el.outerHTML")
+        except Exception:
+            html = ""
+        if isinstance(html, str) and html.strip():
+            md = md_box_html_to_markdown(html)
+            if md.strip() and md.strip() != prompt:
+                logger.debug("assistant text from md-box html fallback len=%s", len(md))
+                return md.strip()
+        try:
+            plain = (target.inner_text(timeout=5_000) or "").strip()
+        except Exception:
+            plain = ""
+        if plain and plain != prompt:
+            logger.debug("assistant text from md-box plain fallback len=%s", len(plain))
+            return plain
+
+    for css in sel.ASSISTANT_MESSAGE_SELECTORS:
+        loc = page.locator(css)
+        try:
+            n = int(loc.count())
+        except Exception:
+            continue
+        if n <= 0:
+            continue
+        try:
+            text = (loc.nth(n - 1).inner_text(timeout=5_000) or "").strip()
+        except Exception:
+            continue
+        if text and text != prompt:
+            logger.debug("assistant text from legacy selector %s len=%s", css, len(text))
+            return text
+
+    try:
+        md_box_count = int(page.locator(".md-box-root").count())
+    except Exception:
+        md_box_count = 0
+    if md_box_count <= 0:
+        body = (page.locator("body").inner_text(timeout=2_000) or "").strip()
+        if body and body != prompt:
+            logger.debug("assistant text from body fallback len=%s", len(body))
+            return body
     return ""
 
 
