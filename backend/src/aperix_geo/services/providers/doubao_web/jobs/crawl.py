@@ -88,7 +88,7 @@ def run_doubao_browser_crawl_on_page(
         page.goto(base_url, wait_until="domcontentloaded", timeout=timeout_ms)
         wait_until_logged_in(page, base_url=base_url)
         assert_no_captcha(page)
-        ui_flow._ensure_blank_chat(page, base_url=base_url)
+        ui_flow.ensure_blank_chat(page, base_url=base_url)
         prior_conv = conversation_id_from_url(page.url or "")
         ui_flow._fill_and_send(page, prompt, base_url=base_url)
         assert_no_captcha(page)
@@ -97,29 +97,18 @@ def run_doubao_browser_crawl_on_page(
         ui_flow._wait_send_accepted(
             page, prior_conv_id=prior_conv, deadline=send_deadline
         )
-        sample_conv = conversation_id_from_url(page.url or "")
         assert_no_captcha(page)
         ui_flow._wait_generation_done(
             page, settings=settings, deadline=crawl_deadline, user_prompt=prompt
         )
         assert_no_captcha(page)
-        if not sample_conv:
-            sample_conv = conversation_id_from_url(page.url or "")
-
-        ui_flow._pin_sample_thread(
-            page, conversation_id=sample_conv, base_url=base_url
-        )
 
         raw_text = ui_flow._extract_assistant_text(
             page,
             deadline=crawl_deadline,
             user_prompt=prompt,
-            conversation_id=sample_conv,
-            base_url=base_url,
         )
-        panel_text, panel_hrefs = ui_flow._extract_search_panel(
-            page, conversation_id=sample_conv, base_url=base_url
-        )
+        panel_text, panel_hrefs = ui_flow._extract_search_panel(page)
         queries = extract_quoted_queries(panel_text) if panel_present(panel_text) else ()
         text = clean_assistant_text(
             raw_text, user_prompt=prompt, search_queries=queries
@@ -132,9 +121,7 @@ def run_doubao_browser_crawl_on_page(
 
         source_urls = filter_http_urls(list(panel_hrefs) + list(extract_urls(panel_text)))
 
-        share_url = ui_flow.try_capture_share_url(
-            page, conversation_id=sample_conv, base_url=base_url
-        )
+        share_url = ui_flow.try_capture_share_url(page)
 
         return job_ok(
             text=text.strip(),

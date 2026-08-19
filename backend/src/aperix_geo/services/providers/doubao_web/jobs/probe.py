@@ -157,7 +157,7 @@ def run_doubao_login_probe_on_page(
         seen_login = True
         assert_no_captcha(page)
 
-        ui_flow._ensure_blank_chat(page, base_url=base_url)
+        ui_flow.ensure_blank_chat(page, base_url=base_url)
         assert_logged_in(page)
         assert_no_captcha(page)
 

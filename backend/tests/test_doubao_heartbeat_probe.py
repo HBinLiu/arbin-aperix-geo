@@ -194,7 +194,7 @@ def test_probe_on_page_send_detects_captcha() -> None:
             side_effect=[None, None, DoubaoCaptchaRequired("captcha after send")],
         ),
         patch(
-            "aperix_geo.services.providers.doubao_web.jobs.probe.ui_flow._ensure_blank_chat",
+            "aperix_geo.services.providers.doubao_web.jobs.probe.ui_flow.ensure_blank_chat",
             return_value=None,
         ),
         patch(
@@ -250,7 +250,7 @@ def test_probe_on_page_send_fail_keeps_session_alive() -> None:
             return_value=None,
         ),
         patch(
-            "aperix_geo.services.providers.doubao_web.jobs.probe.ui_flow._ensure_blank_chat",
+            "aperix_geo.services.providers.doubao_web.jobs.probe.ui_flow.ensure_blank_chat",
             return_value=None,
         ),
         patch(
@@ -302,7 +302,7 @@ def test_probe_on_page_real_send_success() -> None:
             return_value=None,
         ),
         patch(
-            "aperix_geo.services.providers.doubao_web.jobs.probe.ui_flow._ensure_blank_chat",
+            "aperix_geo.services.providers.doubao_web.jobs.probe.ui_flow.ensure_blank_chat",
             return_value=None,
         ),
         patch(
@@ -371,7 +371,7 @@ def test_probe_keeps_injected_cookies_when_export_empty() -> None:
             return_value=None,
         ),
         patch(
-            "aperix_geo.services.providers.doubao_web.jobs.probe.ui_flow._ensure_blank_chat",
+            "aperix_geo.services.providers.doubao_web.jobs.probe.ui_flow.ensure_blank_chat",
             return_value=None,
         ),
         patch(
@@ -437,7 +437,7 @@ def test_probe_on_page_profile_ok_without_cookie_dump() -> None:
             return_value=None,
         ),
         patch(
-            "aperix_geo.services.providers.doubao_web.jobs.probe.ui_flow._ensure_blank_chat",
+            "aperix_geo.services.providers.doubao_web.jobs.probe.ui_flow.ensure_blank_chat",
             return_value=None,
         ),
         patch(

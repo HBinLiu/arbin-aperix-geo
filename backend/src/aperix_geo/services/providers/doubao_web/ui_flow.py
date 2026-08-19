@@ -20,7 +20,6 @@ from aperix_geo.services.providers.doubao_web.errors import (
 from aperix_geo.services.providers.doubao_web.extract import (
     blank_chat_failure_reason,
     conversation_id_from_url,
-    conversation_url,
     extract_urls,
     panel_present,
     pick_share_url,
@@ -34,60 +33,10 @@ from aperix_geo.services.providers.doubao_web.runtime import (
 
 logger = logging.getLogger(__name__)
 
-
-def _require_sample_conversation(
-    page: Any,
-    *,
-    conversation_id: str,
-    base_url: str,
-    timeout_ms: int = 15_000,
-) -> None:
-    """Re-open the sample thread when UI clicks drifted to another conversation."""
-    cid = (conversation_id or "").strip()
-    if not cid:
-        return
-    current = conversation_id_from_url(page.url or "")
-    if current == cid:
-        return
-    target = conversation_url(base_url, cid)
-    logger.warning(
-        "doubao conversation drift expected=%s current=%s url=%s; reopening sample thread",
-        cid,
-        current or "-",
-        page.url,
-    )
-    page.goto(target, wait_until="domcontentloaded", timeout=timeout_ms)
-    page.wait_for_timeout(400)
-    after = conversation_id_from_url(page.url or "")
-    if after != cid:
-        raise DoubaoCrawlError(
-            f"failed to reopen sample conversation id={cid} url={page.url!r}"
-        )
-
-
-def _pin_sample_thread(
-    page: Any,
-    *,
-    conversation_id: str,
-    base_url: str,
-) -> None:
-    """Ensure we are on the sample conversation URL before extract clicks."""
-    _require_sample_conversation(
-        page, conversation_id=conversation_id, base_url=base_url
-    )
-    page.wait_for_timeout(400)
-
-
-def _conversation_matches(page: Any, conversation_id: str) -> bool:
-    cid = (conversation_id or "").strip()
-    if not cid:
-        return True
-    return conversation_id_from_url(page.url or "") == cid
-
 _STABLE_IDLE_POLLS = 10  # ~3s of unchanged assistant text when stop/streaming is missing
 
 
-def _ensure_blank_chat(page: Any, *, base_url: str, attempts: int = 2) -> None:
+def ensure_blank_chat(page: Any, *, base_url: str, attempts: int = 2) -> None:
     """Open a blank session and hard-validate before sending the sample prompt.
 
     Always click「新对话」(even on /chat/), then switch off「工作」if needed.
@@ -570,12 +519,7 @@ def _locate_copy_body_button(bar: Any) -> Any | None:
     return None
 
 
-def _copy_assistant_markdown_via_toolbar(
-    page: Any,
-    *,
-    conversation_id: str = "",
-    base_url: str = "",
-) -> str:
+def _copy_assistant_markdown_via_toolbar(page: Any) -> str:
     """Click the first toolbar's first button (复制正文) and read clipboard Markdown."""
     bar = _message_action_bar(page)
     if bar is None:
@@ -589,16 +533,6 @@ def _copy_assistant_markdown_via_toolbar(
         page.wait_for_timeout(400)
     except Exception:
         logger.debug("assistant copy-button click failed", exc_info=True)
-        return ""
-    if not _conversation_matches(page, conversation_id):
-        logger.warning(
-            "doubao copy toolbar drifted conversation expected=%s url=%s",
-            conversation_id or "-",
-            page.url,
-        )
-        _require_sample_conversation(
-            page, conversation_id=conversation_id, base_url=base_url
-        )
         return ""
     after = _read_clipboard(page)
     if not after:
@@ -615,20 +549,11 @@ def _extract_assistant_text(
     *,
     deadline: float | None = None,
     user_prompt: str = "",
-    conversation_id: str = "",
-    base_url: str = "",
 ) -> str:
     """Copy assistant body via first ``.message-action-button-main`` → first ``button`` only."""
     _ = deadline  # reserved; completion is decided in _wait_generation_done
-    _pin_sample_thread(
-        page, conversation_id=conversation_id, base_url=base_url
-    )
     prompt = (user_prompt or "").strip()
-    copied = _copy_assistant_markdown_via_toolbar(
-        page,
-        conversation_id=conversation_id,
-        base_url=base_url,
-    )
+    copied = _copy_assistant_markdown_via_toolbar(page)
     if copied.strip() and copied.strip() != prompt:
         return copied.strip()
     return ""
@@ -660,16 +585,8 @@ def _panel_root(hint: Any) -> Any:
     return best
 
 
-def _extract_search_panel(
-    page: Any,
-    *,
-    conversation_id: str = "",
-    base_url: str = "",
-) -> tuple[str, tuple[str, ...]]:
+def _extract_search_panel(page: Any) -> tuple[str, tuple[str, ...]]:
     """Match panel header by regex text, expand, then read keywords + references inside panel."""
-    _pin_sample_thread(
-        page, conversation_id=conversation_id, base_url=base_url
-    )
     hint = _first_visible(page.get_by_text(sel.SEARCH_PANEL_HINT), limit=20)
     if hint is None:
         return "", ()
@@ -679,11 +596,6 @@ def _extract_search_panel(
         page.wait_for_timeout(500)
     except Exception:
         logger.debug("search panel expand click failed", exc_info=True)
-
-    if not _conversation_matches(page, conversation_id):
-        _require_sample_conversation(
-            page, conversation_id=conversation_id, base_url=base_url
-        )
 
     root = _panel_root(hint)
 
@@ -837,15 +749,7 @@ def _open_chat_more_menu(page: Any) -> bool:
     return _share_menu_open(page)
 
 
-def capture_share_url(
-    page: Any,
-    *,
-    conversation_id: str = "",
-    base_url: str = "",
-) -> str:
-    _pin_sample_thread(
-        page, conversation_id=conversation_id, base_url=base_url
-    )
+def capture_share_url(page: Any) -> str:
     # 分享 sits under header button[aria-label="更多"].
     share = _locate_share_control(page)
     if share is None:
@@ -857,10 +761,6 @@ def capture_share_url(
 
     share.click(timeout=5_000)
     page.wait_for_timeout(800)
-    if not _conversation_matches(page, conversation_id):
-        _require_sample_conversation(
-            page, conversation_id=conversation_id, base_url=base_url
-        )
 
     # Prefer explicit copy-link control.
     copy_btn = _first_visible(page.get_by_role("button", name=sel.COPY_LINK_NAME))
@@ -919,20 +819,10 @@ def capture_share_url(
     return url
 
 
-def try_capture_share_url(
-    page: Any,
-    *,
-    conversation_id: str = "",
-    base_url: str = "",
-) -> str:
+def try_capture_share_url(page: Any) -> str:
     """Best-effort share URL; empty string when the control/clipboard path fails."""
     try:
-        return (
-            capture_share_url(
-                page, conversation_id=conversation_id, base_url=base_url
-            )
-            or ""
-        ).strip()
+        return (capture_share_url(page) or "").strip()
     except Exception as exc:  # noqa: BLE001
         logger.warning("doubao share_url capture failed: %s", exc)
         return ""

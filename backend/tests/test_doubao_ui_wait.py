@@ -9,7 +9,6 @@ from aperix_geo.services.providers.doubao_web.ui_flow import (
     _extract_assistant_text,
     _extract_search_panel,
     _last_assistant_md_text,
-    _require_sample_conversation,
     _wait_generation_done,
 )
 
@@ -125,26 +124,6 @@ def test_extract_skips_prompt_only_clipboard() -> None:
         assert _extract_assistant_text(page, user_prompt="问一句") == ""
 
 
-def test_require_sample_conversation_reopens_drifted_thread() -> None:
-    page = MagicMock()
-    page.url = "https://www.doubao.com/chat/other-thread"
-
-    def _goto(_url: str, **_kwargs: object) -> None:
-        page.url = "https://www.doubao.com/chat/sample12345678"
-
-    page.goto.side_effect = _goto
-    _require_sample_conversation(
-        page,
-        conversation_id="sample12345678",
-        base_url="https://www.doubao.com/chat/",
-    )
-    page.goto.assert_called_once_with(
-        "https://www.doubao.com/chat/sample12345678",
-        wait_until="domcontentloaded",
-        timeout=15_000,
-    )
-
-
 def test_extract_search_panel_expands_and_clicks_tabs() -> None:
     page = MagicMock()
     page.url = "https://www.doubao.com/chat/sample12345678"
@@ -176,9 +155,6 @@ def test_extract_search_panel_expands_and_clicks_tabs() -> None:
 
     with (
         patch(
-            "aperix_geo.services.providers.doubao_web.ui_flow._pin_sample_thread",
-        ),
-        patch(
             "aperix_geo.services.providers.doubao_web.ui_flow._first_visible",
             side_effect=_fake_first_visible,
         ),
@@ -187,11 +163,7 @@ def test_extract_search_panel_expands_and_clicks_tabs() -> None:
             return_value=panel_root,
         ),
     ):
-        text, hrefs = _extract_search_panel(
-            page,
-            conversation_id="sample12345678",
-            base_url="https://www.doubao.com/chat/",
-        )
+        text, hrefs = _extract_search_panel(page)
 
     hint.click.assert_called_once()
     assert tab.click.call_count >= 1

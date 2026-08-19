@@ -25,7 +25,7 @@ from aperix_geo.services.providers.doubao_web.selectors import (
 from aperix_geo.utils.url import extract_urls as _extract_urls_from_text
 
 # Doubao thread id in /chat/<id> (blank landing is /chat/ with no id segment).
-# New threads may briefly use ``local_<id>`` in the URL; the server id is without the prefix.
+# New threads first get client ``local_*`` in the URL; the server later assigns a different id.
 _CHAT_CONVERSATION_ID = re.compile(r"/chat/([0-9a-zA-Z_-]{8,})(?:/|$)", re.IGNORECASE)
 _LOCAL_CONVERSATION_PREFIX = "local_"
 
@@ -34,21 +34,34 @@ _BLOCK_TAGS = frozenset(
 )
 
 
+def is_local_conversation_id(conversation_id: str) -> bool:
+    """True for Doubao client-side provisional ids (``local_…`` in the URL)."""
+    return (conversation_id or "").strip().startswith(_LOCAL_CONVERSATION_PREFIX)
+
+
 def normalize_conversation_id(conversation_id: str) -> str:
-    """Strip Doubao's client-side ``local_`` prefix; server id is the remainder."""
+    """Legacy helper: strip ``local_`` prefix. Prefer :func:`server_conversation_id_from_url`."""
     cid = (conversation_id or "").strip()
-    if cid.startswith(_LOCAL_CONVERSATION_PREFIX):
+    if is_local_conversation_id(cid):
         return cid[len(_LOCAL_CONVERSATION_PREFIX) :]
     return cid
 
 
 def conversation_id_from_url(url: str) -> str:
-    """Return Doubao conversation id from URL, or '' for blank /chat/ landing."""
+    """Return the raw conversation segment from ``/chat/<segment>``, or '' for blank landing."""
     path = urlparse(url or "").path or ""
     match = _CHAT_CONVERSATION_ID.search(path)
     if not match:
         return ""
-    return normalize_conversation_id(match.group(1))
+    return match.group(1)
+
+
+def server_conversation_id_from_url(url: str) -> str:
+    """Server-assigned id only — '' while URL is still ``local_*`` or blank."""
+    cid = conversation_id_from_url(url)
+    if is_local_conversation_id(cid):
+        return ""
+    return cid
 
 
 def conversation_url(base_url: str, conversation_id: str) -> str:

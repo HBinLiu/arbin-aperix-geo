@@ -20,6 +20,7 @@ from aperix_geo.services.providers.doubao_web.extract import (
     conversation_id_from_url,
     conversation_url,
     normalize_conversation_id,
+    server_conversation_id_from_url,
     extract_quoted_queries,
     extract_urls,
     filter_http_urls,
@@ -74,7 +75,19 @@ def test_conversation_id_from_url() -> None:
         conversation_id_from_url(
             "https://www.doubao.com/chat/local_a1b2c3d4e5f6789012345678"
         )
-        == "a1b2c3d4e5f6789012345678"
+        == "local_a1b2c3d4e5f6789012345678"
+    )
+    assert (
+        server_conversation_id_from_url(
+            "https://www.doubao.com/chat/local_a1b2c3d4e5f6789012345678"
+        )
+        == ""
+    )
+    assert (
+        server_conversation_id_from_url(
+            "https://www.doubao.com/chat/xmOWWDyV4wJ6gt49W"
+        )
+        == "xmOWWDyV4wJ6gt49W"
     )
     assert normalize_conversation_id("local_foo12345678") == "foo12345678"
     assert normalize_conversation_id("xmOWWDyV4wJ6gt49W") == "xmOWWDyV4wJ6gt49W"

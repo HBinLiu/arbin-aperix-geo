@@ -401,10 +401,10 @@ def try_schedule_phase_fill(job_id: UUID, phase: str) -> bool:
     )
 
 
-def schedule_phase_fill(job_id: str, phase: str) -> None:
+def schedule_phase_fill(job_id: str, phase: str, *, force: bool = False) -> None:
     jid = UUID(job_id)
     phase = normalize_sampling_phase(phase)
-    if not try_schedule_phase_fill(jid, phase):
+    if not force and not try_schedule_phase_fill(jid, phase):
         return
     from aperix_geo.celery_app import celery_app
 
@@ -471,9 +471,15 @@ def on_task_finished(response_id: UUID, phase: str, *, job_id: UUID | None = Non
     schedule_phase_fill(str(resolved), phase)
     next_phase = NEXT_FILL_PHASE.get(phase)
     if next_phase is not None:
-        schedule_phase_fill(str(resolved), next_phase)
+        # page → parse must not lose to fill debounce (llm may have scheduled parse too early).
+        schedule_phase_fill(str(resolved), next_phase, force=(next_phase == "parse"))
     # No citation URLs → persist_llm_result jumps pending → crawl_ready (skips page).
-    # Chain only went llm → page → parse, so parse was never scheduled in that path.
     if phase == "llm":
-        schedule_phase_fill(str(resolved), "parse")
+        db = SessionLocal()
+        try:
+            row = db.get(LLMResponse, response_id)
+            if row is not None and row.status == LLMResponseStatus.crawl_ready:
+                schedule_phase_fill(str(resolved), "parse")
+        finally:
+            db.close()
     schedule_job_finalize(resolved)

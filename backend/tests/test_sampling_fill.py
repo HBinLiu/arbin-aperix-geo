@@ -35,8 +35,71 @@ def test_dispatch_phases_reconciles_when_idle(mock_fill: MagicMock, mock_reconci
 @patch("aperix_geo.services.sampling.workflow.fill.release_inflight_slot")
 @patch("aperix_geo.services.sampling.workflow.fill.release_response_dispatched")
 @patch("aperix_geo.services.sampling.workflow.fill.SessionLocal")
-def test_on_task_finished_releases_and_refills(
+def test_on_task_finished_llm_ready_skips_premature_parse_schedule(
     mock_session_local: MagicMock,
+    mock_release_dispatch: MagicMock,
+    mock_release: MagicMock,
+    mock_schedule_fill: MagicMock,
+    mock_reconcile: MagicMock,
+) -> None:
+    from aperix_geo.db.models import LLMResponseStatus
+    from aperix_geo.services.sampling.workflow.fill import on_task_finished
+
+    response_id = uuid4()
+    job_id = uuid4()
+    mock_release_dispatch.return_value = (job_id, "")
+    row = MagicMock()
+    row.status = LLMResponseStatus.llm_ready
+    db = MagicMock()
+    db.get.return_value = row
+    mock_session_local.return_value = db
+
+    on_task_finished(response_id, "llm")
+
+    assert mock_schedule_fill.call_count == 2
+    mock_schedule_fill.assert_any_call(str(job_id), "llm")
+    mock_schedule_fill.assert_any_call(str(job_id), "page", force=False)
+    mock_reconcile.assert_called_once_with(job_id)
+
+
+@patch("aperix_geo.services.sampling.workflow.fill.schedule_job_finalize")
+@patch("aperix_geo.services.sampling.workflow.fill.schedule_phase_fill")
+@patch("aperix_geo.services.sampling.workflow.fill.release_inflight_slot")
+@patch("aperix_geo.services.sampling.workflow.fill.release_response_dispatched")
+@patch("aperix_geo.services.sampling.workflow.fill.SessionLocal")
+def test_on_task_finished_crawl_ready_schedules_parse_after_llm(
+    mock_session_local: MagicMock,
+    mock_release_dispatch: MagicMock,
+    mock_release: MagicMock,
+    mock_schedule_fill: MagicMock,
+    mock_reconcile: MagicMock,
+) -> None:
+    from aperix_geo.db.models import LLMResponseStatus
+    from aperix_geo.services.sampling.workflow.fill import on_task_finished
+
+    response_id = uuid4()
+    job_id = uuid4()
+    mock_release_dispatch.return_value = (job_id, "")
+    row = MagicMock()
+    row.status = LLMResponseStatus.crawl_ready
+    db = MagicMock()
+    db.get.return_value = row
+    mock_session_local.return_value = db
+
+    on_task_finished(response_id, "llm")
+
+    assert mock_schedule_fill.call_count == 3
+    mock_schedule_fill.assert_any_call(str(job_id), "llm")
+    mock_schedule_fill.assert_any_call(str(job_id), "page", force=False)
+    mock_schedule_fill.assert_any_call(str(job_id), "parse")
+    mock_reconcile.assert_called_once_with(job_id)
+
+
+@patch("aperix_geo.services.sampling.workflow.fill.schedule_job_finalize")
+@patch("aperix_geo.services.sampling.workflow.fill.schedule_phase_fill")
+@patch("aperix_geo.services.sampling.workflow.fill.release_inflight_slot")
+@patch("aperix_geo.services.sampling.workflow.fill.release_response_dispatched")
+def test_on_task_finished_page_forces_parse_fill(
     mock_release_dispatch: MagicMock,
     mock_release: MagicMock,
     mock_schedule_fill: MagicMock,
@@ -48,16 +111,9 @@ def test_on_task_finished_releases_and_refills(
     job_id = uuid4()
     mock_release_dispatch.return_value = (job_id, "")
 
-    on_task_finished(response_id, "llm")
+    on_task_finished(response_id, "page")
 
-    mock_release_dispatch.assert_called_once_with("llm", response_id)
-    mock_release.assert_called_once_with(job_id, "llm", lane="")
-    assert mock_schedule_fill.call_count == 3
-    mock_schedule_fill.assert_any_call(str(job_id), "llm")
-    mock_schedule_fill.assert_any_call(str(job_id), "page")
-    mock_schedule_fill.assert_any_call(str(job_id), "parse")
-    mock_reconcile.assert_called_once_with(job_id)
-    mock_session_local.assert_not_called()
+    mock_schedule_fill.assert_any_call(str(job_id), "parse", force=True)
 
 
 @patch("aperix_geo.services.sampling.workflow.fill.release_inflight_slot")
