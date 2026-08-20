@@ -336,3 +336,39 @@ def test_chromium_launch_locks_webrtc_when_proxied(monkeypatch) -> None:
     assert "--disable-ipv6" in kw["args"]
     assert "--disable-quic" in kw["args"]
     assert "--force-webrtc-ip-handling-policy=disable_non_proxied_udp" in kw["args"]
+
+
+def test_chromium_launch_stealth_and_chrome_path(monkeypatch, tmp_path) -> None:
+    from aperix_geo.services.crawl_browser import browser_pool as bp
+
+    chrome = tmp_path / "google-chrome-stable"
+    chrome.write_text("")
+    monkeypatch.delenv("HTTPS_PROXY", raising=False)
+    monkeypatch.delenv("HTTP_PROXY", raising=False)
+    monkeypatch.setenv("GEO_WEB_CRAWL_STEALTH", "true")
+    monkeypatch.setenv("GEO_WEB_CRAWL_CHROME_BIN", str(chrome))
+    kw = bp._chromium_launch_kwargs(want_headless=True)
+    assert kw["executable_path"] == str(chrome)
+    assert "--disable-blink-features=AutomationControlled" in kw["args"]
+    assert kw["ignore_default_args"] == ["--enable-automation"]
+
+    monkeypatch.setenv("GEO_WEB_CRAWL_STEALTH", "0")
+    kw_off = bp._chromium_launch_kwargs(want_headless=True)
+    assert "ignore_default_args" not in kw_off
+    assert "--disable-blink-features=AutomationControlled" not in kw_off["args"]
+
+
+def test_chrome_executable_prefers_google_chrome(monkeypatch, tmp_path) -> None:
+    from aperix_geo.services.crawl_browser import browser_pool as bp
+
+    monkeypatch.delenv("GEO_WEB_CRAWL_CHROME_BIN", raising=False)
+    chrome = tmp_path / "google-chrome-stable"
+    chromium = tmp_path / "chromium"
+    chrome.write_text("")
+    chromium.write_text("")
+    monkeypatch.setattr(
+        bp,
+        "_CHROME_CANDIDATES",
+        (str(chrome), str(chromium)),
+    )
+    assert bp.chrome_executable() == str(chrome)

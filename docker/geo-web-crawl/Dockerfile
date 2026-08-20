@@ -20,7 +20,7 @@ ENV PYTHONUNBUFFERED=1 \
     GEO_WEB_CRAWL_CONCURRENCY=1 \
     GEO_WEB_CRAWL_HEADLESS=true \
     GEO_WEB_CRAWL_VNC=false \
-    GEO_WEB_CRAWL_CHROME_BIN=/usr/bin/chromium
+    GEO_WEB_CRAWL_CHROME_BIN=/usr/bin/google-chrome-stable
 
 WORKDIR /app
 

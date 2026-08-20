@@ -1,11 +1,12 @@
 """Browser sessions for geo-web-crawl jobs.
 
-Production: one Chromium ``user-data-dir`` per account (same dir as noVNC login).
+Production: one Chrome/Chromium ``user-data-dir`` per account (same dir as noVNC login).
 Local smoke without ``account_id``: ephemeral ``chromium.launch`` + ``storage_state``.
 
 Headless is ``GEO_WEB_CRAWL_HEADLESS`` only (not a per-job payload field).
-Headed production uses Debian ``/usr/bin/chromium`` on ``DISPLAY`` (Playwright's
-bundled Chrome + SwiftShader crashed on keyboard input).
+Prefer system Google Chrome when present (fewer automation / SwiftShader fingerprints
+than Playwright's bundled browser). Stealth flags drop the “controlled by automated
+test software” banner and blunt ``navigator.webdriver``.
 """
 
 from __future__ import annotations
@@ -24,15 +25,29 @@ from aperix_geo.services.crawl_accounts.profiles import account_profile_dir, pro
 logger = logging.getLogger(__name__)
 
 VIEWPORT = {"width": 1440, "height": 900}
-_LAUNCH_ARGS = ["--no-sandbox", "--disable-dev-shm-usage", "--disable-quic"]
-_HEADED_ARGS = [
-    "--no-sandbox",
-    "--disable-dev-shm-usage",
+_BASE_ARGS = ["--no-sandbox", "--disable-dev-shm-usage", "--disable-quic"]
+_HEADED_EXTRA_ARGS = [
     "--disable-gpu",
-    "--disable-quic",
     "--window-size=1440,900",
 ]
+# Blunt common automation signals (Doubao / similar risk engines).
+_STEALTH_ARGS = [
+    "--disable-blink-features=AutomationControlled",
+]
+_IGNORE_DEFAULT_ARGS = ["--enable-automation"]
+_WEBDRIVER_INIT_SCRIPT = """
+Object.defineProperty(navigator, 'webdriver', {
+  get: () => undefined,
+});
+"""
 
+# Prefer Google Chrome; fall back to Debian Chromium.
+_CHROME_CANDIDATES = (
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+)
 
 # HTTP CONNECT does not carry QUIC/STUN/IPv6. Captcha sprites then fail with
 # 「图片加载失败，请刷新重试或换个网络」 even though the chat page loaded.
@@ -84,19 +99,39 @@ def _playwright_proxy() -> dict[str, str] | None:
     return cfg
 
 
+def _truthy_env(name: str, default: str = "") -> bool:
+    raw = (os.environ.get(name) or default).strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
+def stealth_enabled() -> bool:
+    """Drop automation banner / blunt webdriver (default on; set GEO_WEB_CRAWL_STEALTH=0 to disable)."""
+    return _truthy_env("GEO_WEB_CRAWL_STEALTH", "true")
+
+
 def _chromium_launch_kwargs(*, want_headless: bool) -> dict[str, Any]:
-    args = list(_LAUNCH_ARGS if want_headless else _HEADED_ARGS)
+    args = list(_BASE_ARGS)
+    if not want_headless:
+        args.extend(_HEADED_EXTRA_ARGS)
+    if stealth_enabled():
+        for flag in _STEALTH_ARGS:
+            if flag not in args:
+                args.append(flag)
     proxy = _playwright_proxy()
     if proxy:
-        args.extend(_PROXY_LOCKDOWN_ARGS)
+        for flag in _PROXY_LOCKDOWN_ARGS:
+            if flag not in args:
+                args.append(flag)
     kwargs: dict[str, Any] = {
         "headless": want_headless,
         "args": args,
     }
+    if stealth_enabled():
+        kwargs["ignore_default_args"] = list(_IGNORE_DEFAULT_ARGS)
     if proxy:
         kwargs["proxy"] = proxy
     chrome = chrome_executable()
-    if not want_headless and chrome:
+    if chrome:
         kwargs["executable_path"] = chrome
     return kwargs
 
@@ -107,11 +142,6 @@ _occupancy: dict[str, str] = {}
 
 class AccountBusy(RuntimeError):
     """This account's Chrome profile is already held by a job or login session."""
-
-
-def _truthy_env(name: str, default: str = "") -> bool:
-    raw = (os.environ.get(name) or default).strip().lower()
-    return raw in {"1", "true", "yes", "on"}
 
 
 def _headless() -> bool:
@@ -153,8 +183,21 @@ def novnc_public_port() -> int:
 
 
 def chrome_executable() -> str | None:
-    raw = (os.environ.get("GEO_WEB_CRAWL_CHROME_BIN") or "/usr/bin/chromium").strip()
-    return raw if raw and Path(raw).exists() else None
+    """Resolve system Chrome/Chromium binary for Playwright ``executable_path``.
+
+    Order: ``GEO_WEB_CRAWL_CHROME_BIN`` (if set) → Google Chrome → Chromium.
+    """
+    explicit = (os.environ.get("GEO_WEB_CRAWL_CHROME_BIN") or "").strip()
+    candidates = (explicit,) if explicit else _CHROME_CANDIDATES
+    for path in candidates:
+        if path and Path(path).exists():
+            return path
+    if explicit:
+        logger.warning("GEO_WEB_CRAWL_CHROME_BIN=%s missing; trying defaults", explicit)
+        for path in _CHROME_CANDIDATES:
+            if Path(path).exists():
+                return path
+    return None
 
 
 def clear_chrome_singleton_locks(profile_dir: Path) -> None:
@@ -234,7 +277,7 @@ def parse_job_session(payload: dict[str, Any]) -> tuple[str, dict[str, Any], str
     return account_id, storage_state, platform
 
 
-def _apply_context_defaults(context: Any, *, timeout_ms: int) -> None:
+def apply_browser_context_defaults(context: Any, *, timeout_ms: int) -> None:
     context.set_default_timeout(max(1_000, int(timeout_ms)))
     perms = ["clipboard-read", "clipboard-write"]
     try:
@@ -246,6 +289,15 @@ def _apply_context_defaults(context: Any, *, timeout_ms: int) -> None:
             context.grant_permissions(perms, origin=origin)
         except Exception:
             logger.debug("clipboard permission grant skipped origin=%s", origin, exc_info=True)
+    if stealth_enabled():
+        try:
+            context.add_init_script(_WEBDRIVER_INIT_SCRIPT)
+        except Exception:
+            logger.debug("webdriver init script skipped", exc_info=True)
+
+
+# Back-compat alias.
+_apply_context_defaults = apply_browser_context_defaults
 
 
 @contextmanager
@@ -293,12 +345,14 @@ def _page_session_profile(
     account_id: str = "",
 ) -> Iterator[tuple[Any, Any]]:
     want_headless = _headless()
+    chrome = chrome_executable()
     logger.info(
-        "geo-web-crawl persistent profile dir=%s headless=%s vnc=%s chrome=%s thread=%s",
+        "geo-web-crawl persistent profile dir=%s headless=%s vnc=%s chrome=%s stealth=%s thread=%s",
         profile_dir,
         want_headless,
         vnc_enabled(),
-        chrome_executable() or "playwright",
+        chrome or "playwright-bundled",
+        stealth_enabled(),
         threading.current_thread().name,
     )
     pw_cm, playwright = _start_playwright()
@@ -312,7 +366,7 @@ def _page_session_profile(
                     str(profile_dir),
                     **persistent_launch_kwargs(want_headless=want_headless),
                 )
-                _apply_context_defaults(context, timeout_ms=timeout_ms)
+                apply_browser_context_defaults(context, timeout_ms=timeout_ms)
                 page = context.pages[0] if context.pages else context.new_page()
                 yield page, context
     finally:
@@ -332,7 +386,12 @@ def _page_session_ephemeral(
 ) -> Iterator[tuple[Any, Any]]:
     """Local smoke only: a fresh Chrome with Playwright storage_state (not production)."""
     want_headless = _headless()
-    logger.info("geo-web-crawl ephemeral chrome headless=%s (no account profile)", want_headless)
+    logger.info(
+        "geo-web-crawl ephemeral chrome headless=%s stealth=%s chrome=%s (no account profile)",
+        want_headless,
+        stealth_enabled(),
+        chrome_executable() or "playwright-bundled",
+    )
     pw_cm, playwright = _start_playwright()
     browser = None
     context = None
@@ -344,7 +403,7 @@ def _page_session_ephemeral(
             locale="zh-CN",
             viewport=VIEWPORT,
         )
-        _apply_context_defaults(context, timeout_ms=timeout_ms)
+        apply_browser_context_defaults(context, timeout_ms=timeout_ms)
         yield context.new_page(), context
     finally:
         if context is not None:

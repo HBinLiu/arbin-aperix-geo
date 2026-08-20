@@ -16,7 +16,7 @@ from aperix_geo.services.providers.doubao_web.errors import (
     DoubaoNeedsHumanOps,
     DoubaoShareError,
 )
-from aperix_geo.services.providers.doubao_web.extract import page_looks_like_captcha
+from aperix_geo.services.providers.doubao_web.captcha import page_shows_behavior_captcha
 
 logger = logging.getLogger(__name__)
 
@@ -484,22 +484,7 @@ def assert_logged_in(page: Any) -> None:
 
 
 def page_has_captcha(page: Any) -> bool:
-    try:
-        body = page.locator("body").inner_text(timeout=2_000) or ""
-    except Exception:
-        body = ""
-    if page_looks_like_captcha(body):
-        return True
-    for css in sel.CAPTCHA_DOM_SELECTORS:
-        try:
-            loc = page.locator(css)
-            n = min(loc.count(), 5)
-            for i in range(n):
-                if loc.nth(i).is_visible():
-                    return True
-        except Exception:
-            continue
-    return False
+    return page_shows_behavior_captcha(page)
 
 
 def assert_no_captcha(page: Any) -> None:

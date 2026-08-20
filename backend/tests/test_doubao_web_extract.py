@@ -184,7 +184,12 @@ def test_page_looks_like_captcha() -> None:
     assert page_looks_like_captcha("请完成行为验证后继续")
     assert page_looks_like_captcha("当前环境异常，请换个网络后再试")
     assert page_looks_like_captcha("图片加载失败，请刷新重试或换个网络")
+    assert page_looks_like_captcha("请拖动滑块完成验证")
+    assert page_looks_like_captcha("拖动到指定位置")
+    assert page_looks_like_captcha("请拖拽完成安全验证")
     assert not page_looks_like_captcha("适合小团队的 CRM 有哪些\nZoho CRM 推荐")
+    # 正文里偶发「拖动」单独词不应误伤（需边界）；复合短语才命中
+    assert not page_looks_like_captcha("界面支持拖动排序，不影响结论")
 
 
 def test_md_box_html_to_markdown_keeps_structure() -> None:

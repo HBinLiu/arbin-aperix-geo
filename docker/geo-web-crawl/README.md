@@ -23,7 +23,9 @@ docker compose -f docker/geo-web-crawl/docker-compose.yml up -d --force-recreate
 
 仅改 `requirements.txt` 或基础系统包时需要全量重建时再加 `--no-cache`。
 
-headed 登录用镜像里的 Debian `/usr/bin/chromium`（不要 Playwright 自带 Chrome + SwiftShader）。
+headed 登录 / 采样优先用镜像里的 **Google Chrome**（`/usr/bin/google-chrome-stable`），
+不要 Playwright 自带浏览器 + SwiftShader。可用 `GEO_WEB_CRAWL_CHROME_BIN` 覆盖；
+`GEO_WEB_CRAWL_STEALTH=true`（默认）会关掉自动化黄条并钝化 `navigator.webdriver`。
 
 ### 容器内对照实验（推荐，noVNC 可视化）
 

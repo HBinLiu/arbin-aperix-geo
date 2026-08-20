@@ -69,9 +69,14 @@ QUOTED_QUERY = re.compile(r"[“「『\"]([^”」』\"]{1,200})[”」』\"]")
 SHARE_PATH = re.compile(r"/(?:share|thread)/", re.IGNORECASE)
 
 # Behavior captcha / 人机验证（must be human-solved; never auto-bypass）.
+# Prefer compound phrases; bare「拖动/拖拽」only with punctuation boundaries to avoid chat FP.
 CAPTCHA_TEXT = re.compile(
     r"拖拽到这里|请选择所有符合|行为验证|人机验证|安全验证|滑动验证|"
     r"选中所有|拖拽到下方|完成验证后继续|"
+    r"拖动滑块|请拖动|拖动到|拖动完成|拖动验证|"
+    r"拖拽滑块|请拖拽|拖拽完成|拖拽验证|"
+    r"(?:^|[\s，,。；;：:])拖动(?:$|[\s，,。；;：:])|"
+    r"(?:^|[\s，,。；;：:])拖拽(?:$|[\s，,。；;：:])|"
     r"换个网络|更换网络|切换网络|请更换网络|请切换网络|"
     r"图片加载失败"
 )
@@ -81,9 +86,34 @@ CAPTCHA_DOM_SELECTORS = (
     "text=行为验证",
     "text=人机验证",
     "text=安全验证",
+    "text=拖动滑块",
+    "text=请拖动",
+    "text=请拖拽",
     "text=换个网络",
     "text=更换网络",
     "text=图片加载失败",
+)
+# Main-document structure / host iframe (cross-origin bodies often unreadable).
+CAPTCHA_STRUCTURE_SELECTORS = (
+    "iframe[src*='captcha' i]",
+    "iframe[src*='verify' i]",
+    "iframe[src*='challenge' i]",
+    "iframe[src*='geetest' i]",
+    "iframe[src*='hcaptcha' i]",
+    "iframe[src*='recaptcha' i]",
+    "iframe[src*='slide' i]",
+    "iframe[id*='captcha' i]",
+    "iframe[name*='captcha' i]",
+    "[class*='captcha' i]",
+    "[id*='captcha' i]",
+    "[class*='geetest' i]",
+    "[id*='geetest' i]",
+    "[class*='nc_wrapper']",
+    "[class*='nc-container']",
+    "#aliyunCaptcha-sliding-wrapper",
+    "[class*='captcha_verify']",
+    "[class*='verify-wrap']",
+    "[class*='slide-verify']",
 )
 
 # Composer: textarea or contenteditable (ordered fallbacks).

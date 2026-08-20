@@ -12,25 +12,10 @@ from aperix_geo.services.crawl_accounts.cookies import (
     login_proof_cookie_names_for_platform,
     session_cookie_names_for_platform,
 )
+from aperix_geo.services.providers.doubao_web.captcha import page_shows_behavior_captcha
 
 _LOGIN_CTA = re.compile(r"登录")
 _LOGGED_OUT_URL = re.compile(r"/passport|/login(?:/|\?|$)|from_logout=1", re.I)
-_CAPTCHA_TEXT = re.compile(
-    r"拖拽到这里|请选择所有符合|行为验证|人机验证|安全验证|滑动验证|"
-    r"选中所有|拖拽到下方|完成验证后继续|"
-    r"换个网络|更换网络|切换网络|请更换网络|请切换网络|"
-    r"图片加载失败"
-)
-_CAPTCHA_SELECTORS = (
-    "text=拖拽到这里",
-    "text=请选择所有符合上文描述的图片",
-    "text=行为验证",
-    "text=人机验证",
-    "text=安全验证",
-    "text=换个网络",
-    "text=更换网络",
-    "text=图片加载失败",
-)
 
 
 def _session_cookie_pairs(platform: str, state: dict[str, Any]) -> list[tuple[str, str]]:
@@ -101,22 +86,7 @@ def page_shows_login_ui(page: Any) -> bool:
 
 
 def page_has_captcha(page: Any) -> bool:
-    try:
-        body = page.locator("body").inner_text(timeout=2_000) or ""
-    except Exception:
-        body = ""
-    if _CAPTCHA_TEXT.search(body):
-        return True
-    for css in _CAPTCHA_SELECTORS:
-        try:
-            loc = page.locator(css)
-            n = min(loc.count(), 5)
-            for i in range(n):
-                if loc.nth(i).is_visible():
-                    return True
-        except Exception:
-            continue
-    return False
+    return page_shows_behavior_captcha(page)
 
 
 def ready_for_complete(

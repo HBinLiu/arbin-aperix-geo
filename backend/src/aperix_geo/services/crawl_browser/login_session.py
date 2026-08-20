@@ -26,6 +26,7 @@ from aperix_geo.services.crawl_accounts.profiles import account_profile_dir
 from aperix_geo.services.crawl_browser.browser_pool import (
     AccountBusy,
     account_occupancy,
+    apply_browser_context_defaults,
     chrome_executable,
     clear_chrome_singleton_locks,
     novnc_public_port,
@@ -277,6 +278,7 @@ def _watch_login(sess: _LoginSession) -> None:
             str(sess.profile_dir),
             **launch_kw,
         )
+        apply_browser_context_defaults(context, timeout_ms=120_000)
         page = context.pages[0] if context.pages else context.new_page()
         try:
             page.goto(sess.start_url, wait_until="domcontentloaded", timeout=120_000)
