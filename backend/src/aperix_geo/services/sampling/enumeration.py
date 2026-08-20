@@ -38,6 +38,12 @@ _TREATMENT_PAIR = re.compile(r"^降[\u4e00-\u9fff]{1,3}降[\u4e00-\u9fff]{1,3}$"
 _DESCRIPTIVE_CLAUSE = re.compile(
     r"(?:辅助|改善|用于|预防|治疗|降低|升高|包括|评估|监测|复查|联用|叠加|告知|优先|核心|基础|常见|重点|主要|风险|要点|建议|清单|实操)"
 )
+# 医嘱 / 科室 / 生活建议片段（非商业主体）
+_INSTRUCTION_PHRASE = re.compile(
+    r"(?:务必|遵从|遵循|避免|请勿|不要|禁止|所有(?:用药|药物|药品)?|大量|自行(?:购买|服用|停药)?|不可|不应|须|需要)"
+)
+_CLINICAL_CONTEXT = re.compile(r"(?:内科|外科|科室|门诊|医生|医师|医嘱|处方|方案|用药)")
+_ADVISORY_PREFIX = re.compile(r"^(?:所有|各类|各种|任何|避免|务必|遵从|遵循|不要|请勿|禁止)")
 
 
 def _text_without_urls(text: str) -> str:
@@ -107,6 +113,12 @@ def is_plausible_commercial_span(label: str) -> bool:
     if _RISK_PHRASE.match(text) and len(text) <= 12:
         return False
     if re.search(r"(?:出血|过敏|手术|既往)", text) and len(text) <= 8:
+        return False
+    if _ADVISORY_PREFIX.search(text):
+        return False
+    if _INSTRUCTION_PHRASE.search(text):
+        return False
+    if _CLINICAL_CONTEXT.search(text) and len(text) <= 24:
         return False
     return True
 

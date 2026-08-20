@@ -195,3 +195,55 @@ def persist_open_brands_from_absa(
     if persisted:
         db.flush()
     return persisted
+
+
+def promote_confirmed_open_brands_from_absa(
+    db: Session,
+    *,
+    subject: Subject,
+    response_absa: dict[str, Any],
+    raw_text: str,
+    url_hosts: list[str] | None = None,
+) -> int:
+    """Persist tb_brands only for ABSA-confirmed open mentions from the commit plan."""
+    events = response_absa.get("mention_commit_events")
+    if not isinstance(events, list):
+        return persist_open_brands_from_absa(
+            db,
+            subject=subject,
+            response_absa=response_absa,
+            raw_text=raw_text,
+            url_hosts=url_hosts,
+        )
+
+    committed_labels = [
+        str(item.get("text") or "").strip()
+        for item in events
+        if isinstance(item, dict) and item.get("status") == "committed" and str(item.get("text") or "").strip()
+    ]
+    if not committed_labels:
+        return 0
+
+    committed_keys = {normalize_brand_key(label) for label in committed_labels}
+    others_raw = response_absa.get("other_brands_sentiment_absa") or {}
+    filtered_others: dict[str, Any] = {}
+    for name, entry in others_raw.items():
+        if normalize_brand_key(str(name)) in committed_keys:
+            filtered_others[str(name)] = entry
+    present = {normalize_brand_key(str(name)) for name in filtered_others}
+    for label in committed_labels:
+        key = normalize_brand_key(label)
+        if key not in present:
+            filtered_others[label] = {"mentioned": True, "score": None, "evidence": label}
+            present.add(key)
+
+    return persist_open_brands_from_absa(
+        db,
+        subject=subject,
+        response_absa={
+            "analysis_source": response_absa.get("analysis_source"),
+            "other_brands_sentiment_absa": filtered_others,
+        },
+        raw_text=raw_text,
+        url_hosts=url_hosts,
+    )

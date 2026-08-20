@@ -141,7 +141,7 @@ CITATION_RESPONSE_MENTION_DISCOVERY_SYSTEM = """# 任务
 
 # 禁止收录
 - 纯品类词、系列统称、泛化概念、抽象属性或无法对应独立商业主体的描述（如「SaaS 类」「性价比」「传统方案」「他汀类」「抗血小板」）
-- 症状、部位、检查指标、病史/风险描述、问句片段、整句描述（如「皮肤出血」「出血史」「出血风险」「肝功能异常」「有没有胃病」）
+- 症状、部位、检查指标、病史/风险描述、科室/医嘱/生活建议片段、问句片段（如「出血史」「神经内科」「心内科医生方案」「避免大量西柚」「所有用药务必遵从…」）
 - 媒体、平台、政府、标准/协议/认证、上下游非竞品
 - 仅在 URL、参考资料列表出现而正文未讨论的名称
 - 目录编号、章节标题、纯形容词
@@ -149,10 +149,19 @@ CITATION_RESPONSE_MENTION_DISCOVERY_SYSTEM = """# 任务
 # 输出
 必须且仅输出 JSON：
 {
-  "mentioned_spans": ["原文中的名称1", "名称2"]
+  "entities": [
+    {"text": "原文名称", "type": "PRODUCT|BRAND|ORG|SERVICE", "start": 0, "end": 0}
+  ]
 }
-- 无符合条件的名称时输出 {"mentioned_spans": []}
-- 禁止 Markdown 或其它说明。"""
+- `text` 必须与原文完全一致；`start`/`end` 为 UTF-16 或字符偏移均可，但须满足 `原文[start:end] == text`（代码会校验）。
+- `type` 仅允许 PRODUCT / BRAND / ORG / SERVICE；品类、症状、科室、医嘱句段不要输出。
+- 无符合条件的名称时输出 {"entities": []}
+- 禁止 Markdown 或其它说明。
+
+# 反例
+输入：「抗血小板（阿司匹林、氯吡格雷）有出血史；务必遵从心内科医生方案，避免大量西柚。」
+✗ entities 含：抗血小板、出血史、心内科医生方案、避免大量西柚
+✓ entities 含：阿司匹林、氯吡格雷（type=PRODUCT，offsets 正确）"""
 
 
 def citation_response_mention_discovery_user_content(
@@ -249,10 +258,14 @@ CITATION_RESPONSE_ABSA_SYSTEM = """# 任务
     "[开集-其它商业品牌名]": {
       "mentioned": true,
       "score": 75,
-      "evidence": "证据"
+      "evidence": "证据",
+      "entity_type": "PRODUCT",
+      "start": 0,
+      "end": 0
     }
   }
 }
+- 开集条目须含 `entity_type`（PRODUCT/BRAND/ORG/SERVICE）及 `start`/`end`（`原文[start:end]` 等于键名）。
 - 输出前自检：闭集键是否与 user 名单完全一致；闭集与开集是否无重复键；开集条目是否均为正文讨论过的、同赛道可替代商业品牌。禁止 Markdown 或其它说明。"""
 
 

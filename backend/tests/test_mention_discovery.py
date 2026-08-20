@@ -18,32 +18,68 @@ def test_merge_mention_candidates_combines_enum_and_discovery() -> None:
 
 @patch("aperix_geo.services.sampling.mentions.chat_completion")
 def test_discover_response_mentions_filters_noise(mock_chat) -> None:
+    text = "抗血小板药（阿司匹林、氯吡格雷）有出血风险；他汀类需监测。"
     mock_chat.return_value = (
         json.dumps(
             {
-                "mentioned_spans": [
-                    "阿司匹林",
-                    "氯吡格雷",
-                    "出血风险",
-                    "他汀类",
+                "entities": [
+                    {
+                        "text": "阿司匹林",
+                        "type": "PRODUCT",
+                        "start": text.index("阿司匹林"),
+                        "end": text.index("阿司匹林") + len("阿司匹林"),
+                    },
+                    {
+                        "text": "氯吡格雷",
+                        "type": "PRODUCT",
+                        "start": text.index("氯吡格雷"),
+                        "end": text.index("氯吡格雷") + len("氯吡格雷"),
+                    },
+                    {
+                        "text": "出血风险",
+                        "type": "PRODUCT",
+                        "start": text.index("出血风险"),
+                        "end": text.index("出血风险") + len("出血风险"),
+                    },
+                    {
+                        "text": "他汀类",
+                        "type": "PRODUCT",
+                        "start": text.index("他汀类"),
+                        "end": text.index("他汀类") + len("他汀类"),
+                    },
                 ]
             }
         ),
         None,
         None,
     )
-    text = "抗血小板药（阿司匹林、氯吡格雷）有出血风险；他汀类需监测。"
-    spans, live = discover_response_mentions(text, cache_ttl_s=0)
+    entities, live = discover_response_mentions(text, cache_ttl_s=0)
     assert live is True
-    assert "阿司匹林" in spans
-    assert "氯吡格雷" in spans
+    labels = {entity.text for entity in entities}
+    assert "阿司匹林" in labels
+    assert "氯吡格雷" in labels
+    assert "出血风险" not in labels
+    assert "他汀类" not in labels
 
 
 @patch("aperix_geo.services.sampling.response_absa.chat_completion")
 @patch("aperix_geo.services.sampling.response_absa.discover_response_mentions")
 def test_analyze_response_absa_passes_merged_candidates(mock_discover, mock_absa_chat) -> None:
+    from aperix_geo.services.sampling.mention_entities import ValidatedMention
+
     text = "推荐 Stripe，亦可考虑 PayPal。"
-    mock_discover.return_value = (["PayPal"], True)
+    mock_discover.return_value = (
+        [
+            ValidatedMention(
+                text="PayPal",
+                entity_type="PRODUCT",
+                start=text.index("PayPal"),
+                end=text.index("PayPal") + len("PayPal"),
+                source="discovery",
+            )
+        ],
+        True,
+    )
     mock_absa_chat.return_value = (
         json.dumps(
             {

@@ -4,16 +4,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy.orm import Session
-
-from aperix_geo.db.models import Subject
 from aperix_geo.services.brand.domain import extract_domain_from_text_for_brand, other_entity_id
 from aperix_geo.services.brand.keys import configured_brand_keys
 from aperix_geo.services.brand.resolve import normalize_brand_key
-from aperix_geo.services.sampling.enumeration import (
-    extract_enumerated_spans,
-    is_plausible_commercial_span,
-    normalize_mention_span,
+from aperix_geo.services.sampling.mention_commit import MentionCommitEvent, build_mention_commit_plan
+from aperix_geo.services.sampling.mention_entities import (
+    DEFAULT_ENTITY_TYPE,
+    MentionEntityInput,
+    ValidatedMention,
+    parse_span_offsets,
+    validate_mention_entity,
 )
 from aperix_geo.services.sampling.mentions import (
     CompetitorEntry,
@@ -22,8 +22,8 @@ from aperix_geo.services.sampling.mentions import (
     first_idx_any,
     host_mentions_domain,
 )
-from aperix_geo.utils.sentiment import clamp_sentiment_score
 from aperix_geo.services.sampling.signal_draft import EntitySignalDraft, compute_mention_ranks
+from aperix_geo.utils.sentiment import clamp_sentiment_score
 
 
 def absa_sentiment_source(response_absa: dict[str, Any]) -> str:
@@ -80,34 +80,6 @@ def _rank_hint_from_absa(text: str, brand_key: str, entry: Any) -> int | None:
 
 def _fallback_rank_hint(text: str) -> int:
     return len(text) if text else 0
-
-
-def _evidence_snippet(text: str, label: str, *, max_len: int = 120) -> str:
-    if not text or not label:
-        return ""
-    lowered = text.casefold()
-    needle = label.casefold()
-    idx = lowered.find(needle)
-    if idx < 0:
-        return label
-    start = max(0, idx - 40)
-    end = min(len(text), idx + len(label) + 40)
-    snippet = text[start:end].strip()
-    if len(snippet) > max_len:
-        snippet = snippet[: max_len - 1] + "…"
-    return snippet
-
-
-def _is_open_candidate_label(label: str) -> bool:
-    return is_plausible_commercial_span(label)
-
-
-def _absa_explicitly_denied(label: str, response_absa: dict[str, Any]) -> bool:
-    others = response_absa.get("other_brands_sentiment_absa")
-    if not isinstance(others, dict):
-        return False
-    entry = others.get(label)
-    return isinstance(entry, dict) and entry.get("mentioned") is False
 
 
 def _other_brand_has_domain_link(label: str, text: str, url_hosts: list[str]) -> bool:
@@ -196,10 +168,7 @@ def _apply_absa_mentions(
             draft.rank_hint_first_index = None
 
 
-def _absa_entry_for_competitor(
-    brands: dict[str, Any],
-    keys: list[str],
-) -> Any:
+def _absa_entry_for_competitor(brands: dict[str, Any], keys: list[str]) -> Any:
     for key in keys:
         entry = brands.get(key)
         if isinstance(entry, dict) and entry.get("mentioned"):
@@ -274,107 +243,63 @@ def apply_absa_to_drafts(
     return "llm"
 
 
-def append_other_brand_drafts(
-    drafts: list[EntitySignalDraft],
-    response_absa: dict[str, Any],
-    *,
-    excluded_keys: set[str],
-    text: str = "",
-    url_hosts: list[str] | None = None,
-) -> None:
-    """Add entity_kind=other drafts from open-set ABSA (mentioned third-party brands)."""
-    others = response_absa.get("other_brands_sentiment_absa")
-    if not isinstance(others, dict):
-        return
-
-    existing_ids = {draft.entity_id for draft in drafts}
-    for name, entry in others.items():
-        label = normalize_mention_span(str(name or ""))
-        if not label or not is_plausible_commercial_span(label):
+def _discovery_entities_from_absa(response_absa: dict[str, Any], *, raw_text: str) -> list[ValidatedMention]:
+    """Re-validate discovery payload against the response text (do not trust offsets blindly)."""
+    raw = response_absa.get("discovery_entities")
+    if not isinstance(raw, list) or not raw_text:
+        return []
+    out: list[ValidatedMention] = []
+    seen: set[str] = set()
+    for item in raw:
+        if not isinstance(item, dict):
             continue
-        if normalize_brand_key(label) in excluded_keys:
+        text = str(item.get("text") or "").strip()
+        if not text:
             continue
-        if not isinstance(entry, dict) or not entry.get("mentioned"):
-            continue
-        entity_id = other_entity_id(label)
-        if entity_id in existing_ids:
-            continue
-        score, sentiment_reason = absa_brand_sentiment(entry)
-        mention_count = count_term(text, label)
-        if mention_count == 0:
-            mention_count = 1
-        rank_hint = _rank_hint_from_absa(text, label, entry)
-        if rank_hint is None:
-            rank_hint = _fallback_rank_hint(text)
-        drafts.append(
-            EntitySignalDraft(
-                entity_id=entity_id,
-                entity_kind="other",
-                entity_label=label,
-                mentioned=True,
-                mention_count=mention_count,
-                rank_hint_first_index=rank_hint,
-                sentiment_score=score,
-                sentiment_reason=sentiment_reason,
-                has_domain_link=_other_brand_has_domain_link(label, text, url_hosts or []),
-            )
+        start, end = parse_span_offsets(item.get("start"), item.get("end"))
+        ok = validate_mention_entity(
+            raw_text,
+            MentionEntityInput(
+                text=text,
+                entity_type=str(item.get("entity_type") or DEFAULT_ENTITY_TYPE),
+                start=start,
+                end=end,
+                source="discovery",
+            ),
         )
-        existing_ids.add(entity_id)
+        if ok is None:
+            continue
+        key = normalize_brand_key(ok.text)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(ok)
+    return out
 
 
-def append_candidate_mention_drafts(
+def append_committed_open_mention_drafts(
     drafts: list[EntitySignalDraft],
-    response_absa: dict[str, Any],
+    events: list[MentionCommitEvent],
     *,
-    mention_candidates: list[str] | None,
     excluded_keys: set[str],
     text: str = "",
     url_hosts: list[str] | None = None,
 ) -> None:
-    """Fallback open-set mentions for rule-enumerated product names ABSA missed."""
-    if not mention_candidates or not text.strip():
-        return
-
-    others = response_absa.get("other_brands_sentiment_absa")
-    if not isinstance(others, dict):
-        others = {}
-
-    enum_keys = {
-        normalize_brand_key(item)
-        for item in extract_enumerated_spans(text)
-    }
-
+    """Add entity_kind=other drafts only for commit-gate approved mentions."""
     existing_ids = {draft.entity_id for draft in drafts}
-    for raw in mention_candidates:
-        label = normalize_mention_span(str(raw or ""))
-        if not label or not is_plausible_commercial_span(label):
+    for event in events:
+        if event.status != "committed":
             continue
-        if normalize_brand_key(label) in excluded_keys:
+        label = event.text.strip()
+        if not label or normalize_brand_key(label) in excluded_keys:
             continue
-        if normalize_brand_key(label) not in enum_keys:
-            continue
-        if count_term(text, label) <= 0:
-            continue
-        if _absa_explicitly_denied(label, response_absa):
-            continue
-        entity_id = other_entity_id(label)
+        entity_id = event.entity_id or other_entity_id(label)
         if entity_id in existing_ids:
             continue
-
-        entry = others.get(label) or others.get(str(raw or ""))
-        if isinstance(entry, dict) and entry.get("mentioned"):
-            continue
-
-        score = 50.0
-        sentiment_reason = _evidence_snippet(text, label) or None
-
         mention_count = count_term(text, label) or 1
-        rank_hint = _rank_hint_from_absa(text, label, entry if isinstance(entry, dict) else None)
-        if rank_hint is None:
-            rank_hint = first_idx_any(text, (label,))
+        rank_hint = event.start if event.start >= 0 else first_idx_any(text, (label,))
         if rank_hint is None:
             rank_hint = _fallback_rank_hint(text)
-
         drafts.append(
             EntitySignalDraft(
                 entity_id=entity_id,
@@ -383,8 +308,8 @@ def append_candidate_mention_drafts(
                 mentioned=True,
                 mention_count=mention_count,
                 rank_hint_first_index=rank_hint,
-                sentiment_score=score,
-                sentiment_reason=sentiment_reason,
+                sentiment_score=event.sentiment_score,
+                sentiment_reason=event.sentiment_reason,
                 has_domain_link=_other_brand_has_domain_link(label, text, url_hosts or []),
             )
         )
@@ -395,8 +320,6 @@ def apply_response_absa_to_drafts(
     drafts: list[EntitySignalDraft],
     response_absa: dict[str, Any],
     *,
-    subject: Subject | None = None,
-    db: Session | None = None,
     own_brand: str,
     own_absa_keys: list[tuple[str, str]] | None = None,
     competitor_brand_names: list[str],
@@ -405,9 +328,8 @@ def apply_response_absa_to_drafts(
     competitors: list[CompetitorEntry] | None = None,
     text: str = "",
     excluded_keys: set[str] | None = None,
-    mention_candidates: list[str] | None = None,
 ) -> tuple[str, dict[str, Any]]:
-    """Apply closed-set ABSA, append validated open-set brands, and recompute mention ranks."""
+    """Apply closed-set ABSA, append ABSA-confirmed open-set brands, recompute ranks."""
     source = apply_absa_to_drafts(
         drafts,
         response_absa,
@@ -429,24 +351,21 @@ def apply_response_absa_to_drafts(
             own_absa_keys=own_absa_keys,
         )
 
-    append_other_brand_drafts(
-        drafts,
+    plan = build_mention_commit_plan(
+        text,
         response_absa,
         excluded_keys=excluded_keys,
-        text=text,
-        url_hosts=url_hosts,
+        discovery_entities=_discovery_entities_from_absa(response_absa, raw_text=text),
     )
-    candidates = mention_candidates
-    if candidates is None:
-        raw = response_absa.get("mention_candidates")
-        candidates = raw if isinstance(raw, list) else None
-    append_candidate_mention_drafts(
+    payload = dict(response_absa)
+    payload["mention_commit_events"] = plan.to_dicts()
+
+    append_committed_open_mention_drafts(
         drafts,
-        response_absa,
-        mention_candidates=candidates,
+        plan.committed(),
         excluded_keys=excluded_keys,
         text=text,
         url_hosts=url_hosts,
     )
     compute_mention_ranks(drafts)
-    return source, response_absa
+    return source, payload

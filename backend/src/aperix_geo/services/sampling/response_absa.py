@@ -20,9 +20,9 @@ from aperix_geo.services.sampling.cache.absa import (
 )
 from aperix_geo.services.sampling.enumeration import (
     is_plausible_commercial_span,
+    merge_mention_candidates,
     normalize_mention_span,
 )
-from aperix_geo.services.sampling.enumeration import merge_mention_candidates
 from aperix_geo.services.sampling.mentions import discover_response_mentions
 from aperix_geo.services.sampling.signal_draft import EntitySignalDraft
 from aperix_geo.utils.cache import SingleFlightWaitTimeout, run_single_flight
@@ -56,11 +56,22 @@ def _brand_entry(raw: Any) -> dict[str, Any]:
     except (TypeError, ValueError):
         score_val = None
     evidence = str(raw.get("evidence") or "").strip()
-    return {
+    entry: dict[str, Any] = {
         "mentioned": mentioned,
         "score": score_val,
         "evidence": evidence,
     }
+    if isinstance(raw, dict):
+        entity_type = raw.get("entity_type") or raw.get("type")
+        if entity_type:
+            entry["entity_type"] = str(entity_type).strip().upper()
+        for key in ("start", "end"):
+            if raw.get(key) is not None:
+                try:
+                    entry[key] = int(raw.get(key))
+                except (TypeError, ValueError):
+                    pass
+    return entry
 
 
 def normalize_response_absa(
@@ -85,15 +96,27 @@ def normalize_response_absa(
         )
 
     other_brands: dict[str, dict[str, Any]] = {}
+    label_by_key: dict[str, str] = {}
     others_raw = data.get("other_brands_sentiment_absa")
     if isinstance(others_raw, dict):
         for name, entry in others_raw.items():
             label = normalize_mention_span(str(name or ""))
-            if not label or normalize_brand_key(label) in excluded_keys:
+            key = normalize_brand_key(label)
+            if not label or key in excluded_keys:
                 continue
             if not is_plausible_commercial_span(label):
                 continue
-            other_brands[label] = _brand_entry(entry)
+            normalized_entry = _brand_entry(entry)
+            prev_label = label_by_key.get(key)
+            if prev_label is None:
+                label_by_key[key] = label
+                other_brands[label] = normalized_entry
+                continue
+            prev = other_brands[prev_label]
+            if not prev.get("mentioned") and normalized_entry.get("mentioned"):
+                del other_brands[prev_label]
+                label_by_key[key] = label
+                other_brands[label] = normalized_entry
 
     return {
         "brands_sentiment_absa": brands,
@@ -111,9 +134,24 @@ def _empty_response_absa(*, reason: str) -> dict[str, Any]:
     }
 
 
-def _attach_mention_candidates(result: dict[str, Any], mention_candidates: list[str]) -> dict[str, Any]:
+def _attach_discovery_context(
+    result: dict[str, Any],
+    *,
+    mention_candidates: list[str],
+    discovery_entities: list[Any],
+) -> dict[str, Any]:
     payload = dict(result)
     payload["mention_candidates"] = list(mention_candidates)
+    payload["discovery_entities"] = [
+        {
+            "text": entity.text,
+            "entity_type": entity.entity_type,
+            "start": entity.start,
+            "end": entity.end,
+            "source": entity.source,
+        }
+        for entity in discovery_entities
+    ]
     return payload
 
 
@@ -154,15 +192,16 @@ def analyze_response_absa(
             competitor_brand_names=closed_brand_names,
         )
 
-    discovery_spans: list[str] = []
+    discovery_entities: list[Any] = []
     discovery_live = False
     if mention_discovery_enabled:
-        discovery_spans, discovery_live = discover_response_mentions(
+        discovery_entities, discovery_live = discover_response_mentions(
             raw_text,
             cache_ttl_s=mention_discovery_cache_ttl_s,
             track_context=track_context,
         )
-    mention_candidates = merge_mention_candidates(raw_text, discovery_spans)
+    discovery_span_texts = [entity.text for entity in discovery_entities]
+    mention_candidates = merge_mention_candidates(raw_text, discovery_span_texts)
 
     def _read_cache() -> dict[str, Any] | None:
         cached = get_response_absa_cached(
@@ -176,7 +215,11 @@ def analyze_response_absa(
         )
         if cached is None:
             return None
-        return _attach_mention_candidates(cached, mention_candidates)
+        return _attach_discovery_context(
+            cached,
+            mention_candidates=mention_candidates,
+            discovery_entities=discovery_entities,
+        )
 
     cached = _read_cache()
     if cached is not None:
@@ -212,7 +255,11 @@ def analyze_response_absa(
                 competitors=closed_brand_names,
                 excluded_keys=excluded_keys,
             )
-            result = _attach_mention_candidates(result, mention_candidates)
+            result = _attach_discovery_context(
+                result,
+                mention_candidates=mention_candidates,
+                discovery_entities=discovery_entities,
+            )
             set_response_absa_cached(
                 raw_text=raw_text,
                 own_brand=own_brand,

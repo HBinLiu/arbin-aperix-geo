@@ -12,7 +12,7 @@ from aperix_geo.utils.cache import TieredJsonCache
 logger = logging.getLogger(__name__)
 
 _STORE = TieredJsonCache(
-    redis_prefix="aperix:mention_discovery:v1:",
+    redis_prefix="aperix:mention_discovery:v2:",
     l1_max_entries=128,
     strip_expires_on_read=True,
 )
@@ -50,23 +50,26 @@ def get_mention_discovery_cached(
     raw_text: str,
     ttl_s: int,
     track_context: str = "",
-) -> list[str] | None:
+) -> list[dict[str, Any]] | None:
     if ttl_s <= 0:
         return None
     key = _cache_key(raw_text=raw_text, track_context=track_context)
     payload = _STORE.get(key, default_ttl_s=ttl_s, is_valid=_is_valid)
     if payload is None:
         return None
+    entities = payload.get("entities")
+    if isinstance(entities, list):
+        return [dict(item) for item in entities if isinstance(item, dict)]
     spans = payload.get("mentioned_spans")
-    if not isinstance(spans, list):
-        return None
-    return [str(item).strip() for item in spans if str(item).strip()]
+    if isinstance(spans, list):
+        return [{"text": str(item).strip()} for item in spans if str(item).strip()]
+    return None
 
 
 def set_mention_discovery_cached(
     *,
     raw_text: str,
-    mentioned_spans: list[str],
+    entities: list[dict[str, Any]],
     ttl_s: int,
     track_context: str = "",
 ) -> None:
@@ -75,13 +78,13 @@ def set_mention_discovery_cached(
         key,
         {
             "analysis_source": "llm",
-            "mentioned_spans": mentioned_spans,
+            "entities": entities,
         },
         ttl_s=ttl_s,
         skip_if=lambda data: data.get("analysis_source") != "llm",
     )
     if ttl_s > 0:
-        logger.debug("Mention discovery 缓存写入 spans=%d", len(mentioned_spans))
+        logger.debug("Mention discovery 缓存写入 entities=%d", len(entities))
 
 
 def clear_mention_discovery_cache() -> None:

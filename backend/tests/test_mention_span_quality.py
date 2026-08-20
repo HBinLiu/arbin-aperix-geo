@@ -27,6 +27,10 @@ def test_is_plausible_commercial_span_rejects_medical_noise() -> None:
         "肝功能异常",
         "降压降糖",
         "有没有胃病",
+        "所有用药务必遵从神经内科",
+        "心内科医生方案",
+        "避免大量西柚",
+        "神经内科",
     ]
     for label in noise:
         assert is_plausible_commercial_span(label) is False
@@ -54,6 +58,20 @@ def test_filter_mention_spans_cleans_discovery_garbage() -> None:
         text,
     )
     assert spans == ["杏灵分散片", "银杏酮酯", "阿司匹林", "氯吡格雷"]
+
+
+def test_filter_mention_spans_rejects_advisory_fragments() -> None:
+    text = "所有用药务必遵从神经内科、心内科医生方案；避免大量西柚。"
+    spans = filter_mention_spans(
+        [
+            "所有用药务必遵从神经内科",
+            "心内科医生方案",
+            "避免大量西柚",
+            "神经内科",
+        ],
+        text,
+    )
+    assert spans == []
 
 
 def test_merge_mention_candidates_keeps_only_product_names_from_article() -> None:

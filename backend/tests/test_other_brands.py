@@ -1,13 +1,12 @@
-"""Tests for open-set ABSA draft append."""
+"""Tests for open-set ABSA draft append via commit gate."""
 
 from __future__ import annotations
 
 import uuid
 
 from aperix_geo.db.models import Competitor, Subject, SubjectType
-from aperix_geo.services.brand.keys import configured_brand_keys
-from aperix_geo.services.sampling.sentiment import append_other_brand_drafts, apply_response_absa_to_drafts
-from aperix_geo.services.sampling.signal_draft import compute_mention_ranks, init_entity_signal_drafts
+from aperix_geo.services.sampling.sentiment import apply_response_absa_to_drafts
+from aperix_geo.services.sampling.signal_draft import init_entity_signal_drafts
 
 
 def _subject() -> Subject:
@@ -30,8 +29,9 @@ def _subject() -> Subject:
     return subject
 
 
-def test_append_other_brand_drafts() -> None:
+def test_apply_response_absa_appends_open_brands() -> None:
     drafts = init_entity_signal_drafts(_subject())
+    text = "推荐 Stripe 与 Aperix。"
     response_absa = {
         "analysis_source": "llm",
         "brands_sentiment_absa": {},
@@ -44,12 +44,14 @@ def test_append_other_brand_drafts() -> None:
             "Aperix": {"mentioned": True, "score": 95},
         },
     }
-    excluded = configured_brand_keys(
+    apply_response_absa_to_drafts(
+        drafts,
+        response_absa,
         own_brand="Aperix",
         competitor_brand_names=["Beta"],
         competitor_absa_keys=[("Beta", "beta.com")],
+        text=text,
     )
-    append_other_brand_drafts(drafts, response_absa, excluded_keys=excluded)
 
     others = [draft for draft in drafts if draft.entity_kind == "other"]
     assert len(others) == 1
@@ -57,7 +59,7 @@ def test_append_other_brand_drafts() -> None:
     assert others[0].sentiment_score == 80.0
 
 
-def test_append_other_brand_drafts_sets_mention_rank_from_text() -> None:
+def test_apply_response_absa_sets_mention_rank_from_text() -> None:
     drafts = init_entity_signal_drafts(_subject())
     text = "推荐 Stripe 与 Aperix，Beta 也可考虑。"
     for draft in drafts:
@@ -67,21 +69,23 @@ def test_append_other_brand_drafts_sets_mention_rank_from_text() -> None:
             draft.rank_hint_first_index = text.lower().find("beta")
 
     response_absa = {
+        "analysis_source": "llm",
+        "brands_sentiment_absa": {
+            "Aperix": {"mentioned": True, "score": 80, "evidence": "Aperix"},
+            "Beta": {"mentioned": True, "score": 70, "evidence": "Beta"},
+        },
         "other_brands_sentiment_absa": {
             "Stripe": {"mentioned": True, "score": 75, "evidence": "推荐 Stripe"},
-        }
+        },
     }
-    append_other_brand_drafts(
+    apply_response_absa_to_drafts(
         drafts,
         response_absa,
-        excluded_keys=configured_brand_keys(
-            own_brand="Aperix",
-            competitor_brand_names=["Beta"],
-            competitor_absa_keys=[("Beta", "beta.com")],
-        ),
+        own_brand="Aperix",
+        competitor_brand_names=["Beta"],
+        competitor_absa_keys=[("Beta", "beta.com")],
         text=text,
     )
-    compute_mention_ranks(drafts)
 
     stripe = next(draft for draft in drafts if draft.entity_label == "Stripe")
     aperix = next(draft for draft in drafts if draft.entity_kind == "own")
@@ -93,7 +97,7 @@ def test_append_other_brand_drafts_sets_mention_rank_from_text() -> None:
     assert stripe.mention_count == 1
 
 
-def test_append_other_brand_drafts_sets_has_domain_link() -> None:
+def test_apply_response_absa_sets_has_domain_link() -> None:
     drafts = init_entity_signal_drafts(_subject())
     text = "推荐 Stripe（https://stripe.com/payments）用于跨境收款。"
     response_absa = {

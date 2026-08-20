@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any
-
+from aperix_geo.services.sampling.brand import promote_confirmed_open_brands_from_absa
 from aperix_geo.services.sampling.citation.apply import apply_citation_to_drafts
 from aperix_geo.services.sampling.mentions import own_names
 from aperix_geo.services.sampling.parse.context import ParseContext
 from aperix_geo.services.sampling.parse.types import ParseEnrichment, ParseMergeResult
-from aperix_geo.services.sampling.brand import persist_open_brands_from_absa
 from aperix_geo.services.sampling.sentiment import (
     apply_response_absa_to_drafts,
     reset_sentiment_drafts,
@@ -23,20 +21,10 @@ def merge_parse_results(
 ) -> ParseMergeResult:
     drafts = ctx.entity_signals
     response_absa = enrichment.response_absa
-    if response_absa and ctx.db is not None:
-        persist_open_brands_from_absa(
-            ctx.db,
-            subject=ctx.subject,
-            response_absa=response_absa,
-            raw_text=ctx.text,
-            url_hosts=ctx.url_hosts,
-        )
     if response_absa:
         sentiment_source, response_absa = apply_response_absa_to_drafts(
             drafts,
             response_absa,
-            subject=ctx.subject,
-            db=ctx.db,
             own_brand=ctx.own_brand,
             own_absa_keys=ctx.own_absa_keys,
             competitor_brand_names=ctx.competitor_brand_names,
@@ -46,6 +34,14 @@ def merge_parse_results(
             text=ctx.text,
             excluded_keys=set(ctx.configured_brand_keys),
         )
+        if ctx.db is not None:
+            promote_confirmed_open_brands_from_absa(
+                ctx.db,
+                subject=ctx.subject,
+                response_absa=response_absa,
+                raw_text=ctx.text,
+                url_hosts=ctx.url_hosts,
+            )
     else:
         reset_sentiment_drafts(drafts)
         sentiment_source = "none"

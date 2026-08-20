@@ -19,7 +19,7 @@ from aperix_geo.services.sampling.cache.mention_discovery import (
     mention_discovery_cache_digest,
     set_mention_discovery_cached,
 )
-from aperix_geo.services.sampling.enumeration import filter_mention_spans
+from aperix_geo.services.sampling.mention_entities import ValidatedMention, parse_discovery_entities
 from aperix_geo.utils.cache import SingleFlightWaitTimeout, run_single_flight
 from aperix_geo.utils.json import extract_json_object
 from aperix_geo.utils.net import host_from, host_under_root, registrable_from
@@ -197,11 +197,21 @@ def absa_brand_mentioned(brands: dict[str, Any], key: str) -> bool | None:
     return bool(entry.get("mentioned"))
 
 
-def _parse_discovery_payload(data: dict[str, Any]) -> list[str]:
-    raw = data.get("mentioned_spans")
-    if not isinstance(raw, list):
-        return []
-    return [str(item).strip() for item in raw if str(item).strip()]
+def _entities_to_cache(entities: list[ValidatedMention]) -> list[dict[str, Any]]:
+    return [
+        {
+            "text": entity.text,
+            "type": entity.entity_type,
+            "start": entity.start,
+            "end": entity.end,
+        }
+        for entity in entities
+    ]
+
+
+def _entities_from_cache(raw: list[dict[str, Any]], raw_text: str) -> list[ValidatedMention]:
+    payload = {"entities": raw}
+    return parse_discovery_entities(payload, raw_text=raw_text)
 
 
 def discover_response_mentions(
@@ -209,15 +219,15 @@ def discover_response_mentions(
     *,
     cache_ttl_s: int = 0,
     track_context: str = "",
-) -> tuple[list[str], bool]:
-    """Discover named commercial entities mentioned in AI response text.
+) -> tuple[list[ValidatedMention], bool]:
+    """Discover validated commercial entities in AI response text.
 
-    Returns ``(spans, live_call)``; cache hits are not billed.
+    Returns ``(entities, live_call)``; cache hits are not billed.
     """
     if not raw_text.strip():
         return [], False
 
-    def _read_cache() -> list[str] | None:
+    def _read_cache() -> list[dict[str, Any]] | None:
         return get_mention_discovery_cached(
             raw_text=raw_text,
             ttl_s=cache_ttl_s,
@@ -226,11 +236,11 @@ def discover_response_mentions(
 
     cached = _read_cache()
     if cached is not None:
-        return filter_mention_spans(cached, raw_text), False
+        return _entities_from_cache(cached, raw_text), False
 
     live_flag = threading.local()
 
-    def _fetch() -> list[str]:
+    def _fetch() -> list[dict[str, Any]]:
         messages = [
             {"role": "system", "content": CITATION_RESPONSE_MENTION_DISCOVERY_SYSTEM},
             {
@@ -247,20 +257,21 @@ def discover_response_mentions(
             data = extract_json_object(text)
             if not isinstance(data, dict):
                 raise ValueError("mention discovery is not an object")
-            spans = filter_mention_spans(_parse_discovery_payload(data), raw_text)
+            entities = parse_discovery_entities(data, raw_text=raw_text)
+            cached_entities = _entities_to_cache(entities)
             set_mention_discovery_cached(
                 raw_text=raw_text,
-                mentioned_spans=spans,
+                entities=cached_entities,
                 ttl_s=cache_ttl_s,
                 track_context=track_context,
             )
-            return spans
+            return cached_entities
         except (LLMProviderError, TypeError, ValueError, KeyError) as exc:
             logger.warning("Mention discovery failed: %s", exc)
             return []
 
     if cache_ttl_s <= 0:
-        return _fetch(), True
+        return _entities_from_cache(_fetch(), raw_text), True
 
     digest = mention_discovery_cache_digest(raw_text=raw_text, track_context=track_context)
     try:
@@ -273,10 +284,10 @@ def discover_response_mentions(
         )
         if result is None:
             return [], False
-        return filter_mention_spans(result, raw_text), bool(getattr(live_flag, "did", False))
+        return _entities_from_cache(result, raw_text), bool(getattr(live_flag, "did", False))
     except SingleFlightWaitTimeout:
         cached = _read_cache()
         if cached is not None:
-            return filter_mention_spans(cached, raw_text), False
+            return _entities_from_cache(cached, raw_text), False
         logger.warning("Mention discovery single-flight wait timeout")
         return [], False
