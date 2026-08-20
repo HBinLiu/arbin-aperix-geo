@@ -26,6 +26,7 @@ docker compose -f docker/geo-web-crawl/docker-compose.yml up -d --force-recreate
 headed 登录 / 采样优先用镜像里的 **Google Chrome**（`/usr/bin/google-chrome-stable`），
 不要 Playwright 自带浏览器 + SwiftShader。可用 `GEO_WEB_CRAWL_CHROME_BIN` 覆盖；
 `GEO_WEB_CRAWL_STEALTH=true`（默认）会关掉自动化黄条并钝化 `navigator.webdriver`。
+容器内会自动加 `--no-sandbox`；同时带 `--test-type`，避免黄条 “unsupported command-line flag: --no-sandbox”。宿主机本机调试默认不开 sandbox 旁路（可用 `GEO_WEB_CRAWL_NO_SANDBOX=1` 强制）。
 
 ### 容器内对照实验（推荐，noVNC 可视化）
 

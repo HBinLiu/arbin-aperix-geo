@@ -180,8 +180,29 @@ def _print_novnc_hint() -> None:
     print(f"noVNC: {_novnc_desktop_url()}")
 
 
+def _need_no_sandbox() -> bool:
+    """Match crawl pool: only when root/Docker, or GEO_WEB_CRAWL_NO_SANDBOX=1.
+
+    Avoids Chrome's yellow bar: “unsupported command-line flag: --no-sandbox”.
+    """
+    raw = (os.environ.get("GEO_WEB_CRAWL_NO_SANDBOX") or "").strip().lower()
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    if Path("/.dockerenv").exists():
+        return True
+    try:
+        return os.geteuid() == 0
+    except AttributeError:
+        return False
+
+
 def _apply_common_options(options: object, *, headless: bool) -> None:
-    options.add_argument("--no-sandbox")
+    if _need_no_sandbox():
+        # --test-type hides the yellow “unsupported flag: --no-sandbox” infobar.
+        options.add_argument("--no-sandbox")
+        options.add_argument("--test-type")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-quic")
     options.add_argument("--window-size=1440,900")

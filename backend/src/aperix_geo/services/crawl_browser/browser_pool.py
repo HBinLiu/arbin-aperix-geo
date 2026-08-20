@@ -25,7 +25,9 @@ from aperix_geo.services.crawl_accounts.profiles import account_profile_dir, pro
 logger = logging.getLogger(__name__)
 
 VIEWPORT = {"width": 1440, "height": 900}
-_BASE_ARGS = ["--no-sandbox", "--disable-dev-shm-usage", "--disable-quic"]
+# --no-sandbox is only added when required (root / Docker / explicit env).
+# Pair with --test-type so Chrome does not show the yellow “unsupported flag” bar.
+_BASE_ARGS = ["--disable-dev-shm-usage", "--disable-quic"]
 _HEADED_EXTRA_ARGS = [
     "--disable-gpu",
     "--window-size=1440,900",
@@ -109,8 +111,28 @@ def stealth_enabled() -> bool:
     return _truthy_env("GEO_WEB_CRAWL_STEALTH", "true")
 
 
+def _need_no_sandbox() -> bool:
+    """Chrome sandbox needs user namespaces; root/Docker usually cannot use it.
+
+    Override: ``GEO_WEB_CRAWL_NO_SANDBOX=1|0``. Empty → auto (root or ``/.dockerenv``).
+    """
+    raw = (os.environ.get("GEO_WEB_CRAWL_NO_SANDBOX") or "").strip().lower()
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    if Path("/.dockerenv").exists():
+        return True
+    try:
+        return os.geteuid() == 0
+    except AttributeError:
+        return False
+
+
 def _chromium_launch_kwargs(*, want_headless: bool) -> dict[str, Any]:
     args = list(_BASE_ARGS)
+    if _need_no_sandbox():
+        args.extend(["--no-sandbox", "--test-type"])
     if not want_headless:
         args.extend(_HEADED_EXTRA_ARGS)
     if stealth_enabled():

@@ -347,10 +347,17 @@ def test_chromium_launch_stealth_and_chrome_path(monkeypatch, tmp_path) -> None:
     monkeypatch.delenv("HTTP_PROXY", raising=False)
     monkeypatch.setenv("GEO_WEB_CRAWL_STEALTH", "true")
     monkeypatch.setenv("GEO_WEB_CRAWL_CHROME_BIN", str(chrome))
+    monkeypatch.setenv("GEO_WEB_CRAWL_NO_SANDBOX", "0")
     kw = bp._chromium_launch_kwargs(want_headless=True)
     assert kw["executable_path"] == str(chrome)
     assert "--disable-blink-features=AutomationControlled" in kw["args"]
+    assert "--no-sandbox" not in kw["args"]
     assert kw["ignore_default_args"] == ["--enable-automation"]
+
+    monkeypatch.setenv("GEO_WEB_CRAWL_NO_SANDBOX", "1")
+    kw_ns = bp._chromium_launch_kwargs(want_headless=True)
+    assert "--no-sandbox" in kw_ns["args"]
+    assert "--test-type" in kw_ns["args"]
 
     monkeypatch.setenv("GEO_WEB_CRAWL_STEALTH", "0")
     kw_off = bp._chromium_launch_kwargs(want_headless=True)
