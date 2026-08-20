@@ -30,10 +30,10 @@ def _subject() -> Subject:
     return subject
 
 
-def test_apply_response_absa_does_not_commit_enum_without_absa() -> None:
+def test_apply_response_absa_commits_enum_without_absa() -> None:
     text = "抗血小板药（阿司匹林、氯吡格雷、替格瑞洛）需评估出血风险。"
     drafts = init_entity_signal_drafts(_subject())
-    candidates = merge_mention_candidates(text, [])
+    candidates = merge_mention_candidates(text)
     response_absa = {
         "analysis_source": "llm",
         "brands_sentiment_absa": {
@@ -54,17 +54,15 @@ def test_apply_response_absa_does_not_commit_enum_without_absa() -> None:
     )
 
     labels = {draft.entity_label for draft in drafts if draft.entity_kind == "other"}
-    assert labels == set()
+    assert labels == {"阿司匹林", "氯吡格雷", "替格瑞洛"}
     committed = {event["text"] for event in payload["mention_commit_events"] if event["status"] == "committed"}
-    assert committed == set()
-    pending = {event["text"] for event in payload["mention_commit_events"] if event["status"] == "pending"}
-    assert "阿司匹林" in pending
+    assert committed == {"阿司匹林", "氯吡格雷", "替格瑞洛"}
 
 
-def test_apply_response_absa_commits_only_absa_confirmed() -> None:
+def test_apply_response_absa_enum_and_absa_merge() -> None:
     text = "抗血小板药（阿司匹林、氯吡格雷、替格瑞洛）需评估出血风险。"
     drafts = init_entity_signal_drafts(_subject())
-    candidates = merge_mention_candidates(text, [])
+    candidates = merge_mention_candidates(text)
     response_absa = {
         "analysis_source": "llm",
         "brands_sentiment_absa": {
@@ -90,13 +88,15 @@ def test_apply_response_absa_commits_only_absa_confirmed() -> None:
     labels = {draft.entity_label for draft in drafts if draft.entity_kind == "other"}
     assert "阿司匹林" in labels
     assert "氯吡格雷" in labels
-    assert "替格瑞洛" not in labels
+    assert "替格瑞洛" in labels
+    aspirin = next(d for d in drafts if d.entity_label == "阿司匹林")
+    assert aspirin.sentiment_score == 70.0
 
 
 def test_apply_response_absa_respects_absa_denial() -> None:
     text = "支付工具（Stripe、PayPal）较常见。"
     drafts = init_entity_signal_drafts(_subject())
-    candidates = merge_mention_candidates(text, [])
+    candidates = merge_mention_candidates(text)
     response_absa = {
         "analysis_source": "llm",
         "brands_sentiment_absa": {},

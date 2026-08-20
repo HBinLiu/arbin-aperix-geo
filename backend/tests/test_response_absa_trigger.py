@@ -32,7 +32,7 @@ def _subject(**kwargs) -> Subject:
     return subject
 
 
-def test_response_absa_needed_false_when_no_mentions_or_citations() -> None:
+def test_response_absa_needed_false_when_short_generic() -> None:
     drafts = [
         EntitySignalDraft(entity_id="own", entity_kind="own", entity_label="Aperix"),
         EntitySignalDraft(entity_id="c1", entity_kind="competitor", entity_label="Beta"),
@@ -40,7 +40,7 @@ def test_response_absa_needed_false_when_no_mentions_or_citations() -> None:
     assert (
         response_absa_needed(
             llm_configured=True,
-            text="generic industry overview without brands",
+            text="short note",
             entity_signals=drafts,
         )
         is False
@@ -67,44 +67,54 @@ def test_response_absa_needed_true_when_monitored_brand_mentioned() -> None:
     )
 
 
-def test_response_absa_needed_false_when_only_citation_urls_present() -> None:
+def test_response_absa_needed_true_for_substantial_open_set_prose() -> None:
     drafts = [
         EntitySignalDraft(entity_id="own", entity_kind="own", entity_label="Aperix"),
     ]
     assert (
         response_absa_needed(
             llm_configured=True,
-            text="see https://example.com/article for details",
+            text="Industry overview recommending Stripe and PayPal as alternatives for teams.",
+            entity_signals=drafts,
+        )
+        is True
+    )
+
+
+def test_response_absa_needed_false_when_only_short_url_line() -> None:
+    drafts = [
+        EntitySignalDraft(entity_id="own", entity_kind="own", entity_label="Aperix"),
+    ]
+    assert (
+        response_absa_needed(
+            llm_configured=True,
+            text="see https://example.com/a",
             entity_signals=drafts,
         )
         is False
     )
 
 
-def test_extract_parse_context_skips_absa_without_triggers() -> None:
+def test_extract_parse_context_runs_absa_on_substantial_text() -> None:
     mock_settings = MagicMock()
     mock_settings.deepseek_api_key = "sk-test"
     mock_settings.citation_response_absa_cache_ttl_s = 3600
-    mock_settings.citation_response_mention_discovery_enabled = True
-    mock_settings.citation_response_mention_discovery_cache_ttl_s = 3600
     mock_settings.citation_text_snippet_chars = 4000
     with patch("aperix_geo.services.sampling.parse.context.get_settings", return_value=mock_settings):
         ctx = extract_parse_context(
-            "Cloud computing trends in 2026 without brand names.",
+            "Cloud computing trends recommending several SaaS vendors in 2026.",
             subject=_subject(),
             source_urls=None,
             web_search_mode="none",
             sampling_job_id=None,
         )
-    assert ctx.absa_needed is False
+    assert ctx.absa_needed is True
 
 
 def test_enrich_parse_context_skips_absa_call_when_not_needed() -> None:
     mock_settings = MagicMock()
     mock_settings.deepseek_api_key = "sk-test"
     mock_settings.citation_response_absa_cache_ttl_s = 3600
-    mock_settings.citation_response_mention_discovery_enabled = True
-    mock_settings.citation_response_mention_discovery_cache_ttl_s = 3600
     mock_settings.citation_text_snippet_chars = 4000
     with (
         patch("aperix_geo.services.sampling.parse.context.get_settings", return_value=mock_settings),
@@ -112,7 +122,7 @@ def test_enrich_parse_context_skips_absa_call_when_not_needed() -> None:
         patch("aperix_geo.services.sampling.parse.analysis.fetch_citation_pages_for_urls") as fetch_pages,
     ):
         ctx = extract_parse_context(
-            "Industry trends only.",
+            "hi",
             subject=_subject(),
             source_urls=None,
             web_search_mode="none",

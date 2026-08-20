@@ -2,32 +2,15 @@
 
 from __future__ import annotations
 
-import logging
-import threading
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from aperix_geo.db.models import Competitor, Subject
-from aperix_geo.services.providers import LLMProviderError, chat_completion
-from aperix_geo.services.providers.prompts import (
-    CITATION_RESPONSE_MENTION_DISCOVERY_SYSTEM,
-    citation_response_mention_discovery_user_content,
-)
-from aperix_geo.services.sampling.cache.mention_discovery import (
-    get_mention_discovery_cached,
-    mention_discovery_cache_digest,
-    set_mention_discovery_cached,
-)
-from aperix_geo.services.sampling.mention_entities import ValidatedMention, parse_discovery_entities
-from aperix_geo.utils.cache import SingleFlightWaitTimeout, run_single_flight
-from aperix_geo.utils.json import extract_json_object
 from aperix_geo.utils.net import host_from, host_under_root, registrable_from
 
 if TYPE_CHECKING:
     from aperix_geo.services.analysis.entity import AnalysisEntity
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -195,99 +178,3 @@ def absa_brand_mentioned(brands: dict[str, Any], key: str) -> bool | None:
     if not isinstance(entry, dict) or "mentioned" not in entry:
         return None
     return bool(entry.get("mentioned"))
-
-
-def _entities_to_cache(entities: list[ValidatedMention]) -> list[dict[str, Any]]:
-    return [
-        {
-            "text": entity.text,
-            "type": entity.entity_type,
-            "start": entity.start,
-            "end": entity.end,
-        }
-        for entity in entities
-    ]
-
-
-def _entities_from_cache(raw: list[dict[str, Any]], raw_text: str) -> list[ValidatedMention]:
-    payload = {"entities": raw}
-    return parse_discovery_entities(payload, raw_text=raw_text)
-
-
-def discover_response_mentions(
-    raw_text: str,
-    *,
-    cache_ttl_s: int = 0,
-    track_context: str = "",
-) -> tuple[list[ValidatedMention], bool]:
-    """Discover validated commercial entities in AI response text.
-
-    Returns ``(entities, live_call)``; cache hits are not billed.
-    """
-    if not raw_text.strip():
-        return [], False
-
-    def _read_cache() -> list[dict[str, Any]] | None:
-        return get_mention_discovery_cached(
-            raw_text=raw_text,
-            ttl_s=cache_ttl_s,
-            track_context=track_context,
-        )
-
-    cached = _read_cache()
-    if cached is not None:
-        return _entities_from_cache(cached, raw_text), False
-
-    live_flag = threading.local()
-
-    def _fetch() -> list[dict[str, Any]]:
-        messages = [
-            {"role": "system", "content": CITATION_RESPONSE_MENTION_DISCOVERY_SYSTEM},
-            {
-                "role": "user",
-                "content": citation_response_mention_discovery_user_content(
-                    raw_text=raw_text,
-                    track_context=track_context,
-                ),
-            },
-        ]
-        try:
-            text, _, _ = chat_completion(messages, temperature=0.0, json_mode=True)
-            live_flag.did = True
-            data = extract_json_object(text)
-            if not isinstance(data, dict):
-                raise ValueError("mention discovery is not an object")
-            entities = parse_discovery_entities(data, raw_text=raw_text)
-            cached_entities = _entities_to_cache(entities)
-            set_mention_discovery_cached(
-                raw_text=raw_text,
-                entities=cached_entities,
-                ttl_s=cache_ttl_s,
-                track_context=track_context,
-            )
-            return cached_entities
-        except (LLMProviderError, TypeError, ValueError, KeyError) as exc:
-            logger.warning("Mention discovery failed: %s", exc)
-            return []
-
-    if cache_ttl_s <= 0:
-        return _entities_from_cache(_fetch(), raw_text), True
-
-    digest = mention_discovery_cache_digest(raw_text=raw_text, track_context=track_context)
-    try:
-        result = run_single_flight(
-            digest,
-            wait_s=120.0,
-            read_cache=_read_cache,
-            fetch=_fetch,
-            lock_prefix="aperix:mention_discovery:lock:",
-        )
-        if result is None:
-            return [], False
-        return _entities_from_cache(result, raw_text), bool(getattr(live_flag, "did", False))
-    except SingleFlightWaitTimeout:
-        cached = _read_cache()
-        if cached is not None:
-            return _entities_from_cache(cached, raw_text), False
-        logger.warning("Mention discovery single-flight wait timeout")
-        return [], False

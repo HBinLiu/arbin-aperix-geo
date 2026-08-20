@@ -55,7 +55,7 @@ def test_citation_response_absa_user_content_includes_enumeration_block() -> Non
         own_brand_names=["杏灵分散片"],
         competitor_brand_names=[],
     )
-    assert "# 正文提及候选（规则列举 + Discovery，须逐条核对开集规则）" in content
+    assert "# 正文提及候选（规则列举，须逐条核对开集规则）" in content
     assert "  - 阿司匹林" in content
     assert "  - 氯吡格雷" in content
 

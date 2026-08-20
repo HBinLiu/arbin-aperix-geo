@@ -6,7 +6,6 @@ import re
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from aperix_geo.services.brand.resolve import normalize_brand_key
 from aperix_geo.services.sampling.enumeration import (
     is_plausible_commercial_span,
     normalize_mention_span,
@@ -15,7 +14,7 @@ from aperix_geo.services.sampling.enumeration import (
 COMMIT_ENTITY_TYPES = frozenset({"PRODUCT", "BRAND", "ORG", "SERVICE"})
 DEFAULT_ENTITY_TYPE = "PRODUCT"
 _CLAUSE_INSIDE = re.compile(r"[，,。；;：:！？?\n\r]")
-MentionSource = Literal["absa", "enum", "discovery"]
+MentionSource = Literal["absa", "enum"]
 
 
 @dataclass(frozen=True)
@@ -24,7 +23,7 @@ class MentionEntityInput:
     entity_type: str = DEFAULT_ENTITY_TYPE
     start: int | None = None
     end: int | None = None
-    source: MentionSource = "discovery"
+    source: MentionSource = "enum"
 
 
 @dataclass(frozen=True)
@@ -98,50 +97,6 @@ def validate_mention_entity(raw_text: str, entity: MentionEntityInput) -> Valida
         end=end,
         source=entity.source,
     )
-
-
-def parse_discovery_entities(data: dict[str, Any], *, raw_text: str) -> list[ValidatedMention]:
-    validated: list[ValidatedMention] = []
-    seen: set[str] = set()
-
-    def _append(entity: MentionEntityInput) -> None:
-        ok = validate_mention_entity(raw_text, entity)
-        if ok is None:
-            return
-        key = normalize_brand_key(ok.text)
-        if not key or key in seen:
-            return
-        seen.add(key)
-        validated.append(ok)
-
-    entities_raw = data.get("entities")
-    if isinstance(entities_raw, list):
-        for item in entities_raw:
-            if not isinstance(item, dict):
-                continue
-            text = str(item.get("text") or item.get("span") or "").strip()
-            if not text:
-                continue
-            start, end = parse_span_offsets(item.get("start"), item.get("end"))
-            _append(
-                MentionEntityInput(
-                    text=text,
-                    entity_type=str(item.get("type") or item.get("entity_type") or DEFAULT_ENTITY_TYPE),
-                    start=start,
-                    end=end,
-                    source="discovery",
-                )
-            )
-        return validated
-
-    spans = data.get("mentioned_spans")
-    if not isinstance(spans, list):
-        return []
-    for raw in spans:
-        text = str(raw or "").strip()
-        if text:
-            _append(MentionEntityInput(text=text, source="discovery"))
-    return validated
 
 
 def _boundaries_ok(raw_text: str, start: int, end: int, label: str) -> bool:

@@ -123,59 +123,6 @@ KIMI_WEB_SEARCH_SYSTEM = YUANBAO_WEB_SEARCH_SYSTEM
 
 
 # =============================================================================
-# 采样回复 · 提及 Discovery（高召回专名，供 ABSA 开集候选）
-# =============================================================================
-
-CITATION_RESPONSE_MENTION_DISCOVERY_SYSTEM = """# 任务
-你是「AI 回答正文中的商业主体专名发现」助手。请**仅**根据 user 消息中的【AI原始回答文本】，列出正文中被当作**独立商业主体**提及或讨论的名称，并严格以 JSON 输出。
-
-# 目标（高召回）
-- 找出用户可能在多个监测品牌/产品/服务之间做选择的**商业品牌、产品、公司或服务名**。
-- 正文以列举形式出现（括号、顿号、斜杠、such as）时，**逐项分别输出**，不要只留大类名。
-- 名称必须与原文**完全一致**（允许大小写差异的英文）；禁止改写、翻译或补全未出现的词。
-
-# 应收录（满足其一即可，倾向收录）
-- 具体品牌名、产品名、服务名、公司名（含别名/简称，若正文将其作为可选方案讨论）
-- 对比、推荐、搭配、取舍语境中的具名主体
-- 列举中的每一项（如 A、B、C）
-
-# 禁止收录
-- 纯品类词、系列统称、泛化概念、抽象属性或无法对应独立商业主体的描述（如「SaaS 类」「性价比」「传统方案」「他汀类」「抗血小板」）
-- 症状、部位、检查指标、病史/风险描述、科室/医嘱/生活建议片段、问句片段（如「出血史」「神经内科」「心内科医生方案」「避免大量西柚」「所有用药务必遵从…」）
-- 媒体、平台、政府、标准/协议/认证、上下游非竞品
-- 仅在 URL、参考资料列表出现而正文未讨论的名称
-- 目录编号、章节标题、纯形容词
-
-# 输出
-必须且仅输出 JSON：
-{
-  "entities": [
-    {"text": "原文名称", "type": "PRODUCT|BRAND|ORG|SERVICE", "start": 0, "end": 0}
-  ]
-}
-- `text` 必须与原文完全一致；`start`/`end` 为 UTF-16 或字符偏移均可，但须满足 `原文[start:end] == text`（代码会校验）。
-- `type` 仅允许 PRODUCT / BRAND / ORG / SERVICE；品类、症状、科室、医嘱句段不要输出。
-- 无符合条件的名称时输出 {"entities": []}
-- 禁止 Markdown 或其它说明。
-
-# 反例
-输入：「抗血小板（阿司匹林、氯吡格雷）有出血史；务必遵从心内科医生方案，避免大量西柚。」
-✗ entities 含：抗血小板、出血史、心内科医生方案、避免大量西柚
-✓ entities 含：阿司匹林、氯吡格雷（type=PRODUCT，offsets 正确）"""
-
-
-def citation_response_mention_discovery_user_content(
-    *,
-    raw_text: str,
-    track_context: str = "",
-) -> str:
-    track_block = ""
-    if track_context.strip():
-        track_block = f"# 监测赛道（同赛道判定参考）\n- {track_context.strip()}\n\n"
-    return f"{track_block}# 输入数据\n- [AI原始回答文本]: \"\"\"{raw_text}\"\"\""
-
-
-# =============================================================================
 # 采样回复 · 回复级 ABSA（AI 原文情感，每条回复一次）
 # =============================================================================
 
@@ -222,10 +169,10 @@ CITATION_RESPONSE_ABSA_SYSTEM = """# 任务
 - 若 AI 原文未出现符合条件的额外商业品牌，必须输出空对象 `{}`。
 
 ## 正文提及候选（user 消息可能提供）
-- user 消息中的「正文提及候选」来自规则列举抽取与 Discovery，**须逐条独立评估**是否写入开集。
-- 候选仅为召回提示；**宁可漏收，不可误收**品类词、症状、部位、问句片段或非商业主体。
-- 每一项均须满足开集主体边界；**禁止**编造候选中未在 AI 原文出现的名称。
-- 当正文采用「大类（A、B、 C 等）」或「A/B/C」列举时，**不得**只收录其中一项而忽略同组其它候选；须对候选逐条判断。
+- user 消息中的「正文提及候选」来自规则列举抽取，**须逐条独立评估**是否写入开集。
+- 候选仅为召回提示：对**已在原文出现**的候选，若属于同赛道商业品牌/产品，**应写入**开集（可中立分）；不要因「证据偏短」整组漏掉。
+- 仍禁止：品类词、症状、部位、问句片段、媒体/标准名、仅 URL 出现的名称。
+- 当正文采用「大类（A、B、C 等）」或「A/B/C」列举时，**不得**只收录其中一项而忽略同组其它合格候选。
 
 # 归类示例
 - 闭集：本品牌=Aperix，竞品=Beta → `brands_sentiment_absa` 的键只能是 `Aperix`、`Beta`。
@@ -281,7 +228,10 @@ def citation_response_absa_user_content(
     track_context: str = "",
 ) -> str:
     """competitors: 闭集完整键（兼容旧参）；优先 own_brand_names + competitor_brand_names。"""
-    from aperix_geo.services.sampling.enumeration import extract_enumerated_spans
+    from aperix_geo.services.sampling.enumeration import (
+        clip_response_text_for_llm,
+        extract_enumerated_spans,
+    )
 
     if mention_candidates is not None:
         candidates = mention_candidates
@@ -316,19 +266,20 @@ def citation_response_absa_user_content(
     )
     if candidates:
         cand_lines = "\n".join(f"  - {name}" for name in candidates)
-        enum_block = f"# 正文提及候选（规则列举 + Discovery，须逐条核对开集规则）\n{cand_lines}\n\n"
+        enum_block = f"# 正文提及候选（规则列举，须逐条核对开集规则）\n{cand_lines}\n\n"
     else:
         enum_block = ""
     track_block = ""
     if track_context.strip():
         track_block = f"# 监测赛道（同赛道判定参考）\n- {track_context.strip()}\n\n"
+    body = clip_response_text_for_llm(raw_text)
     return (
         f"{header}"
         f"{track_block}"
         f"{open_set_block}"
         f"{enum_block}"
         f"# 输入数据\n"
-        f'- [AI原始回答文本]: """{raw_text}"""'
+        f'- [AI原始回答文本]: """{body}"""'
     )
 
 

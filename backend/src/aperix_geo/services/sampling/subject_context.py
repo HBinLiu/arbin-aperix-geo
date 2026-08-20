@@ -1,4 +1,4 @@
-"""Subject context helpers for mention discovery / ABSA."""
+"""Subject context helpers for mention / ABSA prompts."""
 
 from __future__ import annotations
 

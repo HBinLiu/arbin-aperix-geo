@@ -53,6 +53,23 @@ _MIN_LEN = 2
 _MAX_LEN = 48
 
 
+def clip_response_text_for_llm(text: str, *, max_chars: int | None = None) -> str:
+    """Truncate long AI replies for ABSA prompts (validation still uses full text)."""
+    body = text or ""
+    if max_chars is None:
+        try:
+            from aperix_geo.config import get_settings
+
+            max_chars = int(get_settings().citation_response_absa_max_chars)
+        except Exception:
+            max_chars = 6_000
+    limit = max(1_000, int(max_chars))
+    if len(body) <= limit:
+        return body
+    keep = max(1, limit - 16)
+    return body[:keep] + "\n…[截断]…"
+
+
 def _normalize_item(raw: str) -> str:
     item = raw.strip().strip("\"'“”‘’")
     item = item.strip("*# ")
@@ -81,8 +98,11 @@ def _looks_descriptive_clause(text: str) -> bool:
 
 def is_plausible_commercial_span(label: str) -> bool:
     """Reject category words, symptoms, and sentence fragments masquerading as brand names."""
+    raw = str(label or "").strip()
+    if _QUESTION.search(raw) or _INSTRUCTION_PHRASE.search(raw) or _ADVISORY_PREFIX.search(raw):
+        return False
     text = normalize_mention_span(label)
-    if len(text) < 3 or len(text) > 32:
+    if len(text) < _MIN_LEN or len(text) > _MAX_LEN:
         return False
     if _NOISE.match(text):
         return False
@@ -112,7 +132,7 @@ def is_plausible_commercial_span(label: str) -> bool:
         return False
     if _RISK_PHRASE.match(text) and len(text) <= 12:
         return False
-    if re.search(r"(?:出血|过敏|手术|既往)", text) and len(text) <= 8:
+    if re.search(r"(?:出血|过敏|手术|既往|胃病)", text) and len(text) <= 8:
         return False
     if _ADVISORY_PREFIX.search(text):
         return False
@@ -218,7 +238,7 @@ def filter_mention_spans(spans: list[str], text: str) -> list[str]:
 
 
 def merge_mention_candidates(text: str, *extra_lists: list[str]) -> list[str]:
-    """Merge rule-based enumeration spans with optional discovery spans."""
+    """Merge rule-based enumeration spans with optional extra candidate lists."""
     ordered: list[str] = []
     seen: set[str] = set()
 

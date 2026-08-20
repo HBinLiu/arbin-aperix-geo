@@ -6,6 +6,7 @@ import logging
 import threading
 from typing import Any
 
+from aperix_geo.config import get_settings
 from aperix_geo.services.brand.keys import configured_brand_keys
 from aperix_geo.services.brand.resolve import normalize_brand_key
 from aperix_geo.services.providers import LLMProviderError, chat_completion
@@ -19,16 +20,24 @@ from aperix_geo.services.sampling.cache.absa import (
     set_response_absa_cached,
 )
 from aperix_geo.services.sampling.enumeration import (
+    clip_response_text_for_llm,
+    extract_enumerated_spans,
     is_plausible_commercial_span,
     merge_mention_candidates,
     normalize_mention_span,
 )
-from aperix_geo.services.sampling.mentions import discover_response_mentions
 from aperix_geo.services.sampling.signal_draft import EntitySignalDraft
 from aperix_geo.utils.cache import SingleFlightWaitTimeout, run_single_flight
 from aperix_geo.utils.json import extract_json_object
 
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    "analyze_response_absa",
+    "clip_response_text_for_llm",
+    "normalize_response_absa",
+    "response_absa_needed",
+]
 
 
 def response_absa_needed(
@@ -37,13 +46,18 @@ def response_absa_needed(
     text: str,
     entity_signals: list[EntitySignalDraft],
 ) -> bool:
-    """Run ABSA when own/competitor brands are mentioned in the response text."""
+    """Run ABSA when closed-set hits, list-like candidates, or a substantial reply."""
     if not llm_configured or not text.strip():
         return False
-    return any(
+    if any(
         draft.mentioned and draft.entity_kind in ("own", "competitor")
         for draft in entity_signals
-    )
+    ):
+        return True
+    if extract_enumerated_spans(text):
+        return True
+    # Open-set brands from prose still need one ABSA call.
+    return len(text.strip()) >= 60
 
 
 def _brand_entry(raw: Any) -> dict[str, Any]:
@@ -131,28 +145,21 @@ def _empty_response_absa(*, reason: str) -> dict[str, Any]:
         "other_brands_sentiment_absa": {},
         "analysis_source": "failed",
         "failure_reason": reason,
+        "mention_candidates": [],
     }
 
 
-def _attach_discovery_context(
-    result: dict[str, Any],
-    *,
-    mention_candidates: list[str],
-    discovery_entities: list[Any],
-) -> dict[str, Any]:
+def _attach_candidates(result: dict[str, Any], *, mention_candidates: list[str]) -> dict[str, Any]:
     payload = dict(result)
     payload["mention_candidates"] = list(mention_candidates)
-    payload["discovery_entities"] = [
-        {
-            "text": entity.text,
-            "entity_type": entity.entity_type,
-            "start": entity.start,
-            "end": entity.end,
-            "source": entity.source,
-        }
-        for entity in discovery_entities
-    ]
     return payload
+
+
+def _absa_timeout_s() -> float:
+    try:
+        return float(get_settings().citation_response_absa_timeout_s)
+    except Exception:
+        return 60.0
 
 
 def analyze_response_absa(
@@ -164,14 +171,11 @@ def analyze_response_absa(
     competitor_brand_names: list[str] | None = None,
     excluded_keys: set[str] | None = None,
     cache_ttl_s: int = 0,
-    mention_discovery_enabled: bool = False,
-    mention_discovery_cache_ttl_s: int = 0,
     track_context: str = "",
 ) -> tuple[dict[str, Any], bool]:
     """ABSA on the sampling LLM response text (once per LLM response).
 
-    When mention discovery is enabled, runs a high-recall discovery pass first and
-    merges spans with rule-based enumeration before ABSA.
+    Open-set recall hints come from rule enumeration only.
 
     Returns ``(result, live_call)``; cache hits are not billed.
     """
@@ -192,16 +196,7 @@ def analyze_response_absa(
             competitor_brand_names=closed_brand_names,
         )
 
-    discovery_entities: list[Any] = []
-    discovery_live = False
-    if mention_discovery_enabled:
-        discovery_entities, discovery_live = discover_response_mentions(
-            raw_text,
-            cache_ttl_s=mention_discovery_cache_ttl_s,
-            track_context=track_context,
-        )
-    discovery_span_texts = [entity.text for entity in discovery_entities]
-    mention_candidates = merge_mention_candidates(raw_text, discovery_span_texts)
+    mention_candidates = merge_mention_candidates(raw_text)
 
     def _read_cache() -> dict[str, Any] | None:
         cached = get_response_absa_cached(
@@ -215,15 +210,11 @@ def analyze_response_absa(
         )
         if cached is None:
             return None
-        return _attach_discovery_context(
-            cached,
-            mention_candidates=mention_candidates,
-            discovery_entities=discovery_entities,
-        )
+        return _attach_candidates(cached, mention_candidates=mention_candidates)
 
     cached = _read_cache()
     if cached is not None:
-        return cached, discovery_live
+        return cached, False
 
     live_flag = threading.local()
 
@@ -244,7 +235,12 @@ def analyze_response_absa(
             },
         ]
         try:
-            text, _, _ = chat_completion(messages, temperature=0.0, json_mode=True)
+            text, _, _ = chat_completion(
+                messages,
+                temperature=0.0,
+                json_mode=True,
+                timeout_s=_absa_timeout_s(),
+            )
             live_flag.did = True
             data = extract_json_object(text)
             if not isinstance(data, dict):
@@ -255,11 +251,7 @@ def analyze_response_absa(
                 competitors=closed_brand_names,
                 excluded_keys=excluded_keys,
             )
-            result = _attach_discovery_context(
-                result,
-                mention_candidates=mention_candidates,
-                discovery_entities=discovery_entities,
-            )
+            result = _attach_candidates(result, mention_candidates=mention_candidates)
             set_response_absa_cached(
                 raw_text=raw_text,
                 own_brand=own_brand,
@@ -273,10 +265,13 @@ def analyze_response_absa(
             return result
         except (LLMProviderError, TypeError, ValueError, KeyError) as exc:
             logger.warning("Response ABSA failed: %s", exc)
-            return _empty_response_absa(reason=str(exc)[:500])
+            return _attach_candidates(
+                _empty_response_absa(reason=str(exc)[:500]),
+                mention_candidates=mention_candidates,
+            )
 
     if cache_ttl_s <= 0:
-        return _fetch(), discovery_live or True
+        return _fetch(), bool(getattr(live_flag, "did", False)) or True
 
     digest = response_absa_cache_digest(
         raw_text=raw_text,
@@ -289,15 +284,21 @@ def analyze_response_absa(
     try:
         result = run_single_flight(
             digest,
-            wait_s=120.0,
+            wait_s=min(120.0, _absa_timeout_s() + 30.0),
             read_cache=_read_cache,
             fetch=_fetch,
             lock_prefix="aperix:response_absa:lock:",
         )
-        return result, discovery_live or bool(getattr(live_flag, "did", False))
+        return result, bool(getattr(live_flag, "did", False))
     except SingleFlightWaitTimeout:
         cached = _read_cache()
         if cached is not None:
-            return cached, discovery_live
+            return cached, False
         logger.warning("Response ABSA single-flight wait timeout")
-        return _empty_response_absa(reason="absa single-flight wait timeout"), discovery_live
+        return (
+            _attach_candidates(
+                _empty_response_absa(reason="absa single-flight wait timeout"),
+                mention_candidates=mention_candidates,
+            ),
+            False,
+        )

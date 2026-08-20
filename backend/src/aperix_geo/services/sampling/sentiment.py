@@ -8,13 +8,6 @@ from aperix_geo.services.brand.domain import extract_domain_from_text_for_brand,
 from aperix_geo.services.brand.keys import configured_brand_keys
 from aperix_geo.services.brand.resolve import normalize_brand_key
 from aperix_geo.services.sampling.mention_commit import MentionCommitEvent, build_mention_commit_plan
-from aperix_geo.services.sampling.mention_entities import (
-    DEFAULT_ENTITY_TYPE,
-    MentionEntityInput,
-    ValidatedMention,
-    parse_span_offsets,
-    validate_mention_entity,
-)
 from aperix_geo.services.sampling.mentions import (
     CompetitorEntry,
     absa_brand_mentioned,
@@ -243,40 +236,6 @@ def apply_absa_to_drafts(
     return "llm"
 
 
-def _discovery_entities_from_absa(response_absa: dict[str, Any], *, raw_text: str) -> list[ValidatedMention]:
-    """Re-validate discovery payload against the response text (do not trust offsets blindly)."""
-    raw = response_absa.get("discovery_entities")
-    if not isinstance(raw, list) or not raw_text:
-        return []
-    out: list[ValidatedMention] = []
-    seen: set[str] = set()
-    for item in raw:
-        if not isinstance(item, dict):
-            continue
-        text = str(item.get("text") or "").strip()
-        if not text:
-            continue
-        start, end = parse_span_offsets(item.get("start"), item.get("end"))
-        ok = validate_mention_entity(
-            raw_text,
-            MentionEntityInput(
-                text=text,
-                entity_type=str(item.get("entity_type") or DEFAULT_ENTITY_TYPE),
-                start=start,
-                end=end,
-                source="discovery",
-            ),
-        )
-        if ok is None:
-            continue
-        key = normalize_brand_key(ok.text)
-        if not key or key in seen:
-            continue
-        seen.add(key)
-        out.append(ok)
-    return out
-
-
 def append_committed_open_mention_drafts(
     drafts: list[EntitySignalDraft],
     events: list[MentionCommitEvent],
@@ -355,7 +314,6 @@ def apply_response_absa_to_drafts(
         text,
         response_absa,
         excluded_keys=excluded_keys,
-        discovery_entities=_discovery_entities_from_absa(response_absa, raw_text=text),
     )
     payload = dict(response_absa)
     payload["mention_commit_events"] = plan.to_dicts()

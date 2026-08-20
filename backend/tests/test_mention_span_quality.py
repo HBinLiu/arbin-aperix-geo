@@ -35,7 +35,7 @@ def test_is_plausible_commercial_span_rejects_medical_noise() -> None:
     for label in noise:
         assert is_plausible_commercial_span(label) is False
 
-    valid = ["阿托伐他汀", "瑞舒伐他汀", "阿司匹林", "氯吡格雷", "杏灵分散片", "银杏酮酯"]
+    valid = ["阿托伐他汀", "瑞舒伐他汀", "阿司匹林", "氯吡格雷", "杏灵分散片", "银杏酮酯", "腾讯"]
     for label in valid:
         assert is_plausible_commercial_span(label) is True
 

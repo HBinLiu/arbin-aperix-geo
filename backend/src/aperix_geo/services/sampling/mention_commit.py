@@ -14,7 +14,6 @@ from aperix_geo.services.sampling.mention_entities import (
     MentionSource,
     ValidatedMention,
     locate_span,
-    parse_discovery_entities,
     parse_span_offsets,
     validate_mention_entity,
 )
@@ -22,7 +21,7 @@ from aperix_geo.services.sampling.mention_entities import (
 MentionStatus = Literal["committed", "pending", "dismissed"]
 
 _STATUS_PRIORITY = {"committed": 3, "pending": 2, "dismissed": 1}
-_SOURCE_PRIORITY = {"absa": 3, "enum": 2, "discovery": 1}
+_SOURCE_PRIORITY = {"absa": 2, "enum": 1}
 
 __all__ = [
     "MentionCommitEvent",
@@ -31,7 +30,6 @@ __all__ = [
     "ValidatedMention",
     "build_mention_commit_plan",
     "locate_span",
-    "parse_discovery_entities",
     "validate_mention_entity",
 ]
 
@@ -114,9 +112,9 @@ def build_mention_commit_plan(
     response_absa: dict[str, Any],
     *,
     excluded_keys: set[str],
-    discovery_entities: list[ValidatedMention] | None = None,
 ) -> MentionCommitPlan:
-    """Commit open-set mentions only when ABSA sets mentioned=true (precision-first)."""
+    """Commit open-set mentions when ABSA confirms, or when enum
+    already validated an in-text commercial span (ABSA may still dismiss)."""
     text = raw_text or ""
     others_raw = response_absa.get("other_brands_sentiment_absa")
     others = others_raw if isinstance(others_raw, dict) else {}
@@ -131,6 +129,9 @@ def build_mention_commit_plan(
         if absa_flag is False:
             status: MentionStatus = "dismissed"
         elif absa_flag is True:
+            status = "committed"
+        elif validated.source == "enum":
+            # High-precision recall: span already validated against raw text.
             status = "committed"
         else:
             status = "pending"
@@ -186,11 +187,5 @@ def build_mention_commit_plan(
         if validated is None:
             continue
         upsert(validated, entry)
-
-    for validated in discovery_entities or []:
-        key = normalize_brand_key(validated.text)
-        if not key or key in excluded_keys or key in by_key:
-            continue
-        upsert(validated, absa_by_key.get(key))
 
     return MentionCommitPlan(events=list(by_key.values()))

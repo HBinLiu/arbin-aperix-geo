@@ -23,7 +23,7 @@ def test_validate_mention_entity_rejects_sentence_fragment() -> None:
         assert (
             validate_mention_entity(
                 text,
-                MentionEntityInput(text=fragment, entity_type="PRODUCT", source="discovery"),
+                MentionEntityInput(text=fragment, entity_type="PRODUCT", source="enum"),
             )
             is None
         )
@@ -40,7 +40,7 @@ def test_validate_mention_entity_accepts_product_name() -> None:
     assert text[ok.start : ok.end] == "阿托伐他汀"
 
 
-def test_build_mention_commit_plan_requires_absa_for_enum() -> None:
+def test_build_mention_commit_plan_enum_commits_without_absa() -> None:
     text = "抗血小板药（阿司匹林、氯吡格雷、替格瑞洛）需评估。"
     response_absa = {
         "other_brands_sentiment_absa": {
@@ -54,48 +54,22 @@ def test_build_mention_commit_plan_requires_absa_for_enum() -> None:
     }
     plan = build_mention_commit_plan(text, response_absa, excluded_keys=set())
     committed = {event.text for event in plan.committed()}
-    pending = {event.text for event in plan.pending()}
     assert "阿司匹林" in committed
-    assert "氯吡格雷" in pending
-    assert "替格瑞洛" in pending
+    assert "氯吡格雷" in committed
+    assert "替格瑞洛" in committed
     assert "抗血小板" not in committed
-    assert "抗血小板" not in pending
 
 
-def test_build_mention_commit_plan_enum_without_absa_is_pending() -> None:
+def test_build_mention_commit_plan_enum_without_absa_is_committed() -> None:
     text = "抗血小板药（阿司匹林、氯吡格雷）需评估。"
     plan = build_mention_commit_plan(
         text,
         {"other_brands_sentiment_absa": {}},
         excluded_keys=set(),
     )
-    assert plan.committed() == []
-    pending = {event.text for event in plan.pending()}
-    assert "阿司匹林" in pending
-    assert "氯吡格雷" in pending
-
-
-def test_build_mention_commit_plan_pending_discovery_only() -> None:
-    text = "辅助改善头晕，可考虑银杏酮酯。"
-    from aperix_geo.services.sampling.mention_entities import ValidatedMention
-
-    discovery = [
-        ValidatedMention(
-            text="银杏酮酯",
-            entity_type="PRODUCT",
-            start=text.index("银杏酮酯"),
-            end=text.index("银杏酮酯") + len("银杏酮酯"),
-            source="discovery",
-        )
-    ]
-    plan = build_mention_commit_plan(
-        text,
-        {"other_brands_sentiment_absa": {}},
-        excluded_keys=set(),
-        discovery_entities=discovery,
-    )
-    assert plan.committed() == []
-    assert any(event.text == "银杏酮酯" and event.status == "pending" for event in plan.events)
+    committed = {event.text for event in plan.committed()}
+    assert "阿司匹林" in committed
+    assert "氯吡格雷" in committed
 
 
 def test_build_mention_commit_plan_dismisses_absa_denial() -> None:

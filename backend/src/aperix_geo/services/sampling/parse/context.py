@@ -45,8 +45,6 @@ class ParseContext:
     citation: CitationParseParams
     absa_needed: bool
     absa_cache_ttl_s: int
-    mention_discovery_enabled: bool
-    mention_discovery_cache_ttl_s: int
     web_search_mode: str
     source_urls: list[str] | None
     subject: Subject
@@ -135,8 +133,6 @@ def extract_parse_context(
         citation=citation_params,
         absa_needed=absa_needed,
         absa_cache_ttl_s=settings.citation_response_absa_cache_ttl_s,
-        mention_discovery_enabled=settings.citation_response_mention_discovery_enabled,
-        mention_discovery_cache_ttl_s=settings.citation_response_mention_discovery_cache_ttl_s,
         web_search_mode=web_search_mode,
         source_urls=source_urls,
         subject=subject,

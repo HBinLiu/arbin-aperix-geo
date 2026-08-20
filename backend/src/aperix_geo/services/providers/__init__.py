@@ -27,6 +27,7 @@ def chat_completion(
     *,
     temperature: float = 0.3,
     json_mode: bool = False,
+    timeout_s: float | None = None,
 ) -> tuple[str, dict[str, Any], int]:
     """Return (assistant_text, usage_dict, latency_ms)."""
     from aperix_geo.config import get_settings
@@ -40,7 +41,11 @@ def chat_completion(
         model=settings.deepseek_model,
         messages=messages,
         temperature=temperature,
-        timeout_s=settings.deepseek_chat_timeout_s,
+        timeout_s=float(
+            timeout_s
+            if timeout_s is not None
+            else settings.deepseek_chat_timeout_s
+        ),
         json_mode=json_mode,
         error_cls=LLMProviderError,
         provider_label="DeepSeek",
