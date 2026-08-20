@@ -177,6 +177,7 @@ def run_doubao_account_crawl(
     )
     from aperix_geo.services.providers.doubao_web.crawler import crawl_doubao_chat
     from aperix_geo.services.providers.doubao_web.errors import (
+        DoubaoCaptchaRequired,
         DoubaoCrawlError,
         DoubaoNeedsHumanOps,
         DoubaoShareError,
@@ -217,6 +218,17 @@ def run_doubao_account_crawl(
     try:
         try:
             result = crawl_doubao_chat(messages, settings=settings)
+        except DoubaoCaptchaRequired as exc:
+            # Open ops ticket asynchronously via crawl account path; sampling must
+            # not wait for human solve — fall back to API immediately.
+            logger.error(
+                "doubao_crawl_fallback reason=captcha err=%s event=sampling_crawl_lane",
+                exc,
+            )
+            _drop_slot()
+            return _doubao_crawl_first_api_fallback(
+                messages, settings, cause="captcha", exc=exc
+            )
         except DoubaoNeedsHumanOps as exc:
             logger.error(
                 "doubao_crawl_fallback reason=human_ops type=%s err=%s event=sampling_crawl_lane",

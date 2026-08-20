@@ -109,6 +109,7 @@ class _LoginSession:
         ticket_token: str,
         complete_url: str,
         ttl_min: int,
+        captcha_clear_stable_s: float,
         baseline_state: dict[str, Any] | None,
         profile_dir: Path,
     ) -> None:
@@ -119,6 +120,7 @@ class _LoginSession:
         self.ticket_token = ticket_token
         self.complete_url = complete_url
         self.ttl_min = ttl_min
+        self.captcha_clear_stable_s = captcha_clear_stable_s
         self.baseline_state = baseline_state
         self.profile_dir = profile_dir
         self.stop = threading.Event()
@@ -154,6 +156,7 @@ def start_login_session(
     complete_url: str,
     ttl_min: int,
     reason: str = "login_expired",
+    captcha_clear_stable_s: float = 10.0,
     baseline_storage_state: dict[str, Any] | None = None,
 ) -> LoginSessionInfo:
     aid = (account_id or "").strip()
@@ -190,6 +193,7 @@ def start_login_session(
             ticket_token=token,
             complete_url=(complete_url or "").strip(),
             ttl_min=max(5, int(ttl_min)),
+            captcha_clear_stable_s=max(5.0, min(600.0, float(captcha_clear_stable_s))),
             baseline_state=baseline_storage_state
             if isinstance(baseline_storage_state, dict)
             else None,
@@ -259,14 +263,16 @@ def _watch_login(sess: _LoginSession) -> None:
     chrome = chrome_executable()
     deadline = time.monotonic() + sess.ttl_min * 60
     login_baseline = baseline_fingerprint(sess.platform, sess.baseline_state)
-    captcha_grace_s = 20.0
+    captcha_clear_stable_s = float(sess.captcha_clear_stable_s)
     logger.info(
-        "geo-web-crawl login watch account=%s dir=%s chrome=%s complete=%s baseline=%s",
+        "geo-web-crawl login watch account=%s dir=%s chrome=%s complete=%s "
+        "baseline=%s captcha_clear_stable_s=%s",
         sess.account_id,
         sess.profile_dir,
         chrome or "playwright",
         _complete_url_hint(sess.complete_url) or "-",
         len(login_baseline),
+        captcha_clear_stable_s,
     )
 
     pw_cm = sync_playwright()
@@ -291,9 +297,9 @@ def _watch_login(sess: _LoginSession) -> None:
                 time.sleep(1.0)
             return
 
-        started = time.monotonic()
         stable_hit = 0
         saw_captcha = False
+        captcha_gone_since: float | None = None
         last_heartbeat = 0.0
         poll_i = 0
         while not sess.stop.is_set() and time.monotonic() < deadline:
@@ -312,23 +318,32 @@ def _watch_login(sess: _LoginSession) -> None:
             page = pages[0] if pages else None
             captcha_visible = page_has_captcha(page) if page is not None else False
             login_ui_visible = page_shows_login_ui(page)
+            now = time.monotonic()
             if captcha_visible:
                 saw_captcha = True
+                captcha_gone_since = None
+            elif saw_captcha and captcha_gone_since is None:
+                captcha_gone_since = now
+            captcha_clear_stable = bool(
+                saw_captcha
+                and not captcha_visible
+                and captcha_gone_since is not None
+                and (now - captcha_gone_since) >= captcha_clear_stable_s
+            )
             poll_i += 1
-            now = time.monotonic()
             if now - last_heartbeat >= 30.0:
                 last_heartbeat = now
                 cookie_n = len(state.get("cookies") or [])
                 logger.info(
                     "geo-web-crawl login heartbeat poll=%s cookies=%s proof=%s "
-                    "login_ui=%s captcha=%s",
+                    "login_ui=%s captcha=%s clear_stable=%s",
                     poll_i,
                     cookie_n,
                     ",".join(proof_names) or "-",
                     login_ui_visible,
                     captcha_visible,
+                    captcha_clear_stable,
                 )
-            grace_elapsed = (now - started) >= captcha_grace_s
             baseline = login_baseline if sess.reason == "login_expired" else None
             ok = ready_for_complete(
                 reason=sess.reason,
@@ -337,8 +352,9 @@ def _watch_login(sess: _LoginSession) -> None:
                 baseline=baseline,
                 captcha_visible=captcha_visible,
                 saw_captcha=saw_captcha,
-                grace_elapsed=grace_elapsed,
+                grace_elapsed=False,
                 login_ui_visible=login_ui_visible,
+                captcha_clear_stable=captcha_clear_stable,
             )
             if ok:
                 stable_hit += 1

@@ -291,7 +291,9 @@ class Settings(BaseSettings):
     # Max seconds to watch after send (captcha / generating start); no full reply required.
     doubao_heartbeat_send_wait_s: float = Field(default=20.0, ge=5.0, le=120.0)
     doubao_ops_ticket_enabled: bool = False
-    doubao_ops_ticket_ttl_min: int = Field(default=15, ge=5, le=120)
+    doubao_ops_ticket_ttl_min: int = Field(default=10, ge=5, le=120)
+    # After behavior captcha disappears, keep watching this long before auto-complete.
+    doubao_ops_captcha_clear_stable_s: float = Field(default=10.0, ge=5.0, le=600.0)
     # Host directory shared with geo-web-crawl (one Chrome profile per account).
     # Production must set this. Empty is local smoke only (ephemeral Chrome + storage_state).
     geo_crawl_profile_root: str = ""

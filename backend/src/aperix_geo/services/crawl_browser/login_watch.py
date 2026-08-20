@@ -99,15 +99,17 @@ def ready_for_complete(
     saw_captcha: bool,
     grace_elapsed: bool,
     login_ui_visible: bool = False,
+    captcha_clear_stable: bool = False,
 ) -> bool:
     if login_ui_visible:
         return False
     if not has_session:
         return False
     if reason == "captcha":
-        if captcha_visible:
+        # Never complete on grace alone: must have seen captcha, then clear + stable.
+        if captcha_visible or not saw_captcha:
             return False
-        return saw_captcha or grace_elapsed
+        return captcha_clear_stable
     if baseline is None:
         return False
     if not baseline:

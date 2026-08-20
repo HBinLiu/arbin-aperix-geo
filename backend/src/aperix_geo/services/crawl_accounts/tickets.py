@@ -328,6 +328,7 @@ def _start_login_onto_ticket(
             ticket_token=ticket.token,
             complete_url=complete_url,
             ttl_min=ttl_min,
+            captcha_clear_stable_s=float(settings.doubao_ops_captcha_clear_stable_s),
             reason=reason,
             baseline_storage_state=storage_state,
             base_url=settings.geo_web_crawl_base_url,

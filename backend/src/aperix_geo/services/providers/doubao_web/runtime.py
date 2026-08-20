@@ -314,6 +314,7 @@ def wait_for_composer(
     reloads = 0
     target = (base_url or "").strip() or sel.CHAT_URL
     while time.monotonic() < deadline:
+        assert_no_captcha(page)
         if recover_system_error(page, base_url=target):
             reloads += 1
             if reloads > _SYSTEM_ERROR_RELOADS:
@@ -419,6 +420,8 @@ def wait_until_logged_in(
     while time.monotonic() < deadline:
         if chat_url_is_logged_out(page.url or ""):
             raise DoubaoLoginExpired(f"redirected to login: {page.url}")
+        # Captcha often hides the composer; do not wait/reload — fail for API fallback.
+        assert_no_captcha(page)
         try:
             if recover_system_error(page, base_url=target):
                 reloads += 1
@@ -443,8 +446,10 @@ def wait_until_logged_in(
                 raise
         except DoubaoCrawlError as exc:
             last = exc
+            # Captcha / human-ops must not trigger stuck-composer reload.
             stuck = time.monotonic() - started >= _STUCK_COMPOSER_RELOAD_S
             if reloads < _SYSTEM_ERROR_RELOADS and stuck and "composer" in str(exc).lower():
+                assert_no_captcha(page)
                 logger.warning(
                     "composer still missing after %.0fs; reloading %s",
                     time.monotonic() - started,

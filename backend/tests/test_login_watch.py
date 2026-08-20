@@ -68,7 +68,7 @@ def test_login_proof_ignores_guest_uid_tt() -> None:
     assert w.login_proof_cookie_names("doubao", logged) == ["sessionid"]
 
 
-def test_ready_captcha_requires_gone() -> None:
+def test_ready_captcha_requires_seen_then_clear_stable() -> None:
     assert not w.ready_for_complete(
         reason="captcha",
         has_session=True,
@@ -77,6 +77,28 @@ def test_ready_captcha_requires_gone() -> None:
         captcha_visible=True,
         saw_captcha=True,
         grace_elapsed=True,
+        captcha_clear_stable=True,
+    )
+    # Grace alone must not complete (ops still solving / never saw captcha).
+    assert not w.ready_for_complete(
+        reason="captcha",
+        has_session=True,
+        fingerprint=(("sessionid", "x"),),
+        baseline=None,
+        captcha_visible=False,
+        saw_captcha=False,
+        grace_elapsed=True,
+        captcha_clear_stable=False,
+    )
+    assert not w.ready_for_complete(
+        reason="captcha",
+        has_session=True,
+        fingerprint=(("sessionid", "x"),),
+        baseline=None,
+        captcha_visible=False,
+        saw_captcha=True,
+        grace_elapsed=True,
+        captcha_clear_stable=False,
     )
     assert w.ready_for_complete(
         reason="captcha",
@@ -86,24 +108,7 @@ def test_ready_captcha_requires_gone() -> None:
         captcha_visible=False,
         saw_captcha=True,
         grace_elapsed=False,
-    )
-    assert not w.ready_for_complete(
-        reason="captcha",
-        has_session=True,
-        fingerprint=(("sessionid", "x"),),
-        baseline=None,
-        captcha_visible=False,
-        saw_captcha=False,
-        grace_elapsed=False,
-    )
-    assert w.ready_for_complete(
-        reason="captcha",
-        has_session=True,
-        fingerprint=(("sessionid", "x"),),
-        baseline=None,
-        captcha_visible=False,
-        saw_captcha=False,
-        grace_elapsed=True,
+        captcha_clear_stable=True,
     )
 
 

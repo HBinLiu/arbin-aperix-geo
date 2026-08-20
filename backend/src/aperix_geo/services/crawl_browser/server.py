@@ -46,7 +46,8 @@ class LoginSessionRequest(BaseModel):
     start_url: str = ""
     ticket_token: str = ""
     complete_url: str = ""
-    ttl_min: int = Field(default=15, ge=5, le=120)
+    ttl_min: int = Field(default=10, ge=5, le=120)
+    captcha_clear_stable_s: float = Field(default=10.0, ge=5.0, le=600.0)
     reason: str = "login_expired"
     baseline_storage_state: dict[str, Any] = Field(default_factory=dict)
 
@@ -130,6 +131,7 @@ def create_app() -> FastAPI:
                 ticket_token=payload.ticket_token,
                 complete_url=payload.complete_url,
                 ttl_min=payload.ttl_min,
+                captcha_clear_stable_s=payload.captcha_clear_stable_s,
                 reason=payload.reason,
                 baseline_storage_state=payload.baseline_storage_state or None,
             )

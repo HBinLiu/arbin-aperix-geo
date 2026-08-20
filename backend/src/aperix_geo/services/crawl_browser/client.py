@@ -238,6 +238,7 @@ def start_crawl_login_session(
     complete_url: str,
     ttl_min: int,
     reason: str = "login_expired",
+    captcha_clear_stable_s: float = 10.0,
     baseline_storage_state: dict[str, Any] | None = None,
     base_url: str | None = None,
     token: str | None = None,
@@ -253,6 +254,7 @@ def start_crawl_login_session(
         "ticket_token": ticket_token,
         "complete_url": complete_url,
         "ttl_min": int(ttl_min),
+        "captcha_clear_stable_s": float(captcha_clear_stable_s),
         "reason": reason,
         "baseline_storage_state": baseline_storage_state or {},
     }
