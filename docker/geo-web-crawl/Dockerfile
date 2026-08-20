@@ -47,7 +47,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libxrandr2 \
       novnc \
       procps \
-      unzip \
       wget \
       websockify \
       x11-utils \
@@ -55,26 +54,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       x11vnc \
       xauth \
       xvfb \
-      chromium-driver \
     && wget -q -O - https://dl.google.com/linux/linux_signing_key.pub \
       | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg \
     && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" \
       > /etc/apt/sources.list.d/google-chrome.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends google-chrome-stable \
-    && CHROME_VERSION="$(google-chrome --product-version)" \
-    && wget -q \
-      "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chromedriver-linux64.zip" \
-      -O /tmp/chromedriver-linux64.zip \
-    && unzip -q /tmp/chromedriver-linux64.zip -d /tmp/cd \
-    && install -m 0755 /tmp/cd/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver \
-    && rm -rf /tmp/cd /tmp/chromedriver-linux64.zip \
     && rm -rf /var/lib/apt/lists/*
-
-COPY backend/scripts/doubao_selenium_chrome_smoke.py /app/scripts/doubao_selenium_chrome_smoke.py
-COPY docker/geo-web-crawl/scripts/smoke-doubao.sh /app/scripts/smoke-doubao.sh
-COPY docker/geo-web-crawl/scripts/install-chromedriver.sh /app/scripts/install-chromedriver.sh
-RUN chmod +x /app/scripts/smoke-doubao.sh /app/scripts/install-chromedriver.sh
 
 COPY docker/geo-web-crawl/requirements.txt /app/requirements.txt
 
@@ -130,27 +116,6 @@ for _mod in (
 
 ensure_handlers_loaded()
 print("geo-web-crawl lean import check ok")
-PY
-
-# Verify bundled chromedrivers (no Selenium Manager network at runtime).
-RUN python - <<'PY'
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-
-
-def warm(browser: str, driver: str) -> None:
-    options = Options()
-    options.binary_location = browser
-    options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    webdriver.Chrome(service=Service(driver), options=options).quit()
-    print(f"selenium ok browser={browser} driver={driver}")
-
-
-warm("/usr/bin/chromium", "/usr/bin/chromedriver")
-warm("/usr/bin/google-chrome-stable", "/usr/local/bin/chromedriver")
 PY
 
 EXPOSE 9410 6080

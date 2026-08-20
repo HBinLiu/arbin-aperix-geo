@@ -37,7 +37,9 @@ if [[ "${VNC_ON}" -eq 1 ]]; then
   fluxbox >/tmp/fluxbox.log 2>&1 &
   sleep 0.4
 
+  # Chrome under Xvfb: avoid xdamage-driven full-window flashes when the compositor paints.
   x11vnc -display :1 -forever -shared -rfbport 5900 -nopw -listen 0.0.0.0 \
+    -noxdamage -wait 10 -defer 10 \
     >/tmp/x11vnc.log 2>&1 &
   websockify --web=/usr/share/novnc "${NOVNC_LISTEN}" localhost:5900 >/tmp/websockify.log 2>&1 &
 fi

@@ -96,12 +96,13 @@ CAPTCHA_DOM_SELECTORS = (
 # Main-document structure / host iframe (cross-origin bodies often unreadable).
 CAPTCHA_STRUCTURE_SELECTORS = (
     "iframe[src*='captcha' i]",
-    "iframe[src*='verify' i]",
-    "iframe[src*='challenge' i]",
     "iframe[src*='geetest' i]",
     "iframe[src*='hcaptcha' i]",
     "iframe[src*='recaptcha' i]",
-    "iframe[src*='slide' i]",
+    "iframe[src*='verifycenter' i]",
+    "iframe[src*='aliyuncaptcha' i]",
+    "iframe[src*='slide-verify' i]",
+    "iframe[src*='slide_verify' i]",
     "iframe[id*='captcha' i]",
     "iframe[name*='captcha' i]",
     "[class*='captcha' i]",
@@ -112,7 +113,6 @@ CAPTCHA_STRUCTURE_SELECTORS = (
     "[class*='nc-container']",
     "#aliyunCaptcha-sliding-wrapper",
     "[class*='captcha_verify']",
-    "[class*='verify-wrap']",
     "[class*='slide-verify']",
 )
 

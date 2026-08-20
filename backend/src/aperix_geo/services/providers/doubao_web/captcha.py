@@ -15,9 +15,12 @@ from aperix_geo.services.providers.doubao_web.selectors import (
 logger = logging.getLogger(__name__)
 
 # Cross-origin captcha iframes: we often cannot read body text; match src/id/name.
+# Keep compounds — bare "verify"/"slide"/"behavior" FPs on Doubao chat analytics iframes
+# and aborts sampling right after send.
 _CAPTCHA_IFRAME_ATTR = re.compile(
-    r"captcha|verify|challenge|geetest|hcaptcha|recaptcha|slide|sec\.|"
-    r"verifycenter|verification|behavior|puzzle|拖动|拖拽|滑块",
+    r"captcha|geetest|hcaptcha|recaptcha|verifycenter|aliyuncaptcha|"
+    r"slide[-_]?verify|behavior[-_]?captcha|captcha[-_]?verify|"
+    r"拖动滑块|请拖动|拖拽滑块|滑块验证",
     re.IGNORECASE,
 )
 

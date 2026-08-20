@@ -380,7 +380,8 @@ def _watch_login(sess: _LoginSession) -> None:
                     return
             else:
                 stable_hit = 0
-            time.sleep(3.0)
+            # Captcha watch: lighter poll (DOM text scans); avoid tight loops looking like flicker.
+            time.sleep(5.0 if sess.reason == "captcha" else 3.0)
         logger.info(
             "geo-web-crawl login ended account=%s stop=%s ttl=%s",
             sess.account_id,

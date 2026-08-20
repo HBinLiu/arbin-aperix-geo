@@ -84,6 +84,26 @@ def test_page_shows_captcha_from_iframe_src() -> None:
     assert page_shows_behavior_captcha(page) is True
 
 
+def test_iframe_verify_alone_not_captcha() -> None:
+    """Bare verify/slide in analytics iframes must not abort sampling after send."""
+    iframe = _FakeLocator(
+        visible=True,
+        count=1,
+        attrs={"src": "https://cdn.example.com/sdk/verify.js", "id": "sec-slide"},
+    )
+
+    def locator(sel: str) -> _FakeLocator:
+        if sel == "body":
+            return _FakeLocator(text="正在生成回答")
+        if sel == "iframe":
+            return iframe
+        return _FakeLocator(count=0)
+
+    page = SimpleNamespace(locator=locator, main_frame=None, frames=[])
+    assert _iframe_attrs_look_like_captcha(page) is False
+    assert page_shows_behavior_captcha(page) is False
+
+
 def test_page_shows_captcha_false_on_normal_chat() -> None:
     body = _FakeLocator(text="适合小团队的 CRM 有哪些")
 

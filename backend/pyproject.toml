@@ -49,9 +49,6 @@ url_type = [
     # 官方页面类型分类（含 URL 启发式 + HTML/ML）；需对应平台 wheel。
     "rs-trafilatura>=0.1.0",
 ]
-selenium-smoke = [
-    "selenium>=4.8.0",
-]
 
 [tool.setuptools.packages.find]
 where = ["src"]

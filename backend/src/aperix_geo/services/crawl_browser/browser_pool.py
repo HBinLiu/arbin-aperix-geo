@@ -28,9 +28,13 @@ VIEWPORT = {"width": 1440, "height": 900}
 # --no-sandbox is only added when required (root / Docker / explicit env).
 # Pair with --test-type so Chrome does not show the yellow “unsupported flag” bar.
 _BASE_ARGS = ["--disable-dev-shm-usage", "--disable-quic"]
+# Do NOT put --disable-gpu on headed/Xvfb: software compositing + x11vnc looks like
+# constant page flicker. Headless still disables GPU below.
 _HEADED_EXTRA_ARGS = [
-    "--disable-gpu",
     "--window-size=1440,900",
+]
+_HEADLESS_EXTRA_ARGS = [
+    "--disable-gpu",
 ]
 # Blunt common automation signals (Doubao / similar risk engines).
 _STEALTH_ARGS = [
@@ -133,7 +137,9 @@ def _chromium_launch_kwargs(*, want_headless: bool) -> dict[str, Any]:
     args = list(_BASE_ARGS)
     if _need_no_sandbox():
         args.extend(["--no-sandbox", "--test-type"])
-    if not want_headless:
+    if want_headless:
+        args.extend(_HEADLESS_EXTRA_ARGS)
+    else:
         args.extend(_HEADED_EXTRA_ARGS)
     if stealth_enabled():
         for flag in _STEALTH_ARGS:

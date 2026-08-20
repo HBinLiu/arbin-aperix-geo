@@ -24,41 +24,18 @@ docker compose -f docker/geo-web-crawl/docker-compose.yml up -d --force-recreate
 仅改 `requirements.txt` 或基础系统包时需要全量重建时再加 `--no-cache`。
 
 headed 登录 / 采样优先用镜像里的 **Google Chrome**（`/usr/bin/google-chrome-stable`），
-不要 Playwright 自带浏览器 + SwiftShader。可用 `GEO_WEB_CRAWL_CHROME_BIN` 覆盖；
+经 Playwright `executable_path` 启动（不是 Selenium）。可用 `GEO_WEB_CRAWL_CHROME_BIN` 覆盖；
 `GEO_WEB_CRAWL_STEALTH=true`（默认）会关掉自动化黄条并钝化 `navigator.webdriver`。
 容器内会自动加 `--no-sandbox`；同时带 `--test-type`，避免黄条 “unsupported command-line flag: --no-sandbox”。宿主机本机调试默认不开 sandbox 旁路（可用 `GEO_WEB_CRAWL_NO_SANDBOX=1` 强制）。
 
-### 容器内对照实验（推荐，noVNC 可视化）
-
-镜像内已装 **Google Chrome + Chromium + Selenium**。在**采样/心跳空闲时**进容器跑（与 crawl 共用 Xvfb、代理）：
+本地单次 crawl 冒烟（Playwright 路径，不经 Selenium）::
 
 ```bash
-# 1) rebuild 后 recreate（见上方构建）
-# 2) 在 docker/geo-web-crawl/.env 配置 GEO_CRAWL_OPS_NOVNC_BASE_URL（与 backend 相同）
-# 3) smoke 脚本会打印与工单邮件相同的 noVNC 链接，先打开再跑：
-
-cd docker/geo-web-crawl
-docker compose exec -it geo-web-crawl /app/scripts/smoke-doubao.sh --browser chrome --ip-only
-docker compose exec -it geo-web-crawl /app/scripts/smoke-doubao.sh --browser chrome
+cd backend
+PYTHONPATH=src .venv/bin/python scripts/doubao_web_smoke.py "适合小团队的 CRM 有哪些"
 ```
 
-- 两种浏览器都「换个网络」→ 换青果出口，不是改驱动  
-- Chrome 正常、仅 Chromium/Playwright 挂 → 再考虑生产镜像换 Chrome  
-- 不写 cookie、不开工单；**勿与正在跑的采样/心跳并行**
-
-宿主机 CentOS 7 等老系统装不了新 Chrome 时，直接用上面容器内命令即可。
-
-<details><summary>宿主机对照（可选，无 noVNC）</summary>
-
-```bash
-cd backend && .venv/bin/pip install 'selenium>=4.8'
-set -a && source ../docker/geo-web-crawl/.env && set +a
-PYTHONPATH=src .venv/bin/python scripts/doubao_selenium_chrome_smoke.py --ip-only --headless
-PYTHONPATH=src .venv/bin/python scripts/doubao_selenium_chrome_smoke.py \
-  --headless --screenshot /tmp/doubao-chrome.png --wait-s 12
-```
-
-</details>
+运维看桌面 / 过人机：用工单邮件里的 **noVNC**（与采样同一 Chrome profile）。
 
 出网代理写在 `docker/geo-web-crawl/.env`（`HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY`）。代理在宿主机上时用 `http://host.docker.internal:<port>`，不要写 `127.0.0.1`（那是容器自己）。`NO_PROXY` 须含 `host.docker.internal`，否则关单回调也会走代理。SOCKS5 必须写成 `socks5://host:port`（写成 `http://` 时 Chromium 仍走 HTTP CONNECT，豆包会闪验证码再提示换网络）。改代理协议后需 **rebuild** crawl 镜像（WebRTC/IPv6 泄漏修复在镜像源码里）；只改 `.env` 地址则 `up -d --force-recreate` 即可。
 
