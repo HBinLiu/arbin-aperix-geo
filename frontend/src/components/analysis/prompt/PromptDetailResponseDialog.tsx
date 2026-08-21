@@ -70,7 +70,6 @@ function QueryLinkControl({
   shareUrl: string;
   loading?: boolean;
 }) {
-  const [copied, setCopied] = useState(false);
   const url = shareUrl.trim();
 
   if (loading) {
@@ -88,38 +87,16 @@ function QueryLinkControl({
     );
   }
 
-  const onCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      toast.success("查询链接已复制");
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error("复制失败");
-    }
-  };
-
   return (
-    <div className="inline-flex h-8 shrink-0 items-stretch overflow-hidden rounded-md border border-border bg-muted-background">
-      <a
-        href={url}
-        target="_blank"
-        rel="noreferrer"
-        className="text-foreground inline-flex items-center gap-1 px-2.5 text-xs leading-none transition-colors hover:bg-muted/60"
-      >
-        <ExternalLink className="size-3.5" aria-hidden />
-        查询链接
-      </a>
-      <button
-        type="button"
-        onClick={() => void onCopy()}
-        className="text-foreground border-border inline-flex items-center border-l px-2 transition-colors hover:bg-muted/60"
-        aria-label="复制查询链接"
-        title="复制查询链接"
-      >
-        {copied ? <Check className="size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
-      </button>
-    </div>
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="border-border text-foreground inline-flex h-8 shrink-0 items-center gap-1 rounded-md border bg-muted-background px-2.5 text-xs leading-none transition-colors hover:bg-muted/60"
+    >
+      <ExternalLink className="size-3.5" aria-hidden />
+      查询链接
+    </a>
   );
 }
 

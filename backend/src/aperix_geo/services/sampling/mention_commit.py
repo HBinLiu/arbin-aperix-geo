@@ -78,6 +78,8 @@ def _absa_sentiment(entry: dict[str, Any]) -> tuple[float | None, str | None]:
         score = float(score_raw) if score_raw is not None else None
     except (TypeError, ValueError):
         score = None
+    if score is not None and score <= 0:
+        score = None
     reason = str(entry.get("evidence") or "").strip() or None
     return score, reason
 
@@ -131,7 +133,7 @@ def build_mention_commit_plan(
         elif absa_flag is True:
             status = "committed"
         elif validated.source == "enum":
-            # High-precision recall: span already validated against raw text.
+            # Enum keeps recall of presence; sentiment comes from ABSA when present.
             status = "committed"
         else:
             status = "pending"

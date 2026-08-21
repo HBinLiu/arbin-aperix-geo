@@ -91,13 +91,13 @@ function FaviconFallback({
     return (
       <span
         className={cn(
-          "flex size-full shrink-0 items-center justify-center rounded-[inherit] font-semibold leading-none",
+          "grid size-full shrink-0 place-items-center overflow-hidden rounded-[inherit] font-semibold leading-none",
           letterTextClass(size),
         )}
         style={{ backgroundColor: brandIconColor(colorKey), color: "#ffffff" }}
         aria-hidden
       >
-        <span className="leading-none">{letter}</span>
+        <span className="block leading-none translate-y-[-0.06em]">{letter}</span>
       </span>
     );
   }

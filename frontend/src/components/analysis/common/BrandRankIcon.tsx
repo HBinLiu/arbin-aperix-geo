@@ -141,15 +141,18 @@ export const BrandRankIcon = memo(function BrandRankIcon({
   return (
     <span
       className={cn(
-        "flex shrink-0 items-center justify-center font-semibold leading-none",
+        "grid shrink-0 place-items-center overflow-hidden font-semibold leading-none",
         roundedClass,
         config.box,
         config.letterText,
         className,
       )}
       style={brandIconFillStyle(letterColor)}
+      aria-hidden
     >
-      <span className="leading-none">{label.slice(0, 1).toUpperCase()}</span>
+      <span className="block leading-none translate-y-[-0.06em]">
+        {label.slice(0, 1).toUpperCase()}
+      </span>
     </span>
   );
 });

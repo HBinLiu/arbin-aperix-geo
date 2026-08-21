@@ -54,8 +54,13 @@ export function responseMentionBrands(
       iconLabel: mentionIconLabel(signal),
       mentioned: true,
       scoreLabel:
-        signal.sentiment_score != null ? formatSentimentScore(signal.sentiment_score) : "-",
-      sentimentLabel: signal.sentiment_label ?? null,
+        signal.sentiment_score != null && signal.sentiment_score > 0
+          ? formatSentimentScore(signal.sentiment_score)
+          : "-",
+      sentimentLabel:
+        signal.sentiment_score != null && signal.sentiment_score > 0
+          ? (signal.sentiment_label ?? null)
+          : null,
       sortKey: signal.mention_rank ?? Number.MAX_SAFE_INTEGER,
     }),
   );

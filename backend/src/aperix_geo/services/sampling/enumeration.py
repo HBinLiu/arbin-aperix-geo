@@ -30,6 +30,11 @@ _SYMPTOM_PHRASE = re.compile(
 _HISTORY_PHRASE = re.compile(r"^.+史$")
 _RISK_PHRASE = re.compile(r"^.+(?:风险|倾向|症状|综合征|并发症)$")
 _BODY_PART = re.compile(r"^(?:牙龈|皮肤|胃部|肝脏|眼睛|眼白|肌肉|血管|大便|小便|血脂|肝功|肌酶)$")
+# 疾病 / 病理名（非商业主体）：肝病、肝炎、肺癌、胃溃疡等
+_DISEASE_NAME = re.compile(
+    r"^[\u4e00-\u9fff]{1,8}(?:病|炎|癌|瘤|溃疡|结石|衰竭|梗死|血栓|栓塞|损伤|病变)$"
+)
+_ORGAN_FUNCTION = re.compile(r"^[\u4e00-\u9fff]{1,4}功能(?:异常|障碍|不全)?$")
 _CATEGORY_PHRASE = re.compile(
     r"^(?:他汀|他汀类|抗血小板|降压降糖|银杏制剂|活血(?:类|药)|中成药|西药|降糖|降压)$"
 )
@@ -122,6 +127,10 @@ def is_plausible_commercial_span(label: str) -> bool:
         return False
     if _BODY_PART.match(text):
         return False
+    if _DISEASE_NAME.match(text):
+        return False
+    if _ORGAN_FUNCTION.match(text):
+        return False
     if text.endswith("类") and len(text) <= 8:
         return False
     if re.match(r"^[\u4e00-\u9fff]{1,4}药$", text):
@@ -132,7 +141,7 @@ def is_plausible_commercial_span(label: str) -> bool:
         return False
     if _RISK_PHRASE.match(text) and len(text) <= 12:
         return False
-    if re.search(r"(?:出血|过敏|手术|既往|胃病)", text) and len(text) <= 8:
+    if re.search(r"(?:出血|过敏|手术|既往)", text) and len(text) <= 8:
         return False
     if _ADVISORY_PREFIX.search(text):
         return False

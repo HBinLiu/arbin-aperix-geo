@@ -57,6 +57,8 @@ def test_apply_response_absa_commits_enum_without_absa() -> None:
     assert labels == {"阿司匹林", "氯吡格雷", "替格瑞洛"}
     committed = {event["text"] for event in payload["mention_commit_events"] if event["status"] == "committed"}
     assert committed == {"阿司匹林", "氯吡格雷", "替格瑞洛"}
+    aspirin = next(d for d in drafts if d.entity_label == "阿司匹林")
+    assert aspirin.sentiment_score is None
 
 
 def test_apply_response_absa_enum_and_absa_merge() -> None:

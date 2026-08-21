@@ -25,6 +25,11 @@ def test_is_plausible_commercial_span_rejects_medical_noise() -> None:
         "出血风险",
         "如果同时吃阿司匹林",
         "肝功能异常",
+        "肝病",
+        "胃病",
+        "肝炎",
+        "肾病",
+        "糖尿病",
         "降压降糖",
         "有没有胃病",
         "所有用药务必遵从神经内科",
@@ -33,11 +38,11 @@ def test_is_plausible_commercial_span_rejects_medical_noise() -> None:
         "神经内科",
     ]
     for label in noise:
-        assert is_plausible_commercial_span(label) is False
+        assert is_plausible_commercial_span(label) is False, label
 
     valid = ["阿托伐他汀", "瑞舒伐他汀", "阿司匹林", "氯吡格雷", "杏灵分散片", "银杏酮酯", "腾讯"]
     for label in valid:
-        assert is_plausible_commercial_span(label) is True
+        assert is_plausible_commercial_span(label) is True, label
 
 
 def test_filter_mention_spans_cleans_discovery_garbage() -> None:

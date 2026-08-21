@@ -67,9 +67,11 @@ def test_build_mention_commit_plan_enum_without_absa_is_committed() -> None:
         {"other_brands_sentiment_absa": {}},
         excluded_keys=set(),
     )
-    committed = {event.text for event in plan.committed()}
+    committed = {event.text: event for event in plan.committed()}
     assert "阿司匹林" in committed
     assert "氯吡格雷" in committed
+    assert committed["阿司匹林"].sentiment_score is None
+    assert committed["氯吡格雷"].sentiment_score is None
 
 
 def test_build_mention_commit_plan_dismisses_absa_denial() -> None:
