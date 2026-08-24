@@ -184,7 +184,15 @@ def run_doubao_login_probe_on_page(
         assert_no_captcha(page)
 
         _cleanup_probe_conversation(page, had_conversation=True)
-        assert_logged_in(page)
+        # Send + generation already proved the session. A flaky「登录/扫码」false
+        # positive after delete must not open a human login ticket.
+        try:
+            assert_logged_in(page)
+        except DoubaoLoginExpired as exc:
+            logger.warning(
+                "probe post-send login check ignored (session already proved): %s",
+                exc,
+            )
 
         return job_ok(storage_state=_final_storage_state(context, fallback=storage_state, payload=payload))
     except DoubaoNeedsHumanOps as exc:

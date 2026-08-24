@@ -387,6 +387,7 @@ def test_sweep_respawns_dead_novnc_and_reopens_expired() -> None:
         login_url="https://old",
         expires_at=utc_now() + timedelta(minutes=10),
         completed_at=EPOCH,
+        error_text="auto:captcha: behavior captcha detected",
     )
     expired = CrawlLoginTicket(
         id=uuid4(),
@@ -399,6 +400,7 @@ def test_sweep_respawns_dead_novnc_and_reopens_expired() -> None:
         login_url="https://old2",
         expires_at=utc_now() - timedelta(minutes=1),
         completed_at=EPOCH,
+        error_text="auto:captcha: behavior captcha detected",
     )
     db = MagicMock()
     db.scalars.return_value.all.return_value = [dead, expired]
@@ -422,7 +424,7 @@ def test_sweep_respawns_dead_novnc_and_reopens_expired() -> None:
                 "vnc_port": 6080,
                 "watching": True,
             },
-        ),
+        ) as start_login,
         patch(
             "aperix_geo.services.crawl_accounts.human_ops.request_human_intervention",
         ) as reopen,
@@ -437,6 +439,9 @@ def test_sweep_respawns_dead_novnc_and_reopens_expired() -> None:
     assert expired.status == TICKET_EXPIRED
     reopen.assert_called_once()
     assert reopen.call_args.kwargs["account_id"] == aid_exp
+    assert reopen.call_args.kwargs["reason"] == "captcha"
+    assert start_login.call_args.kwargs["reason"] == "captcha"
+    assert alert.call_args.kwargs["reason"] == "captcha"
     alert.assert_called_once()
 
 

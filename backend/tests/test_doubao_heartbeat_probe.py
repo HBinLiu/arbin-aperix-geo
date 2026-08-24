@@ -69,6 +69,93 @@ def test_chat_url_is_logged_out() -> None:
     assert not chat_url_is_logged_out("https://www.doubao.com/chat/?utm=login_hint")
 
 
+def test_login_cta_ignores_scan_download_button() -> None:
+    """Logged-in pages often have「扫码」download/share — must not mean logout."""
+    from aperix_geo.services.providers.doubao_web.runtime import _LOGIN_CTA
+
+    assert _LOGIN_CTA.search("登录")
+    assert _LOGIN_CTA.search("扫码登录")
+    assert not _LOGIN_CTA.search("扫码下载")
+    assert not _LOGIN_CTA.search("扫码分享")
+    assert not _LOGIN_CTA.search("下载豆包电脑版")
+
+
+def test_probe_ignores_post_send_login_false_positive() -> None:
+    class Page:
+        url = "https://www.doubao.com/chat/abc123456789"
+
+        def goto(self, *_a, **_k):
+            return None
+
+        def wait_for_timeout(self, *_a, **_k):
+            return None
+
+    class Ctx:
+        def storage_state(self):
+            return _session_state()
+
+    login_checks = {"n": 0}
+
+    def _assert_logged_in(_page):
+        login_checks["n"] += 1
+        if login_checks["n"] >= 3:
+            raise DoubaoLoginExpired("login UI visible (button=扫码下载)")
+
+    with (
+        patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe.wait_until_logged_in",
+            return_value=None,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe.assert_logged_in",
+            side_effect=_assert_logged_in,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe.assert_no_captcha",
+            return_value=None,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe.ui_flow.ensure_blank_chat",
+            return_value=None,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe.ui_flow._fill_and_send",
+            return_value=None,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe.ui_flow._wait_send_accepted",
+            return_value=None,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe._require_generation_signal",
+            return_value=None,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe.ui_flow.delete_current_conversation",
+            return_value=None,
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe.conversation_id_from_url",
+            side_effect=["", "abc123456789", "abc123456789", "abc123456789"],
+        ),
+        patch(
+            "aperix_geo.services.providers.doubao_web.jobs.probe._final_storage_state",
+            return_value=_session_state(),
+        ),
+    ):
+        out = run_doubao_login_probe_on_page(
+            Page(),
+            Ctx(),
+            {
+                "storage_state": _session_state(),
+                "timeout_s": 30,
+                "probe_prompt": "你好",
+                "send_wait_s": 5,
+            },
+        )
+    assert out["ok"] is True
+
+
 def test_wait_until_logged_in_fails_fast_on_passport() -> None:
     from aperix_geo.services.providers.doubao_web.errors import DoubaoLoginExpired
     from aperix_geo.services.providers.doubao_web.runtime import wait_until_logged_in

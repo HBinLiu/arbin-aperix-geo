@@ -13,8 +13,23 @@ def test_normalize_login_reason() -> None:
     assert normalize_login_reason("") == "login_expired"
 
 
-def test_ready_login_needs_cookie_change() -> None:
-    baseline = (("sessionid", "old"),)
+def test_login_reason_from_ticket_text() -> None:
+    from aperix_geo.services.crawl_accounts.platforms import login_reason_from_ticket_text
+
+    assert login_reason_from_ticket_text("auto:captcha: behavior captcha") == "captcha"
+    assert (
+        login_reason_from_ticket_text(
+            "crawl_login: platform=doubao reason=captcha session=crawl-login:x"
+        )
+        == "captcha"
+    )
+    assert login_reason_from_ticket_text("auto:login_expired: redirected") == "login_expired"
+    assert login_reason_from_ticket_text("") == "login_expired"
+
+
+def test_ready_login_accepts_unchanged_session_cookies() -> None:
+    """After captcha, jar often unchanged; still-logged-in must be able to close ticket."""
+    baseline = (("sessionid", "same"),)
     assert not w.ready_for_complete(
         reason="login_expired",
         has_session=True,
@@ -23,6 +38,17 @@ def test_ready_login_needs_cookie_change() -> None:
         captcha_visible=False,
         saw_captcha=False,
         grace_elapsed=True,
+        login_ui_visible=True,
+    )
+    assert w.ready_for_complete(
+        reason="login_expired",
+        has_session=True,
+        fingerprint=baseline,
+        baseline=baseline,
+        captcha_visible=False,
+        saw_captcha=False,
+        grace_elapsed=True,
+        login_ui_visible=False,
     )
     assert w.ready_for_complete(
         reason="login_expired",
@@ -31,6 +57,15 @@ def test_ready_login_needs_cookie_change() -> None:
         baseline=baseline,
         captcha_visible=False,
         saw_captcha=False,
+        grace_elapsed=True,
+    )
+    assert not w.ready_for_complete(
+        reason="login_expired",
+        has_session=True,
+        fingerprint=baseline,
+        baseline=baseline,
+        captcha_visible=True,
+        saw_captcha=True,
         grace_elapsed=True,
     )
 

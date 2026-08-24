@@ -58,6 +58,10 @@ def test_request_human_intervention_opens_ticket_and_alerts() -> None:
             return_value=created,
         ) as create_ticket,
         patch(
+            "aperix_geo.utils.cache.redis_kv.redis_set_nx",
+            return_value=True,
+        ),
+        patch(
             "aperix_geo.services.crawl_accounts.human_ops.send_alert_email",
         ) as send_mail,
     ):
@@ -150,6 +154,10 @@ def test_request_human_intervention_respawns_dead_session_and_alerts() -> None:
             side_effect=_respawn,
         ),
         patch(
+            "aperix_geo.utils.cache.redis_kv.redis_set_nx",
+            return_value=True,
+        ),
+        patch(
             "aperix_geo.services.crawl_accounts.human_ops.send_alert_email",
         ) as send_mail,
     ):
@@ -233,6 +241,50 @@ def test_request_human_intervention_skips_ticket_when_disabled() -> None:
     assert out["ticket_id"] == ""
     assert out["alerted"] is False
     assert account.status == STATUS_NEED_RELOGIN
+
+
+def test_request_human_intervention_debounces_repeat_alerts() -> None:
+    account_id = uuid4()
+    account = CrawlAccount(
+        id=account_id,
+        label="acc-1",
+        status="active",
+        storage_state={"cookies": []},
+        last_error="",
+    )
+    db = MagicMock()
+    db.get.return_value = account
+    db.scalars.return_value.first.return_value = None
+    created = CrawlLoginTicket(
+        id=uuid4(),
+        account_id=account_id,
+        label="acc-1",
+        token="tok",
+        status=TICKET_PENDING,
+        login_url="https://ops.example/p/1/vnc.html",
+    )
+    with (
+        patch(
+            "aperix_geo.services.crawl_accounts.human_ops.create_login_ticket",
+            return_value=created,
+        ),
+        patch(
+            "aperix_geo.utils.cache.redis_kv.redis_set_nx",
+            return_value=False,
+        ),
+        patch(
+            "aperix_geo.services.crawl_accounts.human_ops.send_alert_email",
+        ) as send_mail,
+    ):
+        out = request_human_intervention(
+            db,
+            account_id=account_id,
+            reason="login_expired",
+            error="login UI visible",
+            settings=_settings(),
+        )
+    assert out["alerted"] is False
+    send_mail.assert_not_called()
 
 
 def test_is_heartbeat_infra_error_matches_proxy_auth() -> None:

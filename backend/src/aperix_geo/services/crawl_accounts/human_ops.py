@@ -14,7 +14,11 @@ from sqlalchemy.orm import Session
 from aperix_geo.config import Settings, get_settings
 from aperix_geo.db.models import ZERO_UUID, CrawlAccount, CrawlLoginTicket
 from aperix_geo.services.alerts.email import send_alert_email
-from aperix_geo.services.crawl_accounts.platforms import PLATFORM_DOUBAO, normalize_platform
+from aperix_geo.services.crawl_accounts.platforms import (
+    PLATFORM_DOUBAO,
+    login_reason_from_ticket_text,
+    normalize_platform,
+)
 from aperix_geo.services.crawl_accounts.pool import mark_need_relogin
 from aperix_geo.services.crawl_accounts.tickets import (
     TICKET_EXPIRED,
@@ -294,8 +298,11 @@ def sweep_stale_login_tickets(
     reopened = 0
     tickets = list_pending_tickets(db, platform=plat)
     for ticket in tickets:
+        # Preserve captcha vs login_expired — never rewrite captcha tickets to
+        # login_expired on respawn/TTL reopen (that caused「验证码过了还一直登录失效」).
+        ticket_reason = login_reason_from_ticket_text(ticket.error_text)
         if ensure_pending_ticket_session(
-            db, ticket, reason="login_expired", settings=settings
+            db, ticket, reason=ticket_reason, settings=settings
         ):
             respawned += 1
             if _should_alert_ticket(ticket, settings):
@@ -305,7 +312,7 @@ def sweep_stale_login_tickets(
                     label=(account.label if account is not None else ticket.label)
                     or ticket.label,
                     platform=plat,
-                    reason="login_expired",
+                    reason=ticket_reason,  # type: ignore[arg-type]
                     error="noVNC session ended; restarted remote desktop",
                     ticket=ticket,
                     settings=settings,
@@ -319,7 +326,7 @@ def sweep_stale_login_tickets(
         request_human_intervention(
             db,
             account_id=ticket.account_id,
-            reason="login_expired",
+            reason=ticket_reason,  # type: ignore[arg-type]
             error="login ticket expired; opened a new noVNC session",
             settings=settings,
         )
@@ -369,6 +376,27 @@ def _maybe_alert_ops(
             None if ticket is None else ticket.id,
         )
         return False
+
+    # Debounce per account+reason so ticket TTL expire→reopen / VNC respawn
+    # does not spam「登录失效」mail while ops still has the first link.
+    from aperix_geo.utils.cache.redis_kv import redis_set_nx
+
+    debounce_s = max(
+        1800,
+        int(settings.doubao_ops_ticket_ttl_min) * 60,
+        int(settings.doubao_heartbeat_interval_min) * 60,
+    )
+    debounce_key = f"aperix:crawl:ops_alert:{platform}:{account_id}:{reason}"
+    if not redis_set_nx(debounce_key, ttl_s=debounce_s, fail_open=True):
+        logger.info(
+            "ops alert debounced account=%s platform=%s reason=%s ttl_s=%s",
+            account_id,
+            platform,
+            reason,
+            debounce_s,
+        )
+        return False
+
     reason_cn = _REASON_LABEL.get(reason, reason)
     env = (getattr(settings, "env", None) or "unknown").strip() or "unknown"
     subject = f"[Aperix GEO] 爬虫账号需人工处理：{platform}/{reason_cn} ({env})"

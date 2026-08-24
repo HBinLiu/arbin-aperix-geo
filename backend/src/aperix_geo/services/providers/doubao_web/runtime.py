@@ -70,8 +70,10 @@ def chat_url_is_logged_out(url: str) -> bool:
     return "passport" in lowered or "/login" in lowered or "from_logout" in lowered
 
 
-# Accessible-name match for a real login / scan CTA (not 验证码 — that is captcha).
-_LOGIN_CTA = re.compile(r"登录|登陆|扫码")
+# Exact login CTAs only — bare「扫码」matches download/share buttons on logged-in pages.
+_LOGIN_CTA = re.compile(
+    r"^\s*(登录|登陆|扫码登录|手机号?登录|账号登录|立即登录)\s*$"
+)
 
 
 def spawn_doubao_job(
@@ -353,8 +355,8 @@ def _visible_login_reason(page: Any) -> str:
                     label = (el.inner_text(timeout=800) or "").strip()
                 except Exception:
                     label = ""
-                if _LOGIN_CTA.search(label):
-                    return f"login UI visible ({role}={label or 'login'}); storage_state expired"
+                # get_by_role already matched _LOGIN_CTA; empty label still counts.
+                return f"login UI visible ({role}={label or 'login'}); storage_state expired"
             except Exception:
                 continue
 
