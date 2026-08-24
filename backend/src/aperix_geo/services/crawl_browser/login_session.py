@@ -38,6 +38,7 @@ from aperix_geo.services.crawl_browser.browser_pool import (
 from aperix_geo.services.crawl_browser.login_watch import (
     baseline_fingerprint,
     login_proof_cookie_names,
+    page_chat_session_ready,
     page_has_captcha,
     page_shows_login_ui,
     ready_for_complete,
@@ -318,6 +319,7 @@ def _watch_login(sess: _LoginSession) -> None:
             page = pages[0] if pages else None
             captcha_visible = page_has_captcha(page) if page is not None else False
             login_ui_visible = page_shows_login_ui(page)
+            chat_ready = page_chat_session_ready(page)
             now = time.monotonic()
             if captcha_visible:
                 saw_captcha = True
@@ -336,10 +338,11 @@ def _watch_login(sess: _LoginSession) -> None:
                 cookie_n = len(state.get("cookies") or [])
                 logger.info(
                     "geo-web-crawl login heartbeat poll=%s cookies=%s proof=%s "
-                    "login_ui=%s captcha=%s clear_stable=%s",
+                    "chat_ready=%s login_ui=%s captcha=%s clear_stable=%s",
                     poll_i,
                     cookie_n,
                     ",".join(proof_names) or "-",
+                    chat_ready,
                     login_ui_visible,
                     captcha_visible,
                     captcha_clear_stable,
@@ -355,12 +358,14 @@ def _watch_login(sess: _LoginSession) -> None:
                 grace_elapsed=False,
                 login_ui_visible=login_ui_visible,
                 captcha_clear_stable=captcha_clear_stable,
+                chat_session_ready=chat_ready,
             )
             if ok:
                 stable_hit += 1
                 logger.info(
-                    "geo-web-crawl login ready proof=%s stable=%s/2",
-                    ",".join(proof_names),
+                    "geo-web-crawl login ready proof=%s chat_ready=%s stable=%s/2",
+                    ",".join(proof_names) or "-",
+                    chat_ready,
                     stable_hit,
                 )
                 if stable_hit >= 2:

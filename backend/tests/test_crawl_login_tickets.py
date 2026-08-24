@@ -228,6 +228,52 @@ def test_get_ticket_expires_unsticks_logging_in_account() -> None:
     assert account.status == STATUS_NEED_RELOGIN
 
 
+def test_get_ticket_extends_ttl_when_live_novnc() -> None:
+    aid = uuid4()
+    account = CrawlAccount(
+        id=aid,
+        label="live",
+        status=STATUS_LOGGING_IN,
+        storage_state={},
+        last_ok_at=EPOCH,
+        last_error="",
+        lease_owner="",
+        lease_until=EPOCH,
+    )
+    old_expires = utc_now() - timedelta(minutes=1)
+    ticket = CrawlLoginTicket(
+        id=uuid4(),
+        account_id=aid,
+        label="live",
+        token="tok",
+        status=TICKET_PENDING,
+        expires_at=old_expires,
+        completed_at=EPOCH,
+        container_id=f"crawl-login:{aid}",
+    )
+    db = MagicMock()
+    db.get.side_effect = lambda _model, key: ticket if key == ticket.id else account
+    settings = Settings(
+        doubao_ops_ticket_ttl_min=20,
+        geo_web_crawl_base_url="http://127.0.0.1:9410",
+        geo_web_crawl_token="tok",
+    )
+    with (
+        patch(
+            "aperix_geo.services.crawl_accounts.tickets.crawl_login_session_running",
+            return_value=True,
+        ),
+        patch(
+            "aperix_geo.services.crawl_accounts.tickets.get_settings",
+            return_value=settings,
+        ),
+    ):
+        out = get_ticket(db, ticket.id)
+    assert out.status == TICKET_PENDING
+    assert ticket.expires_at > old_expires
+    assert account.status == STATUS_LOGGING_IN
+
+
 def test_cancel_ticket() -> None:
     ticket = CrawlLoginTicket(
         id=uuid4(),

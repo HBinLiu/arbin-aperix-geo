@@ -60,9 +60,22 @@ def baseline_fingerprint(platform: str, state: dict[str, Any] | None) -> tuple[t
     return session_fingerprint(platform, state)
 
 
+def page_chat_session_ready(page: Any) -> bool:
+    """True when Doubao chat UI shows a logged-in composer (profile mode)."""
+    if page is None:
+        return False
+    try:
+        from aperix_geo.services.providers.doubao_web.runtime import inspect_login
+
+        state, _reason = inspect_login(page)
+        return state == "ok"
+    except Exception:
+        return False
+
+
 def page_shows_login_ui(page: Any) -> bool:
     if page is None:
-        return True
+        return False
     url = str(getattr(page, "url", "") or "")
     if _LOGGED_OUT_URL.search(url):
         return True
@@ -102,6 +115,7 @@ def ready_for_complete(
     grace_elapsed: bool,
     login_ui_visible: bool = False,
     captcha_clear_stable: bool = False,
+    chat_session_ready: bool = False,
 ) -> bool:
     """Whether the noVNC watcher may POST ticket complete.
 
@@ -110,10 +124,19 @@ def ready_for_complete(
     stays the same, and requiring a change left tickets stuck → TTL reopen as
     login_expired spam while the profile was already logged in.
 
-    ``captcha``: must have seen captcha, then clear + stable.
+    Production Chrome profiles often export no ``sessionid`` proof cookies while
+    the live page is logged in — ``chat_session_ready`` (composer visible) closes
+    the ticket in that case.
+
+    ``captcha``: must have seen captcha, then clear + stable — unless chat is
+    already ready with no captcha visible (ops solved before DOM poll caught it).
     """
     del grace_elapsed, fingerprint, baseline  # retained for call-site compat
-    if login_ui_visible or captcha_visible:
+    if captcha_visible:
+        return False
+    if chat_session_ready:
+        return True
+    if login_ui_visible:
         return False
     if not has_session:
         return False

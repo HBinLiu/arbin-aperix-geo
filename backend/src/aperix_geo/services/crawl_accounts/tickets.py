@@ -92,14 +92,34 @@ def _release_logging_in_account(db: Session, ticket: CrawlLoginTicket, *, error:
         account.last_error = (error or account.last_error or "login ticket closed").strip()[:2000]
 
 
-def _expire_if_needed(db: Session, ticket: CrawlLoginTicket) -> bool:
+def _expire_if_needed(
+    db: Session,
+    ticket: CrawlLoginTicket,
+    *,
+    settings: Settings | None = None,
+) -> bool:
     if ticket.status != TICKET_PENDING:
         return False
     if ticket.expires_at <= utc_now():
+        settings = settings or get_settings()
+        account_id = _ticket_account_id(ticket)
+        if account_id and crawl_login_session_running(
+            account_id,
+            base_url=settings.geo_web_crawl_base_url,
+            token=settings.geo_web_crawl_token,
+        ):
+            ttl_min = int(settings.doubao_ops_ticket_ttl_min)
+            ticket.expires_at = utc_now() + timedelta(minutes=ttl_min)
+            logger.info(
+                "geo crawl ticket TTL extended (live noVNC) ticket=%s account=%s",
+                ticket.id,
+                account_id,
+            )
+            return False
         ticket.status = TICKET_EXPIRED
         ticket.error_text = "ticket expired"
         if _ticket_session_id(ticket):
-            _stop_ticket_desktop(ticket)
+            _stop_ticket_desktop(ticket, settings=settings)
             _clear_ticket_session(ticket)
         _release_logging_in_account(db, ticket, error="login ticket expired")
         return True

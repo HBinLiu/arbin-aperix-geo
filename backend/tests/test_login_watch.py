@@ -27,6 +27,40 @@ def test_login_reason_from_ticket_text() -> None:
     assert login_reason_from_ticket_text("") == "login_expired"
 
 
+def test_ready_login_accepts_chat_ready_without_proof_cookies() -> None:
+    """Chrome profile login: page is ok but exported jar has no sessionid proof."""
+    assert w.ready_for_complete(
+        reason="login_expired",
+        has_session=False,
+        fingerprint=(),
+        baseline=(),
+        captcha_visible=False,
+        saw_captcha=False,
+        grace_elapsed=True,
+        login_ui_visible=False,
+        chat_session_ready=True,
+    )
+    assert w.ready_for_complete(
+        reason="captcha",
+        has_session=False,
+        fingerprint=(),
+        baseline=None,
+        captcha_visible=False,
+        saw_captcha=False,
+        grace_elapsed=True,
+        captcha_clear_stable=False,
+        chat_session_ready=True,
+    )
+
+
+def test_page_shows_login_ui_none_is_not_logout() -> None:
+    assert w.page_shows_login_ui(None) is False
+
+
+def test_page_chat_session_ready_false_when_no_page() -> None:
+    assert w.page_chat_session_ready(None) is False
+
+
 def test_ready_login_accepts_unchanged_session_cookies() -> None:
     """After captcha, jar often unchanged; still-logged-in must be able to close ticket."""
     baseline = (("sessionid", "same"),)
